@@ -1,0 +1,22 @@
+# データは隣の jvdata-csv が持つ。こちらは読むだけなので何も置かない。
+# 万一ここに作られても追跡しない（JV-Link から取り直せる）。
+*.duckdb
+/data/
+
+# ドキュメントサイトの生成物
+/site/
+.zensical/
+.cache/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# 判定結果の出力。JRA-VAN Data Lab. 由来の馬名・オッズ・払戻を含むため公開しない。
+/reports/
+
+# ローカル画面間のデータベース排他
+*.ui.lock

@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>keiba-yosou 検索画面</title>
+<style>
+  :root {
+    --bg: #100e0b; --panel: #1a1712; --panel-2: #16130f; --panel-3: #1e1a15;
+    --line: #332c22; --line-2: #2a241c; --fg: #f2ece1; --fg-2: #d9d0c4; --muted: #a1968a; --muted-2: #8b8177;
+    --chip: #221d17; --chip-line: #3a332a; --gold: #d8b268; --green: #8fc9a0; --red: #e0765f;
+    --sans: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "IBM Plex Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.6; }
+  a { color: var(--gold); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { position: sticky; top: 0; z-index: 10; background: var(--panel-2); border-bottom: 1px solid var(--line);
+           padding: 8px 18px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 17px; font-weight: 600; margin: 0 14px 0 0; letter-spacing: .04em; }
+  header .tab { padding: 5px 12px; border-radius: 6px; border: 1px solid transparent; color: var(--fg-2); cursor: pointer; }
+  header .tab.sel { background: var(--panel-3); border-color: var(--line); color: var(--gold); }
+  header .grow { flex: 1; }
+  header #dbname { font-family: var(--mono); font-size: 12px; color: var(--muted-2); }
+  main { padding: 16px 18px 40px; max-width: 1600px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+  h3 { font-size: 15px; font-weight: 600; margin: 14px 0 6px; }
+  button, select, input, textarea { font: inherit; font-size: 13px; color: var(--fg); background: var(--chip);
+    border: 1px solid var(--chip-line); border-radius: 6px; padding: 5px 9px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--green); }
+  button.primary { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  input[type=text], input[type=date], input[type=number] { min-width: 90px; }
+  textarea { width: 100%; min-height: 110px; font-family: var(--mono); }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+  .filters label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+  .filters label > * { color: var(--fg); }
+  .filters .actions { display: flex; gap: 8px; align-items: center; }
+  .note { color: var(--muted); font-size: 13px; margin: 6px 0; }
+  .hint { color: var(--muted-2); font-size: 12px; }
+  .error { color: var(--red); font-weight: 600; margin: 8px 0; white-space: pre-wrap; }
+  .cli { font-family: var(--mono); font-size: 12px; color: var(--muted); background: #13100d; border-radius: 6px;
+         padding: 6px 9px; margin: 6px 0; overflow-x: auto; white-space: nowrap; }
+  .cli b { color: var(--fg-2); font-weight: 500; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 6px 0; font-size: 13px; }
+  .gridwrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+  table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12.5px; font-family: var(--mono); }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--line-2); white-space: nowrap; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 0; background: var(--panel-3); color: var(--muted-2); font-weight: 600; font-size: 12px; z-index: 1; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: var(--panel-3); }
+  .kv td:first-child { color: var(--muted-2); }
+  .list .tbl { padding: 8px 12px; border-bottom: 1px solid var(--line-2); cursor: pointer; display: flex; gap: 12px; }
+  .list .tbl:hover { background: var(--panel-3); }
+  .list .id { font-family: var(--mono); color: var(--gold); font-weight: 600; min-width: 220px; }
+  .list .sub { color: var(--muted-2); font-family: var(--mono); font-size: 12px; }
+  .help { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .venues { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .venues .venue { flex: 1; min-width: 340px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel-2); }
+  .venues .venue h3 { margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .venues .tbl .no { font-family: var(--mono); color: var(--gold); font-weight: 600; min-width: 34px; }
+  .venues .tbl .post { font-family: var(--mono); color: var(--muted-2); min-width: 44px; }
+  .venues .tbl .name { flex: 1; }
+  .racenav a button.sel { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  tr.first-run td { border-top: 1px solid var(--chip-line); }
+  td.waku { text-align: center; font-weight: 700; }
+  td.w1 { background: #f4f4f4; color: #111; } td.w2 { background: #1b1b1b; color: #fff; } td.w3 { background: #d9423a; color: #fff; }
+  td.w4 { background: #2f6fd0; color: #fff; } td.w5 { background: #e8d33a; color: #111; } td.w6 { background: #2f9d57; color: #fff; }
+  td.w7 { background: #e88a2c; color: #111; } td.w8 { background: #ee9ab8; color: #111; }
+</style>
+</head>
+<body>
+<header>
+  <h1>keiba-yosou</h1>
+  <nav id="tabs"></nav>
+  <span class="grow"></span>
+  <span id="dbname"></span>
+</header>
+<main id="main"></main>
+<script src="/static/trend.js"></script>
+<script>
+"use strict";
+const VIEWS = ["db", "tables", "cards", "trend", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
+const TAB_LABELS = {db: "DB", tables: "テーブル", cards: "出馬表", trend: "傾向スコア", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
+const FLAG_ONLY = ["by_popularity", "pairs"];
+//: サーバー（server.py の APP_VERSION）と合わせる。違えば古いサーバーが動いている。
+const PAGE_VERSION = "5";
+const RESTART_HINT = "画面とサーバーの版が違います（画面 " + PAGE_VERSION + "）。サーバーの黒い窓を閉じるか Ctrl+C で止めて、run.bat（または web.py）をもう一度実行してください。新しい版の起動が古い版を自動で止めます。";
+const DETAIL_TAB = {table: "tables", card: "cards", race: "races", horse: "horses"};
+const TOOLS = {
+  races: "tools/レース一覧/races.py", runners: "tools/出走検索/runners.py", perf: "tools/成績集計/perf.py", explore: "tools/回収率探索/explore.py",
+  lost: "tools/人気馬が負けたレース/lost_favorites.py", longshot: "tools/穴馬が勝ったレース/longshot_wins.py",
+  card: "tools/今週の出馬表/card.py", trend: "tools/傾向スコア/trend_score.py", horse: "tools/馬の過去走/horse.py", race: "tools/レース詳細/race.py", table: "tools/テーブル閲覧/table.py", sql: "tools/任意SQL/sql.py",
+};
+const HELP = {
+  db: "元DB の状態。期間・件数・途中から入っている表・同期の記録。",
+  tables: "元DB の表を1つずつ見る。列名は JV-Data 仕様書の日本語のまま、値は文字列。",
+  cards: "これから走るレース（今週の出馬表）。レースを押すと、出走馬と各馬の近走が見られる。木曜の出走馬名表の間は枠番・馬番が空で、金・土の出馬表で決まる。過去の日付も開始日を変えれば見られる。",
+  trend: "レースを選ぶと、条件が同じ過去レース（同レース → 競馬場・コース・距離・馬場状態の4つ一致 → 3つ以上 → 2つ以上）の傾向を出し、出走馬を項目ごとに +1 / −1 で採点して順位を付ける。発走前の DB に無い馬場状態・人気・馬体重は手で入れる（入れなければその項目は 0 点）。終わったレースを選ぶと、着順と見比べられる。項目の説明は tools/傾向スコア/score-items.md。",
+  races: "条件に合うレースの一覧。馬の条件（人気・騎手 …）を付けると「その馬が出たレース」になる。rid を押すと詳細。",
+  horses: "馬名で探して、プロフィールと中央の過去走を見る。",
+  runners: "条件を組み合わせて出走（1行=1頭）を検索する。rid・hid から詳細へ。",
+  events: "人気馬が負けた／穴馬が勝った出走を集める。対象（人気・オッズ）と事象（着順）の閾値は変えられる。",
+  summary: "条件を組み合わせて、その条件に合う出走全体の成績7つ（出走数・着別度数・勝率・連対率・複勝率・馬券外率・単勝回収率・複勝回収率）を出す。検索した条件は下の表に並んで比べられる。",
+  perf: "成績7つを切り口（人気・オッズ帯・騎手・コース単位 …）ごとに分けて数える。",
+  explore: "条件を固定し、切り口を1つずつ当てて、単勝か複勝の回収率が閾値（既定 100%）以上の値を探す。出走数の少ない行は偶然で超えやすいので、年ごとの回収率が揃っている条件を優先し、別の期間でも確かめる。",
+  sql: "読むだけの SQL を1文流す（SELECT / WITH / DESCRIBE …）。列名は二重引用符で包む。",
+};
+let META = null;
+const $ = (sel, root = document) => root.querySelector(sel);
+
+// ---------------------------------------------------------------- 小さな道具
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "html") node.innerHTML = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) node.setAttribute(k, v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined) node.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return node;
+}
+function clean(params) {
+  const out = {};
+  for (const [k, v] of Object.entries(params || {})) if (v !== "" && v !== null && v !== undefined && v !== false) out[k] = v;
+  return out;
+}
+function urlFor(path, params) {
+  const url = new URL(path, location.origin);
+  for (const [k, v] of Object.entries(clean(params))) {
+    if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, x)); else url.searchParams.set(k, v);
+  }
+  return url;
+}
+async function api(path, params) {
+  const response = await fetch(urlFor(path, params));
+  let data;
+  try { data = await response.json(); } catch (e) { throw new Error("HTTP " + response.status); }
+  if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+  return data;
+}
+function parseHash() {
+  const raw = location.hash.slice(1) || "/db";
+  const [path, qs] = raw.split("?");
+  const parts = path.split("/").filter(Boolean);
+  const params = {};
+  for (const [k, v] of new URLSearchParams(qs || "")) { if (params[k] === undefined) params[k] = v; else params[k] = [].concat(params[k], v); }
+  return {view: parts[0] || "db", id: decodeURIComponent(parts[1] || ""), params};
+}
+function hashFor(view, params, id) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(clean(params))) [].concat(v).forEach((x) => qs.append(k, x));
+  return "#/" + view + (id ? "/" + encodeURIComponent(id) : "") + (qs.toString() ? "?" + qs.toString() : "");
+}
+function go(view, params, id) { location.hash = hashFor(view, params, id); }
+function remember(key, value) { try { sessionStorage.setItem(key, value); } catch (e) { /* 使えなくてもよい */ } }
+function recall(key) { try { return sessionStorage.getItem(key); } catch (e) { return null; } }
+function quote(v) { return /[\s"]/.test(String(v)) ? '"' + String(v).replace(/"/g, '\\"') + '"' : String(v); }
+function cliLine(tool, params, positional = "", skip = []) {
+  const parts = [];
+  for (const [k, v] of Object.entries(clean(params))) {
+    if (skip.includes(k) || k === "format") continue;
+    const flag = "--" + k.replace(/_/g, "-");
+    if (FLAG_ONLY.includes(k)) { if (v === "1") parts.push(flag); continue; }
+    if (k === "dimensions") { parts.push(flag + " " + [].concat(v).join(",")); continue; }
+    [].concat(v).forEach((x) => parts.push(flag + " " + quote(x)));
+  }
+  return "uv run python " + tool + (positional ? " " + positional : "") + (parts.length ? " " + parts.join(" ") : "");
+}
+function cliBlock(line) { return el("div", {class: "cli"}, "同じ条件の CLI: ", el("b", {}, line)); }
+function isNumber(v) { return typeof v === "number"; }
+function cell(column, value) {
+  if (value === null || value === undefined) return el("td", {}, "");
+  if (column === "rid" && /^\d{16}$/.test(String(value))) return el("td", {}, el("a", {href: hashFor("race", {}, value)}, value));
+  if (column === "hid" && /^\d{10}$/.test(String(value))) return el("td", {}, el("a", {href: hashFor("horse", {}, value)}, value));
+  if (column === "枠" && Number.isInteger(value)) return el("td", {class: "waku w" + value}, String(value));
+  if (typeof value === "boolean") return el("td", {}, value ? "はい" : "いいえ");
+  return el("td", {class: isNumber(value) ? "num" : ""}, isNumber(value) && !Number.isInteger(value) ? String(Math.round(value * 1000) / 1000) : String(value));
+}
+function tableEl(table, kv = false, rowClass = () => "") {
+  const head = el("tr", {}, ...table.columns.map((c) => el("th", {}, c)));
+  const body = table.rows.map((row) => el("tr", {class: rowClass(row)}, ...row.map((v, i) => cell(table.columns[i], v))));
+  const grid = el("div", {class: "gridwrap"}, el("table", {class: kv ? "kv" : ""}, el("thead", {}, head), el("tbody", {}, ...body)));
+  if (!table.rows.length) grid.append(el("div", {class: "note", style: "padding:8px 12px"}, "（該当なし）"));
+  return grid;
+}
+function resultBlock(table, {csv, cli, rowClass} = {}) {
+  const box = el("div", {class: "card"});
+  if (table.title) box.append(el("h2", {}, table.title));
+  if (table.note) box.append(el("div", {class: "note"}, table.note));
+  const bar = el("div", {class: "toolbar"});
+  if (csv) bar.append(el("a", {href: csv, download: ""}, el("button", {}, "CSV を保存")));
+  bar.append(el("span", {class: "hint"}, table.rows.length + " 行"));
+  box.append(bar);
+  if (cli) box.append(cliBlock(cli));
+  box.append(tableEl(table, false, rowClass));
+  return box;
+}
+function errorBlock(error) { return el("div", {class: "error"}, "エラー: " + (error.message || error)); }
+
+// ---------------------------------------------------------------- フォーム
+function fieldInput(field, value) {
+  if (field.kind === "select") {
+    const select = el("select", {name: field.name});
+    select.append(el("option", {value: ""}, "（指定なし）"));
+    field.choices.forEach((c) => select.append(el("option", {value: c, selected: c === value ? "" : null}, c)));
+    if (value && !field.choices.includes(value)) select.append(el("option", {value, selected: ""}, value));
+    return select;
+  }
+  const type = field.kind === "date" ? "date" : "text";
+  return el("input", {type, name: field.name, value: value || "", placeholder: field.example, title: field.help, size: field.kind === "range" ? 8 : 12});
+}
+function filterForm(values, onSubmit, extraNodes = [], skip = []) {
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); onSubmit(formValues(form)); }});
+  META.filters.filter((field) => !skip.includes(field.name)).forEach((field) => form.append(el("label", {}, field.label, fieldInput(field, values[field.name]))));
+  extraNodes.forEach((node) => form.append(node));
+  form.append(el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "検索"),
+    el("button", {type: "button", onclick: () => { form.querySelectorAll("input,select").forEach((i) => { if (i.name && !i.dataset.keep && i.type !== "checkbox") i.value = ""; }); }}, "条件を消す")));
+  return form;
+}
+function formValues(form) {
+  const out = {};
+  new FormData(form).forEach((v, k) => { if (v === "" || v === null) return; if (out[k] === undefined) out[k] = v; else out[k] = [].concat(out[k], v); });
+  return out;
+}
+function labeled(text, node) { return el("label", {}, text, node); }
+function numberInput(name, value, placeholder, width = 6) { return el("input", {type: "text", name, value: value || "", placeholder, size: width, "data-keep": "1"}); }
+function pager(params, total, apply) {
+  const limit = Number(params.limit || 200), offset = Number(params.offset || 0);
+  const bar = el("div", {class: "toolbar"});
+  bar.append(el("button", {type: "button", disabled: offset <= 0 ? "" : null, onclick: () => apply({...params, offset: Math.max(0, offset - limit)})}, "← 前"));
+  bar.append(el("span", {class: "hint"}, `${total ? offset + 1 : 0}〜${Math.min(offset + limit, total)} / ${total.toLocaleString()}`));
+  bar.append(el("button", {type: "button", disabled: offset + limit >= total ? "" : null, onclick: () => apply({...params, offset: offset + limit})}, "次 →"));
+  return bar;
+}
+
+// ---------------------------------------------------------------- 画面
+const renderers = {};
+
+renderers.db = async (main) => {
+  main.append(el("div", {class: "help"}, HELP.db));
+  const data = await api("/api/status");
+  const s = data.session;
+  main.append(el("div", {class: "card"}, el("h2", {}, "この画面の接続"),
+    el("div", {class: "note"}, `事実表 ${s.facts_rows ? s.facts_rows.toLocaleString() : "-"} 行（作成 ${s.built_in_s ?? "-"} 秒）。${s.idle_seconds} 秒放置すると DB を手放します。`)));
+  main.append(resultBlock(data.status), resultBlock(data.years));
+  main.append(cliBlock("uv run python tools/DBの状態/db_info.py --tables"));
+};
+
+renderers.tables = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.tables));
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("tables", formValues(form)); }},
+    labeled("開催日（開始）", el("input", {type: "date", name: "from", value: params.from || ""})),
+    labeled("開催日（終了）", el("input", {type: "date", name: "to", value: params.to || ""})),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "期間内の行数を数える")));
+  main.append(el("div", {class: "card"}, form));
+  const data = await api("/api/tables", params);
+  const list = el("div", {class: "list card"});
+  data.tables.forEach((t) => {
+    const sub = `${t.rows.toLocaleString()} 行` + (t.rows_in_range !== null ? `（期間内 ${t.rows_in_range.toLocaleString()}）` : "") + ` · ${t.columns} 列` + (t.date_from ? ` · ${t.date_from}〜${t.date_to}` : "");
+    list.append(el("div", {class: "tbl", onclick: () => go("table", {from: params.from, to: params.to}, t.name)},
+      el("span", {class: "id"}, t.name), el("span", {}, t.title), el("span", {class: "sub"}, sub)));
+  });
+  main.append(list);
+  main.append(cliBlock(cliLine(TOOLS.table, params, "--list")));
+};
+
+renderers.table = async (main, {id, params}) => {
+  const name = id;
+  const query = {name, limit: params.limit || 50, offset: params.offset || 0, column_offset: params.column_offset || 0, from: params.from, to: params.to, eq: params.eq};
+  const form = el("form", {class: "filters"},
+    labeled("開催日（開始）", el("input", {type: "date", name: "from", value: params.from || ""})),
+    labeled("開催日（終了）", el("input", {type: "date", name: "to", value: params.to || ""})),
+    labeled("列=値（複数は & で）", el("input", {type: "text", name: "eqtext", value: [].concat(params.eq || []).join("&"), placeholder: "競馬場コード=05&レース番号=11", size: 32})),
+    labeled("行数", numberInput("limit", query.limit, "50")),
+    labeled("列の位置", numberInput("column_offset", query.column_offset, "0")),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"),
+      el("button", {type: "button", onclick: async () => { const box = $("#columns"); box.innerHTML = ""; try { box.append(resultBlock(await api("/api/tables/columns", {name})));} catch (err) { box.append(errorBlock(err)); } }}, "列の一覧")));
+  form.onsubmit = (e) => { e.preventDefault(); const v = formValues(form); if (v.eqtext) { v.eq = v.eqtext.split("&").map((s) => s.trim()).filter(Boolean); } delete v.eqtext; go("table", {...v, offset: 0}, name); };
+  main.append(el("div", {class: "card"}, el("h2", {}, name), form), el("div", {id: "columns"}));
+  const data = await api("/api/tables/rows", query);
+  const table = {title: `${data.name}（${data.title}）`, columns: data.columns, rows: data.rows,
+    note: `全 ${data.total.toLocaleString()} 行のうち ${data.rows.length ? data.offset + 1 + "〜" + (data.offset + data.rows.length) : "該当なし"}、全 ${data.column_total} 列のうち ${data.column_offset + 1}〜${data.column_offset + data.columns.length} 列`};
+  const apply = (p) => go("table", {...params, ...p}, name);
+  const cliParams = {from: params.from, to: params.to, limit: query.limit, offset: params.offset, "column-offset": params.column_offset, where: params.eq};
+  main.append(resultBlock(table, {cli: cliLine(TOOLS.table, cliParams, name)}));
+  main.append(pager({limit: query.limit, offset: query.offset}, data.total, apply));
+  const colBar = el("div", {class: "toolbar"});
+  colBar.append(el("button", {type: "button", disabled: data.column_offset <= 0 ? "" : null, onclick: () => apply({column_offset: Math.max(0, data.column_offset - META.limits.columns)})}, "← 前の列"));
+  colBar.append(el("button", {type: "button", disabled: data.column_offset + data.columns.length >= data.column_total ? "" : null, onclick: () => apply({column_offset: data.column_offset + META.limits.columns})}, "次の列 →"));
+  main.append(colBar);
+};
+
+function recordsOf(table) { return table.rows.map((row) => Object.fromEntries(table.columns.map((c, i) => [c, row[i]]))); }
+
+renderers.cards = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.cards));
+  const venueField = META.filters.find((field) => field.name === "venue");
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("cards", formValues(form)); }},
+    labeled("開催日（開始。空なら今日）", el("input", {type: "date", name: "from", value: params.from || ""})),
+    labeled("開催日（終了）", el("input", {type: "date", name: "to", value: params.to || ""})),
+    labeled("競馬場", fieldInput(venueField, params.venue)),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"),
+      el("button", {type: "button", onclick: () => go("cards", {})}, "今日以降に戻す")));
+  main.append(el("div", {class: "card"}, form));
+  const table = await api("/api/cards", params);
+  const races = recordsOf(table);
+  main.append(el("div", {class: "card"}, el("h2", {}, table.title), el("div", {class: "note"}, table.note),
+    el("div", {class: "toolbar"}, el("a", {href: urlFor("/api/cards", {...params, format: "csv"}).toString(), download: ""}, el("button", {}, "CSV を保存")),
+      el("span", {class: "hint"}, races.length + " レース")),
+    cliBlock(cliLine(TOOLS.card, params))));
+  appendRaceDays(main, table, "card");
+};
+
+// レースの一覧を、日ごと・競馬場ごとの箱に並べる。レースを押すと view の画面へ。
+function appendRaceDays(main, table, view) {
+  const races = recordsOf(table);
+  table.meta.days.forEach((day) => {
+    const ofDay = races.filter((r) => r["日付"] === day);
+    const venues = el("div", {class: "venues"});
+    [...new Set(ofDay.map((r) => r["場"]))].forEach((venue) => {
+      const box = el("div", {class: "venue list"}, el("h3", {}, venue));
+      ofDay.filter((r) => r["場"] === venue).forEach((r) => box.append(el("div", {class: "tbl", onclick: () => go(view, {}, r.rid)},
+        el("span", {class: "no"}, r["R"] + "R"), el("span", {class: "post"}, r["発走"] || ""),
+        el("span", {class: "name"}, [r["レース名"], r["クラス"]].filter(Boolean).join(" ")),
+        el("span", {class: "sub"}, `${r["コース"]} ${r["距離"]}m ${r["頭数"] ?? "-"}頭 · ${r["状態"]}`))));
+      venues.append(box);
+    });
+    main.append(el("div", {class: "card"}, el("h2", {}, `${day}（${ofDay[0]["曜"]}）`), venues));
+  });
+}
+
+// ---------------------------------------------------------------- 傾向スコア
+// "3:1,7:2" を {3: ["1"], 7: ["2"]} にする（馬番 → 値の並び）。
+function parsePairs(text) {
+  const out = {};
+  String(text || "").split(",").forEach((part) => { const v = part.trim().split(":"); if (v.length >= 2 && v[0] !== "") out[v[0]] = v.slice(1); });
+  return out;
+}
+async function trendRaceList(main, params) {
+  const venueField = META.filters.find((field) => field.name === "venue");
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("trend", formValues(form)); }},
+    labeled("開催日（開始。空なら今日）", el("input", {type: "date", name: "from", value: params.from || ""})),
+    labeled("開催日（終了）", el("input", {type: "date", name: "to", value: params.to || ""})),
+    labeled("競馬場", fieldInput(venueField, params.venue)),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"),
+      el("button", {type: "button", onclick: () => go("trend", {})}, "今日以降に戻す")));
+  main.append(el("div", {class: "card"}, el("div", {class: "note"}, "採点するレースを選んでください。過去の日付にすると、終わったレースで点数と着順を見比べられます。"), form));
+  const table = await api("/api/cards", params);
+  main.append(el("div", {class: "card"}, el("h2", {}, table.title), el("div", {class: "note"}, table.note)));
+  appendRaceDays(main, table, "trend");
+}
+function trendForm(rid, params, data) {
+  const levelSelect = el("select", {name: "scope", "data-keep": "1"}, el("option", {value: ""}, "出走数が足りるいちばん狭い母集団（既定）"));
+  META.trend.levels.forEach((level) => levelSelect.append(el("option", {value: level.key, selected: level.key === params.scope ? "" : null}, level.title + " だけ")));
+  const conditionField = META.filters.find((field) => field.name === "condition");
+  const pops = parsePairs(params.pops), weights = parsePairs(params.weights);
+  const numbered = data.horses.filter((x) => x.no !== null).sort((a, b) => a.no - b.no);
+  const manual = el("details", {open: params.pops || params.weights ? "" : null}, el("summary", {}, "人気・馬体重を手で入れる（発走前の DB には入っていません。分かる馬だけでよい）"));
+  if (!numbered.length) manual.append(el("div", {class: "note"}, "馬番がまだ決まっていないので入れられません。金・土に jvdata-store で出馬表を取得してください。"));
+  const rows = numbered.map((x) => el("tr", {},
+    el("td", {class: "waku w" + x.frame}, String(x.frame ?? "")), el("td", {class: "num"}, String(x.no)), el("td", {}, x.name),
+    el("td", {}, el("input", {type: "text", size: 3, "data-pop": x.no, value: (pops[x.no] || [""])[0], placeholder: x.popularity ?? ""})),
+    el("td", {}, el("input", {type: "text", size: 4, "data-weight": x.no, value: (weights[x.no] || [""])[0], placeholder: x.body_weight ?? ""})),
+    el("td", {}, el("input", {type: "text", size: 4, "data-change": x.no, value: (weights[x.no] || ["", ""])[1] || "", placeholder: x.weight_change ?? ""}))));
+  if (numbered.length) manual.append(el("div", {class: "gridwrap", style: "max-height:320px;margin-top:6px"}, el("table", {},
+    el("thead", {}, el("tr", {}, ...["枠", "馬番", "馬名", "人気", "馬体重", "増減"].map((t) => el("th", {}, t)))), el("tbody", {}, ...rows))));
+  const form = el("form", {class: "filters"},
+    labeled("当日の馬場状態（未発表なら入れる）", fieldInput(conditionField, params.condition)),
+    labeled("母集団", levelSelect),
+    labeled("最少出走数", numberInput("min_runs", params.min_runs, String(META.trend.min_runs))),
+    labeled("良い（基準の何倍以上）", numberInput("good", params.good, String(META.trend.good))),
+    labeled("悪い（基準の何倍以下）", numberInput("bad", params.bad, String(META.trend.bad))),
+    labeled("偶然を除く強さ（0 で除かない）", numberInput("min_z", params.min_z, String(META.trend.min_z))),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "採点する")));
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const values = formValues(form);
+    const filled = (attr) => [...manual.querySelectorAll(`input[${attr}]`)].filter((i) => i.value.trim() !== "");
+    values.pops = filled("data-pop").map((i) => `${i.dataset.pop}:${i.value.trim()}`).join(",");
+    values.weights = filled("data-weight").map((i) => {
+      const change = manual.querySelector(`input[data-change="${i.dataset.weight}"]`).value.trim();
+      return `${i.dataset.weight}:${i.value.trim()}` + (change ? ":" + change : "");
+    }).join(",");
+    go("trend", values, rid);
+  };
+  return el("div", {}, form, manual);
+}
+renderers.trend = async (main, {id, params}) => {
+  main.append(el("div", {class: "help"}, HELP.trend));
+  if (!id) return trendRaceList(main, params);
+  const rid = id;
+  const waiting = el("div", {class: "note"}, "採点しています…（数秒かかります）");
+  main.append(waiting);
+  const query = {rid, ...params};
+  let data;
+  try { data = await api("/api/trend", query); } finally { waiting.remove(); }
+  const day = data.header["日付"];
+  // 別のレースへ移るときは線引きだけ持っていく（馬場状態・人気・馬体重はレースごと）
+  const rules = {scope: params.scope, min_runs: params.min_runs, good: params.good, bad: params.bad, min_z: params.min_z};
+  const nav = el("div", {class: "toolbar racenav"}, el("a", {href: hashFor("trend", {from: day, to: day})}, "← この日の一覧"),
+    ...data.races.map(([no, other]) => el("a", {href: hashFor("trend", rules, other)}, el("button", {type: "button", class: other === rid ? "sel" : ""}, no + "R"))),
+    el("a", {href: hashFor("card", {}, rid)}, "出馬表を見る"));
+  const partNames = {ranking: "ランキング", highlights: "傾向", breakdown: "内訳"};
+  const csv = (part) => el("a", {href: urlFor("/api/trend", {...query, part, format: "csv"}).toString(), download: ""}, el("button", {type: "button"}, "CSV: " + partNames[part]));
+  main.append(el("div", {class: "card"}, nav, trendForm(rid, params, data),
+    el("div", {class: "toolbar"}, ...META.trend.parts.map(csv)),
+    cliBlock(cliLine(TOOLS.trend, params, rid) + " --html --open")));
+  const host = el("div");
+  main.append(host);
+  TrendView.render(host, data);
+};
+
+renderers.card = async (main, {id, params}) => {
+  const rid = id;
+  const runs = params.runs || META.card.runs;
+  const data = await api("/api/cards/detail", {rid, runs});
+  const day = data.header["日付"];
+  const nav = el("div", {class: "toolbar racenav"}, el("a", {href: hashFor("cards", {from: day, to: day})}, "← この日の一覧"),
+    ...data.races.map(([no, other]) => el("a", {href: hashFor("card", {runs: params.runs}, other)}, el("button", {type: "button", class: other === rid ? "sel" : ""}, no + "R"))));
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("card", formValues(form), rid); }},
+    labeled(`各馬の近走を何走まで（0〜${META.card.max_runs}）`, numberInput("runs", runs, String(META.card.runs))),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"),
+      el("a", {href: hashFor("race", {}, rid)}, "結果・ラップ・払戻（レース詳細）を見る")));
+  const h = data.header;
+  const summary = `馬場 ${h["馬場"]} · 天候 ${h["天候"]} · 登録 ${h["登録頭数"] ?? "-"}頭 · rid ${rid}`;
+  main.append(el("div", {class: "card"}, nav, el("h2", {}, data.title), el("div", {class: "note"}, summary), cliBlock(cliLine(TOOLS.card, {runs: params.runs}, rid)), form));
+  const csv = (part) => urlFor("/api/cards/detail", {rid, runs, part, format: "csv"}).toString();
+  main.append(resultBlock(data.entries, {csv: csv("entries")}));
+  const nth = data.recent.columns.indexOf("走前");
+  main.append(resultBlock(data.recent, {csv: csv("recent"), rowClass: (row) => (row[nth] === 1 ? "first-run" : "")}));
+};
+
+function listView(view, path, tool, extraFields = () => []) {
+  return async (main, {params}) => {
+    main.append(el("div", {class: "help"}, HELP[view]));
+    const form = filterForm(params, (values) => go(view, {...values, offset: 0}), extraFields(params));
+    main.append(el("div", {class: "card"}, form));
+    if (!Object.keys(clean(params)).length) { main.append(el("div", {class: "note"}, "条件を入れて「検索」を押してください（条件なしでも検索できます）。")); }
+    const query = {...params, limit: params.limit || 200, offset: params.offset || 0};
+    const table = await api(path, query);
+    main.append(resultBlock(table, {csv: urlFor(path, query).toString() + "&format=csv", cli: cliLine(tool, query)}));
+    main.append(pager(query, table.meta.total ?? table.rows.length, (p) => go(view, p)));
+  };
+}
+renderers.races = listView("races", "/api/races", TOOLS.races, (p) => [labeled("件数", numberInput("limit", p.limit, "200"))]);
+renderers.runners = listView("runners", "/api/runners", TOOLS.runners, (p) => [
+  labeled("並べ替え", (() => { const s = el("select", {name: "sort", "data-keep": "1"}); META.sorts.forEach((k) => s.append(el("option", {value: k, selected: k === (p.sort || "date") ? "" : null}, k))); return s; })()),
+  labeled("件数", numberInput("limit", p.limit, "200")),
+]);
+
+renderers.events = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.events));
+  const kind = params.kind || "lost";
+  const defaults = META.events[kind];
+  const kindSelect = el("select", {name: "kind", "data-keep": "1"});
+  Object.entries(META.events).forEach(([k, v]) => kindSelect.append(el("option", {value: k, selected: k === kind ? "" : null}, v.label)));
+  kindSelect.addEventListener("change", () => go("events", {kind: kindSelect.value}));
+  const values = {...params};
+  if (kind === "lost" && !values.pop) values.pop = defaults.pop;
+  if (kind === "longshot" && !values.pop && !values.odds) values.odds = defaults.odds;
+  const extra = [
+    labeled("種類", kindSelect),
+    labeled("対象の人気（pop）", numberInput("pop", values.pop, defaults.pop || "1-3")),
+    labeled("対象のオッズ（odds）", numberInput("odds", values.odds, defaults.odds || "10-")),
+    labeled("事象の着順（finish）", numberInput("finish", params.finish || defaults.finish, defaults.finish)),
+  ];
+  const form = filterForm(values, (v) => go("events", {...v, kind, offset: 0}), extra, ["pop", "odds", "finish"]);
+  main.append(el("div", {class: "card"}, el("div", {class: "note"}, "対象（分母）は人気とオッズ、事象（分子）は着順。人気馬が負けた: 既定 1番人気が 4着以下。穴馬が勝った: 既定 単勝 10倍以上が 1着。"), form));
+  const query = {...values, kind, finish: params.finish || defaults.finish, limit: params.limit || 200, offset: params.offset || 0};
+  const table = await api("/api/events", query);
+  const cliParams = {...query}; delete cliParams.kind;
+  main.append(resultBlock(table, {csv: urlFor("/api/events", query).toString() + "&format=csv", cli: cliLine(TOOLS[kind], cliParams)}));
+  main.append(pager(query, table.meta.population ? table.meta.events : 0, (p) => go("events", p)));
+};
+
+const COMPARE_KEY = "summary.compare";
+const COMPARE_MAX = 30;
+function compareRows() { try { return JSON.parse(recall(COMPARE_KEY) || "[]"); } catch (e) { return []; } }
+function rememberCompare(rows) { remember(COMPARE_KEY, JSON.stringify(rows.slice(-COMPARE_MAX))); }
+
+renderers.summary = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.summary));
+  const form = filterForm(params, (v) => go("summary", v));
+  main.append(el("div", {class: "card"}, form));
+  const query = {...params, dimension: "total"};
+  const table = await api("/api/perf", query);
+  const cliParams = {...params};
+  const describe = table.meta.filters || "全レース";
+  const box = resultBlock({...table, title: `条件の成績: ${describe}`, columns: table.columns.slice(1), rows: table.rows.map((r) => r.slice(1))},
+    {csv: urlFor("/api/perf", query).toString() + "&format=csv", cli: cliLine(TOOLS.perf, cliParams, "total")});
+  main.append(box);
+  const rows = compareRows().filter((r) => r[0] !== describe);
+  if (table.rows.length) rows.push([describe, ...table.rows[0].slice(1)]);
+  rememberCompare(rows);
+  const compare = {title: "検索した条件を並べて比べる", columns: ["条件", ...table.columns.slice(1)], rows, note: "この画面を閉じるまで残ります。"};
+  const compareBox = resultBlock(compare);
+  compareBox.querySelector(".toolbar").append(el("button", {type: "button", onclick: () => { rememberCompare([]); render(); }}, "表を空にする"));
+  main.append(compareBox);
+};
+
+renderers.perf = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.perf));
+  const dimension = params.dimension || "popularity";
+  const dimSelect = (name, value, allowNone) => {
+    const s = el("select", {name, "data-keep": "1"});
+    if (allowNone) s.append(el("option", {value: ""}, "（なし）"));
+    META.dimensions.forEach((d) => s.append(el("option", {value: d.key, selected: d.key === value ? "" : null, title: d.note}, `${d.title}（${d.key}）`)));
+    return s;
+  };
+  const crosses = [].concat(params.cross || []);
+  const rankSelect = el("select", {name: "rank_by", "data-keep": "1"});
+  META.rank_keys.forEach((k) => rankSelect.append(el("option", {value: k, selected: k === (params.rank_by || "勝率") ? "" : null}, k)));
+  const extra = [
+    labeled("切り口", dimSelect("dimension", dimension, false)),
+    labeled("組み合わせ1", dimSelect("cross", crosses[0] || "", true)),
+    labeled("組み合わせ2", dimSelect("cross", crosses[1] || "", true)),
+    labeled("×人気", el("input", {type: "checkbox", name: "by_popularity", value: "1", checked: params.by_popularity === "1" ? "" : null, "data-keep": "1"})),
+    labeled("上位N件（騎手・血統・馬）", numberInput("top", params.top, "10")),
+    labeled("最少出走数", numberInput("min_runs", params.min_runs, "")),
+    labeled("順位の鍵", rankSelect),
+  ];
+  const form = filterForm(params, (v) => go("perf", v), extra);
+  const checkBox = el("div", {id: "check"});
+  const checkButton = el("button", {type: "button", onclick: async () => { checkBox.innerHTML = ""; try { checkBox.append(resultBlock(await api("/api/check", {to: params.to}))); } catch (err) { checkBox.append(errorBlock(err)); } }},
+    `答え合わせ（${META.check.describe}）`);
+  main.append(el("div", {class: "card"}, form, el("div", {class: "toolbar"}, checkButton, el("span", {class: "hint"}, "reports/stats のページの値と、この集計の値を比べます。"))), checkBox);
+  const query = {...params, dimension};
+  const table = await api("/api/perf", query);
+  const cliParams = {...query}; delete cliParams.dimension;
+  main.append(resultBlock(table, {csv: urlFor("/api/perf", query).toString() + "&format=csv", cli: cliLine(TOOLS.perf, cliParams, dimension)}));
+  if (table.note) main.append(el("div", {class: "hint"}, table.note));
+};
+
+renderers.explore = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.explore));
+  const defaults = META.explore;
+  const selected = params.dimensions ? [].concat(params.dimensions).flatMap((s) => s.split(",")) : defaults.dimensions;
+  const targetSelect = el("select", {name: "target", "data-keep": "1"});
+  Object.entries(defaults.targets).forEach(([k, v]) => targetSelect.append(el("option", {value: k, selected: k === (params.target || "both") ? "" : null}, v)));
+  const extra = [
+    labeled("最少出走数", numberInput("min_runs", params.min_runs || defaults.min_runs, String(defaults.min_runs))),
+    labeled("回収率の閾値（%）", numberInput("threshold", params.threshold || defaults.threshold, String(defaults.threshold))),
+    labeled("単勝／複勝", targetSelect),
+    labeled("出す行数", numberInput("top", params.top || defaults.top, String(defaults.top))),
+    labeled(`2つの組み合わせも（切り口 ${defaults.max_pair_dimensions} 個まで）`, el("input", {type: "checkbox", name: "pairs", value: "1", checked: params.pairs === "1" ? "" : null, "data-keep": "1"})),
+  ];
+  const form = filterForm(params, (v) => go("explore", v), extra);
+  const dimBox = el("div", {class: "filters", style: "margin-top:10px"});
+  META.dimensions.filter((d) => d.key !== "total").forEach((d) => dimBox.append(el("label", {style: "flex-direction:row;gap:4px;align-items:center", title: d.note},
+    el("input", {type: "checkbox", name: "dimensions", value: d.key, checked: selected.includes(d.key) ? "" : null, "data-keep": "1"}), d.title)));
+  const dimBar = el("div", {class: "toolbar"},
+    el("span", {class: "hint"}, "試す切り口（外すと速くなる）"),
+    el("button", {type: "button", onclick: () => dimBox.querySelectorAll("input").forEach((c) => { c.checked = defaults.dimensions.includes(c.value); })}, "既定に戻す"),
+    el("button", {type: "button", onclick: () => dimBox.querySelectorAll("input").forEach((c) => { c.checked = false; })}, "全部外す"));
+  form.append(dimBar, dimBox);
+  main.append(el("div", {class: "card"}, form));
+  if (!Object.keys(clean(params)).length) { main.append(el("div", {class: "note"}, "条件と切り口を選んで「検索」を押してください。切り口が多いほど時間がかかります（既定で数秒）。")); return; }
+  const query = {...params};
+  const table = await api("/api/explore", query);
+  const cliParams = {...params, dimensions: selected.join(",") === defaults.dimensions.join(",") ? "" : selected};
+  main.append(resultBlock(table, {csv: urlFor("/api/explore", query).toString() + "&format=csv", cli: cliLine(TOOLS.explore, cliParams)}));
+};
+
+renderers.horses = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.horses));
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("horses", formValues(form)); }},
+    labeled("馬名（部分一致）", el("input", {type: "text", name: "name", value: params.name || "", size: 24})),
+    labeled("件数", numberInput("limit", params.limit, "50")),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "探す")));
+  main.append(el("div", {class: "card"}, form));
+  if (!params.name) return;
+  const table = await api("/api/horses", params);
+  main.append(resultBlock(table, {cli: cliLine(TOOLS.horse, {limit: params.limit}, quote(params.name))}));
+};
+
+renderers.horse = async (main, {id, params}) => {
+  const hid = id;
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("horse", formValues(form), hid); }},
+    labeled("この日より前の出走だけ", el("input", {type: "date", name: "before", value: params.before || ""})),
+    labeled("件数", numberInput("limit", params.limit, "50")),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示")));
+  const data = await api("/api/horses/detail", {hid, before: params.before, limit: params.limit});
+  const profile = {title: `${data.profile["馬名"]}（${hid}）`, columns: ["項目", "値"], rows: Object.entries(data.profile).map(([k, v]) => [k, v])};
+  main.append(el("div", {class: "card"}, el("h2", {}, profile.title), tableEl(profile, true), form));
+  main.append(resultBlock(data.runs, {cli: cliLine(TOOLS.horse, {before: params.before, limit: params.limit}, hid)}));
+};
+
+renderers.race = async (main, {id}) => {
+  const rid = id;
+  const data = await api("/api/races/detail", {rid});
+  const header = {columns: ["項目", "値"], rows: Object.entries(data.header).filter(([k]) => !k.startsWith("_")).map(([k, v]) => [k, v])};
+  main.append(el("div", {class: "card"}, el("h2", {}, data.title), cliBlock(cliLine(TOOLS.race, {}, rid)), tableEl(header, true),
+    el("div", {class: "toolbar"}, el("a", {href: hashFor("card", {}, rid)}, "出馬表（レース前の材料と各馬の近走）を見る"))));
+  data.tables.forEach((t) => main.append(resultBlock(t)));
+};
+
+renderers.sql = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.sql));
+  const text = el("textarea", {name: "sql", placeholder: "select 開催年, count(*) from ra where 競馬場コード between '01' and '10' group by 1 order by 1"});
+  text.value = params.sql || recall("sql.text") || "";
+  const limit = numberInput("limit", params.limit || 200, "200");
+  const timeout = numberInput("timeout", params.timeout || 60, "60");
+  const out = el("div");
+  const run = async () => {
+    remember("sql.text", text.value);
+    out.innerHTML = "";
+    try {
+      const response = await fetch("/api/sql", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sql: text.value, limit: Number(limit.value || 200), timeout: Number(timeout.value || 60)})});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+      out.append(resultBlock(data, {csv: urlFor("/api/sql", {sql: text.value, limit: limit.value}).toString() + "&format=csv", cli: cliLine(TOOLS.sql, {limit: limit.value !== "200" ? limit.value : "", timeout: timeout.value !== "60" ? timeout.value : ""}, quote(text.value))}));
+    } catch (err) { out.append(errorBlock(err)); }
+  };
+  text.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run(); });
+  main.append(el("div", {class: "card"}, text, el("div", {class: "filters"}, labeled("行数の上限", limit), labeled("秒の上限", timeout),
+    el("div", {class: "actions"}, el("button", {type: "button", class: "primary", onclick: run}, "実行（Ctrl+Enter）")))), out);
+  if (params.sql) run();
+};
+
+// ---------------------------------------------------------------- 経路
+function renderTabs(current) {
+  const nav = $("#tabs");
+  nav.innerHTML = "";
+  VIEWS.forEach((view) => nav.append(el("span", {class: "tab" + (view === current ? " sel" : ""), onclick: () => { location.hash = recall("last:" + view) || hashFor(view, {}); }}, TAB_LABELS[view])));
+}
+async function render() {
+  const route = parseHash();
+  const tab = DETAIL_TAB[route.view] || route.view;
+  remember("last:" + tab, location.hash);
+  renderTabs(tab);
+  const main = $("#main");
+  main.innerHTML = "";
+  const renderer = renderers[route.view];
+  if (!renderer) { main.append(errorBlock(new Error("知らない画面です: " + route.view))); return; }
+  try {
+    if (!META) META = await api("/api/meta");
+    if (META.version !== PAGE_VERSION) { META = null; throw new Error(RESTART_HINT + "（サーバー " + (META && META.version || "旧版") + "）"); }
+    await renderer(main, route);
+  } catch (error) {
+    main.append(errorBlock(error));
+  }
+}
+window.addEventListener("hashchange", render);
+api("/api/info").then((info) => { $("#dbname").textContent = info.db; }).catch(() => {});
+render();
+</script>
+</body>
+</html>

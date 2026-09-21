@@ -1,0 +1,5 @@
+# 作業環境が Windows でも、リポジトリ・チェックアウトともに LF に揃える。
+* text=auto eol=lf
+
+# cmd.exe から実行するバッチだけは CRLF。
+*.bat text eol=crlf

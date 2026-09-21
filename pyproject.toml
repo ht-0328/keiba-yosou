@@ -1,0 +1,35 @@
+[project]
+name = "keiba-yosou"
+version = "0.1.0"
+description = "JV-Data の DuckDB（jvdata-store）を読んで検索・集計するツール群と、予想モデル"
+requires-python = ">=3.12"
+dependencies = [
+    "catboost>=1.2.10",
+    "duckdb>=1.5.5",
+    "lightgbm>=4.7",
+    "pandas>=3.0",
+    "scikit-learn>=1.5",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# 予想方法（src/yosou）はパッケージとして入れ、`python -m yosou.<予想方法>` で動かす。
+# ツール（tools/）はスクリプトのままで、パッケージには入れない。
+[tool.hatch.build.targets.wheel]
+packages = ["src/yosou"]
+# uv sync で入れる開発用の形（editable）では、src と tools を import の探索先に足す。
+# 予想方法が tools/共通 の事実表の SQL を使い、同じ SQL を2か所に書かないようにするため。
+dev-mode-dirs = ["src", "tools"]
+
+[tool.uv]
+package = true
+
+# テストは各ツールの隣の tests/ と、予想方法の tests/ にある。`import 共通` と `import yosou` が通るよう、tools/ と src/ を pythonpath に入れる。
+[tool.pytest.ini_options]
+testpaths = ["tools", "src"]
+pythonpath = ["tools", "src"]
