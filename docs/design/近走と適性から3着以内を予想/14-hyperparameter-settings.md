@@ -16,7 +16,7 @@
 
 [lightgbm]
 early_stopping_rounds = 100   # 検証データで、木を何本足しても良くならなければ止めるか
-min_category_count = 50       # 学習データでの出走がこれより少ないカテゴリの値は「その他」にまとめる
+min_category_count = 2000     # 学習データでの出走がこれより少ないカテゴリの値は「その他」にまとめる
 
 [lightgbm.params]             # LGBMClassifier の引数。書いたものがそのまま渡る
 learning_rate = 0.05

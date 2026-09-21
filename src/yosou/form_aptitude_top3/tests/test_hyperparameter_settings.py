@@ -21,7 +21,7 @@ def test_defaults_are_the_design_initial_values():
         "learning_rate": 0.05, "n_estimators": 2000, "num_leaves": 31, "min_child_samples": 100,
         "subsample": 0.8, "subsample_freq": 1, "colsample_bytree": 0.8, "random_state": 42,
     }
-    assert settings.lightgbm.early_stopping_rounds == 100 and settings.lightgbm.min_category_count == 50
+    assert settings.lightgbm.early_stopping_rounds == 100 and settings.lightgbm.min_category_count == 2000
     assert dict(settings.catboost.params) == {
         "learning_rate": 0.05, "iterations": 2000, "depth": 6, "l2_leaf_reg": 3, "random_seed": 42,
     }
