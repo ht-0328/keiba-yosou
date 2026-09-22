@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
@@ -19,10 +20,14 @@ from yosou.shared.tests import synthetic_season as season
 from ..dataset import TOP3, WIN, dataset_builder
 from ..feature import CATALOG
 
+#: 出馬表のレース（確定前なので DB にオッズが無い）に、手で渡す単勝オッズ。馬番が小さいほど人気。
+CARD_ODDS: dict[int, float] = {horse_no: 1.5 + horse_no for horse_no in range(1, 9)}
 
-def _prediction(path: Path, race_id: str, timing: PredictionTiming) -> PredictionData:
+
+def _prediction(path: Path, race_id: str, timing: PredictionTiming,
+                odds: Mapping[int, float] | None = None) -> PredictionData:
     with db.open_db(path) as con:
-        return dataset_builder(con).build_prediction_data(race_id, timing)
+        return dataset_builder(con).build_prediction_data(race_id, timing, odds=odds)
 
 
 def test_training_data_keeps_flat_runners_from_the_train_first_day(training_data: TrainingData):
@@ -50,27 +55,44 @@ def test_career_counts_are_attached_to_every_sample(training_data: TrainingData)
     assert training_data.features["通算の出走数"].notna().all()
 
 
+def test_training_market_features_come_from_the_final_odds(training_data: TrainingData):
+    # 学習データの単勝オッズは確定オッズ。人気順位はレースごとに 1 から、オッズから見た勝率はレースごとに合計 1
+    race_ids = training_data.ids[RACE_ID]
+    features = training_data.features
+    assert features["単勝オッズ"].notna().all()
+    assert (features.groupby(race_ids)["人気順位"].min() == 1).all()
+    assert features.groupby(race_ids)["オッズから見た勝率"].sum().round(6).eq(1).all()
+
+
 @pytest.mark.parametrize(("timing", "columns"), [
-    (PredictionTiming.RACE_DAY, 71), (PredictionTiming.DAY_BEFORE, 69),
+    (PredictionTiming.RACE_DAY, 74), (PredictionTiming.DAY_BEFORE, 72),
 ])
 def test_prediction_data_of_a_card(season_db: Path, timing: PredictionTiming, columns: int):
-    data = _prediction(season_db, season.CARD_RACE_ID, timing)
+    data = _prediction(season_db, season.CARD_RACE_ID, timing, CARD_ODDS)
     # 速報で出走取消になった馬番8 は入らない。馬場状態は、最後に発表された「重」
     assert len(data) == 7 and season.SCRATCHED_HORSE_NO not in set(data.ids[HORSE_NO])
     assert data.features.shape[1] == columns and data.timing is timing
     assert set(data.features["馬場状態"]) == {"重"}
 
 
+def test_prediction_market_features_follow_the_given_odds(season_db: Path):
+    data = _prediction(season_db, season.CARD_RACE_ID, PredictionTiming.RACE_DAY, CARD_ODDS)
+    features = data.features.set_index(data.ids[HORSE_NO])
+    assert features.loc[1, "単勝オッズ"] == CARD_ODDS[1] and features.loc[1, "人気順位"] == 1
+    assert features["人気順位"].sort_values().tolist() == list(range(1, 8))
+    assert round(features["オッズから見た勝率"].sum(), 6) == 1
+
+
 def test_race_day_prediction_uses_announced_weights(season_db: Path):
-    data = _prediction(season_db, season.CARD_RACE_ID, PredictionTiming.RACE_DAY)
+    data = _prediction(season_db, season.CARD_RACE_ID, PredictionTiming.RACE_DAY, CARD_ODDS)
     weights = data.features.set_index(data.ids[HORSE_NO])
     assert (weights.loc[3, "馬体重"], weights.loc[3, "馬体重の増減"]) == (473, -3)
 
 
-def test_thursday_prediction_works_before_horse_numbers(season_db: Path):
+def test_thursday_prediction_works_before_horse_numbers_and_odds(season_db: Path):
     data = _prediction(season_db, season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY)
     assert len(data) == 8 and data.ids[HORSE_NO].isna().all()
-    assert "馬番" not in data.features.columns
+    assert "馬番" not in data.features.columns and "単勝オッズ" not in data.features.columns
 
 
 def test_day_before_prediction_needs_horse_numbers(season_db: Path):
@@ -78,11 +100,17 @@ def test_day_before_prediction_needs_horse_numbers(season_db: Path):
         _prediction(season_db, season.ENTRY_LIST_RACE_ID, PredictionTiming.DAY_BEFORE)
 
 
+def test_day_before_prediction_needs_odds(season_db: Path):
+    # 確定前のレースは DB にオッズが無く、合成DB には締め切り前のオッズの表も無い
+    with pytest.raises(ValueError, match="--odds"):
+        _prediction(season_db, season.CARD_RACE_ID, PredictionTiming.DAY_BEFORE)
+
+
 def test_race_day_prediction_needs_announced_weights(season_sample: synth.Sample, tmp_path: Path):
     without_weights = replace(season_sample, weight=[], weights=[])
     path = synth.build_db(tmp_path / "no-weights.duckdb", without_weights)
     with pytest.raises(ValueError, match="馬体重"):
-        _prediction(path, season.CARD_RACE_ID, PredictionTiming.RACE_DAY)
+        _prediction(path, season.CARD_RACE_ID, PredictionTiming.RACE_DAY, CARD_ODDS)
 
 
 def test_jump_races_are_not_predicted(season_db: Path):
@@ -93,6 +121,7 @@ def test_jump_races_are_not_predicted(season_db: Path):
 def test_prediction_of_a_finished_race_matches_training_features(
         season_db: Path, training_data: TrainingData):
     # 学習データと予測用データを同じ作り方で作るので、終わったレースを予測用に作り直しても特徴量は同じになる
+    # （オッズを渡さなければ、DB の確定オッズがそのまま使われる）
     race_id = training_data.ids[RACE_ID].iloc[-1]
     data = _prediction(season_db, race_id, PredictionTiming.RACE_DAY)
     is_same_race = training_data.ids[RACE_ID] == race_id
