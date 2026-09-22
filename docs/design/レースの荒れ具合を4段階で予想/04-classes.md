@@ -24,7 +24,7 @@
 1. 共通の `HistoryRecordsLoader.load(ウォームアップの始まり)` で、1頭ごとの記録を集める（手本と同じ）。
 2. `RaceSelector.training_samples(出走の行, 学習データの始まり)` で、平地・出走馬・期間内の全頭を残す。行は減らさない。
 3. `RaceFeatureBuilder.build(記録, 当日)` が、中で共通の `FeatureBuilder.build(記録, 当日)` を呼んで1頭ごとの特徴量（手本の A〜J と、人気馬の J）を作り、まとまり A〜E の `RaceFeatureGroup` を順に呼んで、レースIDごとに集約する（[05-sequence.md](05-sequence.md#図3-1頭ごとの特徴量をレース単位に集約する)）。
-4. `RacePayoutRepository.read(対象)`・`RaceResultRepository.read(対象)` で、払戻と結果を 1行 = 1レースで読み、レースIDで結合する。
+4. `RacePayoutRepository.read(最初の日)` で払戻を 1行 = 1レースで読み、`RaceResultSummary.build(出走の行)` でレースの結果（勝ち馬の人気・1番人気の着順とオッズ など）を 1行 = 1レースにまとめ、レースIDで結合する。払戻は過去の荒れ率（E）の材料でもあるので、3 の前に読む。
 5. `UpsetLevelLabeler.build(レースの行)` で、券種ごとの荒れ具合（4列）を付ける。
 6. `TrainingData`（ID 列・特徴量・目的変数 4列・評価用の列・特徴量の一覧・クラスの並び 0〜3）を返す。
 
@@ -47,7 +47,8 @@
 | `shared/feature/` | 追加 | `RaceFeatureBuilder` | `build(記録, 時点)`。中で `FeatureBuilder.build(記録, 当日)` を呼び、まとまりごとに集約し、レース用の `FeatureCatalog.columns_for(時点)` で列を絞る | 上の「1.」 |
 | `shared/feature/history/` | 追加 | `ConditionUpsetRate` | `of(日ごとの表)`。条件の鍵 × 券種ごとに、前日までの 365日の中荒れ以上の割合 | 共通の `Top3Rate`（日ごとの累計を `AsOfLookup.latest(days_before=1)` で引く）と同じ作り。鍵と分子を替えるだけ |
 | `shared/repository/` | 追加 | `RacePayoutRepository` | `read(対象)`。`hr` のフラグと4券種の払戻（同着は最大）・払戻の人気順を、1行 = 1レースで読む。1つの SQL | 目的変数と E と評価用の列の元 |
-| `shared/repository/` | 追加 | `RaceResultRepository` | `read(対象)`。事実表から、勝ち馬の人気・1〜3着の人気の和・1番人気の確定着順と確定オッズ・確定の出走頭数を、1行 = 1レースで読む | 評価用の列 |
+| `shared/dataset/` | 追加 | `RaceResultSummary` | `build(出走の行)`。出走の行から、勝ち馬の人気・1〜3着の人気の和・1番人気の確定着順と確定オッズ・2〜5番人気の最大の確定オッズ・確定の出走頭数を、1行 = 1レースにまとめる | 評価用の列。出走の行にある値から作れるので、SQL（リポジトリ）は要らない |
+| `shared/dataset/` | 追加 | `FieldOddsCheck` | `check(出走の行, 時点)`。前日以降で、一部の馬に単勝オッズが無ければ止める | [06-flowchart.md](06-flowchart.md#図2-予測に要る情報の確かめ方)。全頭に無いときは `RequiredInfoCheck` が案内する |
 | `shared/evaluation/` | 追加 | `ClassMetricCalculator` | `accuracy`・`macro_f1`・`confusion_matrix`・`mean_class_gap`・`log_loss`・`cumulative_auc(境のクラス)` | [16-evaluation.md](16-evaluation.md#2-評価指標)。二値用の `MetricCalculator` は、複勝の払戻の列を必ず読むので使えない |
 | `shared/evaluation/` | 追加 | `ClassEvaluation`・`ClassModelEvaluator` | 1つの時点・1つのモデルの当たり具合の値／`evaluate(時点, アンサンブル, データ)` | |
 | `shared/command/` | 追加 | `ClassTrainingReportTables`・`RacePredictionTable` | `tables()`／`table()`。期間ごとのクラスの割合と 4クラスの指標の表／「券種 × 4つの確率・いちばん高いクラス・中荒れ以上の確率」の表 | 二値用の `TrainingReportTables` は目的変数の平均を出すので使えない |
@@ -82,7 +83,7 @@
 | `UpsetLevel` | 荒れ具合を表す値（列挙。固い = 0、中荒れ = 1、大荒れ = 2、超荒れ = 3） | `label`・`value` | ― |
 | `UpsetLevelRule` | 券種ごとの線引き（3つの額）を持つ値。**線引きの唯一の置き場所**（[10-target.md](10-target.md#券種ごとの線引き)） | `level_of(券種, 払戻)`・`levels_of(券種, 払戻の列)`・`is_upset_or_more(券種, 払戻)` | `UpsetLevel` |
 | `UpsetLevelLabeler` | 払戻の列から、券種ごとの荒れ具合（4列）を付ける。発売なし・不成立・特払は欠損値、同着は最大の払戻（[10-target.md](10-target.md#作り方)） | `label_names`・`build(レースの行)` | `UpsetLevelRule`・`BetType` |
-| `race_column_names.py` の定数 | 目的変数・評価用の列の名前（「荒れ具合（単勝）」「3連単の払戻」「1番人気の確定着順」「利用者の規則に当てはまるか」など） | ―（値） | ― |
+| `race_column_names.py` の関数と定数 | 評価用の列のうち、払戻の列の名前（「3連単の払戻」「3連単の払戻の人気順」など）。目的変数の列名は `BetType.column_name`、レースの結果の列名（「1番人気の確定着順」など）は共通の `column_names.py` | ―（値） | ― |
 | `dataset_assembly.py` の `race_dataset_builder()` | この予想の部品（`RaceSelector`・`UpsetLevelLabeler`・`CATALOG`・まとまり A〜E）を渡して、共通の `RaceDatasetBuilder` を組み立てる | `race_dataset_builder(接続)` | 上のクラスと共通の `RaceDatasetBuilder` |
 
 ### feature/ — まとまり A〜E を集約する
