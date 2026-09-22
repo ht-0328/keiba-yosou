@@ -425,11 +425,13 @@ def ensure_facts(con: duckdb.DuckDBPyConnection, name: str = FACTS_TABLE) -> str
 
 def build_entry_facts(con: duckdb.DuckDBPyConnection, entry: EntryScope, *,
                       popularity: Mapping[int, int] | None = None,
+                      popularity_by_name: Mapping[str, int] | None = None,
                       weights: Mapping[int, tuple[int, int | None]] | None = None, name: str = ENTRY_TABLE) -> str:
     """1レースの出走馬に事実表と同じ列を付けた一時表を作る（あれば作り直す）。表の名前を返す。
 
-    ``popularity`` は 馬番 → 単勝人気、``weights`` は 馬番 → （馬体重, 増減）。発走前の DB に無い値を手で与える。
-    馬番がまだ決まっていないレース（木曜の出走馬名表）には与えられない。レースが無ければ ``LookupError``。
+    ``popularity`` は 馬番 → 単勝人気、``popularity_by_name`` は 馬名 → 単勝人気、``weights`` は 馬番 → （馬体重, 増減）。
+    発走前の DB に無い値を手で与える。馬番がまだ決まっていないレース（木曜の出走馬名表）には、人気を馬名で与える
+    （馬名は事実表と同じく前後の空白を除いたもの）。レースが無ければ ``LookupError``、いない馬番・馬名なら ``ValueError``。
     """
     table = keys.q(name)
     con.execute(f"CREATE OR REPLACE TEMP TABLE {table} AS SELECT * FROM ({facts_sql(con, entry)}) WHERE race_id = '{entry.rid}'")
@@ -440,11 +442,22 @@ def build_entry_facts(con: duckdb.DuckDBPyConnection, entry: EntryScope, *,
     unknown = sorted({*(popularity or {}), *(weights or {})} - known)
     if unknown:
         raise ValueError(f"馬番 {unknown[0]} はこのレースにいません（出走馬名表の間は馬番が未定で、人気・馬体重を与えられません）")
+    _check_names_known(con, table, popularity_by_name or {})
     for horse_no, rank in (popularity or {}).items():
         con.execute(f"UPDATE {table} SET popularity = ? WHERE horse_no = ?", [rank, horse_no])
+    for horse_name, rank in (popularity_by_name or {}).items():
+        con.execute(f"UPDATE {table} SET popularity = ? WHERE horse_name = ?", [rank, horse_name])
     for horse_no, (weight, change) in (weights or {}).items():
         con.execute(f"UPDATE {table} SET body_weight = ?, weight_change = ? WHERE horse_no = ?", [weight, change, horse_no])
     return name
+
+
+def _check_names_known(con: duckdb.DuckDBPyConnection, table: str, popularity_by_name: Mapping[str, int]) -> None:
+    """馬名で与えた人気の馬名が、そのレースの出走馬にあるか。無ければ ``ValueError``。"""
+    known = {name for (name,) in con.execute(f"SELECT horse_name FROM {table}").fetchall()}
+    unknown = sorted(set(popularity_by_name) - known)
+    if unknown:
+        raise ValueError(f"馬名 {unknown[0]} はこのレースにいません（出走馬名表の馬名とそのまま一致させてください）")
 
 
 def rebuild_timing(con: duckdb.DuckDBPyConnection, name: str = FACTS_TABLE) -> tuple[int, float]:

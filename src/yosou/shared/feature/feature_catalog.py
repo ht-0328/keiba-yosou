@@ -1,6 +1,7 @@
-"""どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、予想ごとの一覧を表す値。
+"""どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、人気を使う予想が足す4個、
+予想ごとの一覧を表す値。
 
-特徴量の名前・まとまり（A〜I）・数値かカテゴリかは、ここだけに書く。
+特徴量の名前・まとまり（A〜J）・数値かカテゴリかは、ここだけに書く。
 予想ごとに特徴量を足すときは、``BASE_FEATURES`` に足した一覧で ``FeatureCatalog`` を作る。
 """
 
@@ -102,13 +103,22 @@ BASE_FEATURES: tuple[Feature, ...] = (
     Feature("14日以内の調教の本数", "I", _N),
 )
 
+#: 人気を使う予想（``favorites_out_of_top3``・``longshots_in_top3``）が A〜I に足す、J. 人気と人気の履歴（4個）。
+#: どれも大小に意味がある数なので、数値特徴量にする。作るのは ``group/popularity_history_features.py``。
+POPULARITY_FEATURES: tuple[Feature, ...] = (
+    Feature("人気順位", "J", _N),
+    Feature("前走の人気と着順の差", "J", _N),
+    Feature("近5走で人気より悪い着順だった回数", "J", _N),
+    Feature("近5走の平均人気", "J", _N),
+)
+
 
 @dataclass(frozen=True)
 class FeatureCatalog:
     """1つの予想が使う特徴量の一覧。名前の並びと、カテゴリ特徴量と、時点ごとに使う列を答える。
 
-    手本の予想は ``FeatureCatalog(BASE_FEATURES)``。特徴量を足す予想は、足した一覧で作る
-    （例: ``FeatureCatalog(BASE_FEATURES + POPULARITY_FEATURES)``）。同じ名前が2つあれば作れない。
+    手本の予想は ``FeatureCatalog(BASE_FEATURES)``。人気を使う予想は ``FeatureCatalog(BASE_FEATURES + POPULARITY_FEATURES)``。
+    同じ名前が2つあれば作れない。
     """
 
     features: tuple[Feature, ...]

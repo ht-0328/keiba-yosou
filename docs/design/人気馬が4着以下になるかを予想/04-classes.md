@@ -9,6 +9,8 @@
 - 用語の意味（public メソッド・オーケストレーション・インターフェース・リポジトリ・エンコーダー）は [手本の 02 の「機械学習の用語」](../近走と適性から3着以内を予想/02-glossary.md#機械学習の用語) を参照。
 - クラスどうしが、どの順にどのメソッドを呼ぶかは [05-sequence.md](05-sequence.md) を参照。
 
+**2026-09-23 の追記。** 穴馬の予想（[穴馬の 04 の「1. 共通の部品と、この予想だけの部品の分け方」](../穴馬が3着以内に入るかを予想/04-classes.md#1-共通の部品とこの予想だけの部品の分け方)）を作るときに、この文書で「この予想だけのクラス」としていたもののうち、人気を決める部品（`PopularityApplier`・`PopularityInput`）、締め切り前のオッズ（`AnnouncedOddsRepository`）、まとまり J（`PopularityHistoryFeatures`・`PopularityRunSummary`・一覧 `POPULARITY_FEATURES`）を `src/yosou/shared/` に移し、2つの予想から使う形にした。多頭数の線引き（14頭）も共通の定数になった。`PopularityInput` は、木曜用に「馬名:人気」も受け取る。下の表の「dataset/」「feature/」「repository/」のうち、それらの行は今は共通のクラスである（仕事は変わらない）。
+
 ## 1. 共通の部品と、この予想だけの部品の分け方
 
 手本の予想（`src/yosou/form_aptitude_top3/`）には、この予想でもそのまま要るクラスが多い。同じクラスを2つのパッケージに複製すると、片方だけ直したときに食い違う。そこで、**共通のクラスを `src/yosou/shared/` に移し、両方の予想から使う。** これが、この予想を作るときの最初の作業になる（[15-decisions.md](15-decisions.md#8-共通部分の置き方)）。
@@ -65,10 +67,8 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 ├── __main__.py                     コマンドの入口（command/ を呼ぶだけ）
 ├── command/                        コマンド（train・predict）の引数
 ├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
-├── dataset/                        人気馬の行を選ぶ・目的変数を付ける・人気を決める
-├── feature/                        まとまり J を作る。この予想の特徴量の一覧
-│   └── history/                    過去走から近5走の人気を数える部品
-├── repository/                     締め切り前のオッズを読む
+├── dataset/                        人気馬の行を選ぶ・目的変数を付ける（人気を決める部品は 2026-09-23 に shared へ）
+├── feature/                        この予想の特徴量の一覧（まとまり J を作る部品は 2026-09-23 に shared へ）
 ├── setting/                        ハイパーパラメータの初期値のファイル
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```

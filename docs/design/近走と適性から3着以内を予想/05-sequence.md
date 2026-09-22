@@ -46,7 +46,7 @@ sequenceDiagram
     participant L as HistoryRecordsLoader
     participant RS as RunnerSelector
     participant F as FeatureBuilder
-    participant T as TargetBuilder
+    participant T as Top3TargetBuilder
     participant S as PeriodSplitter
     participant MR as ModelRepository
     U->>W: run（設定ファイルのパス）
@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（`TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 71個で作る。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 71個で作る。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
 
 ## 図2. 予測
 

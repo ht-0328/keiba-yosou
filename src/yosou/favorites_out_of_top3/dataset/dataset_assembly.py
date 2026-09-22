@@ -11,18 +11,19 @@ from yosou.shared.feature.group import (
     HorseFeatures,
     PedigreeFeatures,
     PeopleFeatures,
+    PopularityHistoryFeatures,
     PreviousRunFeatures,
     RaceConditionFeatures,
     RecentFormFeatures,
     WorkoutFeatures,
 )
 
-from ..feature import CATALOG, PopularityHistoryFeatures
+from ..feature import CATALOG
 from .favorite_rule import FavoriteRule
 from .favorite_selector import FavoriteSelector
 from .out_of_top3_target_builder import OutOfTop3TargetBuilder
 
-#: ``FeatureBuilder`` に渡すまとまり（G 以外）。共通の A〜F・H・I に、この予想の J を足す。
+#: ``FeatureBuilder`` に渡すまとまり（G 以外）。共通の A〜F・H・I に、共通の J を足す。
 _FEATURE_GROUPS = (
     RaceConditionFeatures(), HorseFeatures(), PeopleFeatures(), PreviousRunFeatures(),
     RecentFormFeatures(), AptitudeFeatures(), PedigreeFeatures(), WorkoutFeatures(),

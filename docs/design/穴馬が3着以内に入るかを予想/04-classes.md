@@ -48,6 +48,7 @@
 | `DatasetBuilder` は、行を選ぶクラス（`SampleSelector`）と目的変数を付けるクラス（`TargetLabeler`）を、作られるときに受け取る | 予想ごとの違いが、渡すクラスの中に収まる |
 | `keep_samples()` は、特徴量を作ったあとに呼ぶ | レース内順位は、レースの全出走馬から計算する。穴馬だけに絞るのは、そのあとになる（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)） |
 | 区分で絞るのは、予測確率を出したあとにする | モデルは穴馬すべてで学習し、穴馬すべてに確率を出す。区分は出力の絞り込みだけである（[15-decisions.md](15-decisions.md#3-区分ごとに別のモデルにするか)） |
+| 「穴馬の区分」の列は、共通の `DatasetBuilder` に「出走の行から残す列」として渡し、学習データの評価用の列と予測の結果に足す | 区分は `LongshotSelector` が出走の行に足す。`DatasetBuilder` は列の名前を受け取るだけで、「どの予想か」を知らずに済む |
 | 手本と危険な人気馬の予想も、移したあとの `shared` を使う形に直す | 同じ仕事のクラスが2つに増えると、直すときに片方を忘れる |
 
 ## 2. パッケージ構成
@@ -96,7 +97,7 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 | `LongshotSelector` | 学習データ・予測用データに入れる行を選び、「穴馬か」「穴馬の区分」の列を足す。特徴量を作ったあとに、穴馬の行だけを残す（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)）。予測では、人気の分からない馬が1頭でもいれば止める（[06-flowchart.md](06-flowchart.md#図2-予測用データに人気を当てる)） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `LongshotRule`、共通の `FlatRunnerFilter` |
 | `LongshotZoneFilter` | 予測の結果を、指定された区分の行だけにする。指定が無ければそのまま返す | `apply(予測の結果, 区分)` | ― |
 | `column_names.py` の `IS_LONGSHOT`・`LONGSHOT_ZONE` | 「穴馬か」「穴馬の区分」の列の名前 | ―（値） | ― |
-| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`LongshotSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまり A〜F・H・I と共通の `PopularityHistoryFeatures`）を渡して、共通の `DatasetBuilder` を組み立てる | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
+| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`LongshotSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまり A〜F・H・I と共通の `PopularityHistoryFeatures`、残す列「穴馬の区分」）を渡して、共通の `DatasetBuilder` を組み立てる | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
 
 決めた「馬番（木曜は馬名）→ 人気」は、`PredictionWorkflow` が共通の `DatasetBuilder.build_prediction_data()` に渡し、出走の行に当てるのは共通の `RaceEntryTableRepository` である（危険な人気馬の予想と同じ。[05-sequence.md](05-sequence.md#図2-予測)）。「穴馬の区分」の列は `LongshotSelector` が足し、モデルには渡さず、出力の表と評価にだけ使う（[08-training-data.md](08-training-data.md#2-列の種類)）。
 

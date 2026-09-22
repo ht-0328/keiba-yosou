@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+import pandas as pd
+
 from ..feature import EntryColumns, FeatureBuilder, PredictionTiming
 from . import column_names as names
 from .history_records_loader import HistoryRecordsLoader
@@ -25,6 +27,8 @@ _EVALUATION_COLUMNS = EntryColumns({
     names.FINISH: "finish", names.WIN_ODDS: "win_odds", names.POPULARITY: "popularity",
     names.WIN_PAYOUT: "win_payout", names.PLACE_PAYOUT: "place_payout",
 })
+#: 予想ごとに足す列が無いときの、空の列の選び方。
+_NO_EXTRA_COLUMNS = EntryColumns({})
 
 
 class DatasetBuilder:
@@ -33,16 +37,20 @@ class DatasetBuilder:
     どちらも同じ手順（記録を集める → 行を選ぶ → 特徴量を作る → 残す行を決める）を通し、学習と予測で
     特徴量の中身がずれないようにする（設計書 11 の 4）。予想ごとに違うところ（入れる行・目的変数・特徴量の一覧）は、
     作られるときに受け取る ``selector``・``target_builder``・``feature_builder`` の中にある。
+
+    ``extra_columns`` は、出走の行から、学習データの評価用の列と予測の結果に足す列（予想ごと。例: 穴馬の区分。
+    行を選ぶクラスが出走の行に足した列を、そのまま残すのに使う）。無ければ何も足さない。
     """
 
     def __init__(self, history_loader: HistoryRecordsLoader, race_loader: RaceRecordsLoader,
                  selector: SampleSelector, target_builder: TargetLabeler,
-                 feature_builder: FeatureBuilder) -> None:
+                 feature_builder: FeatureBuilder, extra_columns: EntryColumns | None = None) -> None:
         self._history_loader = history_loader
         self._race_loader = race_loader
         self._selector = selector
         self._target_builder = target_builder
         self._feature_builder = feature_builder
+        self._extra_columns = extra_columns or _NO_EXTRA_COLUMNS
         self._required_info = RequiredInfoCheck()
 
     def build_training_data(self, period: TrainingPeriod) -> TrainingData:
@@ -59,16 +67,16 @@ class DatasetBuilder:
             ids=_ID_COLUMNS.select(kept),
             features=features.loc[kept.index],
             targets=self._target_builder.build(kept),
-            evaluation=_EVALUATION_COLUMNS.select(kept),
+            evaluation=self._with_extra_columns(_EVALUATION_COLUMNS.select(kept), kept),
             catalog=self._feature_builder.catalog,
             label_name=self._target_builder.label_name,
         )
 
     def build_prediction_data(self, race_id: str, timing: PredictionTiming,
-                              popularity: Mapping[int, int] | None = None) -> PredictionData:
+                              popularity: Mapping[int | str, int] | None = None) -> PredictionData:
         """1レースの出走馬の予測用データを作る。特徴量は ``timing`` の時点で使うものだけ。
 
-        ``popularity`` は 馬番 → 単勝人気。まだ DB に無い人気を、利用者が手で渡すときに使う。
+        ``popularity`` は 馬番（木曜は馬名）→ 単勝人気。まだ DB に無い人気を、利用者が手で渡すときに使う。
         障害レースと、その時点で要る情報（馬番・馬場状態・馬体重）がまだ DB に無いときは ``ValueError``。
         """
         records = self._race_loader.load(race_id, popularity)
@@ -78,6 +86,10 @@ class DatasetBuilder:
         kept_features = features.loc[kept.index]
         self._required_info.check(kept_features)
         return PredictionData(
-            ids=_ID_COLUMNS.select(kept), features=kept_features, timing=timing,
-            catalog=self._feature_builder.catalog,
+            ids=self._with_extra_columns(_ID_COLUMNS.select(kept), kept), features=kept_features,
+            timing=timing, catalog=self._feature_builder.catalog,
         )
+
+    def _with_extra_columns(self, table: pd.DataFrame, rows: pd.DataFrame) -> pd.DataFrame:
+        """``table`` の右に、予想ごとに足す列（``rows`` から選ぶ）を付ける。"""
+        return pd.concat([table, self._extra_columns.select(rows)], axis=1)

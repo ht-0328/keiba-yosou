@@ -35,10 +35,11 @@ class RaceRecordsLoader:
         self._weight_applier = AnnouncedWeightApplier()
         self._scratch_applier = ScratchApplier()
 
-    def load(self, race_id: str, popularity: Mapping[int, int] | None = None) -> EntryRecords:
+    def load(self, race_id: str, popularity: Mapping[int | str, int] | None = None) -> EntryRecords:
         """レースが無ければ ``LookupError``、rid の形が違えば ``ValueError``。
 
-        ``popularity`` は 馬番 → 単勝人気。渡すと、出走の行の単勝人気をその値にする（まだ DB に無いときに手で渡す）。
+        ``popularity`` は 馬番（木曜は馬名）→ 単勝人気。渡すと、出走の行の単勝人気をその値にする
+        （まだ DB に無いときに手で渡す）。
         """
         self._fact_table.ensure()
         going_code = self._announced_going.read(race_id)

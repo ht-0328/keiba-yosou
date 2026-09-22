@@ -10,13 +10,13 @@ from 共通 import db, race
 from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, PredictionTable
+from yosou.shared.dataset import PopularityApplier, PopularityInput
 from yosou.shared.feature import PredictionTiming
+from yosou.shared.feature.group import POPULARITY_RANK
 from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
+from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
 
-from ..dataset import PopularityApplier, PopularityInput, dataset_builder
-from ..feature import POPULARITY_RANK
-from ..repository import AnnouncedOddsRepository
+from ..dataset import dataset_builder
 from ..workflow import PROBABILITY, TIMING_CHOICES, PredictionWorkflow
 from .yosou_name import YOSOU_NAME
 

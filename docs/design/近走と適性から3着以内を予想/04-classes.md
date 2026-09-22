@@ -109,7 +109,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 
 取得していない DB には `ck`・`hc`・`wc`・`we`・`wh`・`av` の表が無い。そのときは、同じ列を持つ空の関係で代わりにし、SQL 1本のまま「行なし」を返す。
 
-### dataset/ — 学習データ・予測用データを作る（`RunnerSelector`・`TargetBuilder` はこの予想、ほかは `shared`）
+### dataset/ — 学習データ・予測用データを作る（`RunnerSelector` はこの予想、ほかは `shared`）
 
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
@@ -122,8 +122,8 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `AnnouncedWeightApplier` | 速報の馬体重を、出走の行に反映する | `apply(出走の行, 速報の馬体重)` |
 | `ScratchApplier` | 速報の出走取消・競走除外を、出走の行に反映する | `apply(出走の行, 馬番)` |
 | `RunnerSelector`（この予想） | 入れる行を選ぶ（[06-flowchart.md](06-flowchart.md) の図1）。この予想は全頭を入れるので、`keep_samples` はそのまま返す | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` |
-| `TargetBuilder`（この予想） | 目的変数を付ける（[10-target.md](10-target.md)）。当てさせる列は「3着以内」 | `build(サンプルの行)`、`label_name` |
-| `dataset_builder()`（この予想） | 上の2つと特徴量の一覧（`CATALOG`）を渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`） | `dataset_builder(接続)` |
+| `Top3TargetBuilder` | 目的変数を付ける（[10-target.md](10-target.md)）。当てさせる列は「3着以内」で、「1着」の列も付ける。穴馬の予想（`docs/design/穴馬が3着以内に入るかを予想/`）も同じ目的変数を使うので、2026-09-23 に `shared` へ移した（元の名前は `TargetBuilder`） | `build(サンプルの行)`、`label_name` |
+| `dataset_builder()`（この予想） | `RunnerSelector`・共通の `Top3TargetBuilder`・特徴量の一覧（`CATALOG`）を渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`） | `dataset_builder(接続)` |
 | `RequiredInfoCheck` | 予測に要る情報（馬番・馬場状態・馬体重）が DB にあるかを確かめる | `check(特徴量)` |
 | `PeriodSplitter` | 学習データを時期（`TrainingPeriod` の検証・テストの始まり）で、学習データ・検証データ・テストデータに分ける。分け方は次の設計書で決める（いまは仮の区切り） | `split(学習データ)` |
 | `TrainingData`・`PredictionData`・`SplitData` | 学習データ・予測用データ・期間で分けたデータの入れ物（[08-training-data.md](08-training-data.md) の「列の種類」） | ― |
@@ -139,8 +139,8 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `EntryRecords` | 特徴量を作る元の記録の入れ物 | ― |
 | `EntryColumns` | 出走の記録から列を選び、名前を付け直す | `select(出走の行)` |
 | `FeatureGroup` | まとまりのクラスに共通の決まり（インターフェース） | `build(記録)` |
-| `group/` の9クラス | まとまり A〜I ごとに1クラス: `RaceConditionFeatures`（A）、`HorseFeatures`（B）、`PeopleFeatures`（C）、`PreviousRunFeatures`（D）、`RecentFormFeatures`（E）、`AptitudeFeatures`（F）、`FieldComparisonFeatures`（G）、`PedigreeFeatures`（H）、`WorkoutFeatures`（I） | `build(記録)` |
-| `history/` の6クラス | 過去の記録から数える部品: `AsOfLookup`（開催日の N 日前までで、いちばん新しい記録を引く）、`DatedRecords`（鍵と日付を持つ記録の表）、`RecentRunSummary`（近5走のまとめ）、`Top3Rate`（近1年の3着以内の割合）、`WorkoutLookup`（14日以内の調教）、`WorkoutCoverage`（調教の記録が DB にある期間。出走ごとに、そのコースの記録があるかを判定する） | ― |
+| `group/` の10クラス | まとまり A〜J ごとに1クラス: `RaceConditionFeatures`（A）、`HorseFeatures`（B）、`PeopleFeatures`（C）、`PreviousRunFeatures`（D）、`RecentFormFeatures`（E）、`AptitudeFeatures`（F）、`FieldComparisonFeatures`（G）、`PedigreeFeatures`（H）、`WorkoutFeatures`（I）、`PopularityHistoryFeatures`（J。人気を使う予想だけが渡す。この予想は使わない） | `build(記録)` |
+| `history/` の7クラス | 過去の記録から数える部品: `AsOfLookup`（開催日の N 日前までで、いちばん新しい記録を引く）、`DatedRecords`（鍵と日付を持つ記録の表）、`RecentRunSummary`（近5走のまとめ）、`PopularityRunSummary`（近5走の人気のまとめ。まとまり J の材料）、`Top3Rate`（近1年の3着以内の割合）、`WorkoutLookup`（14日以内の調教）、`WorkoutCoverage`（調教の記録が DB にある期間。出走ごとに、そのコースの記録があるかを判定する） | ― |
 
 「開催日より前のものだけから計算する」決まり（[11-leak-prevention.md](11-leak-prevention.md) の 2）は、`AsOfLookup` の1か所で守る。
 

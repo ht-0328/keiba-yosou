@@ -132,9 +132,9 @@ sequenceDiagram
 
 | 図の中の部分 | 今の状態 |
 |---|---|
-| `shared` に移す部品（人気を決める部品・J・締め切り前のオッズ・`Top3TargetBuilder`・多頭数の線引き） | まだ `favorites_out_of_top3` と `form_aptitude_top3` にある。移すのが最初の作業で、2つの予想も移したあとの形に直す（[04-classes.md](04-classes.md#1-共通の部品とこの予想だけの部品の分け方)） |
-| この予想のクラス（`LongshotSelector`・`LongshotZoneFilter` など） | まだ無い。`src/yosou/longshots_in_top3/` に作る |
-| `PopularityInput` の「馬名:人気」 | まだ無い（今は「馬番:人気」だけ）。木曜の予測のために足す（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)） |
+| `shared` に移す部品（人気を決める部品・J・締め切り前のオッズ・`Top3TargetBuilder`・多頭数の線引き） | 移した（`src/yosou/shared/`。2つの予想も移したあとの形に直した。[04-classes.md](04-classes.md#1-共通の部品とこの予想だけの部品の分け方)） |
+| この予想のクラス（`LongshotSelector`・`LongshotZoneFilter` など） | 作った（`src/yosou/longshots_in_top3/`） |
+| `PopularityInput` の「馬名:人気」 | 作った。木曜の予測で、馬名で人気を当てる（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)） |
 | `AnnouncedOddsRepository` が読むオッズ | 危険な人気馬の予想と同じ。断面は jvdata-store の `jvstore realtime --date <開催日>` で入る。今の元DB には断面がごく少数しか無く、取り忘れたレースは `--pops` で人気を渡す |
 | 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 手本と同じく、次の設計書で決める。この予想では、区分（中穴・大穴）ごとの当たり具合も見る |
 | アンサンブルの平均のしかた | 手本と同じく、次の設計書で決める |
