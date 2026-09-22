@@ -130,6 +130,19 @@ def test_race_entry_table_of_entry_list_has_no_horse_numbers(season_con):
     assert len(entries) == 8 and entries["horse_no"].isna().all() and entries["ran"].all()
 
 
+def test_race_entry_table_applies_popularity_given_by_horse_name(season_con):
+    # 木曜（出走馬名表）は馬番が無いので、人気を馬名で当てる（穴馬の設計書 07）
+    repository = RaceEntryTableRepository(season_con)
+    scope = repository.build(season.ENTRY_LIST_RACE_ID, going_code=None)
+    names = EntryRepository(season_con).read(scope)["horse_name"].tolist()
+    given = {name: rank for rank, name in enumerate(names, start=1)}
+    scope = repository.build(season.ENTRY_LIST_RACE_ID, going_code=None, popularity=given)
+    entries = EntryRepository(season_con).read(scope)
+    assert {name: int(rank) for name, rank in zip(entries["horse_name"], entries["popularity"])} == given
+    with pytest.raises(ValueError, match="馬名"):
+        repository.build(season.ENTRY_LIST_RACE_ID, going_code=None, popularity={"いない馬": 1})
+
+
 def test_race_entry_table_reports_unknown_race(season_con):
     with pytest.raises(LookupError):
         RaceEntryTableRepository(season_con).build("2025011105010109", going_code=None)

@@ -17,6 +17,7 @@
 | ``AnnouncedWeightRepository`` | 速報の馬体重 |
 | ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面） |
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
+| ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気を使う予想が使う |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
 
 ``TargetScope`` は「どの出走について読むか」を表す値、``CareerCountSql`` は ``CareerCountRepository`` の SQL の式を作る部品。

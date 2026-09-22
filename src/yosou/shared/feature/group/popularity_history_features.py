@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from yosou.shared.feature import EntryRecords, as_numbers
-from yosou.shared.feature.history import AsOfLookup, DatedRecords
-
-from .history import SUMMARY_COLUMNS, PopularityRunSummary
+from ..entry_records import EntryRecords
+from ..history import AsOfLookup, DatedRecords, PopularityRunSummary
+from ..history.popularity_run_summary import SUMMARY_COLUMNS
+from ..value_types import as_numbers
 
 #: 出走の行からそのまま作る特徴量の名前。
 POPULARITY_RANK = "人気順位"
@@ -15,8 +15,9 @@ PREV_POPULARITY_GAP = "前走の人気と着順の差"
 
 
 class PopularityHistoryFeatures:
-    """J. 人気と人気の履歴（設計書 09 の J）。``FeatureGroup`` を守る。
+    """J. 人気と人気の履歴（人気馬の設計書 09 の J）。``FeatureGroup`` を守る。
 
+    人気を使う予想（``favorites_out_of_top3``・``longshots_in_top3``）が、A〜I に足して使う。
     「今回どれだけ人気か」と、「これまで人気どおりに走ってきたか」を表す。決定木は2つの列を引き算して
     比べられないので、着順と人気の差は、あらかじめ列にしておく。
     """

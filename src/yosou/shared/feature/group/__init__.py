@@ -1,4 +1,4 @@
-"""特徴量のまとまり（設計書 09 の A〜I）ごとに1クラス。
+"""特徴量のまとまり（設計書 09 の A〜J）ごとに1クラス。
 
 | クラス | まとまり |
 |---|---|
@@ -11,6 +11,9 @@
 | ``FieldComparisonFeatures`` | G. 同じレースの馬との比較（4個） |
 | ``PedigreeFeatures`` | H. 血統（3個） |
 | ``WorkoutFeatures`` | I. 調教（6個） |
+| ``PopularityHistoryFeatures`` | J. 人気と人気の履歴（4個）。人気を使う予想だけが渡す |
+
+``POPULARITY_RANK`` は特徴量「人気順位」の名前。予測の結果の表にも出すので、外にも見せる。
 """
 
 from .aptitude_features import AptitudeFeatures
@@ -18,6 +21,7 @@ from .field_comparison_features import FieldComparisonFeatures
 from .horse_features import HorseFeatures
 from .pedigree_features import PedigreeFeatures
 from .people_features import PeopleFeatures
+from .popularity_history_features import POPULARITY_RANK, PopularityHistoryFeatures
 from .previous_run_features import PreviousRunFeatures
 from .race_condition_features import RaceConditionFeatures
 from .recent_form_features import RecentFormFeatures
@@ -26,5 +30,5 @@ from .workout_features import WorkoutFeatures
 __all__ = [
     "RaceConditionFeatures", "HorseFeatures", "PeopleFeatures", "PreviousRunFeatures",
     "RecentFormFeatures", "AptitudeFeatures", "FieldComparisonFeatures", "PedigreeFeatures",
-    "WorkoutFeatures",
+    "WorkoutFeatures", "PopularityHistoryFeatures", "POPULARITY_RANK",
 ]

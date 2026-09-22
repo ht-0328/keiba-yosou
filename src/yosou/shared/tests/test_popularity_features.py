@@ -1,4 +1,4 @@
-"""まとまり J（人気と人気の履歴）の作り方（設計書 09 の J）。
+"""まとまり J（人気と人気の履歴）の作り方（人気馬の設計書 09 の J）。
 
 DB を使わず、手で作った記録を渡して確かめる。
 """
@@ -12,9 +12,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from yosou.shared.feature import EntryRecords, WorkoutCoverage
-
-from ..feature import CATALOG, J_FEATURES, PopularityHistoryFeatures
+from ..feature import BASE_FEATURES, POPULARITY_FEATURES, EntryRecords, FeatureCatalog, WorkoutCoverage
+from ..feature.group import PopularityHistoryFeatures
 from ..feature.history import AVERAGE_POPULARITY, WORSE_THAN_POPULARITY
 
 RACE_DAY = date(2024, 6, 1)
@@ -53,11 +52,17 @@ def _build(entries: list[dict[str, Any]], past_runs: list[dict[str, Any]] = ()) 
 
 
 def test_the_four_features_are_numbers_in_group_j():
-    assert [feature.name for feature in J_FEATURES] == [
+    assert [feature.name for feature in POPULARITY_FEATURES] == [
         "人気順位", "前走の人気と着順の差", WORSE_THAN_POPULARITY, AVERAGE_POPULARITY,
     ]
-    assert all(feature.group == "J" and not feature.is_categorical for feature in J_FEATURES)
-    assert set(CATALOG.names) >= {feature.name for feature in J_FEATURES}
+    assert all(feature.group == "J" and not feature.is_categorical for feature in POPULARITY_FEATURES)
+    # A〜I に足しても名前が重ならない（人気を使う予想の一覧が作れる）
+    assert len(FeatureCatalog(BASE_FEATURES + POPULARITY_FEATURES).names) == 75
+
+
+def test_the_group_makes_exactly_the_four_features():
+    features = _build([_entry("A", 1)])
+    assert list(features.columns) == [feature.name for feature in POPULARITY_FEATURES]
 
 
 def test_popularity_rank_comes_from_the_entry():

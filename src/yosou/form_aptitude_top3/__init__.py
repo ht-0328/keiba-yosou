@@ -10,7 +10,7 @@
 |---|---|
 | ``command/`` | コマンド（train・predict）の引数。入口 |
 | ``workflow/`` | 予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点 |
-| ``dataset/`` | 入れる行の選び方・目的変数（3着以内）と、共通の ``DatasetBuilder`` の組み立て |
+| ``dataset/`` | 入れる行の選び方と、共通の ``DatasetBuilder`` の組み立て（目的変数「3着以内」は穴馬の予想と共通なので ``yosou.shared``） |
 | ``feature/`` | この予想の特徴量 71個の一覧（``CATALOG``） |
 | ``setting/`` | ハイパーパラメータの初期値のファイル |
 | ``tests/`` | この予想の組み立てのテスト（共通の部品のテストは ``yosou.shared.tests``） |

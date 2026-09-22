@@ -1,4 +1,4 @@
-"""予測のときに使う人気の決め方（設計書 06 の図2・07 の「予測のときの人気の与え方」）。
+"""予測のときに使う人気の決め方（人気馬・穴馬の設計書 06 の図2・07 の「予測のときの人気の与え方」）。
 
 実DB は使わない。締め切り前のオッズの SQL は、その表だけを入れた小さな DuckDB で確かめる。
 """
@@ -13,10 +13,9 @@ import pytest
 
 from 共通 import db, keys
 
-from yosou.shared.repository import AnnouncedOddsRepository
-from yosou.shared.tests import synthetic_season as season
-
 from ..dataset import PopularityApplier, PopularityInput
+from ..repository import AnnouncedOddsRepository
+from . import synthetic_season as season
 
 RACE = season.CARD_RACE_ID
 #: 確定前の断面（データ区分 2）の発表時刻と、そのあとの確定の断面（データ区分 4）。
@@ -46,15 +45,21 @@ def test_popularity_input_reads_pairs_written_with_commas():
     assert PopularityInput.of(["3:1", "7:2,11:3"]).as_mapping() == {3: 1, 7: 2, 11: 3}
 
 
+def test_popularity_input_reads_horse_names_for_thursday():
+    # 木曜（出走馬名表）は馬番が無いので、馬名で渡す。数字だけでなければ馬名とみなす
+    assert PopularityInput.of(["ウマ001:1", "ウマ002:2"]).as_mapping() == {"ウマ001": 1, "ウマ002": 2}
+
+
 @pytest.mark.parametrize(("texts", "message"), [
     (["3-1"], "馬番:人気"),
     (["3:1:2"], "馬番:人気"),
     (["0:1"], "馬番"),
     (["3:0"], "人気"),
-    (["a:1"], "馬番"),
+    ([":1"], "馬番か馬名"),
     (["3:b"], "人気"),
     ([], "1つ以上"),
     (["3:1", "3:2"], "同じ馬番 3"),
+    (["ウマ001:1", "ウマ001:2"], "同じ馬名 ウマ001"),
     (["3:1", "7:1"], "同じ人気 1"),
 ])
 def test_popularity_input_reports_what_is_wrong(texts: list[str], message: str):

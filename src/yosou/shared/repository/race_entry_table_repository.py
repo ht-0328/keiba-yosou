@@ -25,12 +25,22 @@ class RaceEntryTableRepository:
         self._con = con
 
     def build(self, race_id: str, going_code: str | None,
-              popularity: Mapping[int, int] | None = None) -> TargetScope:
+              popularity: Mapping[int | str, int] | None = None) -> TargetScope:
         """一時表を作り、その出走を指す ``TargetScope`` を返す。レースが無ければ ``LookupError``。
 
         ``going_code`` は速報の馬場状態コード。None なら、レースの行に入っている馬場状態を使う。
-        ``popularity`` は 馬番 → 単勝人気。渡すと、その馬の単勝人気をその値にする（まだ DB に無いときに手で渡す）。
+        ``popularity`` は 馬番（木曜は馬名）→ 単勝人気。渡すと、その馬の単勝人気をその値にする
+        （まだ DB に無いときに手で渡す）。いない馬番・馬名なら ``ValueError``。
         """
         scope = facts.EntryScope(race_id, going_code)
-        table = facts.build_entry_facts(self._con, scope, popularity=popularity, name=_TABLE)
+        by_number, by_name = self._split(popularity or {})
+        table = facts.build_entry_facts(
+            self._con, scope, popularity=by_number, popularity_by_name=by_name, name=_TABLE,
+        )
         return TargetScope.of_table(table)
+
+    def _split(self, popularity: Mapping[int | str, int]) -> tuple[dict[int, int], dict[str, int]]:
+        """馬番で渡された人気と、馬名で渡された人気（木曜）に分ける。"""
+        by_number = {horse: rank for horse, rank in popularity.items() if isinstance(horse, int)}
+        by_name = {horse: rank for horse, rank in popularity.items() if isinstance(horse, str)}
+        return by_number, by_name

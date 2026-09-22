@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from yosou.shared.dataset import DatasetBuilder
+from yosou.shared.dataset import DatasetBuilder, PopularityApplier, PopularityInput
 from yosou.shared.feature import PredictionTiming
+from yosou.shared.feature.group import POPULARITY_RANK
 from yosou.shared.ml_model import EnsembleModel
 from yosou.shared.repository import ModelRepository
 
-from ..dataset import PopularityApplier, PopularityInput
-from ..feature import POPULARITY_RANK
 from .prediction_timings import TIMING_CHOICES, TIMINGS
 
 #: 予測の結果の、アンサンブルの確率の列の名前。

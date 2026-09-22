@@ -38,11 +38,11 @@ class RaceRecordsLoader:
         self._scratch_applier = ScratchApplier()
         self._odds_applier = AnnouncedOddsApplier()
 
-    def load(self, race_id: str, popularity: Mapping[int, int] | None = None,
+    def load(self, race_id: str, popularity: Mapping[int | str, int] | None = None,
              odds: Mapping[int, float] | None = None) -> EntryRecords:
         """レースが無ければ ``LookupError``、rid の形が違えば ``ValueError``。
 
-        ``popularity`` は 馬番 → 単勝人気、``odds`` は 馬番 → 単勝オッズ（倍）。
+        ``popularity`` は 馬番（木曜は馬名）→ 単勝人気、``odds`` は 馬番 → 単勝オッズ（倍）。
         渡すと、出走の行の値をそれにする（まだ DB に無いときに、手で渡すか締め切り前の値から作る）。
         """
         self._fact_table.ensure()

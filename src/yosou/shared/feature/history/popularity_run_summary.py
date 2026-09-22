@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pandas as pd
 
-from yosou.shared.feature import as_numbers
+from ..value_types import as_numbers
 
-#: 近走として数える走数（手本のまとまり E と同じ数え方）。
+#: 近走として数える走数（まとまり E と同じ数え方）。
 RECENT_RUNS = 5
 #: まとめの列の名前（そのまま特徴量の名前になる）。
 WORSE_THAN_POPULARITY = "近5走で人気より悪い着順だった回数"
@@ -18,7 +18,7 @@ _WORSE, _POPULARITY = "worse", "popularity"
 
 
 class PopularityRunSummary:
-    """過去走の表（1行 = 1走）に、その走を含めた新しい5走の人気のまとめを付ける。
+    """過去走の表（1行 = 1走）に、その走を含めた新しい5走の人気のまとめを付ける（まとまり J の材料）。
 
     5走に満たなければ、ある分だけで計算する。着順か人気の無い走（競走中止・人気の無いレースなど）は、
     回数にも平均にも数えない。
