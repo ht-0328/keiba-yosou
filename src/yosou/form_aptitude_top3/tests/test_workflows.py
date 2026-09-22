@@ -10,15 +10,17 @@ import pytest
 
 from 共通 import db
 
+from yosou.shared.dataset import HORSE_NO
+from yosou.shared.evaluation import ENSEMBLE_NAME, TrainingReport
+from yosou.shared.feature import PredictionTiming
+from yosou.shared.ml_model import MEMBER_TYPES
+from yosou.shared.repository import ModelRepository
+from yosou.shared.repository.model_repository import SETTINGS_FILE
+from yosou.shared.tests import synthetic_season as season
+
 from ..command import CommandLine
-from ..dataset import HORSE_NO, DatasetBuilder
-from ..evaluation import ENSEMBLE_NAME
-from ..feature import PredictionTiming
-from ..ml_model import MEMBER_TYPES
-from ..repository import ModelRepository
-from ..repository.model_repository import SETTINGS_FILE
-from ..workflow import PROBABILITY, PredictionWorkflow, TrainingReport
-from . import synthetic_season as season
+from ..dataset import dataset_builder
+from ..workflow import PROBABILITY, PredictionWorkflow
 
 
 def test_training_saves_two_models_for_each_timing(trained: tuple[Path, TrainingReport]):
@@ -56,7 +58,7 @@ def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path
     models, _ = trained
     with db.open_db(season_db) as con:
         workflow = PredictionWorkflow(
-            DatasetBuilder.for_database(con), ModelRepository(models, MEMBER_TYPES),
+            dataset_builder(con), ModelRepository(models, MEMBER_TYPES),
         )
         prediction = workflow.run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY)
     assert len(prediction) == 7 and season.SCRATCHED_HORSE_NO not in set(prediction[HORSE_NO])

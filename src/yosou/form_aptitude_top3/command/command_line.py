@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 from typing import NoReturn
 
-from 共通 import cli, db
+from 共通 import cli
 
 from .predict_command import PredictCommand
 from .train_command import TrainCommand
@@ -30,7 +30,7 @@ USAGE = """近走と適性から3着以内を予想する。
 
 
 class CommandLine:
-    """引数を読み、元DB を読むだけで開いて、サブコマンド（train・predict）を実行し、結果の表を出す。"""
+    """引数を読み、サブコマンド（train・predict）を実行し、結果の表を出す。元DB は各コマンドが要る段だけ読むだけで開く。"""
 
     def __init__(self) -> None:
         self._commands = (TrainCommand(), PredictCommand())
@@ -50,6 +50,5 @@ class CommandLine:
         return parser
 
     def _execute(self, args: argparse.Namespace) -> None:
-        with db.open_db(args.db) as con:
-            tables = args.handler(args, con)
-        cli.emit(tables, args)
+        """元DB を開くのは各コマンド。train は学習データを読み終えたら閉じ、学習のあいだロックを持たない。"""
+        cli.emit(args.handler(args), args)

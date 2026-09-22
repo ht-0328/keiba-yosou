@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..dataset import DatasetBuilder
-from ..feature import PredictionTiming
-from ..ml_model import EnsembleModel
-from ..repository import ModelRepository
+from yosou.shared.dataset import DatasetBuilder
+from yosou.shared.feature import PredictionTiming
+from yosou.shared.ml_model import EnsembleModel
+from yosou.shared.repository import ModelRepository
 
 #: 予測の結果の、アンサンブルの確率の列の名前。
 PROBABILITY = "3着以内に入る確率"

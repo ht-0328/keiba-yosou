@@ -6,16 +6,17 @@ import argparse
 
 import duckdb
 
-from 共通 import race
+from 共通 import db, race
 from 共通.render import Table
 
-from ..dataset import DatasetBuilder
-from ..feature import PredictionTiming
-from ..ml_model import MEMBER_TYPES
-from ..repository import ModelRepository
-from ..workflow import PredictionWorkflow
-from .common_arguments import CommonArguments
-from .prediction_table import PredictionTable
+from yosou.shared.command import CommonArguments, PredictionTable
+from yosou.shared.feature import PredictionTiming
+from yosou.shared.ml_model import MEMBER_TYPES
+from yosou.shared.repository import ModelRepository
+
+from ..dataset import dataset_builder
+from ..workflow import PROBABILITY, PredictionWorkflow
+from .yosou_name import YOSOU_NAME
 
 
 class PredictCommand:
@@ -33,16 +34,17 @@ class PredictCommand:
             "--timing", type=PredictionTiming.parse, required=True,
             help="予測する時点: 木曜（thursday）・前日（day_before）・当日（race_day）",
         )
-        CommonArguments().add_to(parser)
+        CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
-    def run(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> list[Table]:
-        race_id = self._race_id(args, con)
-        workflow = PredictionWorkflow(
-            DatasetBuilder.for_database(con), ModelRepository(args.models, MEMBER_TYPES),
-        )
-        prediction = workflow.run(race_id, args.timing)
-        return [PredictionTable(prediction, args.timing).table()]
+    def run(self, args: argparse.Namespace) -> list[Table]:
+        with db.open_db(args.db) as con:
+            race_id = self._race_id(args, con)
+            workflow = PredictionWorkflow(
+                dataset_builder(con), ModelRepository(args.models, MEMBER_TYPES),
+            )
+            prediction = workflow.run(race_id, args.timing)
+        return [PredictionTable(prediction, args.timing, PROBABILITY).table()]
 
     def _race_id(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> str:
         """rid か、開催日・競馬場・レース番号から、レースの rid を決める（ほかの道具と同じ指定のしかた）。"""

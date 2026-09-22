@@ -1,26 +1,16 @@
-"""特徴量 68個を作る（設計書 09）。学習データも予測用データも、ここの同じクラスで作る（設計書 11 の 4）。
+"""この予想が使う特徴量の一覧（設計書 09）。
 
-| 場所 | 中身 |
+特徴量を作るクラス（``FeatureBuilder``・まとまり A〜I）は ``yosou.shared.feature``。
+この予想は、どの予想でも使う 71個（``BASE_FEATURES``）をそのまま使うので、一覧はそれで作る。
+
+| 名前 | 中身 |
 |---|---|
-| ``feature_catalog.py`` | 特徴量 68個の一覧（名前・まとまり A〜I・数値かカテゴリか） |
-| ``Feature``・``FeatureKind`` | 一覧の1行と、その型 |
-| ``PredictionTiming`` | 予測する時点（木曜・前日・当日）と、時点ごとに使う特徴量 |
-| ``EntryRecords`` | 特徴量を作る元の記録の入れ物 |
-| ``FeatureBuilder`` | 入口。まとまりごとのクラスを順に呼んで、1つの表にする |
-| ``group/`` | まとまり A〜I ごとに1クラス |
-| ``history/`` | 過去の記録から数える部品（開催日より前のものだけを使う決まりを、ここで守る） |
+| ``CATALOG`` | この予想の特徴量 71個の一覧（``FeatureCatalog``） |
 """
 
-from .entry_columns import EntryColumns
-from .entry_records import EntryRecords
-from .feature_builder import FeatureBuilder
-from .feature_catalog import CATEGORICAL_FEATURES, FEATURE_NAMES, FEATURES, categorical_columns_of
-from .history import WorkoutCoverage
-from .prediction_timing import PredictionTiming
-from .time_windows import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS
+from yosou.shared.feature import BASE_FEATURES, FeatureCatalog
 
-__all__ = [
-    "FeatureBuilder", "EntryRecords", "EntryColumns", "PredictionTiming", "WorkoutCoverage",
-    "FEATURES", "FEATURE_NAMES", "CATEGORICAL_FEATURES", "categorical_columns_of",
-    "WORKOUT_WINDOW_DAYS", "PEOPLE_WINDOW_DAYS",
-]
+#: この予想の特徴量の一覧（まとまり A〜I の 71個）。
+CATALOG = FeatureCatalog(BASE_FEATURES)
+
+__all__ = ["CATALOG"]
