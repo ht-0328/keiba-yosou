@@ -8,11 +8,12 @@
 | ``RaceRecordsLoader`` | 予測用に、1レースの出走馬の記録を集める（速報を反映する） |
 | ``EntryRecordsLoader`` | リポジトリを順に呼んで、対象の出走の記録を集める |
 | ``AnnouncedWeightApplier`` | 速報の馬体重を、出走の行に反映する |
+| ``AnnouncedOddsApplier`` | 予測に使う単勝オッズ（手で渡したものか、締め切り前のもの）を、出走の行に反映する |
 | ``ScratchApplier`` | 速報の出走取消・競走除外を、出走の行に反映する |
 | ``FlatRunnerFilter`` | 障害レースと、出走しなかった馬の行を除く（どの予想でも同じ決まり） |
 | ``SampleSelector`` | 入れる行の選び方の決まり（インターフェース）。守るクラスは予想ごとに作る |
 | ``TargetLabeler`` | 目的変数の付け方の決まり（インターフェース）。守るクラスは予想ごとに作る |
-| ``RequiredInfoCheck`` | 予測に要る情報（馬番・馬場状態・馬体重）が DB にあるかを確かめる |
+| ``RequiredInfoCheck`` | 予測に要る情報（馬番・馬場状態・馬体重・オッズ）が DB にあるかを確かめる |
 | ``TrainingPeriod`` | 学習データの期間（ウォームアップ・学習・検証・テストの始まりの日） |
 | ``PeriodSplitter``・``SplitData`` | 学習データを時期で、学習・検証・テストに分ける |
 

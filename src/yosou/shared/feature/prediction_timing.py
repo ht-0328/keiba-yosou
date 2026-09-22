@@ -1,4 +1,4 @@
-"""予測する時点（木曜・前日・当日）と、時点ごとに使う特徴量（設計書 07-prediction-timing.md）。"""
+"""予測する時点（木曜・前日・当日。設計書 07-prediction-timing.md）。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ from enum import Enum
 
 
 class PredictionTiming(Enum):
-    """予測する時点。値は、モデルを保存するフォルダの名前にも使う。"""
+    """予測する時点。値は、モデルを保存するフォルダの名前にも使う。並びは時間の順（木曜 → 前日 → 当日）。
+
+    その時点でどの特徴量が分かるかは、特徴量の側（``Feature.known_from``）に書き、
+    ``FeatureCatalog.columns_for`` が答える。
+    """
 
     THURSDAY = "thursday"
     DAY_BEFORE = "day_before"
@@ -17,10 +21,9 @@ class PredictionTiming(Enum):
         """人が読む名前（木曜・前日・当日）。"""
         return _LABELS[self]
 
-    @property
-    def unknown_features(self) -> frozenset[str]:
-        """この時点ではまだ分からない特徴量の名前。使う列を決めるのは ``FeatureCatalog.columns_for``。"""
-        return _UNKNOWN_FEATURES[self]
+    def is_at_or_after(self, other: PredictionTiming) -> bool:
+        """この時点が ``other`` と同じか、それより後か。後の時点ほど、分かることが多い。"""
+        return _ORDER.index(self) >= _ORDER.index(other)
 
     @classmethod
     def parse(cls, text: str) -> PredictionTiming:
@@ -32,6 +35,8 @@ class PredictionTiming(Enum):
         return timing
 
 
+#: 時間の順。
+_ORDER: list[PredictionTiming] = list(PredictionTiming)
 _LABELS: dict[PredictionTiming, str] = {
     PredictionTiming.THURSDAY: "木曜",
     PredictionTiming.DAY_BEFORE: "前日",
@@ -41,19 +46,4 @@ _LABELS: dict[PredictionTiming, str] = {
 _TIMING_BY_TEXT: dict[str, PredictionTiming] = {
     **{timing.label: timing for timing in PredictionTiming},
     **{timing.value: timing for timing in PredictionTiming},
-}
-
-#: 前日に分からない特徴量。馬体重の発表は当日。
-_UNKNOWN_ON_DAY_BEFORE: frozenset[str] = frozenset({"馬体重", "馬体重の増減"})
-#: 木曜に分からない特徴量。枠番・馬番は出馬表（金曜）、馬場状態は前日に決まる。
-#: 馬場状態で分けて数える特徴量（通算の成績と持ち時計）も使わない。
-_UNKNOWN_ON_THURSDAY: frozenset[str] = _UNKNOWN_ON_DAY_BEFORE | {
-    "枠番", "馬番", "馬場状態",
-    "同じ芝ダ・馬場状態での通算の出走数", "同じ芝ダ・馬場状態での通算の3着以内の数",
-    "持ち時計のレース内順位（コース単位）", "持ち時計のレース内順位（距離単位）",
-}
-_UNKNOWN_FEATURES: dict[PredictionTiming, frozenset[str]] = {
-    PredictionTiming.THURSDAY: _UNKNOWN_ON_THURSDAY,
-    PredictionTiming.DAY_BEFORE: _UNKNOWN_ON_DAY_BEFORE,
-    PredictionTiming.RACE_DAY: frozenset(),
 }

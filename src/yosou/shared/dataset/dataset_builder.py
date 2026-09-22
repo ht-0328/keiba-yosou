@@ -65,13 +65,15 @@ class DatasetBuilder:
         )
 
     def build_prediction_data(self, race_id: str, timing: PredictionTiming,
-                              popularity: Mapping[int, int] | None = None) -> PredictionData:
+                              popularity: Mapping[int, int] | None = None,
+                              odds: Mapping[int, float] | None = None) -> PredictionData:
         """1レースの出走馬の予測用データを作る。特徴量は ``timing`` の時点で使うものだけ。
 
-        ``popularity`` は 馬番 → 単勝人気。まだ DB に無い人気を、利用者が手で渡すときに使う。
-        障害レースと、その時点で要る情報（馬番・馬場状態・馬体重）がまだ DB に無いときは ``ValueError``。
+        ``popularity`` は 馬番 → 単勝人気、``odds`` は 馬番 → 単勝オッズ。まだ DB に無い値を、
+        利用者が手で渡すか、締め切り前の値から作って渡すときに使う。
+        障害レースと、その時点で要る情報（馬番・馬場状態・馬体重・オッズ）がまだ DB に無いときは ``ValueError``。
         """
-        records = self._race_loader.load(race_id, popularity)
+        records = self._race_loader.load(race_id, popularity, odds)
         runners = self._selector.prediction_runners(records.entries, race_id)
         features = self._feature_builder.build(records.with_entries(runners), timing)
         kept = self._selector.keep_samples(runners)

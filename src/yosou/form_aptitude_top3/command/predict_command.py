@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 import duckdb
+import pandas as pd
 
 from 共通 import db, race
 from 共通.render import Table
@@ -12,9 +13,10 @@ from 共通.render import Table
 from yosou.shared.command import CommonArguments, PredictionTable
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
+from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
 
-from ..dataset import dataset_builder
+from ..dataset import OddsInput, OddsResolver, dataset_builder
+from ..feature import WIN_ODDS
 from ..workflow import PROBABILITY, PredictionWorkflow
 from .yosou_name import YOSOU_NAME
 
@@ -34,6 +36,11 @@ class PredictCommand:
             "--timing", type=PredictionTiming.parse, required=True,
             help="予測する時点: 木曜（thursday）・前日（day_before）・当日（race_day）",
         )
+        parser.add_argument(
+            "--odds", nargs="*", default=None, metavar="馬番:オッズ",
+            help="利用者が見た単勝オッズ（例: --odds 3:2.4 7:5.1 や --odds 3:2.4,7:5.1）。前日と当日に使う。"
+                 "省略すると、締め切り前のオッズか、元DB の単勝オッズ（終わったレースの確定オッズ）を使う",
+        )
         CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
@@ -42,9 +49,22 @@ class PredictCommand:
             race_id = self._race_id(args, con)
             workflow = PredictionWorkflow(
                 dataset_builder(con), ModelRepository(args.models, MEMBER_TYPES),
+                OddsResolver(AnnouncedOddsRepository(con)),
             )
-            prediction = workflow.run(race_id, args.timing)
-        return [PredictionTable(prediction, args.timing, PROBABILITY).table()]
+            prediction = workflow.run(race_id, args.timing, self._given_odds(args))
+        return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
+
+    def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
+        """``--odds`` で渡されたオッズ。渡されなければ None。"""
+        if not args.odds:
+            return None
+        return OddsInput.of(args.odds)
+
+    def _extra_columns(self, prediction: pd.DataFrame) -> list[str]:
+        """馬名のあとに出す列。前日・当日は単勝オッズを出し、木曜（オッズを使わない）は出さない。"""
+        if WIN_ODDS not in prediction.columns:
+            return []
+        return [WIN_ODDS]
 
     def _race_id(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> str:
         """rid か、開催日・競馬場・レース番号から、レースの rid を決める（ほかの道具と同じ指定のしかた）。"""

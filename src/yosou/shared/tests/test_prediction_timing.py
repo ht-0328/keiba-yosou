@@ -60,3 +60,18 @@ def test_parse_accepts_label_and_value(text: str):
 def test_parse_rejects_unknown_timing():
     with pytest.raises(ValueError, match="知らない時点"):
         PredictionTiming.parse("発走直前")
+
+
+def test_a_feature_known_from_day_before_is_not_used_on_thursday():
+    # 予想ごとに足す特徴量は、いつから分かるかを Feature に書く（例: オッズは前日から）
+    odds = Feature("単勝オッズ", "J", FeatureKind.NUMERIC, PredictionTiming.DAY_BEFORE)
+    catalog = FeatureCatalog(BASE_FEATURES + (odds,))
+    assert "単勝オッズ" not in catalog.columns_for(PredictionTiming.THURSDAY)
+    assert catalog.columns_for(PredictionTiming.DAY_BEFORE)[-1] == "単勝オッズ"
+    assert len(catalog.columns_for(PredictionTiming.RACE_DAY)) == 72
+
+
+def test_timings_are_ordered_thursday_day_before_race_day():
+    assert PredictionTiming.RACE_DAY.is_at_or_after(PredictionTiming.DAY_BEFORE)
+    assert PredictionTiming.DAY_BEFORE.is_at_or_after(PredictionTiming.DAY_BEFORE)
+    assert not PredictionTiming.THURSDAY.is_at_or_after(PredictionTiming.DAY_BEFORE)
