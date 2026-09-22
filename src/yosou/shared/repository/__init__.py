@@ -15,6 +15,7 @@
 | ``PedigreeDayRepository`` | 父か母父の産駒の、日ごと・芝ダごとの成績 |
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
 | ``AnnouncedWeightRepository`` | 速報の馬体重 |
+| ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面） |
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
 | ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気を使う予想が使う |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
@@ -42,6 +43,6 @@ __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
     "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository",
-    "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "ScratchRepository",
-    "ModelRepository",
+    "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository",
+    "ScratchRepository", "ModelRepository",
 ]

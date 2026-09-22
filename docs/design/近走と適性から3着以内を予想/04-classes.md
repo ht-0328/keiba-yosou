@@ -46,8 +46,8 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 ├── __main__.py                 コマンドの入口（command/ を呼ぶだけ）
 ├── command/                    コマンド（train・predict）の引数。入口
 ├── workflow/                   予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
-├── dataset/                    入れる行の選び方・目的変数（3着以内）と、DatasetBuilder の組み立て
-├── feature/                    この予想の特徴量 71個の一覧（CATALOG）
+├── dataset/                    入れる行の選び方・目的変数（3着以内）・予測に使うオッズの決め方と、DatasetBuilder の組み立て
+├── feature/                    まとまり J（市場の評価）を作る。この予想の特徴量 74個の一覧（CATALOG）
 ├── setting/                    ハイパーパラメータの初期値のファイル
 └── tests/                      この予想の組み立てのテスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
@@ -74,7 +74,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `TrainingWorkflow` | 学習の流れを進める。設定を読み、渡された期間（`TrainingPeriod`）で学習データを作り、期間で分け、渡された時点（この予想は3つ全部）ごとに2つのモデルを学習して保存し、検証データで当たり具合を確かめる。**中身が2つ目の予想と同じなので `shared/workflow/` にある。** 学習する時点の並びとハイパーパラメータの初期値のファイルは、作られるときに受け取る。元DB が要るのは学習データを読む段だけなので、読む段と学習する段を分けて呼べる | `run(設定ファイルのパス)`、`read_training_data()`、`train(学習データ, 設定ファイルのパス)` |
-| `PredictionWorkflow` | 予測の流れを進める。予測用データを作り、その時点のモデルを読み込み、2つの予測確率を平均する | `run(レースID, 時点)` |
+| `PredictionWorkflow` | 予測の流れを進める。予測に使うオッズを決め、予測用データを作り、その時点のモデルを読み込み、2つの予測確率を平均する | `run(レースID, 時点, 渡されたオッズ=省略可)` |
 | `TrainingReport` | 学習の結果の入れ物（使った期間・期間ごとのデータ・当たり具合・保存したフォルダ）。予想で変わらないので `shared/evaluation/` にある | ― |
 
 ### command/ — コマンド（入口はこの予想、部品は `shared`）
@@ -83,7 +83,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 |---|---|---|
 | `CommandLine` | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
 | `TrainCommand` | `train`: 学習する。期間の引数（`--warmup-from` `--train-from` `--valid-from` `--test-from`）から `TrainingPeriod` を作る。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `run(引数)` |
-| `PredictCommand` | `predict`: 1レースを予測する | `run(引数)` |
+| `PredictCommand` | `predict`: 1レースを予測する。`--odds 馬番:オッズ` で単勝オッズを渡せる | `run(引数)` |
 | `CommonArguments`（`shared`） | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`）。モデルの既定の置き場所に使う予想の名前を受け取る | `add_to(parser)` |
 | `TrainingReportTables`（`shared`） | 学習の結果を表にする | `tables()` |
 | `PredictionTable`（`shared`） | 予測の結果を、確率の高い順の表にする。確率の列の名前を受け取る | `table()` |
@@ -102,6 +102,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `PeopleDayRepository` | 騎手か調教師の、日ごとの出走数と3着以内の数 | `read(対象)` |
 | `AnnouncedGoingRepository` | 速報の馬場状態（`we`） | `read(レースID)` |
 | `AnnouncedWeightRepository` | 速報の馬体重（`wh`） | `read(レースID)` |
+| `AnnouncedOddsRepository` | 締め切り前の単勝オッズ（`o1` の確定前の断面のうち、いちばん新しいもの）。断面は jvdata-store の `jvstore realtime` で入る（[07-prediction-timing.md](07-prediction-timing.md#予測のときのオッズの与え方)） | `read(レースID)` |
 | `ScratchRepository` | 速報の出走取消・競走除外（`av`） | `read(レースID)` |
 | `ModelRepository` | 時点ごとの学習済みモデルと、学習に使った設定のファイル（SQL ではなくファイルに読み書きする） | `save(時点, モデル, 設定)`、`load(時点)` |
 | `TargetScope` | 「どの出走について読むか」を表す値。学習では「ある日以降の全部の出走」、予測では「1レースの出走馬」 | `since(日)`、`of_table(表)` |
@@ -113,18 +114,21 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
-| `DatasetBuilder` | 入口。学習データか予測用データを作る。下のクラスを順に呼ぶだけ。入れる行（`SampleSelector`）・目的変数（`TargetLabeler`）・特徴量（`FeatureBuilder`）は、作られるときに受け取る | `build_training_data(期間)`、`build_prediction_data(レースID, 時点, 単勝人気=省略可)` |
+| `DatasetBuilder` | 入口。学習データか予測用データを作る。下のクラスを順に呼ぶだけ。入れる行（`SampleSelector`）・目的変数（`TargetLabeler`）・特徴量（`FeatureBuilder`）は、作られるときに受け取る | `build_training_data(期間)`、`build_prediction_data(レースID, 時点, 単勝人気=省略可, 単勝オッズ=省略可)` |
 | `SampleSelector`・`TargetLabeler` | 入れる行の選び方と、目的変数の付け方の決まり（インターフェース）。守るクラスは予想ごとに作る | `training_samples`・`prediction_runners`・`keep_samples` / `build`・`label_name` |
 | `TrainingPeriod` | 学習データの期間を区切る4つの日（ウォームアップ・学習・検証・テストの始まり）を表す値。順になっていなければエラー。[08-training-data.md](08-training-data.md) の 4 | `starting(学習の始まり, 検証の始まり, テストの始まり, ウォームアップの始まり=省略可)`、`default()` |
 | `HistoryRecordsLoader` | 学習用に、ある日以降の全部の出走の記録を集める | `load(最初の日)` |
-| `RaceRecordsLoader` | 予測用に、1レースの出走馬の記録を集める。速報（馬場状態・馬体重・取消）を反映する | `load(レースID, 単勝人気=省略可)` |
+| `RaceRecordsLoader` | 予測用に、1レースの出走馬の記録を集める。速報（馬場状態・馬体重・取消）と、渡された人気・オッズを反映する | `load(レースID, 単勝人気=省略可, 単勝オッズ=省略可)` |
 | `EntryRecordsLoader` | リポジトリを順に呼んで、対象の出走の記録を集める。SQL は持たない | `load(対象)` |
 | `AnnouncedWeightApplier` | 速報の馬体重を、出走の行に反映する | `apply(出走の行, 速報の馬体重)` |
 | `ScratchApplier` | 速報の出走取消・競走除外を、出走の行に反映する | `apply(出走の行, 馬番)` |
+| `AnnouncedOddsApplier` | 予測に使う単勝オッズ（手で渡したものか、締め切り前のもの）を、出走の行に反映する。無ければ行はそのまま | `apply(出走の行, 馬番→オッズ)` |
 | `RunnerSelector`（この予想） | 入れる行を選ぶ（[06-flowchart.md](06-flowchart.md) の図1）。この予想は全頭を入れるので、`keep_samples` はそのまま返す | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` |
 | `Top3TargetBuilder` | 目的変数を付ける（[10-target.md](10-target.md)）。当てさせる列は「3着以内」で、「1着」の列も付ける。穴馬の予想（`docs/design/穴馬が3着以内に入るかを予想/`）も同じ目的変数を使うので、2026-09-23 に `shared` へ移した（元の名前は `TargetBuilder`） | `build(サンプルの行)`、`label_name` |
-| `dataset_builder()`（この予想） | `RunnerSelector`・共通の `Top3TargetBuilder`・特徴量の一覧（`CATALOG`）を渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`） | `dataset_builder(接続)` |
-| `RequiredInfoCheck` | 予測に要る情報（馬番・馬場状態・馬体重）が DB にあるかを確かめる | `check(特徴量)` |
+| `OddsInput`（この予想） | 利用者が `--odds 馬番:オッズ` で渡した「馬番 → 単勝オッズ」を表す値。書き方が違えばエラー | `of(引数の文字列)`、`as_mapping()` |
+| `OddsResolver`（この予想） | 予測に使う「馬番 → 単勝オッズ」を決める。渡されたオッズ → 元DB の締め切り前のオッズ → 無し（元DB の出走の行のオッズ）の順（[06-flowchart.md](06-flowchart.md#図2-予測に使うオッズの決め方)） | `resolve(レースID, 渡されたオッズ)` |
+| `dataset_builder()`（この予想） | `RunnerSelector`・共通の `Top3TargetBuilder`・特徴量の一覧（`CATALOG`）とまとまりの並びを渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`） | `dataset_builder(接続)` |
+| `RequiredInfoCheck` | 予測に要る情報（馬番・馬場状態・馬体重・単勝オッズ）が DB にあるかを確かめる | `check(特徴量)` |
 | `PeriodSplitter` | 学習データを時期（`TrainingPeriod` の検証・テストの始まり）で、学習データ・検証データ・テストデータに分ける。分け方は次の設計書で決める（いまは仮の区切り） | `split(学習データ)` |
 | `TrainingData`・`PredictionData`・`SplitData` | 学習データ・予測用データ・期間で分けたデータの入れ物（[08-training-data.md](08-training-data.md) の「列の種類」） | ― |
 
@@ -133,9 +137,10 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `FeatureBuilder` | 入口。まとまりごとのクラスを順に呼んで、1つの表にする。特徴量の一覧（`FeatureCatalog`）とまとまりのクラスは、作られるときに受け取る。時点を受け取り、その時点で使う特徴量だけを返す | `build(記録, 時点)` |
-| `FeatureCatalog` | 1つの予想が使う特徴量の一覧を表す値。この予想の一覧は `CATALOG = FeatureCatalog(BASE_FEATURES)`（71個） | `names`、`categorical`、`columns_for(時点)`、`categorical_columns_of(特徴量の表)` |
-| `PredictionTiming` | 予測する時点（木曜・前日・当日）を表す値。その時点で分からない特徴量を持つ（[07-prediction-timing.md](07-prediction-timing.md)） | `unknown_features`、`parse(書き方)` |
-| `Feature`・`FeatureKind` | どの予想でも使う特徴量の一覧（`feature_catalog.py` の `BASE_FEATURES`。[09-features.md](09-features.md) の表の写し）の1行と、その型 | ― |
+| `FeatureCatalog` | 1つの予想が使う特徴量の一覧を表す値。この予想の一覧は `CATALOG = FeatureCatalog(BASE_FEATURES + J_FEATURES)`（74個） | `names`、`categorical`、`columns_for(時点)`、`categorical_columns_of(特徴量の表)` |
+| `PredictionTiming` | 予測する時点（木曜・前日・当日）を表す値。時点の前後を答える（[07-prediction-timing.md](07-prediction-timing.md)） | `is_at_or_after(時点)`、`parse(書き方)` |
+| `Feature`・`FeatureKind` | 特徴量の一覧の1行（名前・まとまり・型・いつから分かるか）と、その型。どの予想でも使う 71個は `feature_catalog.py` の `BASE_FEATURES`（[09-features.md](09-features.md) の表の写し） | `is_known_at(時点)` |
+| `MarketFeatures`（この予想） | まとまり J（市場の評価）の3個を作る: 単勝オッズ、人気順位（オッズの小さい順）、オッズから見た勝率（1/オッズをレース内で合計 1 に）。`FeatureGroup` を守る | `build(記録)` |
 | `EntryRecords` | 特徴量を作る元の記録の入れ物 | ― |
 | `EntryColumns` | 出走の記録から列を選び、名前を付け直す | `select(出走の行)` |
 | `FeatureGroup` | まとまりのクラスに共通の決まり（インターフェース） | `build(記録)` |
@@ -183,3 +188,4 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | 作成日 | 2026-09-21 |
 | 更新 | 2026-09-21: 実装に合わせて、1ファイル1クラス・1 SQL 1 リポジトリの決まりと、フォルダの構成を書き直した |
 | 更新 | 2026-09-22: 予想で変わらないクラスを `src/yosou/shared/` に移したのに合わせて、パッケージ構成とクラスの置き場所を書き直した |
+| 更新 | 2026-09-23: 単勝オッズを特徴量に足したのに合わせて、`MarketFeatures`・`OddsInput`・`OddsResolver`・`AnnouncedOddsApplier`・`AnnouncedOddsRepository` を足した |

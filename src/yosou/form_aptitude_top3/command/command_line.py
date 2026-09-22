@@ -23,8 +23,11 @@ USAGE = """近走と適性から3着以内を予想する。
 
     uv run python -m yosou.form_aptitude_top3 predict 2026092706040511 --timing 前日
     uv run python -m yosou.form_aptitude_top3 predict --date 2026-09-27 --venue 中山 --race 11 --timing 当日
+    uv run python -m yosou.form_aptitude_top3 predict 2026092706040511 --timing 当日 --odds 3:2.4 7:5.1
 
 予測の前に、jvdata-store で出走馬名表・出馬表・出走別着度数・調教を取り込んでおく（前日と当日は速報も）。
+前日と当日は単勝オッズも使う。--odds で渡すか、jvstore realtime で締め切り前のオッズを取り込んでおく
+（終わったレースは確定オッズを使う。木曜はオッズを使わない）。
 設計書は docs/design/近走と適性から3着以内を予想/。
 """
 

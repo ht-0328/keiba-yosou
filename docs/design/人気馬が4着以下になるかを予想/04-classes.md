@@ -17,7 +17,7 @@
 
 | まとまり | 共通にするか | 中身 |
 |---|---|---|
-| `repository/`（データの読み書き） | 共通 | 出走の行・出走別着度数・過去走・調教・速報を読む 15 のクラス。読む SQL は予想で変わらない |
+| `repository/`（データの読み書き） | 共通 | 出走の行・出走別着度数・過去走・調教・速報・締め切り前のオッズを読むクラス。読む SQL は予想で変わらない |
 | `dataset/`（学習データ・予測用データを作る） | 大半を共通 | `DatasetBuilder`・記録を集めるクラス・`TrainingPeriod`・`PeriodSplitter`・速報を反映するクラス |
 | `feature/`（特徴量を作る） | 大半を共通 | `FeatureBuilder`・まとまり A〜I の9クラス・過去の記録から数える部品・`PredictionTiming` |
 | `ml_model/`（機械学習のモデル） | 共通 | `LightGbmModel`・`CatBoostModel`・エンコーダー・`EnsembleModel` |
@@ -106,13 +106,13 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 
 `FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに `PopularityHistoryFeatures` を足したまとまりの並びを渡す（`dataset/dataset_assembly.py`）。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。
 
-### repository/ — この予想だけが読むもの
+### repository/ — 締め切り前のオッズ（共通）
 
 | クラス | 読むもの | 主な public メソッド |
 |---|---|---|
-| `AnnouncedOddsRepository` | 締め切り前の単勝オッズ（`o1` の確定前の断面のうち、いちばん新しいもの）。断面は jvdata-store の `jvstore realtime` で入る（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)） | `read(レースID)` |
+| `AnnouncedOddsRepository`（共通） | 締め切り前の単勝オッズ（`o1` の確定前の断面のうち、いちばん新しいもの）。断面は jvdata-store の `jvstore realtime` で入る（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)） | `read(レースID)` |
 
-元DB にオッズの表が無いときは、ほかのリポジトリと同じく、同じ列を持つ空の関係で代わりにして「行なし」を返す。
+はじめはこの予想だけが読むものとして、この予想のパッケージに置いていた。2026-09-23 に手本の予想も単勝オッズを使うようになったので、`shared/repository/` に移した。元DB にオッズの表が無いときは、ほかのリポジトリと同じく、同じ列を持つ空の関係で代わりにして「行なし」を返す。
 
 ### workflow/ — 流れを進める
 

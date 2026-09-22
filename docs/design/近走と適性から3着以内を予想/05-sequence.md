@@ -60,7 +60,7 @@ sequenceDiagram
     RS->>RS: 入れる行を選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
-    F-->>D: 特徴量 71個
+    F-->>D: 特徴量 74個
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数
     D-->>W: 学習データ
@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 71個で作る。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 74個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
 
 ## 図2. 予測
 
@@ -88,6 +88,8 @@ sequenceDiagram
     participant JS as jvdata-store
     participant DB as 元DB
     participant W as PredictionWorkflow
+    participant OR as OddsResolver
+    participant AO as AnnouncedOddsRepository
     participant D as DatasetBuilder
     participant L as RaceRecordsLoader
     participant RS as RunnerSelector
@@ -99,19 +101,25 @@ sequenceDiagram
     JS->>DB: 書き込む
     opt 前日と当日だけ
         U->>JS: jvstore realtime（開催日）
-        JS->>DB: 馬場状態・出馬表の変更（当日は馬体重も）を書き込む
+        JS->>DB: 馬場状態・出馬表の変更・締め切り前のオッズ（当日は馬体重も）を書き込む
     end
-    U->>W: run（レースID、時点）
-    W->>D: build_prediction_data（レースID、時点）
-    D->>L: load（レースID）
-    L->>L: 速報を読み、出走馬の記録を集めて、速報を反映する（図4）
+    U->>W: run（レースID、時点、--odds で渡したオッズ）
+    W->>OR: resolve（レースID、渡されたオッズ）
+    OR->>AO: read（レースID）
+    AO->>DB: SQL（締め切り前の単勝オッズ）
+    AO-->>OR: 馬番ごとのオッズ（無ければ空）
+    OR->>OR: 使うオッズを決める（06-flowchart.md の図2）
+    OR-->>W: 馬番 → 単勝オッズ（無ければ、無し）
+    W->>D: build_prediction_data（レースID、時点、オッズ）
+    D->>L: load（レースID、オッズ）
+    L->>L: 速報を読み、出走馬の記録を集めて、速報とオッズを反映する（図4）
     L-->>D: 出走の記録
     D->>RS: prediction_runners（出走の行、レースID）
     RS-->>D: 予測する馬の行
     D->>F: build（記録、時点）
     F-->>D: その時点で使う特徴量
     D->>C: check（特徴量）
-    C-->>D: 要る情報（馬番・馬場状態・馬体重）はそろっている
+    C-->>D: 要る情報（馬番・馬場状態・馬体重・オッズ）はそろっている
     D-->>W: 予測用データ（1行 = 1頭）
     W->>MR: load（時点）
     MR-->>W: その時点の LightGbmModel と CatBoostModel
@@ -121,7 +129,7 @@ sequenceDiagram
     W-->>U: 1頭ずつの「3着以内に入る確率」
 ```
 
-**説明。** 利用者は、まず jvdata-store の `jvstore sync` で、出走馬名表（木曜）か出馬表（前日から）と、出走別着度数・調教を取り込む。前日と当日は、`jvstore realtime` で速報も取り込む。次に、レースIDと時点を付けて `PredictionWorkflow.run()` を呼ぶ。`PredictionWorkflow` は、`DatasetBuilder` に予測用データを作らせ、`ModelRepository` からその時点のモデル2つを読み込み、`EnsembleModel` で予測確率を平均する。予測用データも、学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md) の 4）。木曜は馬番が決まっていないので、馬番ではなく馬ごとに返す。
+**説明。** 利用者は、まず jvdata-store の `jvstore sync` で、出走馬名表（木曜）か出馬表（前日から）と、出走別着度数・調教を取り込む。前日と当日は、`jvstore realtime` で速報（締め切り前のオッズを含む）も取り込む。次に、レースIDと時点（前日・当日なら、必要に応じて `--odds` のオッズも）を付けて `PredictionWorkflow.run()` を呼ぶ。`PredictionWorkflow` は、まず `OddsResolver` に予測に使うオッズを決めさせる（渡されたオッズ → `AnnouncedOddsRepository` が読む締め切り前のオッズ → 無し、の順。[07-prediction-timing.md](07-prediction-timing.md#予測のときのオッズの与え方)）。次に `DatasetBuilder` に予測用データを作らせ、`ModelRepository` からその時点のモデル2つを読み込み、`EnsembleModel` で予測確率を平均する。予測用データも、学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md) の 4）。木曜は馬番が決まっていないので、馬番ではなく馬ごとに返す。
 
 ## 図3. 記録を集める（リポジトリとのやりとり）
 
@@ -186,6 +194,7 @@ sequenceDiagram
     participant SR as ScratchRepository
     participant WA as AnnouncedWeightApplier
     participant SA as ScratchApplier
+    participant OA as AnnouncedOddsApplier
     participant DB as 元DB
     L->>FT: ensure()
     FT->>DB: SQL（事実表を作る）
@@ -208,9 +217,11 @@ sequenceDiagram
     SR-->>L: 出走しなくなった馬の馬番
     L->>SA: apply（出走の行、馬番）
     SA-->>L: 取消を反映した行
+    L->>OA: apply（出走の行、馬番 → 単勝オッズ）
+    OA-->>L: オッズを反映した行
 ```
 
-**説明。** 速報がまだ DB に無ければ、リポジトリは「無し」か空の表を返し、出走の行は変わらない。そのうえで、その時点の予測に要る情報（前日なら馬番と馬場状態、当日なら馬体重も）が欠けていれば、図2の `RequiredInfoCheck.check()` が、取り込み方の案内を付けて止める。
+**説明。** 速報がまだ DB に無ければ、リポジトリは「無し」か空の表を返し、出走の行は変わらない。オッズが渡されなければ（`OddsResolver` が「無し」を返したとき）、出走の行に入っている単勝オッズ（終わったレースなら確定オッズ）がそのまま残る。そのうえで、その時点の予測に要る情報（前日なら馬番・馬場状態・オッズ、当日なら馬体重も）が欠けていれば、図2の `RequiredInfoCheck.check()` が、取り込み方の案内を付けて止める。
 
 ## まだ決まっていないところ
 
@@ -228,3 +239,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-21 |
+| 更新 | 2026-09-23: 図2・図4 に、予測に使うオッズを決めて反映する段を足した |

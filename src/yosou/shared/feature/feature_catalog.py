@@ -1,7 +1,7 @@
 """どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、人気を使う予想が足す4個、
 予想ごとの一覧を表す値。
 
-特徴量の名前・まとまり（A〜J）・数値かカテゴリかは、ここだけに書く。
+特徴量の名前・まとまり（A〜J）・数値かカテゴリか・いつから分かるか（設計書 07）は、ここだけに書く。
 予想ごとに特徴量を足すときは、``BASE_FEATURES`` に足した一覧で ``FeatureCatalog`` を作る。
 """
 
@@ -18,15 +18,18 @@ from .prediction_timing import PredictionTiming
 
 _N = FeatureKind.NUMERIC
 _C = FeatureKind.CATEGORICAL
+#: 前日から分かる（枠番・馬番は出馬表、馬場状態は前日発表）。当日から分かる（馬体重の発表は当日）。
+_DAY_BEFORE = PredictionTiming.DAY_BEFORE
+_RACE_DAY = PredictionTiming.RACE_DAY
 
-#: どの予想でも使う特徴量 71個。並びは設計書 09 の表の順。
+#: どの予想でも使う特徴量 71個。並びは設計書 09 の表の順。時点を書いていないものは木曜から分かる。
 BASE_FEATURES: tuple[Feature, ...] = (
     # A. レースの条件（9個）
     Feature("競馬場", "A", _C),
     Feature("芝ダ", "A", _C),
     Feature("コース", "A", _C),
     Feature("距離", "A", _N),
-    Feature("馬場状態", "A", _C),
+    Feature("馬場状態", "A", _C, _DAY_BEFORE),
     Feature("クラス", "A", _N),
     Feature("出走頭数", "A", _N),
     Feature("開催月", "A", _N),
@@ -35,11 +38,11 @@ BASE_FEATURES: tuple[Feature, ...] = (
     Feature("性別", "B", _C),
     Feature("馬齢", "B", _N),
     Feature("所属", "B", _C),
-    Feature("枠番", "B", _N),
-    Feature("馬番", "B", _N),
+    Feature("枠番", "B", _N, _DAY_BEFORE),
+    Feature("馬番", "B", _N, _DAY_BEFORE),
     Feature("斤量", "B", _N),
-    Feature("馬体重", "B", _N),
-    Feature("馬体重の増減", "B", _N),
+    Feature("馬体重", "B", _N, _RACE_DAY),
+    Feature("馬体重の増減", "B", _N, _RACE_DAY),
     Feature("ブリンカー", "B", _C),
     # C. 騎手と調教師（6個）
     Feature("騎手", "C", _C),
@@ -71,17 +74,17 @@ BASE_FEATURES: tuple[Feature, ...] = (
     Feature("通算の出走数", "E", _N),
     Feature("通算の勝利数", "E", _N),
     Feature("通算の3着以内の数", "E", _N),
-    # F. この条件での経験（10個）
+    # F. この条件での経験（10個）。馬場状態で分けて数えるものは、馬場状態が決まる前日から
     Feature("同じ競馬場・芝ダでの通算の出走数", "F", _N),
     Feature("同じ競馬場・芝ダでの通算の3着以内の数", "F", _N),
     Feature("同じ芝ダ・距離帯での通算の出走数", "F", _N),
     Feature("同じ芝ダ・距離帯での通算の3着以内の数", "F", _N),
-    Feature("同じ芝ダ・馬場状態での通算の出走数", "F", _N),
-    Feature("同じ芝ダ・馬場状態での通算の3着以内の数", "F", _N),
+    Feature("同じ芝ダ・馬場状態での通算の出走数", "F", _N, _DAY_BEFORE),
+    Feature("同じ芝ダ・馬場状態での通算の3着以内の数", "F", _N, _DAY_BEFORE),
     Feature("同じ競馬場・コース・距離での出走数", "F", _N),
     Feature("同じ競馬場・コース・距離での3着以内の数", "F", _N),
-    Feature("持ち時計のレース内順位（コース単位）", "F", _N),
-    Feature("持ち時計のレース内順位（距離単位）", "F", _N),
+    Feature("持ち時計のレース内順位（コース単位）", "F", _N, _DAY_BEFORE),
+    Feature("持ち時計のレース内順位（距離単位）", "F", _N, _DAY_BEFORE),
     # G. 同じレースの馬との比較（4個）
     Feature("逃げそうな馬の数", "G", _N),
     Feature("近5走の平均着差のレース内順位", "G", _N),
@@ -140,8 +143,7 @@ class FeatureCatalog:
 
     def columns_for(self, timing: PredictionTiming) -> tuple[str, ...]:
         """その時点で使う特徴量の名前（設計書 07）。並びは一覧の順。"""
-        unknown = timing.unknown_features
-        return tuple(name for name in self.names if name not in unknown)
+        return tuple(feature.name for feature in self.features if feature.is_known_at(timing))
 
     def categorical_columns_of(self, features: pd.DataFrame) -> tuple[str, ...]:
         """特徴量の表の列のうち、カテゴリ特徴量の名前（列の並び順）。"""

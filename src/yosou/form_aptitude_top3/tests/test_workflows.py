@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import duckdb
 import numpy as np
 import pytest
 
@@ -14,13 +15,18 @@ from yosou.shared.dataset import HORSE_NO
 from yosou.shared.evaluation import ENSEMBLE_NAME, TrainingReport
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
+from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
 from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.tests import synthetic_season as season
 
 from ..command import CommandLine
-from ..dataset import dataset_builder
+from ..dataset import OddsInput, OddsResolver, dataset_builder
+from ..feature import WIN_ODDS
 from ..workflow import PROBABILITY, PredictionWorkflow
+from .test_dataset_builder import CARD_ODDS
+
+#: 出馬表のレースに手で渡す単勝オッズ（``--odds`` の書き方）。
+CARD_ODDS_TEXTS = [f"{horse_no}:{odds}" for horse_no, odds in CARD_ODDS.items()]
 
 
 def test_training_saves_two_models_for_each_timing(trained: tuple[Path, TrainingReport]):
@@ -54,17 +60,32 @@ def test_model_repository_reports_missing_models(tmp_path: Path):
         ModelRepository(tmp_path, MEMBER_TYPES).load(PredictionTiming.RACE_DAY)
 
 
+def _workflow(con: duckdb.DuckDBPyConnection, models: Path) -> PredictionWorkflow:
+    return PredictionWorkflow(
+        dataset_builder(con), ModelRepository(models, MEMBER_TYPES),
+        OddsResolver(AnnouncedOddsRepository(con)),
+    )
+
+
 def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path, TrainingReport]):
     models, _ = trained
     with db.open_db(season_db) as con:
-        workflow = PredictionWorkflow(
-            dataset_builder(con), ModelRepository(models, MEMBER_TYPES),
-        )
-        prediction = workflow.run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY)
+        prediction = _workflow(con, models).run(
+            season.CARD_RACE_ID, PredictionTiming.RACE_DAY, OddsInput.of(CARD_ODDS_TEXTS))
     assert len(prediction) == 7 and season.SCRATCHED_HORSE_NO not in set(prediction[HORSE_NO])
     member_names = [model_type.name for model_type in MEMBER_TYPES]
     np.testing.assert_allclose(prediction[PROBABILITY], prediction[member_names].mean(axis=1))
     assert prediction[PROBABILITY].between(0, 1, inclusive="neither").all()
+    # 渡したオッズが、結果の表にそのまま出る
+    shown = prediction.set_index(HORSE_NO)[WIN_ODDS].to_dict()
+    assert shown == {horse_no: CARD_ODDS[horse_no] for horse_no in range(1, 8)}
+
+
+def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[Path, TrainingReport]):
+    models, _ = trained
+    with db.open_db(season_db) as con:
+        prediction = _workflow(con, models).run(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY)
+    assert len(prediction) == 8 and WIN_ODDS not in prediction.columns
 
 
 def _run_command(argv: list[str]) -> int:
@@ -82,6 +103,25 @@ def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, train
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 8
     assert lines[0] == f"順位,馬番,馬名,{PROBABILITY},LightGBM,CatBoost"
+
+
+def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, capsys):
+    models, _ = trained
+    code = _run_command([
+        "predict", season.CARD_RACE_ID, "--timing", "当日", "--odds", *CARD_ODDS_TEXTS,
+        "--db", str(season_db), "--models", str(models), "--format", "csv",
+    ])
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert code == 0 and len(lines) == 1 + 7
+    assert lines[0] == f"順位,馬番,馬名,{WIN_ODDS},{PROBABILITY},LightGBM,CatBoost"
+
+
+def test_command_asks_for_odds_when_the_database_has_none(season_db: Path, trained, capsys):
+    models, _ = trained
+    code = _run_command([
+        "predict", season.CARD_RACE_ID, "--timing", "当日", "--db", str(season_db), "--models", str(models),
+    ])
+    assert code == 1 and "--odds" in capsys.readouterr().err
 
 
 def test_command_trains_and_writes_the_report(season_db: Path, fast_settings_path: Path, tmp_path: Path):
