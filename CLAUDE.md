@@ -29,7 +29,7 @@ cmd /c mklink /J ..\keiba-yosou-worktree-<名前>\reports "$PWD\reports"   # rep
 uv sync --directory ..\keiba-yosou-worktree-<名前>                       # その作業フォルダ用の .venv を作る
 ```
 
-消す（先につなぎを外す。外すのはつなぎだけで、メインの `reports/` の中身は消えない）:
+消す（メインの作業フォルダで実行する。先につなぎを外す。外すのはつなぎだけで、メインの `reports/` の中身は消えない）:
 
 ```powershell
 cmd /c rmdir ..\keiba-yosou-worktree-<名前>\reports   # つなぎを外す
@@ -37,4 +37,5 @@ git worktree remove ..\keiba-yosou-worktree-<名前>    # 作業フォルダを�
 git worktree list                                     # 今ある作業フォルダの一覧
 ```
 
-つなぎを外さずに `git worktree remove` しても、Git はつなぎの先をたどらない（メインの `reports/` は消えない）。ただし、つなぎと空のフォルダが残る。
+- つなぎを外さずに `git worktree remove` しても、Git はつなぎの先をたどらない（メインの `reports/` は消えない）。ただし、つなぎと空のフォルダが残る。
+- 消す作業フォルダの中にいるシェル（Claude のシェルも含む）やエディタがあると、Windows がフォルダを消せず、`Permission denied` と出て空のフォルダが残る。Git の記録は外れているので、外に出てから `rmdir ..\keiba-yosou-worktree-<名前>`（空のフォルダだけを消す）で消す。
