@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Self
+from typing import Any, Self
 
 import pandas as pd
 
@@ -39,6 +39,26 @@ class LightGbmEncoder:
         for column in self._categories:
             encoded[column] = self._encoded_column(encoded[column])
         return encoded
+
+    def state(self) -> dict[str, Any]:
+        """覚えたものを、素の辞書（文字列と数）で返す。モデルと一緒に保存するときの形。
+
+        エンコーダーのオブジェクトをそのまま pickle すると、クラスの置き場所（モジュール）が変わったときに
+        読めなくなるので、素のデータだけを書く。
+        """
+        return {
+            "min_category_count": self._min_category_count,
+            "columns": list(self._columns),
+            "categories": {column: list(values) for column, values in self._categories.items()},
+        }
+
+    @classmethod
+    def from_state(cls, state: dict[str, Any]) -> Self:
+        """``state()`` で書いた辞書から作り直す。"""
+        encoder = cls(int(state["min_category_count"]))
+        encoder._columns = tuple(state["columns"])
+        encoder._categories = {column: list(values) for column, values in state["categories"].items()}
+        return encoder
 
     def _category_values(self, values: pd.Series) -> list[str]:
         """学習データに出てきた値の一覧。「その他」にまとめる列は、出走の多い値だけにして「その他」を足す。"""
