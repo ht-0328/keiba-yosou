@@ -13,13 +13,12 @@ from yosou.shared.dataset import HORSE_NO, RACE_ID, TrainingData
 from yosou.shared.evaluation import ENSEMBLE_NAME, TrainingReport
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
+from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
 from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.tests import synthetic_season as season
 
 from ..command import CommandLine
 from ..dataset import PopularityApplier, PopularityInput, dataset_builder
-from ..repository import AnnouncedOddsRepository
 from ..workflow import PROBABILITY, TIMINGS, PredictionWorkflow
 
 #: 確定前の 1R（8頭登録・馬番8 は速報で取消）で、利用者が渡す人気。7頭立てなので 1〜3番人気が対象。

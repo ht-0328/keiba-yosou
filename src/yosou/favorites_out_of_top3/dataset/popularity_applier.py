@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..repository import AnnouncedOddsRepository
+from yosou.shared.repository import AnnouncedOddsRepository
+
 from .popularity_input import PopularityInput
 
 

@@ -13,10 +13,10 @@ import pytest
 
 from 共通 import db, keys
 
+from yosou.shared.repository import AnnouncedOddsRepository
 from yosou.shared.tests import synthetic_season as season
 
 from ..dataset import PopularityApplier, PopularityInput
-from ..repository import AnnouncedOddsRepository
 
 RACE = season.CARD_RACE_ID
 #: 確定前の断面（データ区分 2）の発表時刻と、そのあとの確定の断面（データ区分 4）。
