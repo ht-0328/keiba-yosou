@@ -203,7 +203,7 @@ FACTORS: tuple[Factor, ...] = (
     _favorite(95, "馬体重の増減", "weight-change"),
 )
 
-#: 無条件の項目。同レースは過去が3〜4回しかなく、成績で判定できないため。
+#: 無条件の項目。同レースは過去の開催が少なく（2016年からでも最大 10回あまり）、成績で判定するには出走数が足りないため。
 FIXED_ITEMS: tuple[FixedItem, ...] = (
     FixedItem("P19", PLUS, 3, "同レースで勝ったことがある", "same_race_wins_before >= 1"),
     FixedItem("P20", PLUS, 3, "同レースで3着内に来たことがある（勝ちは無い）", "same_race_wins_before = 0 AND same_race_places_before >= 1"),
