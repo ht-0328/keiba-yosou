@@ -6,22 +6,24 @@ import argparse
 from datetime import date
 from pathlib import Path
 
-import duckdb
-
+from 共通 import db
 from 共通.render import Table
 
-from ..dataset import (
+from yosou.shared.command import CommonArguments, TrainingReportTables
+from yosou.shared.dataset import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
     DEFAULT_VALID_FIRST_DAY,
-    DatasetBuilder,
     TrainingPeriod,
 )
-from ..ml_model import MEMBER_TYPES
-from ..repository import ModelRepository
-from ..workflow import TrainingWorkflow
-from .common_arguments import CommonArguments
-from .training_report_tables import TrainingReportTables
+from yosou.shared.ml_model import MEMBER_TYPES
+from yosou.shared.repository import ModelRepository
+from yosou.shared.workflow import TrainingWorkflow
+
+from ..dataset import dataset_builder
+from ..setting import DEFAULT_SETTINGS_PATH
+from ..workflow import TIMINGS
+from .yosou_name import YOSOU_NAME
 
 
 class TrainCommand:
@@ -36,17 +38,21 @@ class TrainCommand:
             help="ハイパーパラメータの設定ファイル（TOML。省略すると初期値）",
         )
         self._add_period_arguments(parser)
-        CommonArguments().add_to(parser)
+        CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
-    def run(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> list[Table]:
+    def run(self, args: argparse.Namespace) -> list[Table]:
+        """元DB を開くのは学習データを読む段だけ。学習は DB を閉じてから行い、ほかの道具を待たせない。"""
         period = TrainingPeriod.starting(
             args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
         )
-        workflow = TrainingWorkflow(
-            DatasetBuilder.for_database(con), period, ModelRepository(args.models, MEMBER_TYPES),
-        )
-        report = workflow.run(args.config)
+        with db.open_db(args.db) as con:
+            workflow = TrainingWorkflow(
+                dataset_builder(con), period, ModelRepository(args.models, MEMBER_TYPES),
+                TIMINGS, DEFAULT_SETTINGS_PATH,
+            )
+            training_data = workflow.read_training_data()
+        report = workflow.train(training_data, args.config)
         return TrainingReportTables(report).tables()
 
     def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:

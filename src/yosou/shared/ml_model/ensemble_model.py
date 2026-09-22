@@ -25,7 +25,7 @@ class EnsembleModel:
         return self._members
 
     def predict_members(self, data: FeatureData) -> dict[str, np.ndarray]:
-        """モデルごとの「3着以内に入る確率」。鍵はモデルの名前（LightGBM・CatBoost）。"""
+        """モデルごとの、目的変数が 1 になる確率。鍵はモデルの名前（LightGBM・CatBoost）。"""
         return {member.name: member.predict_proba(data) for member in self._members}
 
     def combine(self, member_probabilities: Mapping[str, np.ndarray]) -> np.ndarray:
@@ -34,5 +34,5 @@ class EnsembleModel:
         return stacked.mean(axis=0)
 
     def predict_proba(self, data: FeatureData) -> np.ndarray:
-        """1頭ずつの「3着以内に入る確率」（モデルごとの確率の平均）。"""
+        """1頭ずつの、目的変数が 1 になる確率（モデルごとの確率の平均）。"""
         return self.combine(self.predict_members(data))

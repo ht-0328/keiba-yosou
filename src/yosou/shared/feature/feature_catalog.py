@@ -1,20 +1,25 @@
-"""特徴量 71個の一覧（設計書 09-features.md の表の写し）。
+"""どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、予想ごとの一覧を表す値。
 
 特徴量の名前・まとまり（A〜I）・数値かカテゴリかは、ここだけに書く。
+予想ごとに特徴量を足すときは、``BASE_FEATURES`` に足した一覧で ``FeatureCatalog`` を作る。
 """
 
 from __future__ import annotations
+
+from collections import Counter
+from dataclasses import dataclass
 
 import pandas as pd
 
 from .feature import Feature
 from .feature_kind import FeatureKind
+from .prediction_timing import PredictionTiming
 
 _N = FeatureKind.NUMERIC
 _C = FeatureKind.CATEGORICAL
 
-#: 特徴量 71個。並びは設計書 09 の表の順。
-FEATURES: tuple[Feature, ...] = (
+#: どの予想でも使う特徴量 71個。並びは設計書 09 の表の順。
+BASE_FEATURES: tuple[Feature, ...] = (
     # A. レースの条件（9個）
     Feature("競馬場", "A", _C),
     Feature("芝ダ", "A", _C),
@@ -97,14 +102,38 @@ FEATURES: tuple[Feature, ...] = (
     Feature("14日以内の調教の本数", "I", _N),
 )
 
-#: 特徴量の名前の並び。
-FEATURE_NAMES: tuple[str, ...] = tuple(feature.name for feature in FEATURES)
-#: カテゴリ特徴量の名前。
-CATEGORICAL_FEATURES: frozenset[str] = frozenset(
-    feature.name for feature in FEATURES if feature.is_categorical
-)
 
+@dataclass(frozen=True)
+class FeatureCatalog:
+    """1つの予想が使う特徴量の一覧。名前の並びと、カテゴリ特徴量と、時点ごとに使う列を答える。
 
-def categorical_columns_of(features: pd.DataFrame) -> tuple[str, ...]:
-    """特徴量の表の列のうち、カテゴリ特徴量の名前（列の並び順）。"""
-    return tuple(column for column in features.columns if column in CATEGORICAL_FEATURES)
+    手本の予想は ``FeatureCatalog(BASE_FEATURES)``。特徴量を足す予想は、足した一覧で作る
+    （例: ``FeatureCatalog(BASE_FEATURES + POPULARITY_FEATURES)``）。同じ名前が2つあれば作れない。
+    """
+
+    features: tuple[Feature, ...]
+
+    def __post_init__(self) -> None:
+        duplicated = [name for name, count in Counter(self.names).items() if count > 1]
+        if duplicated:
+            raise ValueError(f"特徴量の名前が重なっています: {'・'.join(duplicated)}")
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        """特徴量の名前の並び（一覧の順）。学習データの列の並びになる。"""
+        return tuple(feature.name for feature in self.features)
+
+    @property
+    def categorical(self) -> frozenset[str]:
+        """カテゴリ特徴量の名前。"""
+        return frozenset(feature.name for feature in self.features if feature.is_categorical)
+
+    def columns_for(self, timing: PredictionTiming) -> tuple[str, ...]:
+        """その時点で使う特徴量の名前（設計書 07）。並びは一覧の順。"""
+        unknown = timing.unknown_features
+        return tuple(name for name in self.names if name not in unknown)
+
+    def categorical_columns_of(self, features: pd.DataFrame) -> tuple[str, ...]:
+        """特徴量の表の列のうち、カテゴリ特徴量の名前（列の並び順）。"""
+        categorical = self.categorical
+        return tuple(column for column in features.columns if column in categorical)

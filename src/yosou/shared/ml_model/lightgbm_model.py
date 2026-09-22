@@ -52,7 +52,7 @@ class LightGbmModel:
         return self
 
     def predict_proba(self, data: FeatureData) -> np.ndarray:
-        """1頭ずつの「3着以内に入る確率」（設計書 12 の 5）。"""
+        """1頭ずつの、目的変数が 1 になる確率（設計書 12 の 5）。"""
         encoder, classifier = self._trained()
         return classifier.predict_proba(encoder.transform(data.features))[:, 1]
 

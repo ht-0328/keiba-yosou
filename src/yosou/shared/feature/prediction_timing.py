@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from enum import Enum
 
-from .feature_catalog import FEATURE_NAMES
-
 
 class PredictionTiming(Enum):
     """予測する時点。値は、モデルを保存するフォルダの名前にも使う。"""
@@ -19,10 +17,10 @@ class PredictionTiming(Enum):
         """人が読む名前（木曜・前日・当日）。"""
         return _LABELS[self]
 
-    def feature_columns(self) -> tuple[str, ...]:
-        """この時点で使う特徴量の名前。並びは特徴量の一覧（``FEATURE_NAMES``）の順。"""
-        unknown = _UNKNOWN_FEATURES[self]
-        return tuple(name for name in FEATURE_NAMES if name not in unknown)
+    @property
+    def unknown_features(self) -> frozenset[str]:
+        """この時点ではまだ分からない特徴量の名前。使う列を決めるのは ``FeatureCatalog.columns_for``。"""
+        return _UNKNOWN_FEATURES[self]
 
     @classmethod
     def parse(cls, text: str) -> PredictionTiming:

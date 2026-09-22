@@ -14,8 +14,6 @@ from .settings_file import SettingsFile
 from .settings_name_check import SettingsNameCheck
 from .settings_overlay import SettingsOverlay
 
-#: 初期値の設定ファイル。
-DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "default_settings.toml"
 #: モデルの引数を書く表の名前（``[lightgbm.params]`` の ``params``）。
 _PARAMS = "params"
 
@@ -28,14 +26,18 @@ class HyperparameterSettings:
     catboost: CatBoostSettings
 
     @classmethod
-    def load(cls, path: Path | None = None) -> HyperparameterSettings:
-        """設定ファイルを読む。``path`` が None なら初期値のまま。名前の誤りは ``ValueError``。"""
-        defaults = SettingsFile(DEFAULT_SETTINGS_PATH).read()
+    def load(cls, path: Path | None, defaults: Path) -> HyperparameterSettings:
+        """設定ファイルを読む。``path`` が None なら初期値のまま。名前の誤りは ``ValueError``。
+
+        ``defaults`` は初期値のファイル（予想ごとに持つ。手本の予想では
+        ``yosou.form_aptitude_top3.setting.DEFAULT_SETTINGS_PATH``）。
+        """
+        default_values = SettingsFile(defaults).read()
         if path is None:
-            return cls.from_dict(defaults)
+            return cls.from_dict(default_values)
         overrides = SettingsFile(path).read()
-        SettingsNameCheck(defaults).check(overrides, str(path))
-        return cls.from_dict(SettingsOverlay(defaults).apply(overrides))
+        SettingsNameCheck(default_values).check(overrides, str(path))
+        return cls.from_dict(SettingsOverlay(default_values).apply(overrides))
 
     @classmethod
     def from_dict(cls, values: Mapping[str, Any]) -> HyperparameterSettings:

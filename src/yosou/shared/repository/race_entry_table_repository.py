@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import duckdb
 
 from 共通 import facts
 
 from .target_scope import TargetScope
 
-#: 作る一時表の名前。
-_TABLE = "form_aptitude_race_entries"
+#: 作る一時表の名前。どの予想からも使うので、予想の名前は入れない。
+_TABLE = "yosou_race_entries"
 
 
 class RaceEntryTableRepository:
@@ -22,11 +24,13 @@ class RaceEntryTableRepository:
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         self._con = con
 
-    def build(self, race_id: str, going_code: str | None) -> TargetScope:
+    def build(self, race_id: str, going_code: str | None,
+              popularity: Mapping[int, int] | None = None) -> TargetScope:
         """一時表を作り、その出走を指す ``TargetScope`` を返す。レースが無ければ ``LookupError``。
 
         ``going_code`` は速報の馬場状態コード。None なら、レースの行に入っている馬場状態を使う。
+        ``popularity`` は 馬番 → 単勝人気。渡すと、その馬の単勝人気をその値にする（まだ DB に無いときに手で渡す）。
         """
         scope = facts.EntryScope(race_id, going_code)
-        table = facts.build_entry_facts(self._con, scope, name=_TABLE)
+        table = facts.build_entry_facts(self._con, scope, popularity=popularity, name=_TABLE)
         return TargetScope.of_table(table)

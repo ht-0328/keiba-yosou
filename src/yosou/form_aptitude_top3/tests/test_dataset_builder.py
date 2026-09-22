@@ -11,21 +11,24 @@ import pytest
 from 共通 import db
 from 合成DB import synth
 
-from ..dataset import HORSE_NO, RACE_DATE, RACE_ID, TOP3, WIN, DatasetBuilder, PredictionData, TrainingData
-from ..dataset.column_names import FINISH
-from ..feature import FEATURE_NAMES, PredictionTiming
-from . import synthetic_season as season
+from yosou.shared.dataset import HORSE_NO, RACE_DATE, RACE_ID, PredictionData, TrainingData
+from yosou.shared.dataset.column_names import FINISH
+from yosou.shared.feature import PredictionTiming
+from yosou.shared.tests import synthetic_season as season
+
+from ..dataset import TOP3, WIN, dataset_builder
+from ..feature import CATALOG
 
 
 def _prediction(path: Path, race_id: str, timing: PredictionTiming) -> PredictionData:
     with db.open_db(path) as con:
-        return DatasetBuilder.for_database(con).build_prediction_data(race_id, timing)
+        return dataset_builder(con).build_prediction_data(race_id, timing)
 
 
 def test_training_data_keeps_flat_runners_from_the_train_first_day(training_data: TrainingData):
     assert training_data.ids[RACE_DATE].min() >= pd.Timestamp(season.TRAIN_FIRST_DAY)
     assert set(training_data.features["芝ダ"]) == {"芝", "ダート"}
-    assert list(training_data.features.columns) == list(FEATURE_NAMES)
+    assert list(training_data.features.columns) == list(CATALOG.names)
     assert training_data.features.index.equals(training_data.ids.index)
 
 

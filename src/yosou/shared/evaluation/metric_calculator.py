@@ -24,7 +24,7 @@ class MetricCalculator:
         return float(log_loss(self._label, probability, labels=_LABELS))
 
     def auc(self, probability: np.ndarray) -> float:
-        """AUC。3着以内の馬に、そうでない馬より高い確率を付けられた割合。正解が片方しか無ければ NaN。"""
+        """AUC。目的変数が 1 の馬に、そうでない馬より高い確率を付けられた割合。正解が片方しか無ければ NaN。"""
         has_both_labels = len(np.unique(self._label)) == len(_LABELS)
         if not has_both_labels:
             return float("nan")
@@ -35,7 +35,7 @@ class MetricCalculator:
         return float(brier_score_loss(self._label, probability))
 
     def top_pick_place_rate(self, probability: np.ndarray) -> float:
-        """各レースで確率がいちばん高い馬が、3着以内に入った割合。"""
+        """各レースで確率がいちばん高い馬の、目的変数が 1 だった割合。"""
         runners = pd.DataFrame({
             "race": self._race_ids, "probability": probability, "label": self._label,
         })

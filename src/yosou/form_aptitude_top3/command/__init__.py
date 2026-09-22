@@ -5,9 +5,9 @@
 | ``CommandLine`` | 入口。引数を読み、元DB を開いて、サブコマンドを実行し、結果の表を出す |
 | ``TrainCommand`` | ``train``: 学習する |
 | ``PredictCommand`` | ``predict``: 1レースを予測する |
-| ``CommonArguments`` | 2つのサブコマンドに共通の引数（--models --db --format --out） |
-| ``TrainingReportTables`` | 学習の結果を表にする |
-| ``PredictionTable`` | 予測の結果を表にする |
+
+予想に依らない部品（共通の引数 ``CommonArguments``、結果の表 ``TrainingReportTables``・``PredictionTable``）は
+``yosou.shared.command``。この予想の名前（モデルの置き場所に使う）は ``yosou_name.py``。
 """
 
 from .command_line import CommandLine

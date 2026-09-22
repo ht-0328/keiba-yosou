@@ -7,9 +7,13 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from ..dataset import RACE_DATE, TOP3, PeriodSplitter, TrainingData, TrainingPeriod
+from ..dataset import RACE_DATE, PeriodSplitter, TrainingData, TrainingPeriod
+from ..feature import Feature, FeatureCatalog, FeatureKind
 
 PERIOD = TrainingPeriod(date(2023, 1, 1), date(2024, 1, 1), date(2025, 7, 1), date(2026, 1, 1))
+#: このテストの学習データ（特徴量は斤量だけ、目的変数は1つ）。
+CATALOG = FeatureCatalog((Feature("斤量", "B", FeatureKind.NUMERIC),))
+LABEL_NAME = "目的変数"
 
 
 def _data(days: list[str]) -> TrainingData:
@@ -17,8 +21,10 @@ def _data(days: list[str]) -> TrainingData:
     return TrainingData(
         ids=pd.DataFrame({RACE_DATE: pd.to_datetime(days)}, index=index),
         features=pd.DataFrame({"斤量": [55.0] * len(days)}, index=index),
-        targets=pd.DataFrame({TOP3: [1] * len(days)}, index=index),
+        targets=pd.DataFrame({LABEL_NAME: [1] * len(days)}, index=index),
         evaluation=pd.DataFrame(index=index),
+        catalog=CATALOG,
+        label_name=LABEL_NAME,
     )
 
 

@@ -15,7 +15,7 @@ FeatureData = TrainingData | PredictionData
 
 
 class ProbabilityModel(Protocol):
-    """3着以内に入る確率を出すモデル（設計書 04）。
+    """目的変数が 1 になる確率を出すモデル（設計書 04）。手本の予想では「3着以内に入る確率」。
 
     この決まりを守るクラスなら、呼ぶ側は LightGBM か CatBoost かを区別せずに扱える。
     モデルごとの違い（カテゴリ特徴量の渡し方など）は、それぞれのクラスとエンコーダーの中に閉じる。
@@ -36,7 +36,7 @@ class ProbabilityModel(Protocol):
         ...
 
     def predict_proba(self, data: FeatureData) -> np.ndarray:
-        """1頭ずつの「3着以内に入る確率」（ライブラリの ``predict_proba`` の2列目）。"""
+        """1頭ずつの、目的変数が 1 になる確率（ライブラリの ``predict_proba`` の2列目）。"""
         ...
 
     @property

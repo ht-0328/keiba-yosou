@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-#: 設定ファイルでは変えられない引数（目的関数）。変えると predict_proba が「3着以内に入る確率」を返さなくなる。
+#: 設定ファイルでは変えられない引数（目的関数）。変えると predict_proba が、目的変数が 1 になる確率を返さなくなる。
 _FIXED_NAMES: frozenset[str] = frozenset({"objective", "loss_function"})
 
 

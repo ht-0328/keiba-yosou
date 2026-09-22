@@ -52,9 +52,10 @@ def race_day_split(training_data: TrainingData,
 
 
 @pytest.mark.parametrize("model_type", [LightGbmModel, CatBoostModel])
-def test_model_learns_saves_and_loads(model_type, race_day_split, fast_settings_path: Path, tmp_path: Path):
+def test_model_learns_saves_and_loads(model_type, race_day_split, fast_settings_path: Path,
+                                      default_settings_path: Path, tmp_path: Path):
     train, valid = race_day_split
-    settings = HyperparameterSettings.load(fast_settings_path)
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=default_settings_path)
     model = model_type.from_settings(settings).fit(train, valid)
     probability = model.predict_proba(valid)
     assert probability.shape == (len(valid),) and ((probability > 0) & (probability < 1)).all()
@@ -65,15 +66,17 @@ def test_model_learns_saves_and_loads(model_type, race_day_split, fast_settings_
     np.testing.assert_allclose(loaded.predict_proba(valid), probability)
     # 列の並びが違っても、学習と同じ並びに直して予測する
     reversed_columns = valid.features[valid.features.columns[::-1]]
-    shuffled = TrainingData(valid.ids, reversed_columns, valid.targets, valid.evaluation)
+    shuffled = TrainingData(valid.ids, reversed_columns, valid.targets, valid.evaluation,
+                            valid.catalog, valid.label_name)
     np.testing.assert_allclose(loaded.predict_proba(shuffled), probability)
 
 
 @pytest.mark.parametrize("model_type", [LightGbmModel, CatBoostModel])
-def test_untrained_model_cannot_predict(model_type, race_day_split):
+def test_untrained_model_cannot_predict(model_type, race_day_split, default_settings_path: Path):
     _, valid = race_day_split
+    settings = HyperparameterSettings.load(None, defaults=default_settings_path)
     with pytest.raises(RuntimeError):
-        model_type.from_settings(HyperparameterSettings.load()).predict_proba(valid)
+        model_type.from_settings(settings).predict_proba(valid)
 
 
 class FixedModel:

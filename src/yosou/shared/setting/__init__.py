@@ -8,7 +8,8 @@
 | ``SettingsNameCheck`` | 書かれた名前が、初期値のファイルにあるかを確かめる |
 | ``SettingsOverlay`` | 初期値に、利用者が書いた項目を重ねる |
 
-初期値は ``default_settings.toml``。
+初期値のファイル（``default_settings.toml``）は予想ごとに持ち、そのパスを ``HyperparameterSettings.load``
+に渡す（手本の予想では ``yosou.form_aptitude_top3.setting.DEFAULT_SETTINGS_PATH``）。
 """
 
 from .catboost_settings import CatBoostSettings

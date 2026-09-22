@@ -13,15 +13,17 @@ import pandas as pd
 import pytest
 
 from ..feature import (
-    CATEGORICAL_FEATURES,
-    FEATURE_NAMES,
+    BASE_FEATURES,
     EntryRecords,
     FeatureBuilder,
+    FeatureCatalog,
     PredictionTiming,
     WorkoutCoverage,
 )
 from ..feature.group.workout_features import NO_WORKOUT
 
+#: どの予想でも使う特徴量 71個の一覧。
+CATALOG = FeatureCatalog(BASE_FEATURES)
 RACE_DAY = date(2024, 6, 1)
 OTHER_RACE = "2024060105010102"
 
@@ -115,7 +117,7 @@ def _workout(horse_id: str, days_before: int, time: str, course: str,
 
 
 def _build(records: EntryRecords, timing: PredictionTiming = PredictionTiming.RACE_DAY) -> pd.DataFrame:
-    return FeatureBuilder().build(records, timing)
+    return FeatureBuilder(CATALOG).build(records, timing)
 
 
 def test_recent_form_uses_five_runs_before_the_race_day():
@@ -221,8 +223,8 @@ def test_undecided_going_becomes_missing():
 
 def test_types_follow_the_catalog_and_timing():
     features = _build(_records([_entry("A")]), PredictionTiming.THURSDAY)
-    assert list(features.columns) == list(PredictionTiming.THURSDAY.feature_columns())
+    assert list(features.columns) == list(CATALOG.columns_for(PredictionTiming.THURSDAY))
     for name in features.columns:
-        is_categorical = name in CATEGORICAL_FEATURES
+        is_categorical = name in CATALOG.categorical
         assert pd.api.types.is_string_dtype(features[name]) is is_categorical, name
-    assert len(_build(_records([_entry("A")])).columns) == len(FEATURE_NAMES)
+    assert len(_build(_records([_entry("A")])).columns) == len(CATALOG.names)

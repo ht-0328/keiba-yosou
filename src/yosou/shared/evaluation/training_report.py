@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..dataset import SplitData, TrainingPeriod
-from ..evaluation import Evaluation
 from ..feature import PredictionTiming
+from .evaluation import Evaluation
 
 
 @dataclass(frozen=True)
