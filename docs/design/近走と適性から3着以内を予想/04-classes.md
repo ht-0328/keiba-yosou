@@ -58,16 +58,16 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
-| `TrainingWorkflow` | 学習の流れを進める。設定を読み、学習データを作り、期間で分け、3つの時点ごとに2つのモデルを学習して保存し、検証データで当たり具合を確かめる | `run(設定ファイルのパス)` |
+| `TrainingWorkflow` | 学習の流れを進める。設定を読み、渡された期間（`TrainingPeriod`）で学習データを作り、期間で分け、3つの時点ごとに2つのモデルを学習して保存し、検証データで当たり具合を確かめる | `run(設定ファイルのパス)` |
 | `PredictionWorkflow` | 予測の流れを進める。予測用データを作り、その時点のモデルを読み込み、2つの予測確率を平均する | `run(レースID, 時点)` |
-| `TrainingReport` | 学習の結果の入れ物（期間ごとのデータ・当たり具合・保存したフォルダ） | ― |
+| `TrainingReport` | 学習の結果の入れ物（使った期間・期間ごとのデータ・当たり具合・保存したフォルダ） | ― |
 
 ### command/ — コマンド
 
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `CommandLine` | 入口。引数を読み、元DB を読むだけで開いて、サブコマンドを実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | `train`: 学習する | `run(引数, 接続)` |
+| `TrainCommand` | `train`: 学習する。期間の引数（`--warmup-from` `--train-from` `--valid-from` `--test-from`）から `TrainingPeriod` を作る | `run(引数, 接続)` |
 | `PredictCommand` | `predict`: 1レースを予測する | `run(引数, 接続)` |
 | `CommonArguments` | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`） | `add_to(parser)` |
 | `TrainingReportTables` | 学習の結果を表にする | `tables()` |
@@ -83,6 +83,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `CareerCountRepository` | 出走別着度数（`ck`）。通算と、そのレースの条件に合う欄の、出走数と3着以内の数 | `read(対象)` |
 | `PastRunRepository` | 過去走 | `read(対象)` |
 | `WorkoutRepository` | 調教（坂路 `hc`・ウッド `wc`） | `read(対象)` |
+| `WorkoutCoverageRepository` | 調教の記録が DB にある期間（コースごとの最初の調教日）。「記録が無い」と「調教していない」を区別するため（[09-features.md](09-features.md) の I） | `read()` |
 | `PeopleDayRepository` | 騎手か調教師の、日ごとの出走数と3着以内の数 | `read(対象)` |
 | `AnnouncedGoingRepository` | 速報の馬場状態（`we`） | `read(レースID)` |
 | `AnnouncedWeightRepository` | 速報の馬体重（`wh`） | `read(レースID)` |
@@ -97,16 +98,17 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
-| `DatasetBuilder` | 入口。学習データか予測用データを作る。下のクラスを順に呼ぶだけ | `build_training_data()`、`build_prediction_data(レースID, 時点)` |
+| `DatasetBuilder` | 入口。学習データか予測用データを作る。下のクラスを順に呼ぶだけ | `build_training_data(期間)`、`build_prediction_data(レースID, 時点)` |
+| `TrainingPeriod` | 学習データの期間を区切る4つの日（ウォームアップ・学習・検証・テストの始まり）を表す値。順になっていなければエラー。[08-training-data.md](08-training-data.md) の 4 | `starting(学習の始まり, 検証の始まり, テストの始まり, ウォームアップの始まり=省略可)`、`default()` |
 | `HistoryRecordsLoader` | 学習用に、ある日以降の全部の出走の記録を集める | `load(最初の日)` |
 | `RaceRecordsLoader` | 予測用に、1レースの出走馬の記録を集める。速報（馬場状態・馬体重・取消）を反映する | `load(レースID)` |
 | `EntryRecordsLoader` | リポジトリを順に呼んで、対象の出走の記録を集める。SQL は持たない | `load(対象)` |
 | `AnnouncedWeightApplier` | 速報の馬体重を、出走の行に反映する | `apply(出走の行, 速報の馬体重)` |
 | `ScratchApplier` | 速報の出走取消・競走除外を、出走の行に反映する | `apply(出走の行, 馬番)` |
-| `RunnerSelector` | 入れる行を選ぶ（[06-flowchart.md](06-flowchart.md) の図1） | `training_samples(出走の行)`、`prediction_runners(出走の行, レースID)` |
+| `RunnerSelector` | 入れる行を選ぶ（[06-flowchart.md](06-flowchart.md) の図1） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)` |
 | `TargetBuilder` | 目的変数を付ける（[10-target.md](10-target.md)） | `build(サンプルの行)` |
 | `RequiredInfoCheck` | 予測に要る情報（馬番・馬場状態・馬体重）が DB にあるかを確かめる | `check(特徴量)` |
-| `PeriodSplitter` | 学習データを時期で、学習データ・検証データ・テストデータに分ける。分け方は次の設計書で決める（いまは仮の区切り） | `split(学習データ)` |
+| `PeriodSplitter` | 学習データを時期（`TrainingPeriod` の検証・テストの始まり）で、学習データ・検証データ・テストデータに分ける。分け方は次の設計書で決める（いまは仮の区切り） | `split(学習データ)` |
 | `TrainingData`・`PredictionData`・`SplitData` | 学習データ・予測用データ・期間で分けたデータの入れ物（[08-training-data.md](08-training-data.md) の「列の種類」） | ― |
 
 ### feature/ — 特徴量を作る
@@ -120,7 +122,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `EntryColumns` | 出走の記録から列を選び、名前を付け直す | `select(出走の行)` |
 | `FeatureGroup` | まとまりのクラスに共通の決まり（インターフェース） | `build(記録)` |
 | `group/` の9クラス | まとまり A〜I ごとに1クラス: `RaceConditionFeatures`（A）、`HorseFeatures`（B）、`PeopleFeatures`（C）、`PreviousRunFeatures`（D）、`RecentFormFeatures`（E）、`AptitudeFeatures`（F）、`FieldComparisonFeatures`（G）、`PedigreeFeatures`（H）、`WorkoutFeatures`（I） | `build(記録)` |
-| `history/` の5クラス | 過去の記録から数える部品: `AsOfLookup`（開催日の N 日前までで、いちばん新しい記録を引く）、`DatedRecords`（鍵と日付を持つ記録の表）、`RecentRunSummary`（近5走のまとめ）、`Top3Rate`（近1年の3着以内の割合）、`WorkoutLookup`（14日以内の調教） | ― |
+| `history/` の6クラス | 過去の記録から数える部品: `AsOfLookup`（開催日の N 日前までで、いちばん新しい記録を引く）、`DatedRecords`（鍵と日付を持つ記録の表）、`RecentRunSummary`（近5走のまとめ）、`Top3Rate`（近1年の3着以内の割合）、`WorkoutLookup`（14日以内の調教）、`WorkoutCoverage`（調教の記録が DB にある期間。出走ごとに、そのコースの記録があるかを判定する） | ― |
 
 「開催日より前のものだけから計算する」決まり（[11-leak-prevention.md](11-leak-prevention.md) の 2）は、`AsOfLookup` の1か所で守る。
 

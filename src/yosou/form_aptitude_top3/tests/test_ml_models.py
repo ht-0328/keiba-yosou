@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ..dataset import PeriodSplitter, TrainingData
+from ..dataset import PeriodSplitter, TrainingData, TrainingPeriod
 from ..feature import PredictionTiming
 from ..ml_model import CatBoostEncoder, CatBoostModel, EnsembleModel, LightGbmEncoder, LightGbmModel
 from ..ml_model.catboost_encoder import MISSING
@@ -44,9 +44,9 @@ def test_catboost_encoder_turns_missing_categories_into_text():
 
 @pytest.fixture(scope="module")
 def race_day_split(training_data: TrainingData,
-                   season_splitter: PeriodSplitter) -> tuple[TrainingData, TrainingData]:
+                   season_period: TrainingPeriod) -> tuple[TrainingData, TrainingData]:
     """当日の時点の、学習データと検証データ。"""
-    split = season_splitter.split(training_data)
+    split = PeriodSplitter(season_period).split(training_data)
     timing = PredictionTiming.RACE_DAY
     return split.train.for_timing(timing), split.valid.for_timing(timing)
 

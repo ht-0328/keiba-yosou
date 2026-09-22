@@ -5,7 +5,7 @@ from __future__ import annotations
 import duckdb
 import pandas as pd
 
-from ..feature import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS, EntryRecords
+from ..feature import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS, EntryRecords, WorkoutCoverage
 from ..repository import (
     CareerCountRepository,
     EntryRepository,
@@ -13,6 +13,7 @@ from ..repository import (
     PedigreeDayRepository,
     PeopleDayRepository,
     TargetScope,
+    WorkoutCoverageRepository,
     WorkoutRepository,
 )
 
@@ -28,6 +29,7 @@ class EntryRecordsLoader:
         self._career_counts = CareerCountRepository(con)
         self._past_runs = PastRunRepository(con)
         self._workouts = WorkoutRepository(con, WORKOUT_WINDOW_DAYS)
+        self._workout_coverage = WorkoutCoverageRepository(con)
         self._jockey_days = PeopleDayRepository.for_jockeys(con, PEOPLE_WINDOW_DAYS)
         self._trainer_days = PeopleDayRepository.for_trainers(con, PEOPLE_WINDOW_DAYS)
         self._sire_days = PedigreeDayRepository.for_sires(con, PEOPLE_WINDOW_DAYS)
@@ -41,6 +43,7 @@ class EntryRecordsLoader:
             entries=self._with_career_counts(entries, career_counts),
             past_runs=self._past_runs.read(scope),
             workouts=self._workouts.read(scope),
+            workout_coverage=WorkoutCoverage.from_table(self._workout_coverage.read()),
             jockey_days=self._jockey_days.read(scope),
             trainer_days=self._trainer_days.read(scope),
             sire_days=self._sire_days.read(scope),

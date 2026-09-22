@@ -85,13 +85,21 @@ def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, train
 def test_command_trains_and_writes_the_report(season_db: Path, fast_settings_path: Path, tmp_path: Path):
     out = tmp_path / "report.md"
     code = _run_command([
-        "train", "--config", str(fast_settings_path), "--valid-from", "2024-07-01",
-        "--test-from", "2024-10-01", "--db", str(season_db), "--models", str(tmp_path / "models"),
-        "--out", str(out),
+        "train", "--config", str(fast_settings_path), "--warmup-from", "2023-10-07",
+        "--train-from", "2024-01-01", "--valid-from", "2024-07-01", "--test-from", "2024-10-01",
+        "--db", str(season_db), "--models", str(tmp_path / "models"), "--out", str(out),
     ])
     text = out.read_text(encoding="utf-8")
     assert code == 0 and "検証データでの当たり具合" in text and "保存したモデル" in text
+    assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     assert (tmp_path / "models" / "thursday" / SETTINGS_FILE).exists()
+
+
+def test_command_rejects_periods_out_of_order(season_db: Path, capsys):
+    code = _run_command([
+        "train", "--train-from", "2024-07-01", "--valid-from", "2024-01-01", "--db", str(season_db),
+    ])
+    assert code == 1 and "学習データの始まり" in capsys.readouterr().err
 
 
 def test_command_reports_errors_in_one_line(season_db: Path, trained, capsys):

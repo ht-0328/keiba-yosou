@@ -9,7 +9,7 @@ import pytest
 from 共通 import db
 from 合成DB import synth
 
-from ..dataset import DatasetBuilder, PeriodSplitter, TrainingData
+from ..dataset import DatasetBuilder, TrainingData, TrainingPeriod
 from ..ml_model import MEMBER_TYPES
 from ..repository import ModelRepository
 from ..workflow import TrainingReport, TrainingWorkflow
@@ -54,26 +54,28 @@ def fast_settings_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def training_data(season_db: Path) -> TrainingData:
+def season_period() -> TrainingPeriod:
+    """架空の1シーズンに合わせた期間（ウォームアップ 2023-10-07・学習 2024-01-01・検証 2024-07-01・テスト 2024-10-01 から）。"""
+    return TrainingPeriod(
+        season.FIRST_RACE_DAY, season.TRAIN_FIRST_DAY, season.VALID_FIRST_DAY, season.TEST_FIRST_DAY,
+    )
+
+
+@pytest.fixture(scope="session")
+def training_data(season_db: Path, season_period: TrainingPeriod) -> TrainingData:
     """架空の1シーズンの学習データ。"""
     with db.open_db(season_db) as con:
-        return DatasetBuilder.for_database(con).build_training_data()
+        return DatasetBuilder.for_database(con).build_training_data(season_period)
 
 
 @pytest.fixture(scope="session")
-def season_splitter() -> PeriodSplitter:
-    """架空の1シーズンに合わせた区切り（検証 2024-07-01・テスト 2024-10-01 から）。"""
-    return PeriodSplitter(season.VALID_FIRST_DAY, season.TEST_FIRST_DAY)
-
-
-@pytest.fixture(scope="session")
-def trained(season_db: Path, fast_settings_path: Path, season_splitter: PeriodSplitter,
+def trained(season_db: Path, fast_settings_path: Path, season_period: TrainingPeriod,
             tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, TrainingReport]:
     """学習の流れを1回通して、モデルを置いたフォルダと学習の結果を返す。"""
     models = tmp_path_factory.mktemp("models")
     with db.open_db(season_db) as con:
         workflow = TrainingWorkflow(
-            DatasetBuilder.for_database(con), season_splitter, ModelRepository(models, MEMBER_TYPES),
+            DatasetBuilder.for_database(con), season_period, ModelRepository(models, MEMBER_TYPES),
         )
         report = workflow.run(fast_settings_path)
     return models, report

@@ -18,6 +18,7 @@ from ..feature import (
     EntryRecords,
     FeatureBuilder,
     PredictionTiming,
+    WorkoutCoverage,
 )
 from ..feature.group.workout_features import NO_WORKOUT
 
@@ -57,11 +58,13 @@ PEDIGREE_DAY_COLUMNS = ["pedigree_name", "surface", "race_date", "starts", "plac
 
 def _records(entries: list[dict[str, Any]], *, past_runs: list[dict[str, Any]] = (),
              workouts: list[dict[str, Any]] = (), jockey_days: list[dict[str, Any]] = (),
-             sire_days: list[dict[str, Any]] = ()) -> EntryRecords:
+             sire_days: list[dict[str, Any]] = (),
+             workout_coverage: WorkoutCoverage = WorkoutCoverage.complete()) -> EntryRecords:
     return EntryRecords(
         entries=pd.DataFrame(entries),
         past_runs=pd.DataFrame(list(past_runs), columns=PAST_RUN_COLUMNS),
         workouts=pd.DataFrame(list(workouts), columns=WORKOUT_COLUMNS),
+        workout_coverage=workout_coverage,
         jockey_days=pd.DataFrame(list(jockey_days), columns=PEOPLE_DAY_COLUMNS),
         trainer_days=pd.DataFrame(columns=PEOPLE_DAY_COLUMNS),
         sire_days=pd.DataFrame(list(sire_days), columns=PEDIGREE_DAY_COLUMNS),
@@ -166,6 +169,30 @@ def test_workouts_use_14_days_before_the_race_day():
     assert horse_a["ウッドの直近の4ハロンタイム"] == 53.0
     assert horse_b["14日以内の調教の本数"] == 0 and horse_b["直近の調教のコース"] == NO_WORKOUT
     assert np.isnan(horse_b["坂路の直近の4ハロンタイム"])
+
+
+def test_workouts_are_unknown_before_the_records_begin():
+    # 馬A の窓（開催日の 14日前から）はウッドの記録の始まりより前、馬B（3週間あと）の窓は始まりのあと
+    later_day = pd.Timestamp(RACE_DAY + timedelta(days=21))
+    sessions = [
+        _workout("A", 3, "0600", "坂路", 52.0, 12.4),
+        {**_workout("B", 3, "0600", "坂路", 52.0, 12.4), "work_date": later_day - pd.Timedelta(days=3)},
+    ]
+    coverage = WorkoutCoverage({"坂路": date(2000, 1, 1), "ウッド": RACE_DAY - timedelta(days=13)})
+    entries = [_entry("A"), _entry("B", horse_no=2, race_date=later_day, race_id=OTHER_RACE)]
+    features = _build(_records(entries, workouts=sessions, workout_coverage=coverage))
+    horse_a, horse_b = features.iloc[0], features.iloc[1]
+    # 坂路の記録はあるので坂路のタイムは使う。ウッドが関わる4つ（コース・ウッドのタイム・本数）は不明
+    assert horse_a["坂路の直近の4ハロンタイム"] == 52.0
+    assert pd.isna(horse_a["直近の調教のコース"])
+    assert np.isnan(horse_a["14日以内の調教の本数"]) and np.isnan(horse_a["ウッドの直近の4ハロンタイム"])
+    assert horse_b["直近の調教のコース"] == "坂路" and horse_b["14日以内の調教の本数"] == 1
+
+
+def test_workouts_are_unknown_when_a_course_has_no_records():
+    coverage = WorkoutCoverage({"坂路": date(2000, 1, 1)})
+    features = _build(_records([_entry("A")], workout_coverage=coverage))
+    assert np.isnan(features.loc[0, "14日以内の調教の本数"])
 
 
 def test_field_comparison_ranks_within_the_same_race():

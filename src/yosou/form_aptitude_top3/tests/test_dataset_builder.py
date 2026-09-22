@@ -22,8 +22,8 @@ def _prediction(path: Path, race_id: str, timing: PredictionTiming) -> Predictio
         return DatasetBuilder.for_database(con).build_prediction_data(race_id, timing)
 
 
-def test_training_data_keeps_flat_runners_from_2024(training_data: TrainingData):
-    assert training_data.ids[RACE_DATE].min() >= pd.Timestamp("2024-01-01")
+def test_training_data_keeps_flat_runners_from_the_train_first_day(training_data: TrainingData):
+    assert training_data.ids[RACE_DATE].min() >= pd.Timestamp(season.TRAIN_FIRST_DAY)
     assert set(training_data.features["芝ダ"]) == {"芝", "ダート"}
     assert list(training_data.features.columns) == list(FEATURE_NAMES)
     assert training_data.features.index.equals(training_data.ids.index)

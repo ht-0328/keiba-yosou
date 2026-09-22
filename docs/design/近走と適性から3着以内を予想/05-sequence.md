@@ -52,11 +52,11 @@ sequenceDiagram
     U->>W: run（設定ファイルのパス）
     W->>H: load（設定ファイルのパス）
     H-->>W: 設定
-    W->>D: build_training_data()
-    D->>L: load（2023年1月1日）
+    W->>D: build_training_data（期間）
+    D->>L: load（ウォームアップの始まり。既定は 2023年1月1日）
     L->>L: リポジトリを順に呼んで記録を集める（図3）
     L-->>D: 出走の記録
-    D->>RS: training_samples（出走の行）
+    D->>RS: training_samples（出走の行、学習データの始まり）
     RS->>RS: 入れる行を選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、`DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（`TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 68個で作る。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（`TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 68個で作る。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
 
 ## 図2. 予測
 
@@ -125,7 +125,7 @@ sequenceDiagram
 
 ## 図3. 記録を集める（リポジトリとのやりとり）
 
-図1の「リポジトリを順に呼んで記録を集める」と、図4の `EntryRecordsLoader.load()` の中の呼び出しを示す。リポジトリは、1つの SQL につき1つある（[04-classes.md](04-classes.md) の「repository/」）。学習でも予測でも、同じ6つのリポジトリを同じ順に呼ぶ。違うのは「対象」（`TargetScope`）だけで、学習では「2023年1月1日以降の全部の出走」、予測では「1レースの出走馬」になる。
+図1の「リポジトリを順に呼んで記録を集める」と、図4の `EntryRecordsLoader.load()` の中の呼び出しを示す。リポジトリは、1つの SQL につき1つある（[04-classes.md](04-classes.md) の「repository/」）。学習でも予測でも、同じリポジトリを同じ順に呼ぶ。違うのは「対象」（`TargetScope`）だけで、学習では「ウォームアップの始まり（既定は 2023年1月1日）以降の全部の出走」、予測では「1レースの出走馬」になる。調教の記録がある期間を読む `WorkoutCoverageRepository` だけは、対象によらず DB 全体から読む。
 
 ```mermaid
 sequenceDiagram
@@ -134,6 +134,7 @@ sequenceDiagram
     participant R2 as CareerCountRepository
     participant R3 as PastRunRepository
     participant R4 as WorkoutRepository
+    participant R4b as WorkoutCoverageRepository
     participant R5 as PeopleDayRepository（騎手）
     participant R6 as PeopleDayRepository（調教師）
     participant DB as 元DB
@@ -154,6 +155,10 @@ sequenceDiagram
     R4->>DB: SQL（坂路とウッドの調教）
     DB-->>R4: 行
     R4-->>L: 調教
+    L->>R4b: read()
+    R4b->>DB: SQL（コースごとの記録の最初の日）
+    DB-->>R4b: 行
+    R4b-->>L: 調教の記録がある期間
     L->>R5: read（対象）
     R5->>DB: SQL（騎手の日ごとの成績）
     DB-->>R5: 行

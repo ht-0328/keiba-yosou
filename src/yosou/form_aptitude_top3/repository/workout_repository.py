@@ -9,13 +9,13 @@ from 共通 import facts, keys
 
 from .target_scope import TargetScope
 
-#: 調教の表と、そのコースの名前。hc = 坂路調教、wc = ウッドチップ調教。
-_COURSE_BY_TABLE: dict[str, str] = {"hc": "坂路", "wc": "ウッド"}
+#: 調教の表と、そのコースの名前。hc = 坂路調教、wc = ウッドチップ調教。``WorkoutCoverageRepository`` と共有する。
+COURSE_BY_TABLE: dict[str, str] = {"hc": "坂路", "wc": "ウッド"}
 _FOUR_FURLONGS = "4ハロンタイム合計(800M～0M)"
 _LAST_FURLONG = "ラップタイム(200M～0M)"
 _NEEDED_COLUMNS = ("データ区分", "調教年月日", "調教時刻", keys.HORSE_KEY, _FOUR_FURLONGS, _LAST_FURLONG)
 #: 削除されたレコードのデータ区分。
-_DELETED = "0"
+DELETED = "0"
 
 
 class WorkoutRepository:
@@ -27,7 +27,7 @@ class WorkoutRepository:
 
     def read(self, scope: TargetScope) -> pd.DataFrame:
         """1行 = 調教1本。馬・調教の日時の古い順に並べる。タイムは秒（測定不良は欠損値）。"""
-        tables = [self._table_sql(table, course) for table, course in _COURSE_BY_TABLE.items()]
+        tables = [self._table_sql(table, course) for table, course in COURSE_BY_TABLE.items()]
         sql = f"""
         WITH wanted AS (
             SELECT DISTINCT horse_id, CAST(race_date AS DATE) AS race_day FROM {scope.relation}
@@ -55,7 +55,7 @@ class WorkoutRepository:
                    {keys.q('調教時刻')} AS work_time, '{course}' AS course,
                    {four_furlongs} AS four_furlongs, {last_furlong} AS last_furlong
             FROM {relation}
-            WHERE {keys.q('データ区分')} <> '{_DELETED}'
+            WHERE {keys.q('データ区分')} <> '{DELETED}'
         """
 
     def _seconds_sql(self, column: str, *, no_time: str, over_limit: str) -> str:

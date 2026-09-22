@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import duckdb
 
 from ..feature import EntryColumns, FeatureBuilder, PredictionTiming
@@ -15,9 +13,7 @@ from .required_info_check import RequiredInfoCheck
 from .runner_selector import RunnerSelector
 from .target_builder import TargetBuilder
 from .training_data import TrainingData
-
-#: 過去走の特徴量を計算するために読む最初の開催日（ウォームアップ期間の始まり。DB にある中央の成績の始まり）。
-HISTORY_FIRST_DAY = date(2023, 1, 1)
+from .training_period import TrainingPeriod
 
 #: ID 列（学習データの列名 → 出走の記録の列名）。
 _ID_COLUMNS = EntryColumns({
@@ -51,10 +47,13 @@ class DatasetBuilder:
         """元DB への接続から作る。"""
         return cls(HistoryRecordsLoader(con), RaceRecordsLoader(con))
 
-    def build_training_data(self) -> TrainingData:
-        """2024年1月からの中央の芝・ダートの出走で、学習データを作る。特徴量は当日の時点の 68個。"""
-        records = self._history_loader.load(HISTORY_FIRST_DAY)
-        samples = self._selector.training_samples(records.entries)
+    def build_training_data(self, period: TrainingPeriod) -> TrainingData:
+        """``period`` の学習データの始まりからの中央の芝・ダートの出走で、学習データを作る。特徴量は当日の時点の全部。
+
+        ウォームアップの始まりからの出走を読み、学習データの始まりより前の行は過去走の計算にだけ使う。
+        """
+        records = self._history_loader.load(period.warmup_first_day)
+        samples = self._selector.training_samples(records.entries, period.train_first_day)
         sample_records = records.with_entries(samples)
         return TrainingData(
             ids=_ID_COLUMNS.select(samples),

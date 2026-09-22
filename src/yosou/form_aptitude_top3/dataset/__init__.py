@@ -9,9 +9,10 @@
 | ``EntryRecordsLoader`` | リポジトリを順に呼んで、対象の出走の記録を集める |
 | ``AnnouncedWeightApplier`` | 速報の馬体重を、出走の行に反映する |
 | ``ScratchApplier`` | 速報の出走取消・競走除外を、出走の行に反映する |
-| ``RunnerSelector`` | 入れる行を選ぶ（障害・取消を除く、2024年1月以降） |
+| ``RunnerSelector`` | 入れる行を選ぶ（障害・取消を除く、学習データの始まり以降） |
 | ``TargetBuilder`` | 目的変数（3着以内・1着）を付ける |
 | ``RequiredInfoCheck`` | 予測に要る情報（馬番・馬場状態・馬体重）が DB にあるかを確かめる |
+| ``TrainingPeriod`` | 学習データの期間（ウォームアップ・学習・検証・テストの始まりの日） |
 | ``PeriodSplitter``・``SplitData`` | 学習データを時期で、学習・検証・テストに分ける |
 
 列の名前（レースID・3着以内 など）は ``column_names.py``。
@@ -19,13 +20,20 @@
 
 from .column_names import HORSE_ID, HORSE_NAME, HORSE_NO, RACE_DATE, RACE_ID, TOP3, WIN
 from .dataset_builder import DatasetBuilder
-from .period_splitter import TEST_FIRST_DAY, VALID_FIRST_DAY, PeriodSplitter
+from .period_splitter import PeriodSplitter
 from .prediction_data import PredictionData
 from .split_data import SplitData
 from .training_data import TrainingData
+from .training_period import (
+    DEFAULT_TEST_FIRST_DAY,
+    DEFAULT_TRAIN_FIRST_DAY,
+    DEFAULT_VALID_FIRST_DAY,
+    DEFAULT_WARMUP_YEARS,
+    TrainingPeriod,
+)
 
 __all__ = [
-    "DatasetBuilder", "TrainingData", "PredictionData", "PeriodSplitter", "SplitData",
-    "VALID_FIRST_DAY", "TEST_FIRST_DAY",
+    "DatasetBuilder", "TrainingData", "PredictionData", "TrainingPeriod", "PeriodSplitter", "SplitData",
+    "DEFAULT_TRAIN_FIRST_DAY", "DEFAULT_VALID_FIRST_DAY", "DEFAULT_TEST_FIRST_DAY", "DEFAULT_WARMUP_YEARS",
     "RACE_ID", "RACE_DATE", "HORSE_ID", "HORSE_NO", "HORSE_NAME", "TOP3", "WIN",
 ]

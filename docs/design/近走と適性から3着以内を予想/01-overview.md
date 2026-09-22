@@ -54,7 +54,7 @@ LightGBM と CatBoost でどう学習・予測するかは [03-library-basics.md
 | 図 | 表すこと | 図の1つの部品が、コードの何に当たるか | 例 |
 |---|---|---|---|
 | シーケンス図 | 利用者・jvdata-store・元DB と、この AI のクラスの間で、どのメソッドを、どの順に呼び、何を渡して何が返るか | 実線の矢印1本 = 呼び出し1回（クラスなら public メソッドを1回、元DB なら SQL を1回、ライブラリのモデルなら `fit` か `predict_proba` を1回）。点線の矢印1本 = その戻り値 | `PredictionWorkflow.run()` が `DatasetBuilder.build_prediction_data()` を呼び、予測用データを受け取る |
-| フローチャート | 1つの public メソッドの中で、if 文によってどちらに進むか | 図1枚 = public メソッド1つの中。ひし形1つ = if 文1つ（引数のチェックのような、どのメソッドにもある if 文は描かない） | `RunnerSelector.training_samples()` が、事実表の1行ごとに「障害レースか」「出走したか」「2024年1月以降か」で、学習データに入れるかを決める |
+| フローチャート | 1つの public メソッドの中で、if 文によってどちらに進むか | 図1枚 = public メソッド1つの中。ひし形1つ = if 文1つ（引数のチェックのような、どのメソッドにもある if 文は描かない） | `RunnerSelector.training_samples()` が、事実表の1行ごとに「障害レースか」「出走したか」「学習データの始まり以降か」で、学習データに入れるかを決める |
 
 public メソッドの意味は [02-glossary.md](02-glossary.md) を、クラスの一覧は [04-classes.md](04-classes.md) を参照。
 

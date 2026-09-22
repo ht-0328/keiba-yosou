@@ -10,7 +10,9 @@ from .race_plan import DIRT_TRACK, JUMP_TRACK, TURF_TRACK, RacePlan
 SEED = 20260921
 FIRST_RACE_DAY = date(2023, 10, 7)
 LAST_RACE_DAY = date(2024, 12, 28)
-#: 検証データ・テストデータの最初の日（このシーズンに合わせた区切り）。
+#: 学習データ・検証データ・テストデータの最初の日（このシーズンに合わせた区切り）。
+#: 最初の開催日から学習データの始まりまで（2023年10〜12月）がウォームアップ期間。
+TRAIN_FIRST_DAY = date(2024, 1, 1)
 VALID_FIRST_DAY = date(2024, 7, 1)
 TEST_FIRST_DAY = date(2024, 10, 1)
 

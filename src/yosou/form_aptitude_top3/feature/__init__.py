@@ -15,11 +15,12 @@ from .entry_columns import EntryColumns
 from .entry_records import EntryRecords
 from .feature_builder import FeatureBuilder
 from .feature_catalog import CATEGORICAL_FEATURES, FEATURE_NAMES, FEATURES, categorical_columns_of
+from .history import WorkoutCoverage
 from .prediction_timing import PredictionTiming
 from .time_windows import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS
 
 __all__ = [
-    "FeatureBuilder", "EntryRecords", "EntryColumns", "PredictionTiming",
+    "FeatureBuilder", "EntryRecords", "EntryColumns", "PredictionTiming", "WorkoutCoverage",
     "FEATURES", "FEATURE_NAMES", "CATEGORICAL_FEATURES", "categorical_columns_of",
     "WORKOUT_WINDOW_DAYS", "PEOPLE_WINDOW_DAYS",
 ]

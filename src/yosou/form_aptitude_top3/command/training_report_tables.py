@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from 共通.render import Table
 
 from ..dataset import RACE_DATE, TrainingData
@@ -23,10 +25,17 @@ class TrainingReportTables:
         parts = self._report.split.parts()
         return Table(
             ["区分", "最初の開催日", "最後の開催日", "行数", "3着以内の割合"],
-            [self._period_row(name, part) for name, part in parts.items()],
+            [self._warmup_row(), *(self._period_row(name, part) for name, part in parts.items())],
             title="学習データの期間",
-            note="テストデータは最後に1回だけ確かめる用なので、ここでは当たり具合を測らない。",
+            note="ウォームアップは過去走の計算にだけ使い、サンプルにしない。"
+                 "テストデータは最後に1回だけ確かめる用なので、ここでは当たり具合を測らない。",
         )
+
+    def _warmup_row(self) -> list[object]:
+        """ウォームアップ期間の行。サンプルにしないので、行数と割合は空欄。"""
+        period = self._report.period
+        last_day = period.train_first_day - timedelta(days=1)
+        return ["ウォームアップ", period.warmup_first_day.isoformat(), last_day.isoformat(), None, None]
 
     def _period_row(self, name: str, part: TrainingData) -> list[object]:
         days = part.ids[RACE_DATE]

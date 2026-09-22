@@ -6,8 +6,6 @@ from datetime import date
 
 import pandas as pd
 
-#: 学習データに入れる最初の開催日。これより前はウォームアップ期間（設計書 08 の 3）。
-SAMPLE_FIRST_DAY = date(2024, 1, 1)
 #: 障害レースの芝ダ。学習データに入れない。
 _JUMP = "障害"
 
@@ -15,14 +13,16 @@ _JUMP = "障害"
 class RunnerSelector:
     """入れる行を選ぶ（設計書 06 の図1）。
 
-    3つの問い「障害レースか」「出走したか」「2024年1月以降か」のうち、はじめの2つは学習と予測に共通。
-    3つ目は学習だけ（これから走るレースは、常に 2024年1月以降）。
+    3つの問い「障害レースか」「出走したか」「学習データの始まり以降か」のうち、はじめの2つは学習と予測に共通。
+    3つ目は学習だけ（これから走るレースは、常に学習データの始まり以降）。
     """
 
-    def training_samples(self, entries: pd.DataFrame) -> pd.DataFrame:
-        """学習データのサンプルにする行。ウォームアップ期間の行は、過去走の計算にだけ使うので入れない。"""
+    def training_samples(self, entries: pd.DataFrame, train_first_day: date) -> pd.DataFrame:
+        """学習データのサンプルにする行。``train_first_day`` より前（ウォームアップ期間）の行は、
+        過去走の計算にだけ使うので入れない（設計書 08 の 3）。
+        """
         runners = self._flat_runners(entries)
-        return runners[runners["race_date"] >= pd.Timestamp(SAMPLE_FIRST_DAY)]
+        return runners[runners["race_date"] >= pd.Timestamp(train_first_day)]
 
     def prediction_runners(self, entries: pd.DataFrame, race_id: str) -> pd.DataFrame:
         """予測する馬の行。障害レースなら ``ValueError``、出走する馬がいなければ ``LookupError``。"""

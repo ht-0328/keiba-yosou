@@ -10,6 +10,7 @@
 | ``CareerCountRepository`` | 出走別着度数（その出走の時点の、通算の着回数） |
 | ``PastRunRepository`` | 過去走 |
 | ``WorkoutRepository`` | 調教（坂路・ウッド） |
+| ``WorkoutCoverageRepository`` | 調教の記録が DB にある期間（コースごとの最初の調教日） |
 | ``PeopleDayRepository`` | 騎手か調教師の、日ごとの成績 |
 | ``PedigreeDayRepository`` | 父か母父の産駒の、日ごと・芝ダごとの成績 |
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
@@ -32,11 +33,12 @@ from .people_day_repository import PeopleDayRepository
 from .race_entry_table_repository import RaceEntryTableRepository
 from .scratch_repository import ScratchRepository
 from .target_scope import TargetScope
+from .workout_coverage_repository import WorkoutCoverageRepository
 from .workout_repository import WorkoutRepository
 
 __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
-    "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "PeopleDayRepository",
-    "PedigreeDayRepository",
+    "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
+    "PeopleDayRepository", "PedigreeDayRepository",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "ScratchRepository", "ModelRepository",
 ]

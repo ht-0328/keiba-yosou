@@ -6,6 +6,8 @@ from dataclasses import dataclass, replace
 
 import pandas as pd
 
+from .history import WorkoutCoverage
+
 
 @dataclass(frozen=True)
 class EntryRecords:
@@ -14,6 +16,7 @@ class EntryRecords:
     - ``entries``: 1行 = 1頭の出走。事実表の列と、その出走の出走別着度数（``ck_`` で始まる列）。
     - ``past_runs``: ``entries`` の馬が中央で出走した過去のレース（1行 = 1走）。
     - ``workouts``: ``entries`` の馬の、開催日の前 14日以内の調教（坂路とウッド）。
+    - ``workout_coverage``: 調教の記録が DB にある期間（コースごとの最初の日）。
     - ``jockey_days``・``trainer_days``: 騎手・調教師ごと、開催日ごとの出走数と3着以内の数。
     - ``sire_days``・``damsire_days``: 父・母父ごと、開催日ごと、芝ダごとの、産駒の出走数と3着以内の数。
     """
@@ -21,6 +24,7 @@ class EntryRecords:
     entries: pd.DataFrame
     past_runs: pd.DataFrame
     workouts: pd.DataFrame
+    workout_coverage: WorkoutCoverage
     jockey_days: pd.DataFrame
     trainer_days: pd.DataFrame
     sire_days: pd.DataFrame

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..dataset import DatasetBuilder, PeriodSplitter, SplitData
+from ..dataset import DatasetBuilder, PeriodSplitter, SplitData, TrainingPeriod
 from ..evaluation import Evaluation, ModelEvaluator
 from ..feature import PredictionTiming
 from ..ml_model import MEMBER_TYPES, EnsembleModel, ProbabilityModel
@@ -23,23 +23,24 @@ class TrainingWorkflow:
     検証データで当たり具合を確かめる。
     """
 
-    def __init__(self, dataset_builder: DatasetBuilder, splitter: PeriodSplitter,
+    def __init__(self, dataset_builder: DatasetBuilder, period: TrainingPeriod,
                  model_repository: ModelRepository) -> None:
         self._dataset_builder = dataset_builder
-        self._splitter = splitter
+        self._period = period
+        self._splitter = PeriodSplitter(period)
         self._model_repository = model_repository
         self._evaluator = ModelEvaluator()
 
     def run(self, settings_path: Path | None) -> TrainingReport:
         """``settings_path`` の設定（None なら初期値）で学習する。モデルは合わせて6つ保存する。"""
         settings = HyperparameterSettings.load(settings_path)
-        split = self._splitter.split(self._dataset_builder.build_training_data())
+        split = self._splitter.split(self._dataset_builder.build_training_data(self._period))
         trained = {timing: self._train(timing, split, settings) for timing in PredictionTiming}
         model_folders = {
             timing: self._model_repository.save(timing, models, settings)
             for timing, models in trained.items()
         }
-        return TrainingReport(split, self._evaluate(trained, split), model_folders)
+        return TrainingReport(self._period, split, self._evaluate(trained, split), model_folders)
 
     def _train(self, timing: PredictionTiming, split: SplitData,
                settings: HyperparameterSettings) -> list[ProbabilityModel]:
