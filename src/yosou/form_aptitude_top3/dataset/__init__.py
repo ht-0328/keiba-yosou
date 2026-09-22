@@ -28,12 +28,11 @@ from .training_period import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
     DEFAULT_VALID_FIRST_DAY,
-    DEFAULT_WARMUP_YEARS,
     TrainingPeriod,
 )
 
 __all__ = [
     "DatasetBuilder", "TrainingData", "PredictionData", "TrainingPeriod", "PeriodSplitter", "SplitData",
-    "DEFAULT_TRAIN_FIRST_DAY", "DEFAULT_VALID_FIRST_DAY", "DEFAULT_TEST_FIRST_DAY", "DEFAULT_WARMUP_YEARS",
+    "DEFAULT_TRAIN_FIRST_DAY", "DEFAULT_VALID_FIRST_DAY", "DEFAULT_TEST_FIRST_DAY",
     "RACE_ID", "RACE_DATE", "HORSE_ID", "HORSE_NO", "HORSE_NAME", "TOP3", "WIN",
 ]

@@ -53,7 +53,7 @@ sequenceDiagram
     W->>H: load（設定ファイルのパス）
     H-->>W: 設定
     W->>D: build_training_data（期間）
-    D->>L: load（ウォームアップの始まり。既定は 2023年1月1日）
+    D->>L: load（ウォームアップの始まり。既定は 2020年1月1日）
     L->>L: リポジトリを順に呼んで記録を集める（図3）
     L-->>D: 出走の記録
     D->>RS: training_samples（出走の行、学習データの始まり）
@@ -125,7 +125,7 @@ sequenceDiagram
 
 ## 図3. 記録を集める（リポジトリとのやりとり）
 
-図1の「リポジトリを順に呼んで記録を集める」と、図4の `EntryRecordsLoader.load()` の中の呼び出しを示す。リポジトリは、1つの SQL につき1つある（[04-classes.md](04-classes.md) の「repository/」）。学習でも予測でも、同じリポジトリを同じ順に呼ぶ。違うのは「対象」（`TargetScope`）だけで、学習では「ウォームアップの始まり（既定は 2023年1月1日）以降の全部の出走」、予測では「1レースの出走馬」になる。調教の記録がある期間を読む `WorkoutCoverageRepository` だけは、対象によらず DB 全体から読む。
+図1の「リポジトリを順に呼んで記録を集める」と、図4の `EntryRecordsLoader.load()` の中の呼び出しを示す。リポジトリは、1つの SQL につき1つある（[04-classes.md](04-classes.md) の「repository/」）。学習でも予測でも、同じリポジトリを同じ順に呼ぶ。違うのは「対象」（`TargetScope`）だけで、学習では「ウォームアップの始まり（既定は 2020年1月1日）以降の全部の出走」、予測では「1レースの出走馬」になる。調教の記録がある期間を読む `WorkoutCoverageRepository` だけは、対象によらず DB 全体から読む。
 
 ```mermaid
 sequenceDiagram

@@ -14,7 +14,6 @@ from ..dataset import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
     DEFAULT_VALID_FIRST_DAY,
-    DEFAULT_WARMUP_YEARS,
     DatasetBuilder,
     TrainingPeriod,
 )
@@ -56,7 +55,7 @@ class TrainCommand:
         group.add_argument(
             "--warmup-from", type=date.fromisoformat, default=None,
             help="ウォームアップ期間の最初の開催日。この日からの出走を過去走の計算にだけ使い、サンプルにしない"
-                 f"（省略すると、学習データの最初の日の {DEFAULT_WARMUP_YEARS} 年前）",
+                 "（省略すると、学習データの最初の日の前の年の1月1日）",
         )
         group.add_argument(
             "--train-from", type=date.fromisoformat, default=DEFAULT_TRAIN_FIRST_DAY,

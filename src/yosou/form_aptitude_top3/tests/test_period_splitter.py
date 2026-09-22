@@ -43,17 +43,21 @@ def test_boundaries_must_be_in_order():
         TrainingPeriod(date(2024, 1, 1), date(2024, 1, 1), date(2025, 7, 1), date(2026, 1, 1))
 
 
-def test_warmup_defaults_to_one_year_before_the_training_data():
-    period = TrainingPeriod.starting(date(2021, 8, 1), date(2025, 7, 1), date(2026, 1, 1))
-    assert period.warmup_first_day == date(2020, 8, 1)
-    # 2月29日の1年前は 2月28日
-    leap = TrainingPeriod.starting(date(2024, 2, 29), date(2025, 7, 1), date(2026, 1, 1))
-    assert leap.warmup_first_day == date(2023, 2, 28)
-    # 書いた日はそのまま
+@pytest.mark.parametrize(("train_first_day", "warmup_first_day"), [
+    (date(2021, 8, 1), date(2020, 1, 1)), (date(2024, 1, 1), date(2023, 1, 1)), (date(2024, 2, 29), date(2023, 1, 1)),
+])
+def test_warmup_defaults_to_january_of_the_previous_year(train_first_day: date, warmup_first_day: date):
+    period = TrainingPeriod.starting(train_first_day, date(2025, 7, 1), date(2026, 1, 1))
+    assert period.warmup_first_day == warmup_first_day
+
+
+def test_given_warmup_is_kept():
     given = TrainingPeriod.starting(date(2021, 8, 1), date(2025, 7, 1), date(2026, 1, 1),
-                                    warmup_first_day=date(2020, 1, 1))
-    assert given.warmup_first_day == date(2020, 1, 1)
+                                    warmup_first_day=date(2021, 1, 1))
+    assert given.warmup_first_day == date(2021, 1, 1)
 
 
 def test_default_period_matches_the_design():
-    assert TrainingPeriod.default() == PERIOD
+    # 設計書 08 の 4: 学習は 2021年8月から、ウォームアップは 2020年
+    expected = TrainingPeriod(date(2020, 1, 1), date(2021, 8, 1), date(2025, 7, 1), date(2026, 1, 1))
+    assert TrainingPeriod.default() == expected
