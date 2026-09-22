@@ -45,6 +45,15 @@ SE_COLUMNS: tuple[str, ...] = (
     "マイニング区分", "マイニング予想順位", "今回レース脚質判定",
 )
 PAYOUT_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "払戻金", "人気順")
+#: 組み合わせの券種（馬連・3連複・3連単）の払戻。組番は馬番を並べた文字列（馬連 ``0104``、3連単 ``040102``）。
+COMBO_PAYOUT_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "組番", "払戻金", "人気順")
+#: 払戻の親（``hr``）のフラグの券種。列名は「不成立フラグ　単勝」のように全角スペースでつなぐ（実DB と同じ）。
+HR_FLAG_BETS: tuple[str, ...] = ("単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "3連複", "3連単")
+HR_FLAG_KINDS: tuple[str, ...] = ("不成立フラグ", "特払フラグ", "返還フラグ")
+HR_COLUMNS: tuple[str, ...] = (
+    *_HEADER, *KEY_COLUMNS, "登録頭数", "出走頭数",
+    *(f"{kind}　{bet}" for kind in HR_FLAG_KINDS for bet in HR_FLAG_BETS),
+)
 CORNER_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "コーナー", "周回数", "各通過順位")
 TM_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "予測スコア")
 DM_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "予想走破タイム", "予想誤差(信頼度)＋", "予想誤差(信頼度)－")
@@ -98,6 +107,8 @@ TABLES: dict[str, tuple[str, ...]] = {
 OPTIONAL_TABLES: dict[str, tuple[str, ...]] = {
     "ck": CK_COLUMNS, "hc": HC_COLUMNS, "wc": WC_COLUMNS,
     "we": WE_COLUMNS, "wh": WH_COLUMNS, "wh__馬体重情報": WH_WEIGHT_COLUMNS, "av": AV_COLUMNS,
+    "hr": HR_COLUMNS, "hr__馬連払戻": COMBO_PAYOUT_COLUMNS, "hr__3連複払戻": COMBO_PAYOUT_COLUMNS,
+    "hr__3連単払戻": COMBO_PAYOUT_COLUMNS,
 }
 #: 親の表の表題（実DB の ``_tables`` と同じ）。
 TITLES: dict[str, str] = {
@@ -187,6 +198,28 @@ def payout(race_row: dict[str, str], num: int, yen: int, *, seq: int = 1, pop: i
     """払戻1件（単勝・複勝で同じ形）。``払戻金`` は9桁ゼロ埋めの円。"""
     key = {name: race_row[name] for name in KEY_COLUMNS}
     return _row(PAYOUT_COLUMNS, {**key, "_連番": str(seq), "馬番": f"{num:02d}", "払戻金": f"{yen:09d}", "人気順": f"{pop:02d}"})
+
+
+def combo_payout(race_row: dict[str, str], combo: str, yen: int, *, seq: int = 1, pop: int = 1,
+                 table: str = "hr__3連単払戻") -> dict[str, str]:
+    """組み合わせの券種（馬連・3連複・3連単）の払戻1件。``combo`` は組番（馬番を2桁ずつ並べた文字列）。"""
+    if table not in OPTIONAL_TABLES or OPTIONAL_TABLES[table] is not COMBO_PAYOUT_COLUMNS:
+        raise ValueError(f"組み合わせの払戻の表ではありません: {table}")
+    key = {name: race_row[name] for name in KEY_COLUMNS}
+    return _row(COMBO_PAYOUT_COLUMNS, {**key, "_連番": str(seq), "組番": combo, "払戻金": f"{yen:09d}", "人気順": f"{pop:03d}"})
+
+
+def payout_header(race_row: dict[str, str], *, void: Sequence[str] = (), special: Sequence[str] = (),
+                  refund: Sequence[str] = ()) -> dict[str, str]:
+    """払戻の親（``hr``）1件。``void``・``special``・``refund`` に、不成立・特払・返還にする券種（``HR_FLAG_BETS``）を並べる。"""
+    flags = {"不成立フラグ": void, "特払フラグ": special, "返還フラグ": refund}
+    key = {name: race_row[name] for name in KEY_COLUMNS}
+    values = {
+        "レコード種別ID": "HR", "データ区分": "2", "データ作成年月日": race_row["開催年"] + race_row["開催月日"], **key,
+        "登録頭数": race_row["登録頭数"], "出走頭数": race_row["出走頭数"],
+        **{f"{kind}　{bet}": "1" if bet in bets else "0" for kind, bets in flags.items() for bet in HR_FLAG_BETS},
+    }
+    return _row(HR_COLUMNS, values)
 
 
 def corner(race_row: dict[str, str], seq: int, corner_no: int, order: str) -> dict[str, str]:
@@ -318,6 +351,11 @@ class Sample:
     weight: list[dict[str, str]] = field(default_factory=list)
     weights: list[dict[str, str]] = field(default_factory=list)
     scratches: list[dict[str, str]] = field(default_factory=list)
+    #: 払戻の親（券種ごとのフラグ）と、組み合わせの券種の払戻。荒れ具合の予想のテストに使う。
+    headers: list[dict[str, str]] = field(default_factory=list)
+    quinella: list[dict[str, str]] = field(default_factory=list)
+    trio: list[dict[str, str]] = field(default_factory=list)
+    trifecta: list[dict[str, str]] = field(default_factory=list)
 
     def extend(self, other: "Sample") -> "Sample":
         """別の束を足す。"""
@@ -330,6 +368,7 @@ class Sample:
         optional = {
             "ck": self.ck, "hc": self.hill, "wc": self.wood,
             "we": self.going, "wh": self.weight, "wh__馬体重情報": self.weights, "av": self.scratches,
+            "hr": self.headers, "hr__馬連払戻": self.quinella, "hr__3連複払戻": self.trio, "hr__3連単払戻": self.trifecta,
         }
         return {
             "ra": self.ra, "se": self.se, "hr__単勝払戻": self.win, "hr__複勝払戻": self.place,

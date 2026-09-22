@@ -4,16 +4,25 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol
 
-from ..dataset import DatasetBuilder, PeriodSplitter, SplitData, TrainingData, TrainingPeriod
-from ..evaluation import Evaluation, ModelEvaluator, TrainingReport
+from ..dataset import DatasetBuilder, PeriodSplitter, RaceDatasetBuilder, SplitData, TrainingData, TrainingPeriod
+from ..evaluation import ClassEvaluation, Evaluation, ModelEvaluator, TrainingReport
 from ..feature import PredictionTiming
-from ..ml_model import MEMBER_TYPES, EnsembleModel, ProbabilityModel
+from ..ml_model import MEMBER_TYPES, EnsembleModel, Member
 from ..repository import ModelRepository
 from ..setting import HyperparameterSettings
 
 #: 時点ごとの、学習したモデル（LightGBM と CatBoost）。
-TrainedModels = dict[PredictionTiming, list[ProbabilityModel]]
+TrainedModels = dict[PredictionTiming, list[Member]]
+
+
+class Evaluator(Protocol):
+    """当たり具合を測るクラスの決まり（``ModelEvaluator`` か ``ClassModelEvaluator``）。"""
+
+    def evaluate(self, timing: PredictionTiming, ensemble: EnsembleModel,
+                 data: TrainingData) -> Sequence[Evaluation | ClassEvaluation]:
+        ...
 
 
 class TrainingWorkflow:
@@ -21,24 +30,32 @@ class TrainingWorkflow:
 
     設定を読む → 学習データを作る → 時期で分ける → 時点ごとに2つのモデルを学習する → 保存する →
     検証データで当たり具合を確かめる。予想ごとに違うのは、渡される ``dataset_builder`` の中身と、
-    学習する時点（``timings``）の数だけである。
+    学習する時点（``timings``）の数、モデルのクラス（``member_types``。二値分類か多クラス分類か）、
+    当たり具合の測り方（``evaluator``）だけである。
 
     元DB が要るのは学習データを作る段（``read_training_data()``）だけなので、コマンドは、その段を
     終えたら DB を閉じてロックを手放してから ``train()`` を呼ぶ。学習は何分もかかり、そのあいだ
-    ほかの道具が DB を開けなくなるためである。
+    ほかの道具が DB を開けなくなるためである。券種ごとに学習する予想（荒れ具合）は、学習データを1回読み、
+    目的変数の列を持ち替えて ``train()`` を券種の数だけ呼ぶ。
     """
 
-    def __init__(self, dataset_builder: DatasetBuilder, period: TrainingPeriod,
+    def __init__(self, dataset_builder: DatasetBuilder | RaceDatasetBuilder, period: TrainingPeriod,
                  model_repository: ModelRepository, timings: Sequence[PredictionTiming],
-                 defaults_path: Path) -> None:
-        """``timings`` は学習する時点、``defaults_path`` はその予想のハイパーパラメータの初期値のファイル。"""
+                 defaults_path: Path, member_types: Sequence[type[Member]] = MEMBER_TYPES,
+                 evaluator: Evaluator | None = None) -> None:
+        """``timings`` は学習する時点、``defaults_path`` はその予想のハイパーパラメータの初期値のファイル。
+
+        ``member_types`` は二値分類なら省略（``MEMBER_TYPES``）、多クラス分類なら ``CLASS_MEMBER_TYPES``。
+        ``evaluator`` も同じく、省略すると二値分類の ``ModelEvaluator``、多クラス分類なら ``ClassModelEvaluator`` を渡す。
+        """
         self._dataset_builder = dataset_builder
         self._period = period
         self._splitter = PeriodSplitter(period)
         self._model_repository = model_repository
         self._timings = tuple(timings)
         self._defaults_path = defaults_path
-        self._evaluator = ModelEvaluator()
+        self._member_types = tuple(member_types)
+        self._evaluator: Evaluator = ModelEvaluator() if evaluator is None else evaluator
 
     def run(self, settings_path: Path | None) -> TrainingReport:
         """学習データを作って、そのまま学習する（``read_training_data()`` → ``train()``）。"""
@@ -60,15 +77,15 @@ class TrainingWorkflow:
         return TrainingReport(self._period, split, self._evaluate(trained, split), model_folders)
 
     def _train(self, timing: PredictionTiming, split: SplitData,
-               settings: HyperparameterSettings) -> list[ProbabilityModel]:
+               settings: HyperparameterSettings) -> list[Member]:
         """1つの時点のモデルを学習する。学習データと検証データは、その時点で使う列だけにして渡す。"""
         train = split.train.for_timing(timing)
         valid = split.valid.for_timing(timing)
-        return [model_type.from_settings(settings).fit(train, valid) for model_type in MEMBER_TYPES]
+        return [model_type.from_settings(settings).fit(train, valid) for model_type in self._member_types]
 
-    def _evaluate(self, trained: TrainedModels, split: SplitData) -> list[Evaluation]:
+    def _evaluate(self, trained: TrainedModels, split: SplitData) -> list[Evaluation | ClassEvaluation]:
         """検証データで当たり具合を測る。テストデータは最後に1回だけ確かめる用なので、ここでは使わない。"""
-        evaluations: list[Evaluation] = []
+        evaluations: list[Evaluation | ClassEvaluation] = []
         for timing, models in trained.items():
             evaluations += self._evaluator.evaluate(timing, EnsembleModel(models), split.valid)
         return evaluations

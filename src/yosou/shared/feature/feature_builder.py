@@ -21,7 +21,7 @@ from .group import (
     WorkoutFeatures,
 )
 from .prediction_timing import PredictionTiming
-from .value_types import as_numbers
+from .value_types import typed_features
 
 
 class FeatureBuilder:
@@ -52,20 +52,7 @@ class FeatureBuilder:
         own = pd.concat([group.build(records) for group in self._groups], axis=1)
         compared = self._field_comparison.build(records.entries, own)
         features = pd.concat([own, compared], axis=1)[list(self._catalog.names)]
-        return self._typed(features)[list(self._catalog.columns_for(timing))]
-
-    def _typed(self, features: pd.DataFrame) -> pd.DataFrame:
-        """カテゴリ特徴量は文字列、数値特徴量は小数の列にそろえる。欠損値は欠損値のまま。"""
-        categorical = self._catalog.categorical
-        typed = {
-            name: self._typed_column(features[name], name in categorical) for name in features.columns
-        }
-        return pd.DataFrame(typed, index=features.index)
-
-    def _typed_column(self, values: pd.Series, is_categorical: bool) -> pd.Series:
-        if is_categorical:
-            return values.astype("str")
-        return as_numbers(values)
+        return typed_features(features, self._catalog.categorical)[list(self._catalog.columns_for(timing))]
 
 
 def _base_groups() -> tuple[FeatureGroup, ...]:

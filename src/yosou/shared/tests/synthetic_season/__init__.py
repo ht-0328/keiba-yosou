@@ -15,6 +15,7 @@
 | ``RaceOutcome`` | 1レースの結果（着順・人気・取消・中止）を決める |
 | ``CareerCounter`` | 馬ごとの通算の着回数を数える |
 | ``WorkoutLog`` | 調教の行を作る |
+| ``PayoutRows`` | 終わった1レースの払戻（親のフラグと 単勝・馬連・3連複・3連単）の行を作る |
 | ``FinishedRaceRows`` | 終わった1レースの行を足す |
 | ``FutureRaceRows`` | 確定前の3レースと速報の行を足す |
 

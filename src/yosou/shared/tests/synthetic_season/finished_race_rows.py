@@ -10,6 +10,7 @@ from 合成DB import synth
 
 from .career_counter import CareerCounter
 from .finished_race import FinishedRace
+from .payout_rows import PayoutRows
 from .race_outcome import RaceOutcome
 from .race_plan import RacePlan
 from .season_plan import FIELD_SIZE, VENUE_CODE
@@ -33,6 +34,7 @@ class FinishedRaceRows:
         self._sample = sample
         self._careers = careers
         self._workouts = workouts
+        self._payouts = PayoutRows(sample)
 
     def add(self, day: date, plan: RacePlan, field: Sequence[SyntheticHorse]) -> None:
         going_code = self._rng.choice(_GOING_DRAWS)
@@ -42,6 +44,10 @@ class FinishedRaceRows:
             self._workouts.add_before(horse, day)
         for number, horse in enumerate(field, start=1):
             self._add_runner(race, number, horse)
+        self._payouts.add(race.row, {
+            number: (race.outcome.finish_of(horse), race.outcome.popularity_of(horse))
+            for number, horse in enumerate(field, start=1)
+        })
         self._careers.record_race(plan, going_code, field, race.outcome)
 
     def _race_row(self, day: date, plan: RacePlan, going_code: str) -> dict[str, str]:
