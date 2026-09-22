@@ -22,7 +22,7 @@
 | `feature/`（特徴量を作る） | 大半を共通 | `FeatureBuilder`・まとまり A〜I の9クラス・過去の記録から数える部品・`PredictionTiming` |
 | `ml_model/`（機械学習のモデル） | 共通 | `LightGbmModel`・`CatBoostModel`・エンコーダー・`EnsembleModel` |
 | `setting/`（設定ファイルを読む） | 共通 | 設定ファイルを読む5クラス。初期値のファイルだけは予想ごとに持つ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
-| `evaluation/`（当たり具合を測る） | 共通 | 評価指標を計算するクラス。指標そのものは次の設計書で決める |
+| `evaluation/`（当たり具合を測る） | 共通 | 評価指標を計算するクラス。指標は [穴馬の 16](../穴馬が3着以内に入るかを予想/16-evaluation.md#2-評価指標) で決めた（どの予想でも同じ） |
 | `workflow/`（流れを進める） | 学習は共通、予測は予想ごと | `TrainingWorkflow` は、学習する時点の並びとハイパーパラメータの初期値のファイルを受け取るだけなので共通。`PredictionWorkflow` は人気の扱いが違うので予想ごと |
 | `command/` | 予想ごと | 使うクラスの組み立てと、時点の数と、コマンドの引数が違う |
 

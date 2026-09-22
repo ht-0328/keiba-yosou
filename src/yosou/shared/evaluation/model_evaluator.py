@@ -36,6 +36,10 @@ class ModelEvaluator:
                 auc=calculator.auc(probability),
                 brier=calculator.brier(probability),
                 top_pick_place_rate=calculator.top_pick_place_rate(probability),
+                top_pick_place_payback=calculator.top_pick_place_payback(probability),
+                popularity_pick_place_rate=calculator.popularity_pick_place_rate(),
+                popularity_pick_place_payback=calculator.popularity_pick_place_payback(),
+                auc_within_popularity=calculator.auc_within_popularity(probability),
             )
             for name, probability in probabilities.items()
         ]
