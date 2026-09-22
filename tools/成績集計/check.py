@@ -4,7 +4,8 @@
 ``## 芝・左 1600m 良`` → ``### 単勝人気`` → 先頭セルが ``1`` の行を読み、同じ条件で集計した値と比べる。
 新しい集計を作ったら、ここが一致することを確かめてから先へ進む。
 
-ページは元DB のある時点で作られたもの。DB を取り直して値が変わったら、ページを作り直すか ``--to`` を合わせる。
+ページは元DB のある時点で作られたもの。比べる期間は、ページを作ったときの DB の期間（``CHECK_DATE_FROM``〜``CHECK_DATE_TO``）。
+DB を取り直して値が変わったら、ページを作り直すか ``--from``・``--to`` を合わせる。
 """
 
 from __future__ import annotations
@@ -28,6 +29,9 @@ CHECK_PAGE = ROOT / "reports" / "stats" / "05-turf-1600.md"
 CHECK_SECTION = "芝・左 1600m 良"
 CHECK_TABLE = "単勝人気"
 CHECK_LABEL = "1"
+#: ページを作ったときの DB の最初の開催日（当時の DB の中央の確定成績は 2023年1月から）。これより前の日は数えない。
+#: DB を 2016年からに広げたあとも、ページと同じ期間で比べるため。
+CHECK_DATE_FROM = "2023-01-01"
 #: ページを作ったときの DB の最後の開催日。これより後の日は数えない。
 CHECK_DATE_TO = "2026-09-12"
 #: ページの節に対応する絞り込み。
@@ -93,12 +97,13 @@ def compare(expected: Expected, actual: perf.PerfRow) -> list[str]:
     return diffs
 
 
-def run_check(con: duckdb.DuckDBPyConnection, *, page: Path = CHECK_PAGE, date_to: str | None = CHECK_DATE_TO) -> CheckResult:
-    """ページを読み、同じ条件で集計して比べる。"""
+def run_check(con: duckdb.DuckDBPyConnection, *, page: Path = CHECK_PAGE, date_from: str | None = CHECK_DATE_FROM,
+              date_to: str | None = CHECK_DATE_TO) -> CheckResult:
+    """ページを読み、同じ条件・同じ期間で集計して比べる。"""
     if not page.exists():
         raise FileNotFoundError(f"答え合わせのページがありません: {page}")
     expected = read_expected(page.read_text(encoding="utf-8"))
-    filters = Filters.from_mapping({**CHECK_FILTERS, "to": date_to})
+    filters = Filters.from_mapping({**CHECK_FILTERS, "from": date_from, "to": date_to})
     rows = perf.perf_rows(con, perf.dimension(CHECK_DIMENSION), filters)
     actual = perf.find_row(rows, CHECK_LABEL)
     describe = f"{filters.describe()} {CHECK_LABEL}番人気"

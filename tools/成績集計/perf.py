@@ -41,7 +41,8 @@ def main(args) -> None:
         return
     if args.check:
         with db.open_db(args.db) as con:
-            result = check.run_check(con, date_to=args.filter_to or check.CHECK_DATE_TO)
+            result = check.run_check(con, date_from=args.filter_from or check.CHECK_DATE_FROM,
+                                     date_to=args.filter_to or check.CHECK_DATE_TO)
         cli.emit(check.check_table(result), args)
         if not result.ok:
             raise SystemExit(cli.EXIT_ERROR)

@@ -150,7 +150,7 @@ uv run python tools/成績集計/perf.py --check   # reports/stats の東京 芝
 uv run python -m pytest -q                      # 合成DB のテスト（実DB には触らない）
 ```
 
-`--check` はページを作った時点の DB（`--to` の既定は `成績集計/check.py` の `CHECK_DATE_TO`）で比べる。一致しないときは、確定成績の範囲（`共通/keys.py` の `FINAL_STAGES`）、異常区分 4・5 の数え方、払戻の結合の順に疑う。
+`--check` はページを作った時点の DB の期間（`--from` の既定は `成績集計/check.py` の `CHECK_DATE_FROM`、`--to` の既定は `CHECK_DATE_TO`）で比べる。DB に古い年を足しても、この期間の外は数えない。一致しないときは、確定成績の範囲（`共通/keys.py` の `FINAL_STAGES`）、異常区分 4・5 の数え方、払戻の結合の順に疑う。
 
 ## 落とし穴（元DB の約束）
 

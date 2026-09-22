@@ -53,13 +53,16 @@ def test_run_check_ok_and_ng(synth_db: Path, tmp_path: Path):
         actual = perf.find_row(rows, 1).cells()
         good = tmp_path / "good.md"
         good.write_text(_page_from(actual), encoding="utf-8")
-        result = check.run_check(con, page=good, date_to=None)
+        result = check.run_check(con, page=good, date_from=None, date_to=None)
         assert result.ok and result.diffs == [] and check.check_table(result).note.startswith("OK")
+        # 始まりの日より前は数えない（ページを作ったときの DB より古い年が DB に足されても、同じ期間で比べる）
+        result = check.run_check(con, page=good, date_from="2999-01-01", date_to=None)
+        assert not result.ok and result.diffs == ["集計に 1番人気 の行がありません"]
         wrong = list(actual)
         wrong[2] = "99.9%"
         bad = tmp_path / "bad.md"
         bad.write_text(_page_from(wrong), encoding="utf-8")
-        result = check.run_check(con, page=bad, date_to=None)
+        result = check.run_check(con, page=bad, date_from=None, date_to=None)
         assert not result.ok and result.diffs == [f"勝率: 期待 99.9% ← 実際 {actual[2]}"]
         assert check.check_table(result).rows[2][3] == "NG"
         with pytest.raises(FileNotFoundError):
