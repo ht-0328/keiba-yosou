@@ -47,7 +47,7 @@ sequenceDiagram
         W->>MR: save（時点、2つのモデル、設定）
         MR-->>W: 保存した
     end
-    W->>W: 検証データで当たり具合を確かめる（次の設計書）
+    W->>W: 検証データで当たり具合を確かめる（穴馬の 16-evaluation.md）
     W-->>U: 確かめた結果
 ```
 
@@ -125,7 +125,7 @@ sequenceDiagram
 | `shared` のクラス | 作った（`src/yosou/shared/`。手本の `src/yosou/form_aptitude_top3/` から移した。[04-classes.md](04-classes.md#1-共通の部品とこの予想だけの部品の分け方)） |
 | この予想のクラス（`FavoriteSelector` など） | 作った（`src/yosou/favorites_out_of_top3/`） |
 | `AnnouncedOddsRepository` が読むオッズ | 作った。断面は jvdata-store の `jvstore realtime --date <開催日>`（速報オッズ `0B31` → `o1`）で入る。取り忘れたレースは `--pops` で人気を渡す（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)） |
-| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 手本と同じく、次の設計書で決める |
+| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 穴馬の予想の設計書で決めた（[穴馬の 16](../穴馬が3着以内に入るかを予想/16-evaluation.md)。どの予想でも同じ指標を使う。人気最上位の馬 = この予想では 1番人気） |
 | アンサンブルの平均のしかた | 手本と同じく、次の設計書で決める |
 | 予測確率から「危険」と判定する線引き | 決めない。確率をそのまま高い順に出す（[15-decisions.md](15-decisions.md#10-危険と判定する線引きを設計書に入れるか)） |
 

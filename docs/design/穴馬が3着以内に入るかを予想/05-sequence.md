@@ -47,7 +47,7 @@ sequenceDiagram
         W->>MR: save（時点、2つのモデル、設定）
         MR-->>W: 保存した
     end
-    W->>W: 検証データで当たり具合を確かめる（次の設計書）
+    W->>W: 検証データで当たり具合を確かめる（16-evaluation.md）
     W-->>U: 確かめた結果
 ```
 
@@ -136,7 +136,7 @@ sequenceDiagram
 | この予想のクラス（`LongshotSelector`・`LongshotZoneFilter` など） | 作った（`src/yosou/longshots_in_top3/`） |
 | `PopularityInput` の「馬名:人気」 | 作った。木曜の予測で、馬名で人気を当てる（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)） |
 | `AnnouncedOddsRepository` が読むオッズ | 危険な人気馬の予想と同じ。断面は jvdata-store の `jvstore realtime --date <開催日>` で入る。今の元DB には断面がごく少数しか無く、取り忘れたレースは `--pops` で人気を渡す |
-| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 手本と同じく、次の設計書で決める。この予想では、区分（中穴・大穴）ごとの当たり具合も見る |
+| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 決めた（[16-evaluation.md](16-evaluation.md)）。人気の基準との比べ方と、同じ人気の中での AUC を出す。区分（中穴・大穴）ごとの当たり具合は、学習の報告ではなく `reports/` の集計で見る |
 | アンサンブルの平均のしかた | 手本と同じく、次の設計書で決める |
 | 予測確率から「買い」と判定する線引き | 決めない。確率をそのまま高い順に出す（[15-decisions.md](15-decisions.md#11-買いと判定する線引きを設計書に入れるか)） |
 
