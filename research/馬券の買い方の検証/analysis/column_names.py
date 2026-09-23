@@ -27,6 +27,7 @@ FORM_PROB = "form_prob"          # 近走と適性モデルの「3着以内に�
 DANGER_PROB = "danger_prob"      # 危険な人気馬モデルの「4着以下になる確率」（人気馬だけ。ほかは欠損）
 LONGSHOT_PROB = "longshot_prob"  # 穴馬モデルの「3着以内に入る確率」（穴馬だけ。ほかは欠損）
 LONGSHOT_ZONE = "longshot_zone"  # 穴馬の区分（中穴・大穴。穴馬だけ）
+PLACE_ODDS = "place_odds"        # 複勝の確定オッズの下限（倍。無ければ欠損）
 
 #: 1レースごとの表（races）の列（runners と同じ名前の列は同じ意味）。
 VENUE_CODE = "venue_code"

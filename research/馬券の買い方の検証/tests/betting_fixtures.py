@@ -1,7 +1,7 @@
 """テストで使う架空の runners（1レース16頭）を作る部品。値はすべて作りもの。
 
 人気順位 = 馬番。近走と適性の確率は人気順に下がる（本命 = 1番人気）。危険確率は 1〜5番人気だけにあり、4・5番人気が危険（0.6以上）。
-穴馬の確率は 6番人気以下だけにあり、6〜9番人気が中穴、10番人気以下が大穴。単勝オッズは 人気 × 1.5倍。
+穴馬の確率は 6番人気以下だけにあり、6〜9番人気が中穴、10番人気以下が大穴。単勝オッズは 人気 × 1.5倍、複勝オッズ（下限）は 1 + 0.5 × 人気。
 """
 
 from __future__ import annotations
@@ -32,5 +32,6 @@ def runners(*, top_odds: float = 1.5, top_danger: float = 0.3, race_id: str = RA
         names.DANGER_PROB: [danger.get(horse, np.nan) for horse in horses],
         names.LONGSHOT_PROB: [round(0.5 - 0.03 * horse, 3) if horse >= 6 else np.nan for horse in horses],
         names.LONGSHOT_ZONE: [("中穴" if horse <= 9 else "大穴") if horse >= 6 else None for horse in horses],
+        names.PLACE_ODDS: [1.0 + 0.5 * horse for horse in horses],
     })
     return rows

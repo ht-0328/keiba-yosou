@@ -44,15 +44,19 @@ def _facts():
     })
 
 
-def test_runner_table_merges_three_predictions():
-    runners = RunnerTableBuilder().build(_form(), _favorites(), _longshots())
+def test_runner_table_merges_three_predictions_and_place_odds():
+    place_odds = pd.DataFrame({"race_id": [_RACE_1, _RACE_1], "combo": ["01", "03"], "odds": [1.4, 4.0], "odds_high": [1.6, 6.5], "popularity": [1, 3]})
+    runners = RunnerTableBuilder().build(_form(), _favorites(), _longshots(), place_odds)
     assert list(runners.columns) == [
         names.RACE_ID, names.RACE_DATE, names.HORSE_NO, names.FINISH, names.WIN_ODDS, names.POPULARITY, names.WIN_PAYOUT,
-        names.PLACE_PAYOUT, names.FORM_PROB, names.DANGER_PROB, names.LONGSHOT_PROB, names.LONGSHOT_ZONE,
+        names.PLACE_PAYOUT, names.FORM_PROB, names.DANGER_PROB, names.LONGSHOT_PROB, names.LONGSHOT_ZONE, names.PLACE_ODDS,
     ]
     first = runners[runners[names.RACE_ID] == _RACE_1].set_index(names.HORSE_NO)
     assert first.loc[3, names.DANGER_PROB] != first.loc[3, names.DANGER_PROB]  # 人気馬でない → 欠損
     assert first.loc[3, names.LONGSHOT_ZONE] == "中穴" and first.loc[1, names.LONGSHOT_PROB] != first.loc[1, names.LONGSHOT_PROB]
+    assert first.loc[1, names.PLACE_ODDS] == 1.4 and first.loc[3, names.PLACE_ODDS] == 4.0 and np.isnan(first.loc[2, names.PLACE_ODDS])
+    without = RunnerTableBuilder().build(_form(), _favorites(), _longshots())
+    assert without[names.PLACE_ODDS].isna().all()
 
 
 def test_race_table_has_favorite_upset_grade_and_week():

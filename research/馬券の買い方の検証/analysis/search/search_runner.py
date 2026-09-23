@@ -33,7 +33,7 @@ class SearchRunner:
 
     def adopted(self, results: list[StrategyResult]) -> list[StrategyResult]:
         """採否の基準を満たす戦略（回収率の順）。"""
-        return [result for result in results if self._rule.is_adopted(result.total)]
+        return [result for result in results if self._rule.is_adopted(result.total, result.monthly_rates)]
 
     def chosen(self, results: list[StrategyResult], limit: int) -> list[Strategy]:
         """確認期間で確かめる戦略（候補の上位 ``limit``）。"""

@@ -75,7 +75,7 @@ def test_evaluator_sums_wide_and_narrow_per_race():
 
 
 def test_adoption_rule_boundaries():
-    rule = AdoptionRule(min_return_rate=1.0, min_races=2, min_points=10, min_return_rate_without_max=0.9)
+    rule = AdoptionRule(min_return_rate=1.0, min_races=2, min_points=10, min_return_rate_without_max=0.9, min_monthly_median=0.9)
     good = ReturnSummary(races=3, bet_races=3, points=3, stake_yen=300, payout_yen=310, hit_races=2, max_race_payout=30)
     assert rule.is_adopted(good) and rule.verdict(good) == "候補"
     lucky = ReturnSummary(3, 3, 3, 300, 310, 1, 310)
@@ -83,6 +83,8 @@ def test_adoption_rule_boundaries():
     few = ReturnSummary(1, 1, 1, 100, 200, 1, 50)
     assert not rule.is_adopted(few)
     assert not rule.is_adopted(ReturnSummary(0, 0, 0, 0, 0, 0, 0))
+    assert rule.is_adopted(good, [0.95, 1.2, 0.9]) and not rule.is_adopted(good, [3.0, 0.1, 0.2])  # 月別の中央値 0.9 未満は落とす
+    assert "月別" in rule.describe()
 
 
 def test_search_and_confirm_runners_and_json(tmp_path):

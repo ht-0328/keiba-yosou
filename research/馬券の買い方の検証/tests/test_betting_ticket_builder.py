@@ -19,12 +19,19 @@ from 馬券の買い方の検証.analysis.ticket import (
 
 from betting_fixtures import runners
 
-#: 架空の16頭のレースで、型どおりに作ったときの点数。
+#: 架空の16頭のレースで、型どおりに作ったときの点数（None は「候補が足りない」で見送り）。
 EXPECTED_POINTS = {
     "本命単勝": 1, "本命複勝": 1, "本命→穴馬3 ワイド": 3, "本命→穴馬3 馬連": 3, "3連複 1-2-4": 5, "3連単 1-2-5": 8,
     "3連単 人気の和": 6, "穴馬軸→1〜3番人気 ワイド": 6, "本命→穴馬5 馬連": 5, "3連複 1-2-10": 17, "3連複 1-3-10": 24,
     "3連単 待ちの型": 24, "3連複 1-2-10（100倍未満カット）": 17, "3連複 1-3-10（100倍未満カット）": 24,
     "3連単 待ちの型（200倍未満カット）": 24, "1番人気 単勝": 1, "1番人気 複勝": 1,
+    # 値で絞る買い方（穴馬の確率: 6番 0.32・7番 0.29・8番 0.26・9番 0.23・10番 0.20・11番 0.17 …。単勝 10〜19.9倍は 7〜13番）
+    "穴馬 確率≥0.25 複勝": 3, "穴馬 確率≥0.30 複勝": 1, "穴馬 確率≥0.35 複勝": None, "穴馬 確率≥0.40 複勝": None,
+    "穴馬 確率≥0.25 単勝（10〜19.9倍）": 2, "穴馬 確率≥0.30 単勝（10〜19.9倍）": None, "穴馬 確率≥0.35 単勝（10〜19.9倍）": None,
+    # 期待値 = 確率 × 複勝オッズ（1 + 0.5 × 人気）。本命は 0.85 × 1.5 = 1.275、全頭は 16番だけ 0.9、穴馬は 6〜11番が 1.1 以上・6〜10番が 1.2 以上
+    "本命 複勝 期待値≥1.0": 1, "本命 複勝 期待値≥1.1": 1, "本命 複勝 期待値≥1.2": 1,
+    "全頭 複勝 期待値≥1.0": 15, "全頭 複勝 期待値≥1.1": 15, "全頭 複勝 期待値≥1.2": 15,
+    "穴馬 複勝 期待値≥1.0": 6, "穴馬 複勝 期待値≥1.1": 6, "穴馬 複勝 期待値≥1.2": 5,
 }
 
 
@@ -40,8 +47,21 @@ def test_catalog_is_consistent():
 @pytest.mark.parametrize("name", sorted(EXPECTED_POINTS))
 def test_each_plan_makes_the_expected_points(name):
     built = TicketBuilder(plan_named(name)).build(runners(top_odds=2.5))
+    if EXPECTED_POINTS[name] is None:
+        assert built.skipped == SKIP_NO_CANDIDATES
+        return
     assert built.skipped is None, built.skipped
     assert built.points == EXPECTED_POINTS[name]
+
+
+def test_value_pickers_follow_thresholds_and_odds_band():
+    rows = runners()
+    assert sorted(ticket.horses[0] for ticket in TicketBuilder(plan_named("穴馬 確率≥0.25 複勝")).build(rows).tickets) == [6, 7, 8]
+    assert sorted(ticket.horses[0] for ticket in TicketBuilder(plan_named("穴馬 確率≥0.25 単勝（10〜19.9倍）")).build(rows).tickets) == [7, 8]
+    assert [ticket.horses[0] for ticket in TicketBuilder(plan_named("本命 複勝 期待値≥1.2")).build(rows).tickets] == [1]
+    assert sorted(ticket.horses[0] for ticket in TicketBuilder(plan_named("穴馬 複勝 期待値≥1.2")).build(rows).tickets) == [6, 7, 8, 9, 10]
+    no_odds = rows.assign(place_odds=float("nan"))
+    assert TicketBuilder(plan_named("全頭 複勝 期待値≥1.0")).build(no_odds).skipped == SKIP_NO_CANDIDATES
 
 
 def test_specific_tickets_follow_the_columns():

@@ -42,7 +42,7 @@ from 馬券の買い方の検証.analysis.search import (  # noqa: E402
 from 馬券の買い方の検証.analysis.settlement import OddsFloorCut, PlanSettler, SettlementTable  # noqa: E402
 from 馬券の買い方の検証.analysis.summary import PlanSummaryTables  # noqa: E402
 from 馬券の買い方の検証.analysis.summary.strategy_tables import StrategyTables  # noqa: E402
-from 馬券の買い方の検証.analysis.ticket import ALL_PLANS, NARROW_PLANS, WIDE_PLANS, TicketType  # noqa: E402
+from 馬券の買い方の検証.analysis.ticket import ALL_NARROW_PLANS, ALL_PLANS, ALL_WIDE_PLANS, TicketType  # noqa: E402
 
 #: リポジトリ直下と、出力の置き場（Git 対象外の reports/）。
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -124,8 +124,8 @@ def _search(args) -> list[Table]:
     settlement = SettlementTable.read(args.settlement)
     races = materials.between(periods.SEARCH_FIRST_DAY, periods.SEARCH_LAST_DAY).races
     rule = AdoptionRule()
-    runner = SearchRunner(StrategyEvaluator(settlement, PATTERNS_BY_KEY), StrategyGrid(PATTERNS, WIDE_PLANS, NARROW_PLANS), rule,
-                          progress=_report_progress)
+    runner = SearchRunner(StrategyEvaluator(settlement, PATTERNS_BY_KEY), StrategyGrid(PATTERNS, ALL_WIDE_PLANS, ALL_NARROW_PLANS),
+                          rule, progress=_report_progress)
     started = time.perf_counter()
     results = runner.run(races)
     adopted = runner.adopted(results)
