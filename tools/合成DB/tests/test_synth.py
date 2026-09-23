@@ -35,3 +35,23 @@ def test_build_db_can_omit_tables(tmp_path: Path):
     names = {r[0] for r in con.execute("SELECT table_name FROM duckdb_tables()").fetchall()}
     assert "ra" in names and "se" not in names
     assert con.execute("SELECT table_name FROM _tables").fetchall() == [("ra",)]
+
+
+def test_odds_and_extra_payout_tables_follow_jvdata_widths(tmp_path: Path):
+    """オッズの親と子（o1〜o6）とワイド・馬単の払戻は、行があるときだけ作られ、オッズは券種ごとの桁でゼロ埋めされる。"""
+    sample = synth.simple_race()
+    ra = sample.ra[0]
+    sample.odds += [("o6", synth.odds_header(ra, "o6")), ("o6__3連単オッズ", synth.odds_row(ra, "o6__3連単オッズ", "040203", 123456, pop=250))]
+    sample.odds.append(("o3__ワイドオッズ", synth.range_odds_row(ra, "o3__ワイドオッズ", "0204", 503, 538, pop=33)))
+    sample.wide.append(synth.combo_payout(ra, "0204", 900, table="hr__ワイド払戻"))
+    sample.exacta.append(synth.combo_payout(ra, "0402", 5600, table="hr__馬単払戻"))
+    assert sample.odds[1][1]["オッズ"] == "0123456" and sample.odds[2][1]["最低オッズ"] == "00503"
+    path = synth.build_db(tmp_path / "odds.duckdb", sample)
+    con = duckdb.connect(str(path), read_only=True)
+    names = {r[0] for r in con.execute("SELECT table_name FROM duckdb_tables()").fetchall()}
+    assert {"o6", "o6__3連単オッズ", "o3__ワイドオッズ", "hr__ワイド払戻", "hr__馬単払戻"} <= names
+    assert "o1" not in names and "o2__馬連オッズ" not in names
+    header = con.execute("SELECT \"データ区分\", \"発表月日時分\" FROM o6").fetchone()
+    assert header == ("5", "00000000")
+    columns = [r[0] for r in con.execute("SELECT column_name FROM duckdb_columns() WHERE table_name = 'o3__ワイドオッズ' ORDER BY column_index").fetchall()]
+    assert columns == list(synth.COMBO_RANGE_ODDS_COLUMNS)

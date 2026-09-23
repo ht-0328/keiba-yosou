@@ -29,7 +29,8 @@ dev-mode-dirs = ["src", "tools"]
 [tool.uv]
 package = true
 
-# テストは各ツールの隣の tests/ と、予想方法の tests/ にある。`import 共通` と `import yosou` が通るよう、tools/ と src/ を pythonpath に入れる。
+# テストは各ツールの隣の tests/ と、予想方法の tests/ と、研究（research/<名前>/tests/）にある。
+# `import 共通`・`import yosou`・`import <研究名>` が通るよう、tools/ と src/ と research/ を pythonpath に入れる。
 [tool.pytest.ini_options]
-testpaths = ["tools", "src"]
-pythonpath = ["tools", "src"]
+testpaths = ["tools", "src", "research"]
+pythonpath = ["tools", "src", "research"]

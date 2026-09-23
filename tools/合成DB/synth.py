@@ -94,6 +94,25 @@ WE_COLUMNS: tuple[str, ...] = (
 WH_COLUMNS: tuple[str, ...] = (*_HEADER, *KEY_COLUMNS, "発表月日時分")
 WH_WEIGHT_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "馬名", "馬体重", "増減符号", "増減差")
 AV_COLUMNS: tuple[str, ...] = (*_HEADER, *KEY_COLUMNS, "発表月日時分", "馬番", "馬名", "事由区分")
+#: オッズの親（``o1``〜``o6``）と子。親にはデータ区分と発表月日時分があり、子には無い（実DB と同じ）。
+#: 確定オッズはデータ区分 4・5 で、5（月曜）の発表月日時分は ``'00000000'``。子は親の発表月日時分で結ぶ。
+ODDS_HEADER_COLUMNS: tuple[str, ...] = (*_HEADER, *KEY_COLUMNS, "発表月日時分", "登録頭数", "出走頭数")
+ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "馬番", "オッズ", "人気順")
+RANGE_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "馬番", "最低オッズ", "最高オッズ", "人気順")
+COMBO_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "組番", "オッズ", "人気順")
+COMBO_RANGE_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "組番", "最低オッズ", "最高オッズ", "人気順")
+ODDS_PARENTS: tuple[str, ...] = ("o1", "o2", "o3", "o4", "o5", "o6")
+#: オッズの子の表と列。複勝・ワイドは最低と最高の2つ、ほかはオッズ1つ。
+ODDS_TABLES: dict[str, tuple[str, ...]] = {
+    "o1__単勝オッズ": ODDS_COLUMNS, "o1__複勝オッズ": RANGE_ODDS_COLUMNS, "o2__馬連オッズ": COMBO_ODDS_COLUMNS,
+    "o3__ワイドオッズ": COMBO_RANGE_ODDS_COLUMNS, "o4__馬単オッズ": COMBO_ODDS_COLUMNS,
+    "o5__3連複オッズ": COMBO_ODDS_COLUMNS, "o6__3連単オッズ": COMBO_ODDS_COLUMNS,
+}
+#: オッズの桁数（小数第1位を含む10倍の整数。``'0035'`` = 3.5倍）。JV-Data 仕様書どおり券種ごとに違う。
+ODDS_DIGITS: dict[str, int] = {
+    "o1__単勝オッズ": 4, "o1__複勝オッズ": 4, "o2__馬連オッズ": 6, "o3__ワイドオッズ": 5, "o4__馬単オッズ": 6,
+    "o5__3連複オッズ": 6, "o6__3連単オッズ": 7,
+}
 
 #: 表の名前と列。実DB と同じ名前・同じ列名（の一部）。
 TABLES: dict[str, tuple[str, ...]] = {
@@ -108,17 +127,20 @@ OPTIONAL_TABLES: dict[str, tuple[str, ...]] = {
     "ck": CK_COLUMNS, "hc": HC_COLUMNS, "wc": WC_COLUMNS,
     "we": WE_COLUMNS, "wh": WH_COLUMNS, "wh__馬体重情報": WH_WEIGHT_COLUMNS, "av": AV_COLUMNS,
     "hr": HR_COLUMNS, "hr__馬連払戻": COMBO_PAYOUT_COLUMNS, "hr__3連複払戻": COMBO_PAYOUT_COLUMNS,
-    "hr__3連単払戻": COMBO_PAYOUT_COLUMNS,
+    "hr__3連単払戻": COMBO_PAYOUT_COLUMNS, "hr__ワイド払戻": COMBO_PAYOUT_COLUMNS, "hr__馬単払戻": COMBO_PAYOUT_COLUMNS,
+    **{parent: ODDS_HEADER_COLUMNS for parent in ODDS_PARENTS}, **ODDS_TABLES,
 }
 #: 親の表の表題（実DB の ``_tables`` と同じ）。
 TITLES: dict[str, str] = {
     "ra": "レース詳細", "se": "馬毎レース情報", "hr": "払戻", "tm": "対戦型マイニング予想",
     "dm": "タイム型マイニング予想", "um": "競走馬マスタ", "ck": "出走別着度数", "hc": "坂路調教",
     "wc": "ウッドチップ調教", "we": "天候馬場状態", "wh": "馬体重", "av": "出走取消・競走除外",
+    "o1": "オッズ1（単複枠）", "o2": "オッズ2（馬連）", "o3": "オッズ3（ワイド）", "o4": "オッズ4（馬単）",
+    "o5": "オッズ5（3連複）", "o6": "オッズ6（3連単）",
 }
 #: 親の表の鍵（実DB の ``_tables`` の keys）。書いていない表は血統登録番号。
 _TABLE_KEYS: dict[str, tuple[str, ...]] = {
-    **{name: KEY_COLUMNS for name in ("ra", "se", "hr", "tm", "dm", "wh")},
+    **{name: KEY_COLUMNS for name in ("ra", "se", "hr", "tm", "dm", "wh", *ODDS_PARENTS)},
     "ck": (*KEY_COLUMNS, "血統登録番号"), "av": (*KEY_COLUMNS, "馬番"),
     "hc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
     "wc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
@@ -220,6 +242,56 @@ def payout_header(race_row: dict[str, str], *, void: Sequence[str] = (), special
         **{f"{kind}　{bet}": "1" if bet in bets else "0" for kind, bets in flags.items() for bet in HR_FLAG_BETS},
     }
     return _row(HR_COLUMNS, values)
+
+
+def odds_header(race_row: dict[str, str], parent: str, *, stage: str = "5", announced: str = "00000000") -> dict[str, str]:
+    """オッズの親（``o1``〜``o6``）1件。確定オッズはデータ区分 5（月曜。発表月日時分は ``'00000000'``）か 4。
+
+    締め切り前の断面（データ区分 1〜3）を入れるなら ``announced`` に発表月日時分（``'07061200'``）を渡す。子は同じ値で結ぶ。
+    """
+    if parent not in ODDS_PARENTS:
+        raise ValueError(f"オッズの親の表ではありません: {parent}（{ODDS_PARENTS}）")
+    key = {name: race_row[name] for name in KEY_COLUMNS}
+    return _row(ODDS_HEADER_COLUMNS, {
+        "レコード種別ID": parent.upper(), "データ区分": stage, "データ作成年月日": race_row["開催年"] + race_row["開催月日"],
+        **key, "発表月日時分": announced, "登録頭数": race_row["登録頭数"], "出走頭数": race_row["出走頭数"],
+    })
+
+
+def odds_row(race_row: dict[str, str], table: str, combo: str, tenths: int, *, seq: int = 1, pop: int = 1,
+             announced: str = "00000000") -> dict[str, str]:
+    """オッズが1つの券種の子1件（単勝・馬連・馬単・3連複・3連単）。
+
+    ``combo`` は馬番（``'04'``）か組番（``'0204'``・``'040203'``）、``tenths`` はオッズの10倍の整数（35 = 3.5倍。0 は無投票）。
+    桁数は表ごとの ``ODDS_DIGITS`` でゼロ埋めする。
+    """
+    columns = _odds_columns(table, "オッズ")
+    key = {name: race_row[name] for name in KEY_COLUMNS}
+    return _row(columns, {**key, "発表月日時分": announced, "_連番": str(seq), _combo_column(columns): combo,
+                          "オッズ": f"{tenths:0{ODDS_DIGITS[table]}d}", "人気順": f"{pop:03d}"})
+
+
+def range_odds_row(race_row: dict[str, str], table: str, combo: str, low_tenths: int, high_tenths: int, *,
+                   seq: int = 1, pop: int = 1, announced: str = "00000000") -> dict[str, str]:
+    """オッズが最低と最高の2つある券種の子1件（複勝・ワイド）。値の形は ``odds_row`` と同じ。"""
+    columns = _odds_columns(table, "最低オッズ")
+    key = {name: race_row[name] for name in KEY_COLUMNS}
+    digits = ODDS_DIGITS[table]
+    return _row(columns, {**key, "発表月日時分": announced, "_連番": str(seq), _combo_column(columns): combo,
+                          "最低オッズ": f"{low_tenths:0{digits}d}", "最高オッズ": f"{high_tenths:0{digits}d}", "人気順": f"{pop:03d}"})
+
+
+def _odds_columns(table: str, odds_column: str) -> tuple[str, ...]:
+    """その表の列。オッズの列の形（1つか、最低と最高か）が合わなければ ``ValueError``。"""
+    columns = ODDS_TABLES.get(table)
+    if columns is None or odds_column not in columns:
+        raise ValueError(f"{odds_column} を持つオッズの表ではありません: {table}")
+    return columns
+
+
+def _combo_column(columns: tuple[str, ...]) -> str:
+    """馬番の列か組番の列か。"""
+    return "馬番" if "馬番" in columns else "組番"
 
 
 def corner(race_row: dict[str, str], seq: int, corner_no: int, order: str) -> dict[str, str]:
@@ -351,11 +423,15 @@ class Sample:
     weight: list[dict[str, str]] = field(default_factory=list)
     weights: list[dict[str, str]] = field(default_factory=list)
     scratches: list[dict[str, str]] = field(default_factory=list)
-    #: 払戻の親（券種ごとのフラグ）と、組み合わせの券種の払戻。荒れ具合の予想のテストに使う。
+    #: 払戻の親（券種ごとのフラグ）と、組み合わせの券種の払戻。荒れ具合の予想と馬券の買い方の検証のテストに使う。
     headers: list[dict[str, str]] = field(default_factory=list)
     quinella: list[dict[str, str]] = field(default_factory=list)
     trio: list[dict[str, str]] = field(default_factory=list)
     trifecta: list[dict[str, str]] = field(default_factory=list)
+    wide: list[dict[str, str]] = field(default_factory=list)
+    exacta: list[dict[str, str]] = field(default_factory=list)
+    #: オッズの親と子の行。（表の名前, 行）の並び。表ごとに分けるのは ``tables()``。
+    odds: list[tuple[str, dict[str, str]]] = field(default_factory=list)
 
     def extend(self, other: "Sample") -> "Sample":
         """別の束を足す。"""
@@ -365,10 +441,14 @@ class Sample:
 
     def tables(self) -> dict[str, list[dict[str, str]]]:
         """表の名前ごとの行。馬マスタと血統は鍵ごとに1行（実DB の主キーと同じ）。``OPTIONAL_TABLES`` は行があるときだけ。"""
+        odds_tables: dict[str, list[dict[str, str]]] = {}
+        for table, row in self.odds:
+            odds_tables.setdefault(table, []).append(row)
         optional = {
             "ck": self.ck, "hc": self.hill, "wc": self.wood,
             "we": self.going, "wh": self.weight, "wh__馬体重情報": self.weights, "av": self.scratches,
             "hr": self.headers, "hr__馬連払戻": self.quinella, "hr__3連複払戻": self.trio, "hr__3連単払戻": self.trifecta,
+            "hr__ワイド払戻": self.wide, "hr__馬単払戻": self.exacta, **odds_tables,
         }
         return {
             "ra": self.ra, "se": self.se, "hr__単勝払戻": self.win, "hr__複勝払戻": self.place,
