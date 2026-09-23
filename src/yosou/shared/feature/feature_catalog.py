@@ -1,5 +1,5 @@
-"""どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、人気を使う予想が足す4個、
-予想ごとの一覧を表す値。
+"""どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、人気を使う予想が足す4個・オッズの3個、
+オッズを使う予想が足す4個、予想ごとの一覧を表す値。
 
 特徴量の名前・まとまり（A〜J）・数値かカテゴリか・いつから分かるか（設計書 07）は、ここだけに書く。
 予想ごとに特徴量を足すときは、``BASE_FEATURES`` に足した一覧で ``FeatureCatalog`` を作る。
@@ -115,12 +115,22 @@ POPULARITY_FEATURES: tuple[Feature, ...] = (
     Feature("近5走の平均人気", "J", _N),
 )
 
-#: オッズを使う予想（``form_aptitude_top3``・``upset_level``）が A〜I に足す、J. 市場の評価（3個）。
+#: オッズを使う予想（``form_aptitude_top3``・``upset_level``）が A〜I に足す、J. 市場の評価（4個）。
 #: オッズが分かるのは、前日発売が始まる前日から（手本の設計書 07）。作るのは ``group/market_features.py``。
+#: オッズから見た3着以内率は、既存モデルの修正計画（2「オッズの使い方」）で足した（Harville の式）。
 MARKET_FEATURES: tuple[Feature, ...] = (
     Feature("単勝オッズ", "J", _N, _DAY_BEFORE),
     Feature("人気順位", "J", _N, _DAY_BEFORE),
     Feature("オッズから見た勝率", "J", _N, _DAY_BEFORE),
+    Feature("オッズから見た3着以内率", "J", _N, _DAY_BEFORE),
+)
+
+#: 人気を使う予想（``favorites_out_of_top3``・``longshots_in_top3``）が、人気の履歴（J）に足す K. 単勝オッズから見た評価（3個）。
+#: 人気順位だけでは分からない支持の強さを使うため（既存モデルの修正計画の 2）。前日から分かる。作るのは ``group/odds_features.py``。
+ODDS_FEATURES: tuple[Feature, ...] = (
+    Feature("単勝オッズ", "K", _N, _DAY_BEFORE),
+    Feature("オッズから見た勝率", "K", _N, _DAY_BEFORE),
+    Feature("オッズから見た3着以内率", "K", _N, _DAY_BEFORE),
 )
 
 

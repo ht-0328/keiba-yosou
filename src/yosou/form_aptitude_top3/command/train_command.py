@@ -9,7 +9,7 @@ from pathlib import Path
 from 共通 import db
 from 共通.render import Table
 
-from yosou.shared.command import CommonArguments, TrainingReportTables
+from yosou.shared.command import CommonArguments, PlacePriceStep, TrainingReportTables
 from yosou.shared.dataset import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
@@ -27,7 +27,10 @@ from .yosou_name import YOSOU_NAME
 
 
 class TrainCommand:
-    """``train``: 3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。"""
+    """``train``: 3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。
+
+    学習のあとに、複勝の見込みの倍率（学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
+    """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -53,7 +56,8 @@ class TrainCommand:
             )
             training_data = workflow.read_training_data()
         report = workflow.train(training_data, args.config)
-        return TrainingReportTables(report).tables()
+        place_price = PlacePriceStep().run(report.split.train, args.models)
+        return [*TrainingReportTables(report).tables(), place_price]
 
     def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
         """学習データの期間の区切り（設計書 08 の 3）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""

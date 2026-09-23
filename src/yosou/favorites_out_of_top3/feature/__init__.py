@@ -5,12 +5,12 @@
 
 | 名前 | 中身 |
 |---|---|
-| ``CATALOG`` | この予想の特徴量 75個の一覧（``BASE_FEATURES`` + ``POPULARITY_FEATURES``） |
+| ``CATALOG`` | この予想の特徴量 78個の一覧（``BASE_FEATURES`` + ``POPULARITY_FEATURES`` + ``ODDS_FEATURES``） |
 """
 
-from yosou.shared.feature import BASE_FEATURES, POPULARITY_FEATURES, FeatureCatalog
+from yosou.shared.feature import BASE_FEATURES, ODDS_FEATURES, POPULARITY_FEATURES, FeatureCatalog
 
-#: この予想の特徴量の一覧（まとまり A〜I と J）。
-CATALOG = FeatureCatalog(BASE_FEATURES + POPULARITY_FEATURES)
+#: この予想の特徴量の一覧（まとまり A〜I と J・K）。K（単勝オッズから見た評価）は前日から使う（既存モデルの修正計画の 1）。
+CATALOG = FeatureCatalog(BASE_FEATURES + POPULARITY_FEATURES + ODDS_FEATURES)
 
 __all__ = ["CATALOG"]

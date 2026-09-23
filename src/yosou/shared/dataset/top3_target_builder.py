@@ -9,8 +9,12 @@ from ..feature import as_numbers
 #: 目的変数の列の名前。モデルに当てさせるのは「3着以内」で、「1着」は単勝用のモデルのために置いておく。
 TOP3 = "3着以内"
 WIN = "1着"
+#: 複勝が当たったか（払戻があったか）。複勝の買い方を確かめるための列（既存モデルの修正計画の 2「3着以内と複勝的中」）。
+PLACE_HIT = "複勝的中"
 #: 3着以内に入った着順のうち、いちばん大きいもの。
 _LAST_PLACE = 3
+#: 複勝が発売される最少の出走頭数（4頭以下のレースは複勝を売らない）。
+_PLACE_SALE_FROM = 5
 
 
 class Top3TargetBuilder:
@@ -20,6 +24,8 @@ class Top3TargetBuilder:
 
     - 3着以内: 確定着順が 1〜3 なら 1。4着以下と、着順の付かない競走中止・失格は 0。
     - 1着: 確定着順が 1 なら 1。モデルには渡さず、単勝用のモデルを作るときのために置いておく。
+    - 複勝的中: 複勝の払戻があれば 1。7頭以下のレースは2着まで、同着は払戻の表どおり（払戻データと照合した結果）。
+      複勝を売らない4頭以下のレースは欠損値。モデルには渡さず、複勝の買い方を確かめるのに使う。
     - 出走しなかった馬（取消・除外）は、行を選ぶクラスがすでに除いている。
     - 同着は、どちらも同じ着順として扱う（3着同着なら 2頭とも 1）。
     """
@@ -33,7 +39,10 @@ class Top3TargetBuilder:
         """行の並びと index は ``samples`` と同じ。"""
         # 着順なしは NaN にする（DuckDB の整数の欠損値 <NA> のままだと、比べた結果も欠損値になる）
         finish = as_numbers(samples["finish"])
+        place_hit = (as_numbers(samples["place_payout"]).fillna(0) > 0).astype(float)
+        is_sold = as_numbers(samples["field_size"]) >= _PLACE_SALE_FROM
         return pd.DataFrame({
             TOP3: finish.between(1, _LAST_PLACE).astype(int),
             WIN: (finish == 1).astype(int),
+            PLACE_HIT: place_hit.where(is_sold),
         }, index=samples.index)

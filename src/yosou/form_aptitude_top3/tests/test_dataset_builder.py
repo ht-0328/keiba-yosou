@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -62,10 +63,15 @@ def test_training_market_features_come_from_the_final_odds(training_data: Traini
     assert features["単勝オッズ"].notna().all()
     assert (features.groupby(race_ids)["人気順位"].min() == 1).all()
     assert features.groupby(race_ids)["オッズから見た勝率"].sum().round(6).eq(1).all()
+    # オッズから見た3着以内率（Harville の式）はレースごとに合計 3。3着以内の基準は、その値のロジット（前日から使う）
+    assert features.groupby(race_ids)["オッズから見た3着以内率"].sum().round(6).eq(3).all()
+    baseline = training_data.baseline
+    assert baseline is not None and baseline.known_from is PredictionTiming.DAY_BEFORE
+    np.testing.assert_allclose(baseline.probabilities(), features["オッズから見た3着以内率"].clip(1e-4, 1 - 1e-4))
 
 
 @pytest.mark.parametrize(("timing", "columns"), [
-    (PredictionTiming.RACE_DAY, 74), (PredictionTiming.DAY_BEFORE, 72),
+    (PredictionTiming.RACE_DAY, 75), (PredictionTiming.DAY_BEFORE, 73),
 ])
 def test_prediction_data_of_a_card(season_db: Path, timing: PredictionTiming, columns: int):
     data = _prediction(season_db, season.CARD_RACE_ID, timing, CARD_ODDS)

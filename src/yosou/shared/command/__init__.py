@@ -10,16 +10,19 @@
 | ``ClassTrainingReportTables`` | 多クラス分類の学習の結果を表にする（期間・当たり具合・混同行列・保存したモデル） |
 | ``PredictionTable`` | 1頭ごとの予測の結果を、確率の高い順の表にする |
 | ``RacePredictionTable`` | レース単位の予測の結果（券種ごと など）を、そのまま表にする |
+| ``PlacePriceStep`` | 学習のあとに、複勝の見込みの倍率を学習データの期間で決めて、モデルと一緒に保存する |
 
 ``cell_format.py`` は、表のセルに入れる値の形をそろえる関数。
 """
 
 from .class_training_report_tables import ClassTrainingReportTables
 from .common_arguments import CommonArguments
+from .place_price_step import PlacePriceStep
 from .prediction_table import PredictionTable
 from .race_prediction_table import RacePredictionTable
 from .training_report_tables import TrainingReportTables
 
 __all__ = [
     "CommonArguments", "TrainingReportTables", "ClassTrainingReportTables", "PredictionTable", "RacePredictionTable",
+    "PlacePriceStep",
 ]

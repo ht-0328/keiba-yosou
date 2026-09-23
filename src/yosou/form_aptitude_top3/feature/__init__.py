@@ -6,8 +6,8 @@
 
 | 名前 | 中身 |
 |---|---|
-| ``J_FEATURES`` | まとまり J の3個の一覧（共通の ``MARKET_FEATURES`` と同じもの） |
-| ``CATALOG`` | この予想の特徴量の一覧（``BASE_FEATURES`` + ``J_FEATURES``。当日は 74個） |
+| ``J_FEATURES`` | まとまり J の4個の一覧（共通の ``MARKET_FEATURES`` と同じもの） |
+| ``CATALOG`` | この予想の特徴量の一覧（``BASE_FEATURES`` + ``J_FEATURES``。当日は 75個） |
 | ``WIN_ODDS`` | 特徴量「単勝オッズ」の名前。予測の結果の表にも出すので、外にも見せる |
 """
 
