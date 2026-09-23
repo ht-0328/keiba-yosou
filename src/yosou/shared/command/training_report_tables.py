@@ -12,7 +12,7 @@ from .cell_format import day_text, rounded
 
 
 class TrainingReportTables:
-    """学習の結果（``TrainingReport``）を、3つの表（期間・当たり具合・保存したモデル）にする。
+    """学習の結果（``TrainingReport``）を、4つの表（期間・当たり具合・人気の基準との比べ方・保存したモデル）にする。
 
     目的変数の名前（``TrainingData.label_name``。例: 3着以内）は、表の見出しに使う。
     """
@@ -22,7 +22,7 @@ class TrainingReportTables:
         self._label_name = report.split.train.label_name
 
     def tables(self) -> list[Table]:
-        return [self._periods(), self._evaluations(), self._model_folders()]
+        return [self._periods(), self._evaluations(), self._popularity_comparison(), self._model_folders()]
 
     def _periods(self) -> Table:
         parts = self._report.split.parts()
@@ -50,8 +50,8 @@ class TrainingReportTables:
             ["時点", "モデル", "木の数", "行数", "ログ損失", "AUC", "Brier", top_pick],
             [self._evaluation_row(evaluation) for evaluation in self._report.evaluations],
             title="検証データでの当たり具合",
-            note=f"ログ損失・Brier は小さいほど、AUC・{top_pick}は大きいほど良い。"
-                 "評価指標は仮（設計書で次に決める）。",
+            note=f"ログ損失・Brier は小さいほど、AUC・{top_pick}は大きいほど良い"
+                 "（指標の意味は穴馬の設計書 16）。",
         )
 
     def _evaluation_row(self, evaluation: Evaluation) -> list[object]:
@@ -59,6 +59,29 @@ class TrainingReportTables:
             evaluation.timing.label, evaluation.model, evaluation.tree_count, evaluation.rows,
             rounded(evaluation.log_loss), rounded(evaluation.auc), rounded(evaluation.brier),
             rounded(evaluation.top_pick_place_rate),
+        ]
+
+    def _popularity_comparison(self) -> Table:
+        label = self._label_name
+        return Table(
+            [
+                "時点", "モデル", f"確率1位の馬の{label}率", f"人気最上位の馬の{label}率",
+                "確率1位の馬の複勝回収率", "人気最上位の馬の複勝回収率", "人気の中での AUC",
+            ],
+            [self._comparison_row(evaluation) for evaluation in self._report.evaluations],
+            title="人気の基準との比べ方",
+            note="人気最上位の馬は、各レースで確定単勝人気がいちばん上の馬（全頭の予想なら 1番人気、穴馬の予想なら 4番か 6番人気）。"
+                 "確率1位の値が人気最上位と同じなら、モデルは人気順をなぞっているだけである。"
+                 "人気の中での AUC は、同じ人気の馬どうしで比べた AUC で、0.5 なら人気で説明できないところを何も当てていない。"
+                 "複勝回収率は、複勝を 100円ずつ買ったときの払戻の合計 ÷ 買った金額（1 で元返し）。",
+        )
+
+    def _comparison_row(self, evaluation: Evaluation) -> list[object]:
+        return [
+            evaluation.timing.label, evaluation.model,
+            rounded(evaluation.top_pick_place_rate), rounded(evaluation.popularity_pick_place_rate),
+            rounded(evaluation.top_pick_place_payback), rounded(evaluation.popularity_pick_place_payback),
+            rounded(evaluation.auc_within_popularity),
         ]
 
     def _model_folders(self) -> Table:

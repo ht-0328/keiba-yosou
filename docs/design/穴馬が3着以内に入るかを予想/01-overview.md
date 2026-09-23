@@ -83,7 +83,7 @@ LightGBM と CatBoost でどう学習・予測するかは [03-library-basics.md
 | [13-catboost.md](13-catboost.md) | CatBoost で学習・予測するための設計 | 確認待ち |
 | [14-hyperparameter-settings.md](14-hyperparameter-settings.md) | ハイパーパラメータを設定ファイルで指定する | 確認待ち |
 | [15-decisions.md](15-decisions.md) | 決めたこと（11個）。決めた内容と、選ばなかった選び方 | 決定 |
-| （次に書く） | 学習データ・検証データ・テストデータの期間の分け方、評価指標（区分ごとの当たり具合を含む）、「買い」と判定する線引き | 未着手 |
+| [16-evaluation.md](16-evaluation.md) | 当たり具合の測り方（期間の分け方、評価指標、人気の基準との比べ方）と「買い」の線引き | 決定 |
 | （次に書く） | アンサンブルのやり方、学習と予測のコマンドの引数 | 未着手 |
 
 ## 決めたこと
