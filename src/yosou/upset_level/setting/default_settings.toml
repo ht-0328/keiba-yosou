@@ -1,0 +1,27 @@
+# レースの荒れ具合の予想のハイパーパラメータの初期値（設計書 12・13 の「2. ハイパーパラメータの初期値」。手本と同じ値）。
+# 学習のコマンドに --config で別のファイルを渡すと、そのファイルに書いた項目だけが置き換わる。
+# ここに無い名前は書けない（書き間違いを黙って無視しないため）。目的関数（multiclass / MultiClass）とクラスの数は変えられない（設計書 14）。
+
+[lightgbm]
+early_stopping_rounds = 100   # 検証データで、木を何本足しても良くならなければ止めるか
+min_category_count = 2000     # 学習データでの出走がこれより少ないカテゴリの値は「その他」にまとめる（この予想では実質働かない）
+
+[lightgbm.params]             # LGBMClassifier の引数。書いたものがそのまま渡る
+learning_rate = 0.05
+n_estimators = 2000           # 反復の上限（多クラス分類は1回の反復でクラスの数だけ木を作る）
+num_leaves = 31
+min_child_samples = 100
+subsample = 0.8
+subsample_freq = 1
+colsample_bytree = 0.8
+random_state = 42
+
+[catboost]
+early_stopping_rounds = 100
+
+[catboost.params]             # CatBoostClassifier の引数。書いたものがそのまま渡る
+learning_rate = 0.05
+iterations = 2000             # 木の数の上限
+depth = 6
+l2_leaf_reg = 3
+random_seed = 42

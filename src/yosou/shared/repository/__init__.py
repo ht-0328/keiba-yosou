@@ -13,14 +13,15 @@
 | ``WorkoutCoverageRepository`` | 調教の記録が DB にある期間（コースごとの最初の調教日） |
 | ``PeopleDayRepository`` | 騎手か調教師の、日ごとの成績 |
 | ``PedigreeDayRepository`` | 父か母父の産駒の、日ごと・芝ダごとの成績 |
+| ``RacePayoutRepository`` | レースごとの4券種（単勝・馬連・3連複・3連単）の払戻と、成立したか。レース単位の予想が使う |
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
 | ``AnnouncedWeightRepository`` | 速報の馬体重 |
-| ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面） |
+| ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気かオッズを使う予想が使う |
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
-| ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気を使う予想が使う |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
 
 ``TargetScope`` は「どの出走について読むか」を表す値、``CareerCountSql`` は ``CareerCountRepository`` の SQL の式を作る部品。
+``PAYOUT_TABLES`` は、``RacePayoutRepository`` の券種の鍵（列の名前の頭）と払戻の表の対応。
 """
 
 from .announced_going_repository import AnnouncedGoingRepository
@@ -34,6 +35,7 @@ from .past_run_repository import PastRunRepository
 from .pedigree_day_repository import PedigreeDayRepository
 from .people_day_repository import PeopleDayRepository
 from .race_entry_table_repository import RaceEntryTableRepository
+from .race_payout_repository import PAYOUT_TABLES, RacePayoutRepository
 from .scratch_repository import ScratchRepository
 from .target_scope import TargetScope
 from .workout_coverage_repository import WorkoutCoverageRepository
@@ -42,7 +44,7 @@ from .workout_repository import WorkoutRepository
 __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
     "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
-    "PeopleDayRepository", "PedigreeDayRepository",
+    "PeopleDayRepository", "PedigreeDayRepository", "RacePayoutRepository", "PAYOUT_TABLES",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository",
     "ScratchRepository", "ModelRepository",
 ]

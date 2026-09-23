@@ -115,6 +115,14 @@ POPULARITY_FEATURES: tuple[Feature, ...] = (
     Feature("近5走の平均人気", "J", _N),
 )
 
+#: オッズを使う予想（``form_aptitude_top3``・``upset_level``）が A〜I に足す、J. 市場の評価（3個）。
+#: オッズが分かるのは、前日発売が始まる前日から（手本の設計書 07）。作るのは ``group/market_features.py``。
+MARKET_FEATURES: tuple[Feature, ...] = (
+    Feature("単勝オッズ", "J", _N, _DAY_BEFORE),
+    Feature("人気順位", "J", _N, _DAY_BEFORE),
+    Feature("オッズから見た勝率", "J", _N, _DAY_BEFORE),
+)
+
 
 @dataclass(frozen=True)
 class FeatureCatalog:

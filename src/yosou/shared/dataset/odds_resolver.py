@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from yosou.shared.repository import AnnouncedOddsRepository
-
+from ..repository import AnnouncedOddsRepository
 from .odds_input import OddsInput
 
 
 class OddsResolver:
-    """予測に使う「馬番 → 単勝オッズ」を決める（設計書 06 の図2）。
+    """予測に使う「馬番 → 単勝オッズ」を決める（手本の設計書 06 の図2）。オッズを使う予想が使う。
 
     次の順で決める。
 

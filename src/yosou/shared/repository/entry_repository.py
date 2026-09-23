@@ -9,9 +9,9 @@ from .target_scope import TargetScope
 
 #: 読む事実表の列（意味は ``tools/共通/facts.py`` の ``FACT_COLUMNS``）。
 _COLUMNS: tuple[str, ...] = (
-    # レース
-    "race_id", "month", "venue_code", "venue", "surface", "course", "distance_m",
-    "condition_code", "condition", "class_order", "field_size", "mixed_sex",
+    # レース（競走名・レース番号・重量種別は、レース単位の予想が使う）
+    "race_id", "month", "venue_code", "venue", "race_no", "race_name", "surface", "course", "distance_m",
+    "condition_code", "condition", "class_order", "field_size", "mixed_sex", "weight_type",
     # 馬
     "horse_id", "horse_name", "sex", "age", "affiliation", "frame_no", "horse_no", "carried",
     "body_weight", "weight_change", "blinker",

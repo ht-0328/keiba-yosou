@@ -8,14 +8,13 @@ from typing import Any, Self
 import joblib
 import lightgbm
 import numpy as np
+import pandas as pd
 
 from ..dataset import TrainingData
 from ..setting import HyperparameterSettings, LightGbmSettings
 from .lightgbm_encoder import LightGbmEncoder
 from .probability_model import FeatureData
 
-#: 目的関数。二値分類。設定ファイルでは変えられない（設計書 14）。
-_OBJECTIVE = "binary"
 #: 学習の途中経過を出さない。
 _QUIET = -1
 #: 古い形式の保存ファイルを読んだときの案内。
@@ -23,10 +22,16 @@ _OLD_FORMAT = "{path} は古い形式の保存ファイルです（クラスの�
 
 
 class LightGbmModel:
-    """LightGBM で学習・予測する（設計書 12）。``ProbabilityModel`` を守る。"""
+    """LightGBM で学習・予測する（設計書 12）。``ProbabilityModel`` を守る。
+
+    多クラス分類（``LightGbmMulticlassModel``）は、このクラスの目的関数・目的変数の渡し方・確率の取り出し方だけを
+    変えたもの。学習・保存・読み込みの手順は同じである。
+    """
 
     name = "LightGBM"
     file_name = "lightgbm.joblib"
+    #: 目的関数。二値分類。設定ファイルでは変えられない（設計書 14）。
+    objective = "binary"
 
     def __init__(self, settings: LightGbmSettings) -> None:
         self._settings = settings
@@ -42,12 +47,12 @@ class LightGbmModel:
         encoder = LightGbmEncoder(self._settings.min_category_count)
         encoder.fit(train.features, train.categorical_columns)
         classifier = lightgbm.LGBMClassifier(
-            objective=_OBJECTIVE, verbose=_QUIET, **self._settings.params,
+            objective=self.objective, verbose=_QUIET, **self._settings.params, **self._objective_params(train),
         )
         early_stopping = lightgbm.early_stopping(self._settings.early_stopping_rounds, verbose=False)
         classifier.fit(
-            encoder.transform(train.features), train.label,
-            eval_X=encoder.transform(valid.features), eval_y=valid.label,
+            encoder.transform(train.features), self._label(train),
+            eval_X=encoder.transform(valid.features), eval_y=self._label(valid),
             callbacks=[early_stopping],
         )
         self._encoder, self._classifier = encoder, classifier
@@ -56,7 +61,7 @@ class LightGbmModel:
     def predict_proba(self, data: FeatureData) -> np.ndarray:
         """1頭ずつの、目的変数が 1 になる確率（設計書 12 の 5）。"""
         encoder, classifier = self._trained()
-        return classifier.predict_proba(encoder.transform(data.features))[:, 1]
+        return self._probabilities(classifier.predict_proba(encoder.transform(data.features)))
 
     @property
     def tree_count(self) -> int:
@@ -85,6 +90,18 @@ class LightGbmModel:
         model._encoder = LightGbmEncoder.from_state(saved["encoder"])
         model._classifier = saved["classifier"]
         return model
+
+    def _objective_params(self, train: TrainingData) -> dict[str, Any]:
+        """目的関数に付けて渡す引数。二値分類には無い。"""
+        return {}
+
+    def _label(self, data: TrainingData) -> pd.Series:
+        """ライブラリの ``fit`` に渡す目的変数。"""
+        return data.label
+
+    def _probabilities(self, matrix: np.ndarray) -> np.ndarray:
+        """ライブラリの ``predict_proba`` の戻り値から、返す確率を取り出す。二値分類は2列目。"""
+        return matrix[:, 1]
 
     def _trained(self) -> tuple[LightGbmEncoder, lightgbm.LGBMClassifier]:
         if self._encoder is None or self._classifier is None:

@@ -77,6 +77,7 @@ FACT_COLUMNS: dict[str, str] = {
     "best_time_dist": "同じ芝ダ・距離・馬場状態での持ち時計（競馬場を問わない）",
     "best_time_dist_rank": "その持ち時計の今回の出走馬の中での順位",
     "affiliation": "所属（美浦 / 栗東 / 招待）", "blinker": "ブリンカー（あり / なし）", "apprentice": "騎手の減量（減量あり / 減量なし）",
+    "weight_type": "重量種別（ハンデ / 別定 / 馬齢 / 定量。未設定は 不明）",
     "max_horse_no": "そのレースのいちばん外の馬番",
     "course_places_before": "同じ競馬場・コース・距離での3着内の数（今回より前）",
     "venue_wins_before": "同じ競馬場・同じ芝ダでの勝利数（今回より前）",
@@ -91,7 +92,7 @@ FACT_COLUMNS: dict[str, str] = {
 #: 途中の計算にだけ使い、事実表には残さない列。
 _HELPER_COLUMNS = (
     "cond_code", "style_code", "prev_class_order", "prev_jockey_code",
-    "area_code", "has_blinker", "is_apprentice", "style_no",
+    "area_code", "has_blinker", "is_apprentice", "style_no", "weight_type_code",
 )
 #: 推定脚質に使う近走の数。3走の中央を取る（2走なら前寄り、1走ならその脚質）。
 STYLE_BEFORE_RUNS = 3
@@ -201,6 +202,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                TRY_CAST("距離" AS INTEGER) AS distance_m,
                "芝馬場状態コード" AS turf_cond, "ダート馬場状態コード" AS dirt_cond,
                "競走条件コード 最若年条件" AS cond_code, trim("グレードコード") AS grade_code,
+               "重量種別コード" AS weight_type_code,
                coalesce(TRY_CAST(NULLIF("出走頭数", '00') AS INTEGER), TRY_CAST(NULLIF("登録頭数", '00') AS INTEGER)) AS field_size
         FROM ra
         WHERE {race_rows}
@@ -264,7 +266,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                {codes.sql_case("r.track_code", codes.TRACK_NAMES, "?")} AS course,
                r.distance_m,
                {_condition_code_sql(entry)} AS condition_code,
-               r.cond_code, r.grade_code, r.field_size,
+               r.cond_code, r.grade_code, r.weight_type_code, r.field_size,
                s.frame_no, s.horse_no, s.horse_id, s.horse_name,
                {codes.sql_case("s.sex_code", codes.SEX_NAMES, "?")} AS sex,
                s.age, s.jockey_code, s.jockey, s.trainer_code, s.trainer, s.carried, s.body_weight,
@@ -306,6 +308,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                {codes.sql_case("area_code", codes.AFFILIATION_NAMES, "不明")} AS affiliation,
                CASE WHEN has_blinker THEN 'あり' ELSE 'なし' END AS blinker,
                CASE WHEN is_apprentice THEN '減量あり' ELSE '減量なし' END AS apprentice,
+               {codes.sql_case("weight_type_code", codes.WEIGHT_TYPE_NAMES, "不明")} AS weight_type,
                CASE WHEN ran AND style_code IN {keys.sql_list(codes.STYLE_NAMES)} THEN CAST(style_code AS INTEGER) END AS style_no
         FROM joined
     ), enriched AS (

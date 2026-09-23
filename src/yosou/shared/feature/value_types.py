@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Container
+
 import pandas as pd
 
 _YES, _NO = "はい", "いいえ"
@@ -15,3 +17,12 @@ def as_numbers(values: pd.Series) -> pd.Series:
 def as_yes_no(values: pd.Series) -> pd.Series:
     """真偽値の列を「はい」「いいえ」にする。分からなければ欠損値。"""
     return values.map({True: _YES, False: _NO})
+
+
+def typed_features(features: pd.DataFrame, categorical: Container[str]) -> pd.DataFrame:
+    """特徴量の表の型をそろえる。``categorical`` の列は文字列、ほかは小数の列にする。欠損値は欠損値のまま。"""
+    typed = {
+        name: features[name].astype("str") if name in categorical else as_numbers(features[name])
+        for name in features.columns
+    }
+    return pd.DataFrame(typed, index=features.index)

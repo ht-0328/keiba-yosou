@@ -9,6 +9,7 @@ from yosou.shared.feature import FeatureBuilder
 from yosou.shared.feature.group import (
     AptitudeFeatures,
     HorseFeatures,
+    MarketFeatures,
     PedigreeFeatures,
     PeopleFeatures,
     PreviousRunFeatures,
@@ -17,7 +18,7 @@ from yosou.shared.feature.group import (
     WorkoutFeatures,
 )
 
-from ..feature import CATALOG, MarketFeatures
+from ..feature import CATALOG
 from .runner_selector import RunnerSelector
 
 #: ``FeatureBuilder`` に渡すまとまり（G 以外）。共通の A〜F・H・I に、この予想の J を足す。

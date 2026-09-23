@@ -1,7 +1,8 @@
 """予測のときに使う単勝オッズの決め方（設計書 06 の図2・07 の「予測のときのオッズの与え方」）。
 
-実DB は使わない。締め切り前のオッズの SQL そのもののテストは、``AnnouncedOddsRepository`` を共通で使う
-「人気馬が4着以下になるかを予想」のテストにある。
+``OddsInput``・``OddsResolver`` は荒れ具合の予想とも共通で ``yosou.shared.dataset`` にあるが、決めごとは
+この予想（手本）のものなので、テストはここに置く。実DB は使わない。締め切り前のオッズの SQL そのもののテストは、
+``AnnouncedOddsRepository`` を共通で使う「人気馬が4着以下になるかを予想」のテストにある。
 """
 
 from __future__ import annotations
