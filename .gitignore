@@ -20,3 +20,6 @@ __pycache__/
 
 # ローカル画面間のデータベース排他
 *.ui.lock
+
+# CatBoost が学習中に書く作業用のログ
+/catboost_info/
