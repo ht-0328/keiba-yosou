@@ -30,3 +30,8 @@ class StrategyResult:
     @property
     def return_rate(self) -> float | None:
         return self.total.return_rate
+
+    @property
+    def monthly_rates(self) -> list[float]:
+        """買った月の回収率の並び（採否の基準の「月別の中央値」に使う）。"""
+        return [summary.return_rate for summary in self.by_month.values() if summary.return_rate is not None]

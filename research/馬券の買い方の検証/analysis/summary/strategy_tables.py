@@ -60,7 +60,7 @@ class StrategyTables:
             strategy.top_k if strategy.top_k is not None else "", strategy.wide_plan or "", strategy.narrow_plan or "",
             result.race_count, total.bet_races, total.points, total.stake_yen, total.payout_yen,
             rate_text(total.return_rate), rate_text(total.hit_race_rate), rate_text(total.return_rate_without_max),
-            self._rule.verdict(total),
+            self._rule.verdict(total, result.monthly_rates),
         ]
 
     def _describe(self, strategy: Strategy) -> str:

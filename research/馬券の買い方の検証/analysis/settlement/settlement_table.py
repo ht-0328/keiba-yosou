@@ -56,4 +56,5 @@ class SettlementTable:
     def read(cls, path: Path) -> SettlementTable:
         if not Path(path).exists():
             raise FileNotFoundError(f"精算表がありません: {path}（先に backtest.py --settle-only を実行してください）")
-        return cls(pd.read_csv(path, encoding=_ENCODING, dtype={RACE_ID: str}, keep_default_na=False, na_values=[""]))
+        return cls(pd.read_csv(path, encoding=_ENCODING, dtype={RACE_ID: str, PLAN: str, SKIPPED: str},
+                               keep_default_na=False, na_values=[""]))
