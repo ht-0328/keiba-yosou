@@ -1,6 +1,6 @@
 """この予想が使う特徴量の一覧（設計書 09）。
 
-1頭ごとの一覧（``HORSE_CATALOG``。手本と同じ A〜I に J（市場の評価）を足した 74個）は、レース単位に集約する元になる。
+1頭ごとの一覧（``HORSE_CATALOG``。手本と同じ A〜I に J（市場の評価）を足した 75個）は、レース単位に集約する元になる。
 レース単位の一覧（``CATALOG``。A〜E の 49個）が、モデルに渡す特徴量である。
 """
 
@@ -22,7 +22,7 @@ _C = FeatureKind.CATEGORICAL
 _DAY_BEFORE = PredictionTiming.DAY_BEFORE
 _RACE_DAY = PredictionTiming.RACE_DAY
 
-#: 1頭ごとの特徴量の一覧（集約の元。当日は 74個）。
+#: 1頭ごとの特徴量の一覧（集約の元。当日は 75個）。
 HORSE_CATALOG = FeatureCatalog(BASE_FEATURES + MARKET_FEATURES)
 
 #: レース単位の特徴量 49個。並びは設計書 09 の表の順。時点を書いていないものは木曜から分かる。

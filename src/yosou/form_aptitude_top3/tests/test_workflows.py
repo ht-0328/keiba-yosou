@@ -7,6 +7,7 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
+import pandas as pd
 import pytest
 
 from 共通 import db
@@ -14,8 +15,12 @@ from 共通 import db
 from yosou.shared.dataset import HORSE_NO
 from yosou.shared.evaluation import ENSEMBLE_NAME, TrainingReport
 from yosou.shared.feature import PredictionTiming
+from yosou.shared.feature.odds import TOP3_RATE
 from yosou.shared.ml_model import MEMBER_TYPES
+from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
+from yosou.shared.repository.place_price_repository import FILE_NAME as PLACE_PRICE_FILE
+from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.tests import synthetic_season as season
 
@@ -60,10 +65,11 @@ def test_model_repository_reports_missing_models(tmp_path: Path):
         ModelRepository(tmp_path, MEMBER_TYPES).load(PredictionTiming.RACE_DAY)
 
 
-def _workflow(con: duckdb.DuckDBPyConnection, models: Path) -> PredictionWorkflow:
+def _workflow(con: duckdb.DuckDBPyConnection, models: Path,
+              place_price: PlacePriceEstimator | None = None) -> PredictionWorkflow:
     return PredictionWorkflow(
-        dataset_builder(con), ModelRepository(models, MEMBER_TYPES),
-        OddsResolver(AnnouncedOddsRepository(con)),
+        dataset_builder(con), SegmentedPrediction(ModelSegments(), models),
+        OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(place_price),
     )
 
 
@@ -86,6 +92,19 @@ def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[
     with db.open_db(season_db) as con:
         prediction = _workflow(con, models).run(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY)
     assert len(prediction) == 8 and WIN_ODDS not in prediction.columns
+    # 木曜はオッズが無いので、オッズから見た3着以内率と複勝の期待値も出さない
+    assert TOP3_RATE not in prediction.columns and PLACE_VALUE not in prediction.columns
+
+
+def test_race_day_prediction_shows_the_market_top3_rate_and_the_place_value(season_db: Path, trained):
+    models, _ = trained
+    estimator = PlacePriceEstimator().fit(pd.Series([2.0, 3.0]), pd.Series([240.0, 330.0]))
+    with db.open_db(season_db) as con:
+        prediction = _workflow(con, models, estimator).run(
+            season.CARD_RACE_ID, PredictionTiming.RACE_DAY, OddsInput.of(CARD_ODDS_TEXTS))
+    # オッズから見た3着以内率はレースで合計 3。合成DB には複勝オッズが無いので、期待値は欠損値のまま列だけ出る
+    assert prediction[TOP3_RATE].sum() == pytest.approx(3.0)
+    assert {PLACE_PROBABILITY, PLACE_VALUE} <= set(prediction.columns) and prediction[PLACE_VALUE].isna().all()
 
 
 def _run_command(argv: list[str]) -> int:
@@ -113,7 +132,7 @@ def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, ca
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 7
-    assert lines[0] == f"順位,馬番,馬名,{WIN_ODDS},{PROBABILITY},LightGBM,CatBoost"
+    assert lines[0] == f"順位,馬番,馬名,{WIN_ODDS},{TOP3_RATE},{PROBABILITY},LightGBM,CatBoost"
 
 
 def test_command_asks_for_odds_when_the_database_has_none(season_db: Path, trained, capsys):
@@ -135,6 +154,8 @@ def test_command_trains_and_writes_the_report(season_db: Path, fast_settings_pat
     assert code == 0 and "検証データでの当たり具合" in text and "保存したモデル" in text
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     assert (tmp_path / "models" / "thursday" / SETTINGS_FILE).exists()
+    # 複勝の見込みの倍率も、モデルと一緒に保存する
+    assert "複勝の見込みの倍率" in text and (tmp_path / "models" / PLACE_PRICE_FILE).exists()
 
 
 def test_command_rejects_periods_out_of_order(season_db: Path, capsys):

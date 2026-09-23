@@ -4,30 +4,32 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+from itertools import chain
 from pathlib import Path
 
 from 共通 import db
 from 共通.render import Table
 
-from yosou.shared.command import CommonArguments, TrainingReportTables
+from yosou.shared.command import CommonArguments, PlacePriceStep, TrainingReportTables
 from yosou.shared.dataset import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
     DEFAULT_VALID_FIRST_DAY,
     TrainingPeriod,
 )
-from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
-from yosou.shared.workflow import TrainingWorkflow
+from yosou.shared.workflow import SegmentedTraining
 
 from ..dataset import dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import TIMINGS
+from ..workflow import SEGMENTS, TIMINGS
 from .yosou_name import YOSOU_NAME
 
 
 class TrainCommand:
-    """``train``: 3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。"""
+    """``train``: 区分（中穴・大穴）ごと・3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。
+
+    学習のあとに、複勝の見込みの倍率（学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
+    """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -47,13 +49,12 @@ class TrainCommand:
             args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
         )
         with db.open_db(args.db) as con:
-            workflow = TrainingWorkflow(
-                dataset_builder(con), period, ModelRepository(args.models, MEMBER_TYPES),
-                TIMINGS, DEFAULT_SETTINGS_PATH,
-            )
-            training_data = workflow.read_training_data()
-        report = workflow.train(training_data, args.config)
-        return TrainingReportTables(report).tables()
+            training = SegmentedTraining(SEGMENTS, dataset_builder(con), period, args.models, TIMINGS, DEFAULT_SETTINGS_PATH)
+            training_data = training.read_training_data()
+        reports = training.train(training_data, args.config)
+        tables = list(chain.from_iterable(TrainingReportTables(report, label).tables() for label, report in reports))
+        place_price = PlacePriceStep().run(training_data.between(None, period.valid_first_day), args.models)
+        return [*tables, place_price]
 
     def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
         """学習データの期間の区切り（設計書 08 の 4）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""

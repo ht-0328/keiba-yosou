@@ -12,8 +12,10 @@ from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, PredictionTable
 from yosou.shared.feature import PredictionTiming
-from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
+from yosou.shared.feature.odds import TOP3_RATE
+from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
+from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
+from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
 from ..dataset import OddsInput, OddsResolver, dataset_builder
 from ..feature import WIN_ODDS
@@ -48,8 +50,8 @@ class PredictCommand:
         with db.open_db(args.db) as con:
             race_id = self._race_id(args, con)
             workflow = PredictionWorkflow(
-                dataset_builder(con), ModelRepository(args.models, MEMBER_TYPES),
-                OddsResolver(AnnouncedOddsRepository(con)),
+                dataset_builder(con), SegmentedPrediction(ModelSegments(), args.models),
+                OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
@@ -61,10 +63,14 @@ class PredictCommand:
         return OddsInput.of(args.odds)
 
     def _extra_columns(self, prediction: pd.DataFrame) -> list[str]:
-        """馬名のあとに出す列。前日・当日は単勝オッズを出し、木曜（オッズを使わない）は出さない。"""
-        if WIN_ODDS not in prediction.columns:
-            return []
-        return [WIN_ODDS]
+        """馬名のあとに出す列。前日・当日は単勝オッズ・オッズから見た3着以内率・複勝的中の確率・複勝の期待値
+        （見込みの倍率を保存してあれば）を出し、木曜（オッズを使わない）は出さない。"""
+        return [column for column in (WIN_ODDS, TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE) if column in prediction.columns]
+
+    def _place_price(self, args: argparse.Namespace) -> PlacePriceEstimator | None:
+        """学習のときに保存した複勝の見込みの倍率。無ければ（前の版で学習したモデル）None で、期待値は出さない。"""
+        state = PlacePriceRepository(args.models).load()
+        return PlacePriceEstimator.from_state(state) if state is not None else None
 
     def _race_id(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> str:
         """rid か、開催日・競馬場・レース番号から、レースの rid を決める（ほかの道具と同じ指定のしかた）。"""

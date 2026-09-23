@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from ..dataset import PeriodSplitter, TrainingData, TrainingPeriod
+from ..dataset import BaselineLogit, PeriodSplitter, TrainingData, TrainingPeriod
 from ..feature import PredictionTiming
 from ..ml_model import CatBoostEncoder, CatBoostModel, EnsembleModel, LightGbmEncoder, LightGbmModel
 from ..ml_model.catboost_encoder import MISSING
@@ -101,3 +102,39 @@ def test_ensemble_averages_member_probabilities():
 def test_ensemble_needs_members():
     with pytest.raises(ValueError):
         EnsembleModel([])
+
+
+def _with_baseline(data: TrainingData, probability: float) -> TrainingData:
+    """全部の行に同じ基準（``probability`` のロジット）を付けた学習データ。"""
+    values = pd.Series(np.log(probability / (1 - probability)), index=data.ids.index)
+    return replace(data, baseline=BaselineLogit(values, PredictionTiming.DAY_BEFORE))
+
+
+@pytest.mark.parametrize("model_type", [LightGbmModel, CatBoostModel])
+def test_model_learns_from_a_baseline_and_needs_it_to_predict(model_type, race_day_split, fast_settings_path: Path,
+                                                             default_settings_path: Path, tmp_path: Path):
+    train, valid = race_day_split
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=default_settings_path)
+    model = model_type.from_settings(settings).fit(_with_baseline(train, 0.3), _with_baseline(valid, 0.3))
+    probability = model.predict_proba(_with_baseline(valid, 0.3))
+    assert ((probability > 0) & (probability < 1)).all()
+    # 基準を変えると、確率も同じ向きに動く（木の値に基準を足してから確率に戻すため）
+    assert (model.predict_proba(_with_baseline(valid, 0.6)) > probability).all()
+    # 基準を使って学んだモデルに、基準の無いデータを渡すと止まる
+    with pytest.raises(ValueError, match="基準"):
+        model.predict_proba(valid)
+    path = tmp_path / model_type.file_name
+    model.save(path)
+    loaded = model_type.load(path, settings)
+    np.testing.assert_allclose(loaded.predict_proba(_with_baseline(valid, 0.3)), probability)
+    with pytest.raises(ValueError, match="基準"):
+        loaded.predict_proba(valid)
+
+
+@pytest.mark.parametrize("model_type", [LightGbmModel, CatBoostModel])
+def test_model_without_a_baseline_ignores_the_baseline_of_the_data(model_type, race_day_split, fast_settings_path: Path,
+                                                                    default_settings_path: Path):
+    train, valid = race_day_split
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=default_settings_path)
+    model = model_type.from_settings(settings).fit(train, valid)
+    np.testing.assert_allclose(model.predict_proba(_with_baseline(valid, 0.3)), model.predict_proba(valid))

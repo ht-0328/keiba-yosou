@@ -19,6 +19,9 @@ WIN_ODDS = "確定の単勝オッズ"
 POPULARITY = "確定の単勝人気"
 WIN_PAYOUT = "単勝の払戻"
 PLACE_PAYOUT = "複勝の払戻"
+#: 複勝オッズの最低と最高（終わったレースは確定の値）。複勝の期待値を見積もるのに使う（既存モデルの修正計画の 2）。
+PLACE_ODDS_LOW = "複勝オッズ（最低）"
+PLACE_ODDS_HIGH = "複勝オッズ（最高）"
 
 #: 評価用の列（レース単位。``RaceResultSummary`` が作る）。どれもそのレースの結果で、特徴量にしない。
 WINNER_POPULARITY = "勝ち馬の人気"

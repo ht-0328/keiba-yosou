@@ -8,7 +8,8 @@ import pandas as pd
 
 from yosou.shared.dataset import JUMP, FlatRunnerFilter
 
-from .column_names import IS_FAVORITE
+from .column_names import FAVORITE_BAND, IS_FAVORITE
+from .favorite_band import FavoriteBand
 from .favorite_rule import FavoriteRule
 
 
@@ -51,10 +52,14 @@ class FavoriteSelector:
         return rows[rows[IS_FAVORITE]]
 
     def _with_favorite_flag(self, runners: pd.DataFrame) -> pd.DataFrame:
-        """「人気馬か」の列を足す。頭数は、そのレースで出走した馬の数（設計書 11 の 6）。"""
+        """「人気馬か」と「人気帯」の列を足す。頭数は、そのレースで出走した馬の数（設計書 11 の 6）。
+
+        人気帯は人気馬の行だけに入れ、ほかの行は None にする。
+        """
         field_size = runners.groupby("race_id")["horse_id"].transform("size")
         is_favorite = self._rule.are_favorites(runners["popularity"], field_size)
-        return runners.assign(**{IS_FAVORITE: is_favorite})
+        band = FavoriteBand.labels_of(runners["popularity"]).where(is_favorite)
+        return runners.assign(**{IS_FAVORITE: is_favorite, FAVORITE_BAND: band})
 
     def _checked_favorites(self, runners: pd.DataFrame, race_id: str) -> pd.DataFrame:
         if runners[IS_FAVORITE].any():

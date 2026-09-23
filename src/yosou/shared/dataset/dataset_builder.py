@@ -7,12 +7,15 @@ from collections.abc import Mapping
 import pandas as pd
 
 from ..feature import EntryColumns, FeatureBuilder, PredictionTiming
+from ..feature.odds import MarketPlaces
 from . import column_names as names
+from .baseline_logit import BaselineLogit
 from .history_records_loader import HistoryRecordsLoader
 from .prediction_data import PredictionData
 from .race_records_loader import RaceRecordsLoader
 from .required_info_check import RequiredInfoCheck
 from .sample_selector import SampleSelector
+from .target_baseline import TargetBaseline
 from .target_labeler import TargetLabeler
 from .training_data import TrainingData
 from .training_period import TrainingPeriod
@@ -26,9 +29,15 @@ _ID_COLUMNS = EntryColumns({
 _EVALUATION_COLUMNS = EntryColumns({
     names.FINISH: "finish", names.WIN_ODDS: "win_odds", names.POPULARITY: "popularity",
     names.WIN_PAYOUT: "win_payout", names.PLACE_PAYOUT: "place_payout",
+    names.PLACE_ODDS_LOW: "place_odds_low", names.PLACE_ODDS_HIGH: "place_odds_high",
+    names.FIELD_SIZE: "field_size",
 })
 #: 予想ごとに足す列が無いときの、空の列の選び方。
 _NO_EXTRA_COLUMNS = EntryColumns({})
+#: 予測用データの ``market`` の列（複勝の期待値を見積もる材料。予測するときの複勝オッズと頭数）。
+_PREDICTION_INFO_COLUMNS = EntryColumns({
+    names.PLACE_ODDS_LOW: "place_odds_low", names.PLACE_ODDS_HIGH: "place_odds_high", names.FIELD_SIZE: "field_size",
+})
 
 
 class DatasetBuilder:
@@ -40,18 +49,25 @@ class DatasetBuilder:
 
     ``extra_columns`` は、出走の行から、学習データの評価用の列と予測の結果に足す列（予想ごと。例: 穴馬の区分。
     行を選ぶクラスが出走の行に足した列を、そのまま残すのに使う）。無ければ何も足さない。
+
+    ``baseline`` は目的変数の基準（ロジット）の作り方（既存モデルの修正計画の 1・2）。渡すと、学習データと
+    予測用データに基準が付き、モデルはそれを出発点にして上げ下げだけを学ぶ。渡さなければ基準なしで学ぶ。
+    基準はオッズを使うので、行を絞る前（同じレースの全頭がそろった形）で作ってから、残す行を選ぶ。
     """
 
     def __init__(self, history_loader: HistoryRecordsLoader, race_loader: RaceRecordsLoader,
                  selector: SampleSelector, target_builder: TargetLabeler,
-                 feature_builder: FeatureBuilder, extra_columns: EntryColumns | None = None) -> None:
+                 feature_builder: FeatureBuilder, extra_columns: EntryColumns | None = None,
+                 baseline: TargetBaseline | None = None) -> None:
         self._history_loader = history_loader
         self._race_loader = race_loader
         self._selector = selector
         self._target_builder = target_builder
         self._feature_builder = feature_builder
         self._extra_columns = extra_columns or _NO_EXTRA_COLUMNS
+        self._baseline = baseline
         self._required_info = RequiredInfoCheck()
+        self._market_places = MarketPlaces()
 
     def build_training_data(self, period: TrainingPeriod) -> TrainingData:
         """``period`` の学習データの始まりからの出走で、学習データを作る。特徴量は当日の時点の全部。
@@ -67,9 +83,11 @@ class DatasetBuilder:
             ids=_ID_COLUMNS.select(kept),
             features=features.loc[kept.index],
             targets=self._target_builder.build(kept),
-            evaluation=self._with_extra_columns(_EVALUATION_COLUMNS.select(kept), kept),
+            evaluation=self._with_market_places(
+                self._with_extra_columns(_EVALUATION_COLUMNS.select(kept), kept), samples, kept.index),
             catalog=self._feature_builder.catalog,
             label_name=self._target_builder.label_name,
+            baseline=self._baseline_of(samples, kept.index),
         )
 
     def build_prediction_data(self, race_id: str, timing: PredictionTiming,
@@ -87,10 +105,28 @@ class DatasetBuilder:
         kept = self._selector.keep_samples(runners)
         kept_features = features.loc[kept.index]
         self._required_info.check(kept_features)
+        baseline = self._baseline_of(runners, kept.index)
         return PredictionData(
             ids=self._with_extra_columns(_ID_COLUMNS.select(kept), kept), features=kept_features,
             timing=timing, catalog=self._feature_builder.catalog,
+            baseline=baseline.for_timing(timing) if baseline is not None else None,
+            market=self._with_market_places(_PREDICTION_INFO_COLUMNS.select(kept), runners, kept.index),
         )
+
+    def _baseline_of(self, rows: pd.DataFrame, kept: pd.Index) -> BaselineLogit | None:
+        """``rows``（同じレースの全頭）で基準を作り、``kept`` の行だけにする。基準の作り方が無ければ None。"""
+        if self._baseline is None:
+            return None
+        values = self._baseline.build(rows).loc[kept]
+        return BaselineLogit(values, self._baseline.known_from)
+
+    def _with_market_places(self, table: pd.DataFrame, rows: pd.DataFrame, kept: pd.Index) -> pd.DataFrame:
+        """``table`` の右に、オッズから見た勝率・2着以内率・3着以内率を付ける。
+
+        ``rows``（同じレースの全頭）で出してから ``kept`` の行だけにする。オッズの無い時点（木曜）は欠損値。
+        """
+        places = self._market_places.of(rows).loc[kept]
+        return pd.concat([table, places], axis=1)
 
     def _with_extra_columns(self, table: pd.DataFrame, rows: pd.DataFrame) -> pd.DataFrame:
         """``table`` の右に、予想ごとに足す列（``rows`` から選ぶ）を付ける。"""

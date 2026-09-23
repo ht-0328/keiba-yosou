@@ -17,8 +17,10 @@
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
 | ``AnnouncedWeightRepository`` | 速報の馬体重 |
 | ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気かオッズを使う予想が使う |
+| ``PlaceOddsRepository`` | 複勝オッズ（最低・最高）。終わったレースは確定、これから走るレースは締め切り前のいちばん新しい断面 |
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
+| ``PlacePriceRepository`` | 複勝の見込みの倍率（帯ごとの倍率）のファイル。モデルと一緒に置く |
 
 ``TargetScope`` は「どの出走について読むか」を表す値、``CareerCountSql`` は ``CareerCountRepository`` の SQL の式を作る部品。
 ``PAYOUT_TABLES`` は、``RacePayoutRepository`` の券種の鍵（列の名前の頭）と払戻の表の対応。
@@ -34,6 +36,8 @@ from .model_repository import ModelRepository
 from .past_run_repository import PastRunRepository
 from .pedigree_day_repository import PedigreeDayRepository
 from .people_day_repository import PeopleDayRepository
+from .place_odds_repository import PlaceOddsRepository
+from .place_price_repository import PlacePriceRepository
 from .race_entry_table_repository import RaceEntryTableRepository
 from .race_payout_repository import PAYOUT_TABLES, RacePayoutRepository
 from .scratch_repository import ScratchRepository
@@ -45,6 +49,6 @@ __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
     "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository", "RacePayoutRepository", "PAYOUT_TABLES",
-    "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository",
-    "ScratchRepository", "ModelRepository",
+    "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "PlaceOddsRepository",
+    "ScratchRepository", "ModelRepository", "PlacePriceRepository",
 ]

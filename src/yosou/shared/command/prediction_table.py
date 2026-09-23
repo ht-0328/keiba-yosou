@@ -39,10 +39,16 @@ class PredictionTable:
         )
 
     def _row(self, rank: int, runner: pd.Series) -> list[object]:
-        extra_cells = [runner[name] for name in self._extra_columns]
+        extra_cells = [self._cell(runner[name]) for name in self._extra_columns]
         member_cells = [rounded(runner[name]) for name in self._member_names]
         return [rank, horse_no_text(runner[HORSE_NO]), runner[HORSE_NAME], *extra_cells,
                 rounded(runner[self._probability]), *member_cells]
+
+    def _cell(self, value: object) -> object:
+        """足す列の値。小数は3桁に丸め、文字はそのまま出す。"""
+        if isinstance(value, float):
+            return rounded(value)
+        return value
 
     def _title(self) -> str:
         first_runner = self._prediction.iloc[0]

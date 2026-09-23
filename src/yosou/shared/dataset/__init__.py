@@ -14,8 +14,11 @@
 | ``FlatRunnerFilter`` | 障害レースと、出走しなかった馬の行を除く（どの予想でも同じ決まり） |
 | ``SampleSelector`` | 入れる行の選び方の決まり（インターフェース）。守るクラスは予想ごとに作る |
 | ``TargetLabeler`` | 目的変数の付け方の決まり（インターフェース。1頭ごと）。守るクラスは予想ごとに作る |
+| ``TargetBaseline`` | 目的変数の基準（ロジット）の作り方の決まり（インターフェース）。渡すと、モデルは基準からの上げ下げを学ぶ |
+| ``BaselineLogit`` | 目的変数の基準（ロジット）の値と、それが分かる最初の時点 |
+| ``Top3Baseline`` | 3着以内の基準 = オッズから見た3着以内率（Harville の式）。近走と適性の予想と穴馬の予想が使う |
 | ``RaceTargetLabeler`` | 目的変数の付け方の決まり（インターフェース。レース単位。列は複数でよい） |
-| ``Top3TargetBuilder`` | 目的変数「3着以内なら 1」（「1着」の列も付ける）。近走と適性の予想と穴馬の予想が使う |
+| ``Top3TargetBuilder`` | 目的変数「3着以内なら 1」（「1着」「複勝的中」の列も付ける）。近走と適性の予想と穴馬の予想が使う |
 | ``RaceResultSummary`` | 出走の行から、レースごとの結果（勝ち馬の人気・1番人気の着順とオッズ など）をまとめる。評価用の列 |
 | ``PopularityInput`` | 利用者が ``--pops`` で渡した「馬番（木曜は馬名）→ 人気」を表す値 |
 | ``PopularityApplier`` | 予測に使う人気を決める（渡された人気 → 締め切り前のオッズ → 元DB の人気）。人気を使う予想が使う |
@@ -46,6 +49,7 @@ from .column_names import (
     VENUE,
     WINNER_POPULARITY,
 )
+from .baseline_logit import BaselineLogit
 from .dataset_builder import DatasetBuilder
 from .field_odds_check import FieldOddsCheck
 from .field_size_rule import LARGE_FIELD_FROM
@@ -64,8 +68,10 @@ from .race_target_labeler import RaceTargetLabeler
 from .required_info_check import RequiredInfoCheck
 from .sample_selector import SampleSelector
 from .split_data import SplitData
+from .target_baseline import TargetBaseline
 from .target_labeler import TargetLabeler
-from .top3_target_builder import TOP3, WIN, Top3TargetBuilder
+from .top3_baseline import Top3Baseline
+from .top3_target_builder import PLACE_HIT, TOP3, WIN, Top3TargetBuilder
 from .training_data import BINARY_LABELS, TrainingData
 from .training_period import (
     DEFAULT_TEST_FIRST_DAY,
@@ -78,7 +84,8 @@ __all__ = [
     "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData",
     "TrainingPeriod", "PeriodSplitter", "SplitData",
     "HistoryRecordsLoader", "RaceRecordsLoader", "SampleSelector", "TargetLabeler", "RaceTargetLabeler",
-    "Top3TargetBuilder", "TOP3", "WIN", "RaceResultSummary",
+    "Top3TargetBuilder", "TOP3", "WIN", "PLACE_HIT", "RaceResultSummary",
+    "TargetBaseline", "BaselineLogit", "Top3Baseline",
     "PopularityInput", "PopularityApplier", "OddsInput", "OddsResolver",
     "RequiredInfoCheck", "FieldOddsCheck", "FlatRunnerFilter", "JUMP", "LARGE_FIELD_FROM",
     "DEFAULT_TRAIN_FIRST_DAY", "DEFAULT_VALID_FIRST_DAY", "DEFAULT_TEST_FIRST_DAY",

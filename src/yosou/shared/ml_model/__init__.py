@@ -16,6 +16,7 @@
 | ``CatBoostMulticlassModel`` | CatBoost で多クラス分類の学習・予測をする（荒れ具合の設計書 13） |
 | ``CatBoostEncoder`` | 特徴量を、CatBoost が受け取れる形に変える |
 | ``EnsembleModel`` | 2つのモデルの予測確率を平均する（1列でも、クラスごとの列でも） |
+| ``BaselineCheck`` | モデルが目的変数の基準（オッズから作ったロジット）を出発点にして学んだかと、予測に渡す基準の取り出し |
 
 ``MEMBER_TYPES``・``CLASS_MEMBER_TYPES`` は、アンサンブルに入れるモデルのクラスの並び（二値分類・多クラス分類）。
 学習済みモデルのファイルへの保存は ``repository/`` の ``ModelRepository``。

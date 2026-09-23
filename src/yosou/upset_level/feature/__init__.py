@@ -11,7 +11,7 @@
 | ``FavoriteRiskFeatures`` | D. 1番人気の危うさ（10個）。単勝オッズが最小の馬の値 |
 | ``ConditionUpsetRateFeatures`` | E. 過去の同条件の荒れ率（8個）。券種ごと |
 | ``distance_band()`` | 距離を距離帯にする関数 |
-| ``HORSE_CATALOG`` | 集約の元になる1頭ごとの特徴量の一覧（A〜I と J。74個） |
+| ``HORSE_CATALOG`` | 集約の元になる1頭ごとの特徴量の一覧（A〜I と J。75個） |
 | ``CATALOG`` | この予想の特徴量の一覧（A〜E。当日は 49個） |
 
 ``GOING``（馬場状態）・``FAVORITE_ODDS``（1番人気のオッズ）・``FAVORITE_WEIGHT_CHANGE``（1番人気の馬体重の増減）は、
