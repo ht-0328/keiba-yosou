@@ -4,9 +4,10 @@
     uv run python research/既存モデルの改善/backtest.py --windows 2025年後半   # 1つの区切りだけ試す
 
 先に walk_forward.py で、3つの予想（全頭・穴馬・人気馬）の変更版（improved）の予測を作っておく。
-区切りごとに、3つの予想から馬に印（◎○▲△☆注）を付け、印のルールで買い目を作る。検証期間（テストの直前の1年。
-前の区切りのテストの半年と、この区切りの検証の半年）で、勝負するレース（1開催日の上位 N と重賞）・押さえ・
-券種ごとの期待値の線を決め、テスト期間で買う。区切りは古い順に回す（前の区切りの結果を次の検証期間に使う）。
+区切りごとに、3つの予想から馬の期待値と役割（消・軸・◎、人気か穴か）を決め、券種ごとの買い目を作る。
+1レース 5,000円の予算に、券種全体の期待値の高い券種から積む（全部の券種は買わない）。検証期間（テストの直前の1年。
+前の区切りの検証の半年と、この区切りの検証の半年）で、券種ごとの線と1開催日のレース数を決め、テスト期間で買う。
+区切りは古い順に回す（前の区切りの結果を次の検証期間に使う）。
 出すもの: reports/既存モデルの改善/backtest/結果.md（表）と、買った買い目・参考の買い目の CSV。
 元DB は、区切りごとに券種ごとの確定オッズ・払戻・重賞かを読む間だけ開く。
 """
@@ -36,7 +37,7 @@ from 馬券の買い方の検証.analysis.repository import RaceDayRange, RaceFa
 
 from 既存モデルの改善.analysis.betting import (  # noqa: E402
     BacktestSummary,
-    MarkPlanChooser,
+    BettingPlanChooser,
     PayoutTable,
     WindowBacktest,
 )
@@ -66,7 +67,7 @@ def main(args) -> None:
     store = PredictionStore(args.predictions)
     predictions = {name: store.read(name, args.variant) for name in _HORSE_MODELS}
     backtest = WindowBacktest(HorseTableBuilder(form, predictions),
-                              RaceProbabilityBuilder(StrengthFeatures(SHIFT_COLUMNS[args.shifts])), MarkPlanChooser())
+                              RaceProbabilityBuilder(StrengthFeatures(SHIFT_COLUMNS[args.shifts])), BettingPlanChooser())
     history = pd.concat([form.ids, form.evaluation], axis=1)
     windows = [window_named(name) for name in args.windows] if args.windows else list(WINDOWS)
     results: list[WindowResult] = []
@@ -107,7 +108,7 @@ def _window(backtest: WindowBacktest, history: pd.DataFrame, window: TestWindow,
         TicketType.WIDE: PlacePriceEstimator().fit(wide[LOWEST_ODDS], wide[PAYOUT_YEN]),
     }
     graded = facts.loc[facts["grade_code"].fillna("").str.strip().isin(GRADED_CODES), "race_id"].astype(str)
-    print(f"買い方の検証 / {window.name}: 印を付けて買い目を作っています …", file=sys.stderr, flush=True)
+    print(f"買い方の検証 / {window.name}: 馬の役割を決めて買い目を作っています …", file=sys.stderr, flush=True)
     return backtest.run(window, tables, payouts, prices, set(graded), previous)
 
 
