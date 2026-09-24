@@ -9,11 +9,13 @@
 | ``PopularityBand`` | 単勝人気を帯（1・2・3・4〜5・6〜9・10〜）にする |
 | ``BootstrapInterval`` | 回収率の推定幅（開催日を単位にしたブートストラップ） |
 | ``ThresholdChooser`` | 期待値の線を、検証期間の回収率で決める |
+| ``ConservativeRate`` | 回収率の控えめな見積もり（運が悪い方に転んだときの値。開催日を単位にしたばらつきから） |
 """
 
 from .binary_scores import BinaryScores
 from .bootstrap_interval import BootstrapInterval
+from .conservative_rate import ConservativeRate
 from .popularity_band import PopularityBand
 from .threshold_chooser import ThresholdChooser
 
-__all__ = ["BinaryScores", "PopularityBand", "BootstrapInterval", "ThresholdChooser"]
+__all__ = ["BinaryScores", "PopularityBand", "BootstrapInterval", "ThresholdChooser", "ConservativeRate"]

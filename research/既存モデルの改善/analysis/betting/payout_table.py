@@ -11,8 +11,8 @@ from 馬券の買い方の検証.analysis.repository import PayoutRepository, Ra
 from 馬券の買い方の検証.analysis.repository.payout_repository import COMBO, YEN
 from 馬券の買い方の検証.analysis.ticket import TicketType
 
-from .betting_rule import RACE, TICKET
-from .betting_rule import COMBO as COMBO_COLUMN
+from .candidate_columns import RACE, TICKET
+from .candidate_columns import COMBO as COMBO_COLUMN
 
 #: 払戻の列の名前（100円あたりの円。外れは 0）。
 PAYOUT = "払戻"

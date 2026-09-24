@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import product
+
 import numpy as np
 import pandas as pd
 
@@ -15,9 +17,10 @@ from 馬券の買い方の検証.analysis.ticket import TicketType
 from ..comparison.table_formatter import TableFormatter
 from ..scores import BootstrapInterval
 from ..walk_forward import WINDOW
-from .betting_rule import ODDS, RACE, TICKET
+from .calibration_table import CalibrationTable
+from .candidate_columns import COVER, FIRST_HORSE, ODDS, RACE, TICKET
 from .payout_table import PAYOUT
-from .race_candidate_builder import FIRST_HORSE
+from .race_columns import GRADED
 
 #: 1点の賭け金（円）。
 STAKE = 100.0
@@ -34,11 +37,15 @@ class BacktestSummary:
     - ``reference``: 参考（検証で回収率 100% に届かなかった券種も買ったとき）。
     - ``choices``: 区切り × 券種 の選んだ買い方。``fits``: 区切りごとの勝率の出し方。
     - ``races``: テスト期間の全出走（1行 = 1頭。レースID・開催日・馬番・確定の単勝人気・払戻）。対象レース数や人気を引くのに使う。
+    - ``race_tables``: テスト期間のレース単位の表（重賞か など。``WindowResult.races``）。
+    - ``candidates``: テスト期間の、印のルールで作った全部の買い目（カットの前。確率のずれの表に使う）。
     """
 
     def __init__(self, bought: pd.DataFrame, reference: pd.DataFrame, choices: pd.DataFrame, fits: pd.DataFrame,
-                 races: pd.DataFrame) -> None:
+                 races: pd.DataFrame, race_tables: pd.DataFrame, candidates: pd.DataFrame) -> None:
         self._races = races
+        self._graded = set(race_tables.loc[race_tables[GRADED], RACE])
+        self._candidates = candidates
         self._bought = self._with_race_info(bought)
         self._reference = self._with_race_info(reference)
         self._choices = choices
@@ -48,9 +55,11 @@ class BacktestSummary:
     def tables(self) -> list[Table]:
         return [
             self._overall(), self._by_ticket(self._bought, "券種ごとの成績（買うと決めた券種だけ。7つの区切りのテスト期間の合計）"),
+            self._by_kind(), self._cover_hits(),
+            self._by_ticket(self._bought[self._bought[RACE].isin(self._graded)], "重賞だけの券種ごとの成績"),
             self._by_popularity(TicketType.WIN), self._by_popularity(TicketType.PLACE),
             self._by_year(), self._by_year_and_ticket(), self._operation(), self._points_per_race(),
-            self._by_odds_band(), self._choices_table(), self._fits_table(),
+            self._by_odds_band(), CalibrationTable().table(self._candidates), self._choices_table(), self._fits_table(),
             self._by_ticket(self._reference, "参考: 検証で回収率 100% に届かなかった券種も、選んだ買い方で買ったとき"),
             self._favorite_baseline(),
         ]
@@ -77,6 +86,7 @@ class BacktestSummary:
             "回収率": float(rows[PAYOUT].sum() / (points * STAKE)) if points else np.nan,
             "回収率の90%の下限": low, "回収率の90%の上限": high,
         }
+        result["1レースあたりの点数"] = points / result["勝負したレース数"] if points else np.nan
         return result if races_total is None else {"対象レース数": races_total, **result}
 
     def _overall(self) -> Table:
@@ -91,6 +101,26 @@ class BacktestSummary:
         rows = [{"券種": ticket.label, "買った区切りの数": f"{int(windows.get(ticket.label, 0))} / 7",
                  **self._summary_row(bought[bought[TICKET] == ticket.label])} for ticket in TicketType]
         return self._format.table(pd.DataFrame(rows), title)
+
+    def _by_kind(self) -> Table:
+        """券種ごとに、いつも買う（◎から）買い目と、押さえ（◎が危ういときの相手同士）の買い目を分けた成績。"""
+        rows = [{"券種": ticket.label, "種類": "押さえ" if cover else "いつも買う（◎から）",
+                 **self._summary_row(self._bought[(self._bought[TICKET] == ticket.label) & (self._bought[COVER] == cover)])}
+                for ticket, cover in product(TicketType, (False, True))]
+        frame = pd.DataFrame(rows)
+        return self._format.table(frame[frame["点数"] > 0], "券種 × 種類（いつも買う・押さえ）の成績")
+
+    def _cover_hits(self) -> Table:
+        """押さえを買ったレースのうち、押さえが当たったレースと、◎からの買い目は外れて押さえだけが当たったレースの数。"""
+        hits = self._bought.assign(当たり=self._bought[PAYOUT] > 0)
+        covered = hits[hits[RACE].isin(set(hits.loc[hits[COVER], RACE]))]
+        by_race = covered.groupby([RACE, COVER])["当たり"].any().unstack(fill_value=False)             .reindex(columns=[False, True], fill_value=False)
+        rows = [
+            ("押さえを買ったレース", len(by_race)),
+            ("押さえが当たったレース", int(by_race[True].sum())),
+            ("そのうち、◎からの買い目は外れて押さえだけが当たったレース", int((by_race[True] & ~by_race[False]).sum())),
+        ]
+        return self._format.table(pd.DataFrame(rows, columns=["項目", "レース数"]), "押さえで拾えたレース")
 
     def _by_popularity(self, ticket: TicketType) -> Table:
         rows = self._bought[self._bought[TICKET] == ticket.label]
@@ -175,7 +205,8 @@ class BacktestSummary:
 
     def _choices_table(self) -> Table:
         return self._format.table(self._choices, "区切りごとに検証期間で選んだ買い方",
-                                  note="検証期間 = テストの直前の半年。回収率 100% 以上の券種だけ、テスト期間で買う。")
+                                  note="検証期間 = テストの直前の1年（最初の区切りだけ半年）。期待値の線は、当たりが30回以上ある線の中で、"
+                                       "回収率の控えめな見積もりがいちばん高いもの。検証期間の回収率が 100% 以上の券種だけ、テスト期間で買う。")
 
     def _fits_table(self) -> Table:
         return self._format.table(self._fits, "区切りごとの勝率の出し方（検証期間で決めた重みと Stern の補正）",

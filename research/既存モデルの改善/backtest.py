@@ -4,9 +4,11 @@
     uv run python research/既存モデルの改善/backtest.py --windows 2025年後半   # 1つの区切りだけ試す
 
 先に walk_forward.py で、3つの予想（全頭・穴馬・人気馬）の変更版（improved）の予測を作っておく。
-区切りごとに、検証期間（テストの直前の半年）で勝率の出し方と券種ごとの買い方を決め、テスト期間で買う。
-出すもの: reports/既存モデルの改善/backtest/結果.md（表）と、買った買い目・参考の買い目・選んだ買い方の CSV。
-元DB は、区切りごとに券種ごとの確定オッズと払戻を読む間だけ開く。
+区切りごとに、3つの予想から馬に印（◎○▲△☆注）を付け、印のルールで買い目を作る。検証期間（テストの直前の1年。
+前の区切りのテストの半年と、この区切りの検証の半年）で、勝負するレース（1開催日の上位 N と重賞）・押さえ・
+券種ごとの期待値の線を決め、テスト期間で買う。区切りは古い順に回す（前の区切りの結果を次の検証期間に使う）。
+出すもの: reports/既存モデルの改善/backtest/結果.md（表）と、買った買い目・参考の買い目の CSV。
+元DB は、区切りごとに券種ごとの確定オッズ・払戻・重賞かを読む間だけ開く。
 """
 
 from __future__ import annotations
@@ -29,12 +31,16 @@ from yosou.shared.place_value import PlacePriceEstimator  # noqa: E402
 
 from 馬券の買い方の検証.analysis.ticket import TicketType  # noqa: E402
 
+from 馬券の買い方の検証.analysis.race_material.race_table_builder import GRADED_CODES  # noqa: E402
+from 馬券の買い方の検証.analysis.repository import RaceDayRange, RaceFactRepository  # noqa: E402
+
 from 既存モデルの改善.analysis.betting import (  # noqa: E402
     BacktestSummary,
+    MarkPlanChooser,
     PayoutTable,
-    RuleChooser,
     WindowBacktest,
 )
+from 既存モデルの改善.analysis.betting.window_result import WindowResult  # noqa: E402
 from 既存モデルの改善.analysis.betting.wide_price_history import LOWEST_ODDS, PAYOUT_YEN, WidePriceHistory  # noqa: E402
 from 既存モデルの改善.analysis.combined import HorseTableBuilder, RaceProbabilityBuilder, StrengthFeatures  # noqa: E402
 from 既存モデルの改善.analysis.combined.strength_features import SHIFT_COLUMNS  # noqa: E402
@@ -60,21 +66,33 @@ def main(args) -> None:
     store = PredictionStore(args.predictions)
     predictions = {name: store.read(name, args.variant) for name in _HORSE_MODELS}
     backtest = WindowBacktest(HorseTableBuilder(form, predictions),
-                              RaceProbabilityBuilder(StrengthFeatures(SHIFT_COLUMNS[args.shifts])), RuleChooser())
+                              RaceProbabilityBuilder(StrengthFeatures(SHIFT_COLUMNS[args.shifts])), MarkPlanChooser())
     history = pd.concat([form.ids, form.evaluation], axis=1)
     windows = [window_named(name) for name in args.windows] if args.windows else list(WINDOWS)
-    results = [_window(backtest, history, window, args) for window in windows]
+    results: list[WindowResult] = []
+    for window in windows:
+        results.append(_window(backtest, history, window, _previous_of(window, windows, results), args))
     summary = BacktestSummary(
         pd.concat([result.bought for result in results], ignore_index=True),
         pd.concat([result.reference for result in results], ignore_index=True),
         pd.DataFrame(list(chain.from_iterable(result.choices for result in results))),
         pd.DataFrame([result.fit for result in results]),
         _test_races(history, windows),
+        pd.concat([result.races for result in results], ignore_index=True),
+        pd.concat([result.candidates for result in results], ignore_index=True),
     )
     _write(results, summary.tables(), args)
 
 
-def _window(backtest: WindowBacktest, history: pd.DataFrame, window: TestWindow, args):
+def _previous_of(window: TestWindow, windows: list[TestWindow], results: list[WindowResult]) -> WindowResult | None:
+    """検証期間の前半に使う、1つ前の区切りの結果。1つ前の区切りを回していなければ None（検証期間は半年）。"""
+    position = WINDOWS.index(window)
+    if position == 0 or not results or windows[len(results) - 1] != WINDOWS[position - 1]:
+        return None
+    return results[-1]
+
+
+def _window(backtest: WindowBacktest, history: pd.DataFrame, window: TestWindow, previous: WindowResult | None, args):
     print(f"買い方の検証 / {window.name}: 確定オッズと払戻を読んでいます …", file=sys.stderr, flush=True)
     wide_first = window.valid_first_day - timedelta(days=_WIDE_HISTORY_DAYS)
     with db.open_db(args.db) as con:
@@ -82,13 +100,15 @@ def _window(backtest: WindowBacktest, history: pd.DataFrame, window: TestWindow,
         tables = {ticket: reader.read(ticket, window.valid_first_day, window.test_last_day) for ticket in TicketType}
         payouts = PayoutTable(con).read(window.valid_first_day, window.test_last_day)
         wide = WidePriceHistory(con).read(wide_first, window.valid_first_day - timedelta(days=1))
+        facts = RaceFactRepository(con).read(RaceDayRange(window.valid_first_day, window.test_last_day))
     before = history[history[RACE_DATE] < pd.Timestamp(window.valid_first_day)]
     prices = {
         TicketType.PLACE: PlacePriceEstimator().fit(before[PLACE_ODDS_LOW], before[PLACE_PAYOUT].fillna(0.0)),
         TicketType.WIDE: PlacePriceEstimator().fit(wide[LOWEST_ODDS], wide[PAYOUT_YEN]),
     }
-    print(f"買い方の検証 / {window.name}: 買い目を作っています …", file=sys.stderr, flush=True)
-    return backtest.run(window, tables, payouts, prices)
+    graded = facts.loc[facts["grade_code"].fillna("").str.strip().isin(GRADED_CODES), "race_id"].astype(str)
+    print(f"買い方の検証 / {window.name}: 印を付けて買い目を作っています …", file=sys.stderr, flush=True)
+    return backtest.run(window, tables, payouts, prices, set(graded), previous)
 
 
 def _test_races(history: pd.DataFrame, windows: list[TestWindow]) -> pd.DataFrame:
