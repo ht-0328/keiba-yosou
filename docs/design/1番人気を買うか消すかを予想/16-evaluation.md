@@ -30,7 +30,7 @@ uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/favorite_buy_
 - 評価する年ごとに、単位の決め方・物差し・3つのグループのモデルを、その前年までのデータだけで作り直す（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 7・8）。評価する年のデータは、その年の学習に入らない。
 - 年の範囲は、設定ファイルの `[evaluation]`（`train_first_year`・`first_year`・`last_year`）で変えられる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md#設定ファイルの形)）。
 - **1つの年だけで決めない理由。** 1年ぶんの1番人気を単位で分けると、単位ごとの頭数は少なく、偶然の幅が大きい。年ごとに結果が同じ向きかを見るために、8つの年で評価する。
-- **評価の成績は、本番より少し良く出る。** 評価の1番人気は確定単勝人気で選び、オッズの特徴量（まとまり K）も確定オッズで作るためである。本番では締め切り前のオッズになる（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 6）。
+- **評価の成績は、本番より少し良く出る。** 評価の1番人気は確定単勝人気で選ぶためである。本番では締め切り前の人気で選ぶので、選ぶ馬が少し違う（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 6）。オッズは距離に使わない（オッズなしで予想する）。
 - **2025年は、完全な未知のデータではない。** 消しの線（5点）は、2025年の評価の結果を見て決めた（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 9）。
 
 ## 2. 出す表

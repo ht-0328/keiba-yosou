@@ -41,8 +41,8 @@ F = 1.0   # この条件での経験
 G = 1.0   # 同じレースの馬との比較
 H = 1.0   # 血統
 I = 1.0   # 調教
-J = 1.0   # 人気の履歴
-K = 1.0   # 単勝オッズから見た評価
+J = 1.0   # 人気の履歴（前走の人気と着順の差など。過去のレースの人気なので、今回のオッズではない）
+K = 0.0   # 単勝オッズから見た評価。オッズなしで予想するため使わない（1 にすると、今回の単勝オッズも近さに入る）
 
 [similarity]
 # 近さを測るときに見る、そのグループの中で似ている馬の頭数（k近傍法の k）。
@@ -87,15 +87,15 @@ last_year = 2026
 fade_margin = 10.0
 
 [features.group_weights]
-K = 3.0
+K = 1.0
 ```
 
 ```powershell
-uv run python -m yosou.favorite_buy_or_fade evaluate --config reports/favorite_buy_or_fade/settings/strict-fade.toml --out reports/favorite_buy_or_fade/evaluation-strict-fade.md
-uv run python -m yosou.favorite_buy_or_fade train --config reports/favorite_buy_or_fade/settings/strict-fade.toml
+uv run python -m yosou.favorite_buy_or_fade evaluate --config reports/favorite_buy_or_fade/settings/with-odds.toml --out reports/favorite_buy_or_fade/evaluation-with-odds.md
+uv run python -m yosou.favorite_buy_or_fade train --config reports/favorite_buy_or_fade/settings/with-odds.toml
 ```
 
-（1行目は、消しの線を 10点、市場の評価の重みを 3 にした方針で、1年ごとの評価をやり直すコマンド。2行目は、同じ方針で本番用のモデルを作り直すコマンド）
+（1行目は、消しの線を 10点にし、単勝オッズから見た評価（K）も近さに使う方針で、1年ごとの評価をやり直すコマンド。2行目は、同じ方針で本番用のモデルを作り直すコマンド。初期値はオッズなしで予想する（K = 0.0）ので、オッズも使うときは、このように K = 1.0 などにする）
 
 ## 決まり
 

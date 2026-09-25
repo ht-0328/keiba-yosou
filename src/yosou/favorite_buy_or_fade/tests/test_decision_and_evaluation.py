@@ -32,6 +32,8 @@ def test_decision_compares_the_scores():
 def test_default_settings_load_and_overrides_apply(tmp_path: Path):
     defaults = BuyOrFadeSettings.load()
     assert defaults.timing is PredictionTiming.RACE_DAY and defaults.k == 10 and defaults.fade_margin == 5.0
+    # オッズなしで予想する（単勝オッズから見た評価 K は使わない。前走の人気などの人気の履歴 J は使う）
+    assert defaults.group_weights["K"] == 0.0 and defaults.group_weights["J"] == 1.0
     override = tmp_path / "mine.toml"
     override.write_text('[similarity]\nk = 20\n[features]\ntiming = "前日"\n', encoding="utf-8")
     mine = BuyOrFadeSettings.load(override)
