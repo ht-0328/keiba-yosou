@@ -7,7 +7,7 @@ import pandas as pd
 
 from 共通 import facts
 
-from .race_day_range import RaceDayRange
+from yosou.shared.repository import RaceDayRange
 
 #: 出力の列（事実表の列名のまま）。
 RACE_COLUMNS: tuple[str, ...] = (

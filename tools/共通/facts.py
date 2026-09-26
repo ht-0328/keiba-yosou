@@ -88,11 +88,20 @@ FACT_COLUMNS: dict[str, str] = {
     "same_race_places_before": "同じ競走名のレースでの3着内の数（同上）",
     "style_before": "推定脚質（今回より前の直近3走の脚質の中央。過去走が無ければ NULL）",
     "lead_candidates": "そのレースで推定脚質が逃げの馬の数",
+    "corner1": "1コーナーでの順位", "corner2": "2コーナーでの順位", "corner3": "3コーナーでの順位",
+    "first_corner_no": "通過順位が記録された最初のコーナーの番号（1〜4。直線コースなど記録が無ければ NULL）",
+    "corner_count": "通過順位が記録されたコーナーの数（1〜4）",
+    "corner_laps_over_one": "記録されたコーナーに2周目以降があるか（コーナーを5回以上通るレース。最初のコーナーが記録から抜ける）",
+    "first_corner_rank": "最初のコーナーでの順位（記録されたコーナーに2周目以降があるレースは NULL）",
+    "first_corner_leader_no": "最初のコーナーで先頭だった馬の馬番（通過順位の文字列と、1頭ごとの順位の両方で1頭に決まるときだけ）",
+    "first3f": "レースの前3ハロン（秒。距離が 200m で割り切れなければ、余りの距離 + 400m のタイム）",
+    "last3f_race": "レースの後3ハロン（秒）",
+    "last3f_count": "そのレースで上がり3ハロンのある出走馬の数",
 }
 #: 途中の計算にだけ使い、事実表には残さない列。
 _HELPER_COLUMNS = (
     "cond_code", "style_code", "prev_class_order", "prev_jockey_code",
-    "area_code", "has_blinker", "is_apprentice", "style_no", "weight_type_code",
+    "area_code", "has_blinker", "is_apprentice", "style_no", "weight_type_code", "leader_text_no",
 )
 #: 推定脚質に使う近走の数。3走の中央を取る（2走なら前寄り、1走ならその脚質）。
 STYLE_BEFORE_RUNS = 3
@@ -111,6 +120,9 @@ _TM_COLUMNS = (*keys.RACE_KEY, "馬番", "予測スコア")
 _SIRE_SEQ, _GRANDSIRE_SEQ, _DAMSIRE_SEQ = 1, 3, 5
 #: 4コーナーの列名。
 _CORNER4 = "4コーナーでの順位"
+#: コーナー通過順位の子の表と、その列。無い DB（取得前・合成DB）では空の関係で代替する。
+_CORNER_TABLE = "ra__コーナー通過順位"
+_CORNER_COLUMNS = (*keys.RACE_KEY, "_連番", "コーナー", "周回数", "各通過順位")
 
 
 def has_table(con: duckdb.DuckDBPyConnection, table: str) -> bool:
@@ -191,6 +203,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
     place_table = optional_relation(con, "hr__複勝払戻", _PAYOUT_COLUMNS)
     pedigree_table = optional_relation(con, "um__3代血統情報", _PEDIGREE_COLUMNS)
     tm_table = optional_relation(con, "tm__マイニング予想", _TM_COLUMNS)
+    corner_table = optional_relation(con, _CORNER_TABLE, _CORNER_COLUMNS)
     sex_order = {name: index for index, name in enumerate(codes.SEX_NAMES.values())}
     style_order = {code: index for index, code in enumerate(codes.STYLE_NAMES)}
     return f"""
@@ -203,7 +216,9 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                "芝馬場状態コード" AS turf_cond, "ダート馬場状態コード" AS dirt_cond,
                "競走条件コード 最若年条件" AS cond_code, trim("グレードコード") AS grade_code,
                "重量種別コード" AS weight_type_code,
-               coalesce(TRY_CAST(NULLIF("出走頭数", '00') AS INTEGER), TRY_CAST(NULLIF("登録頭数", '00') AS INTEGER)) AS field_size
+               coalesce(TRY_CAST(NULLIF("出走頭数", '00') AS INTEGER), TRY_CAST(NULLIF("登録頭数", '00') AS INTEGER)) AS field_size,
+               TRY_CAST(NULLIF("前3ハロン", '000') AS INTEGER) / 10.0 AS first3f,
+               TRY_CAST(NULLIF("後3ハロン", '000') AS INTEGER) / 10.0 AS last3f_race
         FROM ra
         WHERE {race_rows}
         {keys.latest_qualify(keys.RACE_KEY)}
@@ -223,6 +238,9 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                     ELSE TRY_CAST(NULLIF("確定着順", '00') AS INTEGER) END AS finish,
                TRY_CAST(NULLIF("走破タイム", '0000') AS INTEGER) AS time_raw,
                "タイム差" AS diff_raw,
+               TRY_CAST(NULLIF("1コーナーでの順位", '00') AS INTEGER) AS corner1,
+               TRY_CAST(NULLIF("2コーナーでの順位", '00') AS INTEGER) AS corner2,
+               TRY_CAST(NULLIF("3コーナーでの順位", '00') AS INTEGER) AS corner3,
                TRY_CAST(NULLIF({keys.q(_CORNER4)}, '00') AS INTEGER) AS corner4,
                TRY_CAST(NULLIF("単勝人気順", '00') AS INTEGER) AS popularity,
                TRY_CAST(NULLIF("単勝オッズ", '0000') AS INTEGER) / 10.0 AS win_odds,
@@ -234,6 +252,25 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
         FROM se
         WHERE {runner_rows}
         {keys.latest_qualify((*keys.RACE_KEY, keys.HORSE_KEY))}
+    ), corner_rows AS (
+        -- 通過順位は通った順に記録される（_連番の小さい行が最初のコーナー）
+        SELECT {rid} AS race_id, TRY_CAST("_連番" AS INTEGER) AS seq, TRY_CAST("コーナー" AS INTEGER) AS corner_no,
+               TRY_CAST("周回数" AS INTEGER) AS lap, trim("各通過順位") AS passing
+        FROM {corner_table}
+        WHERE trim("各通過順位") <> ''
+    ), first_corner AS (
+        SELECT race_id, arg_min(corner_no, seq) AS first_corner_no, arg_min(passing, seq) AS first_passing,
+               CAST(count(DISTINCT seq) AS INTEGER) AS corner_count, coalesce(max(lap), 1) > 1 AS corner_laps_over_one
+        FROM corner_rows GROUP BY race_id
+    ), leader_text AS (
+        -- 文字列の先頭の馬番。集団 ( ) で始まるときは、集団の中の先頭の印 * の馬番。* が無ければ決まらない
+        SELECT race_id, first_corner_no, corner_count, corner_laps_over_one,
+               CASE WHEN regexp_matches(first_passing, '^[0-9]')
+                    THEN TRY_CAST(regexp_extract(first_passing, '^([0-9]+)', 1) AS INTEGER)
+                    WHEN starts_with(first_passing, '(')
+                    THEN TRY_CAST(NULLIF(regexp_extract(regexp_extract(first_passing, '^[(]([^)]*)[)]', 1), '[*]([0-9]+)', 1), '') AS INTEGER)
+               END AS leader_text_no
+        FROM first_corner
     ), win_payout AS (
         SELECT {rid} AS race_id, TRY_CAST("馬番" AS INTEGER) AS horse_no,
                max(TRY_CAST("払戻金" AS BIGINT)) AS win_payout
@@ -266,7 +303,12 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                {codes.sql_case("r.track_code", codes.TRACK_NAMES, "?")} AS course,
                r.distance_m,
                {_condition_code_sql(entry)} AS condition_code,
-               r.cond_code, r.grade_code, r.weight_type_code, r.field_size,
+               r.cond_code, r.grade_code, r.weight_type_code, r.field_size, r.first3f, r.last3f_race,
+               lt.first_corner_no, lt.corner_count, coalesce(lt.corner_laps_over_one, FALSE) AS corner_laps_over_one,
+               lt.leader_text_no,
+               CASE WHEN coalesce(lt.corner_laps_over_one, FALSE) THEN NULL
+                    WHEN lt.first_corner_no = 1 THEN s.corner1 WHEN lt.first_corner_no = 2 THEN s.corner2
+                    WHEN lt.first_corner_no = 3 THEN s.corner3 WHEN lt.first_corner_no = 4 THEN s.corner4 END AS first_corner_rank,
                s.frame_no, s.horse_no, s.horse_id, s.horse_name,
                {codes.sql_case("s.sex_code", codes.SEX_NAMES, "?")} AS sex,
                s.age, s.jockey_code, s.jockey, s.trainer_code, s.trainer, s.carried, s.body_weight,
@@ -281,7 +323,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                     ELSE (s.time_raw // 1000) * 60 + (s.time_raw % 1000) / 10.0 END AS finish_time,
                CASE WHEN s.diff_raw IS NULL OR trim(s.diff_raw) = '' OR s.diff_raw = '9999' THEN NULL
                     ELSE TRY_CAST(s.diff_raw AS INTEGER) / 10.0 END AS time_diff,
-               s.corner4, s.last3f,
+               s.corner1, s.corner2, s.corner3, s.corner4, s.last3f,
                {codes.sql_case("s.style_code", codes.STYLE_NAMES, "不明")} AS style,
                s.style_code,
                p.sire, p.grandsire, p.damsire,
@@ -291,6 +333,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                s.area_code, s.has_blinker, s.is_apprentice
         FROM runner s
         JOIN race r USING (race_id)
+        LEFT JOIN leader_text lt ON lt.race_id = s.race_id
         LEFT JOIN pedigree p USING (horse_id)
         LEFT JOIN win_payout w ON w.race_id = s.race_id AND w.horse_no = s.horse_no
         LEFT JOIN place_payout pl ON pl.race_id = s.race_id AND pl.horse_no = s.horse_no
@@ -341,6 +384,11 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                min(CASE WHEN ran THEN age END) OVER race <> max(CASE WHEN ran THEN age END) OVER race AS mixed_age,
                max(CASE WHEN finish = 1 THEN style END) OVER race AS winner_style,
                max(horse_no) OVER race AS max_horse_no,
+               CAST(count(CASE WHEN ran AND last3f IS NOT NULL THEN 1 END) OVER race AS INTEGER) AS last3f_count,
+               -- 先頭の馬番は、文字列の先頭と、1頭ごとの順位 1 の馬（1頭だけ）が一致するときだけ決める
+               CASE WHEN sum(CASE WHEN ran AND first_corner_rank = 1 THEN 1 ELSE 0 END) OVER race = 1
+                     AND max(CASE WHEN ran AND first_corner_rank = 1 THEN horse_no END) OVER race = leader_text_no
+                    THEN leader_text_no END AS first_corner_leader_no,
                coalesce(sum(CASE WHEN finish <= 3 THEN 1 ELSE 0 END) OVER course_before, 0) AS course_places_before
         FROM typed
         WINDOW horse AS (PARTITION BY horse_id ORDER BY race_date, race_id),

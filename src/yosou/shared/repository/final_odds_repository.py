@@ -7,7 +7,7 @@ import pandas as pd
 
 from 共通 import facts, keys
 
-from ..ticket import TicketType
+from ..betting import TicketType
 from .race_day_range import RaceDayRange
 
 #: 確定オッズのデータ区分（4 確定・5 確定(月曜)）。締め切り前（1〜3）と中止（9）は読まない。

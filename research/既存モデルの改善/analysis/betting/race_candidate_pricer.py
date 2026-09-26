@@ -10,7 +10,7 @@ import pandas as pd
 from yosou.shared.dataset import HORSE_NO, RACE_ID
 from yosou.shared.place_value import PlacePriceEstimator
 
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
 
 from ..combined.horse_columns import WIN_PROBABILITY
 from ..market import CombinationTable

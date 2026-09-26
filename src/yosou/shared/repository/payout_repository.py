@@ -7,7 +7,7 @@ import pandas as pd
 
 from 共通 import facts, keys
 
-from ..ticket import TicketType
+from ..betting import TicketType
 from .race_day_range import RaceDayRange
 
 #: 出力の列。
@@ -18,7 +18,7 @@ class PayoutRepository:
     """1つの券種の払戻の明細を、期間の全レースぶん 1組番1行で読む（``hr__<券種>払戻``）。
 
     複勝（2〜3行）・ワイド（3行）は複数行が正常で、ほかの券種の複数行は同着。どれも行のまま返し、まとめない
-    （買い目との照合は ``settlement/`` の ``PayoutBook``）。空き繰り返しの行（払戻金 0）は落とす。
+    （買い目との照合は、使う側の精算のクラス）。空き繰り返しの行（払戻金 0）は落とす。
     列は ``race_id``・``combo``（馬番か組番。2桁ずつ）・``yen``（100円あたりの円）・``popularity``（その組み合わせの人気順）・``seq``（連番）。
     """
 

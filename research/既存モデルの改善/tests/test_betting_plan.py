@@ -9,7 +9,7 @@ import pytest
 from yosou.shared.dataset import HORSE_NO, RACE_DATE, RACE_ID
 from yosou.shared.dataset.column_names import POPULARITY
 
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
 
 from 既存モデルの改善.analysis.betting import (
     BettingPlan, BettingPlanChooser, ProbabilityCalibrator, RaceCandidatePricer, RaceSelector, StakeAllocator, TicketSetBuilder,

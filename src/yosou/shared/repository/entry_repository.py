@@ -28,6 +28,9 @@ _COLUMNS: tuple[str, ...] = (
     "sire", "grandsire", "damsire",
     # 結果（特徴量にしない。行を選ぶ・目的変数・評価用の列に使う）
     "ran", "abnormal", "finish", "popularity", "win_odds", "win_payout", "place_payout",
+    # 展開の結果（特徴量にしない。展開から着順を予想する予想の目的変数と評価用の列に使う）
+    "track_code", "first_corner_no", "corner_count", "corner_laps_over_one", "first_corner_rank",
+    "first_corner_leader_no", "corner4", "last3f", "last3f_rank", "last3f_count", "first3f", "last3f_race",
 )
 
 

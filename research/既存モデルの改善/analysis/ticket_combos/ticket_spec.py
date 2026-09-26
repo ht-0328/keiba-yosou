@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
 
 from .combo_groups import POPULAR_POPULAR
 from .pair_combos import PairCombos

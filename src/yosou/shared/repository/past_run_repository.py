@@ -15,6 +15,7 @@ class PastRunRepository:
 
     読むのは、対象のいちばん遅い開催日より前の走。どの走を使うかは、特徴量を作る側が出走ごとの開催日で決める。
     単勝人気は、近走の人気を特徴量にする予想（人気馬が4着以下になるかの予想）のために読む。
+    最初のコーナーの順位・上がり3ハロン・レースの後3ハロンなどは、展開から着順を予想する予想が、序盤と末脚の履歴を作るために読む。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
@@ -24,7 +25,10 @@ class PastRunRepository:
         """馬・開催日の古い順に並べる。"""
         sql = f"""
         SELECT horse_id, CAST(race_date AS DATE) AS race_date, race_id,
-               finish, time_diff, last3f_rank, corner4, field_size, popularity
+               finish, time_diff, last3f_rank, corner4, field_size, popularity,
+               horse_no, venue_code, track_code, surface, distance_m,
+               first_corner_no, corner_laps_over_one, first_corner_rank,
+               last3f, last3f_count, last3f_race
         FROM {facts.FACTS_TABLE}
         WHERE ran
           AND horse_id IN (SELECT horse_id FROM {scope.relation})

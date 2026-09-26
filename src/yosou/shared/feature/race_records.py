@@ -16,12 +16,13 @@ class RaceRecords:
     - ``records``: 1頭ごとの記録。``records.entries`` は、対象のレースの出走馬の行（1行 = 1頭）。
     - ``horse_features``: ``records.entries`` の行ごとの、1頭ごとの特徴量（共通の ``FeatureBuilder`` の出力。
       index は ``records.entries`` と同じ）。レース単位のまとまりは、これを集約して作る。
-    - ``payouts``: レースごとの払戻（1行 = 1レース。対象のレースと、その前の1年のレース）。過去の荒れ率の材料。
+    - ``race_results``: レースごとの結果（1行 = 1レース。対象のレースと、その前のレース）。荒れ具合の予想では払戻
+      （過去の荒れ率の材料）、展開から着順を予想する予想では前半・後半タイムとその基準。
     """
 
     records: EntryRecords
     horse_features: pd.DataFrame
-    payouts: pd.DataFrame
+    race_results: pd.DataFrame
 
     @property
     def entries(self) -> pd.DataFrame:

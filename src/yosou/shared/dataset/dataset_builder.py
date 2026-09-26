@@ -34,9 +34,11 @@ _EVALUATION_COLUMNS = EntryColumns({
 })
 #: 予想ごとに足す列が無いときの、空の列の選び方。
 _NO_EXTRA_COLUMNS = EntryColumns({})
-#: 予測用データの ``market`` の列（複勝の期待値を見積もる材料。予測するときの複勝オッズと頭数）。
+#: 予測用データの ``market`` の列（複勝の期待値を見積もる材料。予測するときの複勝オッズと頭数。
+#: 単勝オッズは、展開の予想が単勝の期待値（印の☆）を出すのに使う）。
 _PREDICTION_INFO_COLUMNS = EntryColumns({
     names.PLACE_ODDS_LOW: "place_odds_low", names.PLACE_ODDS_HIGH: "place_odds_high", names.FIELD_SIZE: "field_size",
+    names.WIN_ODDS: "win_odds",
 })
 
 

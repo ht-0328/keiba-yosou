@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
 
 from ..race_probability import FinishOrderProbability
 

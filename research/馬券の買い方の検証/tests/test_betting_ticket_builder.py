@@ -2,6 +2,8 @@
 
 import pytest
 
+from yosou.shared.betting import TicketType
+
 from 馬券の買い方の検証.analysis.ticket import (
     SKIP_LOW_ODDS,
     SKIP_NO_CANDIDATES,
@@ -13,7 +15,6 @@ from 馬券の買い方の検証.analysis.ticket import (
     Breadth,
     DangerousFavoriteFilter,
     TicketBuilder,
-    TicketType,
     plan_named,
 )
 

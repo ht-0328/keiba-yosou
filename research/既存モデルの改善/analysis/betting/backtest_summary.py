@@ -10,7 +10,7 @@ from 共通.render import Table
 from yosou.shared.dataset import HORSE_NO, RACE_DATE, RACE_ID
 from yosou.shared.dataset.column_names import PLACE_PAYOUT, POPULARITY, WIN_PAYOUT
 
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
 
 from ..comparison.table_formatter import TableFormatter
 from ..scores import BootstrapInterval

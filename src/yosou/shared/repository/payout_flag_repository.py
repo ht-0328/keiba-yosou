@@ -7,7 +7,7 @@ import pandas as pd
 
 from 共通 import facts, keys
 
-from ..ticket import TicketType
+from ..betting import TicketType
 from .race_day_range import RaceDayRange
 
 #: 払戻の親の表と、そのデータ区分（1 速報成績（払戻確定）・2 成績（月曜））。オッズの 4・5 とは別の意味。
@@ -30,7 +30,7 @@ def void_column(ticket_type: TicketType) -> str:
 class PayoutFlagRepository:
     """払戻の親（``hr``）から、7券種の不成立・特払と、返還の有無を、期間の全レースぶん 1レース1行で読む。
 
-    不成立・特払の券種はそのレースで賭けない（見送り）。返還はレースが成立して払戻もあるので、数を報告するだけ
+    不成立・特払の券種は、そのレースで賭けない（見送り。使う側の精算のクラスが落とす）。返還はレースが成立して払戻もあるので、数を報告するだけ
     （荒れ具合の設計書 10 と同じ扱い）。
     """
 

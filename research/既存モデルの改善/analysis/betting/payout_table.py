@@ -7,9 +7,9 @@ from datetime import date
 import duckdb
 import pandas as pd
 
-from 馬券の買い方の検証.analysis.repository import PayoutRepository, RaceDayRange
-from 馬券の買い方の検証.analysis.repository.payout_repository import COMBO, YEN
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import PayoutRepository, RaceDayRange
+from yosou.shared.repository.payout_repository import COMBO, YEN
 
 from .candidate_columns import RACE, TICKET
 from .candidate_columns import COMBO as COMBO_COLUMN

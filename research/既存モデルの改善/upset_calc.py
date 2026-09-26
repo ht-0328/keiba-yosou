@@ -24,7 +24,7 @@ from 共通.render import Table  # noqa: E402
 
 from yosou.upset_level.dataset import BetType, UpsetLevelRule  # noqa: E402
 
-from 馬券の買い方の検証.analysis.ticket import TicketType  # noqa: E402
+from yosou.shared.betting import TicketType  # noqa: E402
 
 from 既存モデルの改善.analysis.combined import HorseTableBuilder, RaceProbabilityBuilder, StrengthFeatures  # noqa: E402
 from 既存モデルの改善.analysis.combined.strength_features import SHIFT_COLUMNS  # noqa: E402
