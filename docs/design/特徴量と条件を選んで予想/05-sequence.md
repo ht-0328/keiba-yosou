@@ -76,10 +76,7 @@ sequenceDiagram
     participant X as ExtraDataLoader
     participant B as SelectedFeatureBuilder
     participant E as EnsembleModel
-    U->>JS: jvstore sync・realtime（出馬表・馬場・馬体重・単複オッズ）
-    opt 券種オッズの特徴量を選んだモデルのとき
-        U->>JS: jvstore rt --dataspec 0B30（レースごとの全券種オッズ）
-    end
+    U->>JS: jvstore sync・realtime（出馬表・馬場・馬体重・全券種のオッズ）
     JS->>DB: 書き込む
     U->>W: predict（レースID、モデルのフォルダ、--pops、--odds）
     W->>MS: load（登録）
@@ -104,7 +101,8 @@ sequenceDiagram
     D-->>W: 予測用データ（1行 = 対象の馬1頭）
     W->>E: predict_proba（予測用データ）
     E-->>W: 2つのモデルの確率の平均
-    W-->>U: 対象の馬ごとの確率（高い順）。対象がいなければ「対象なし」
+    W->>W: 今のオッズと想定払戻倍率から期待値を出す（16-evaluation.md）
+    W-->>U: 対象の馬ごとの確率と期待値（確率の高い順）。対象がいなければ「対象なし」
 ```
 
 **説明。** 予測は、保存した `model.json` の設定だけを使う。学習のあとに設定ファイルや特徴量テキストを書き換えても、予測は変わらない。登録された特徴量の型・時点・依存項目が、保存したときと違えば、学習し直すよう案内して止める。
@@ -121,9 +119,9 @@ sequenceDiagram
 
 | 図の中の部分 | 今の状態 |
 |---|---|
-| 締め切り前の券種オッズ | jvdata-store の `jvstore realtime` には入っていない。`jvstore rt --dataspec 0B30 --key <レースID>` でレースごとに取る。まとめて取る仕組みは jvdata-store 側で作る |
+| 締め切り前の券種オッズ | 作った。jvdata-store の `jvstore realtime`（`realtime_today.bat`）が、レースごとに全賭式のオッズ（`0B30`）を取る |
 | 流れを進めるクラス | 今は `workflow.py` の関数。クラスにするかは [04-classes.md](04-classes.md#4-手本の決まりと違うところ) を参照 |
-| 買い目を決めて出す | 作らない。予測は確率を出すだけで、買い方の評価は学習と評価の結果に出す（[15-decisions.md](15-decisions.md#8-回収率を評価に入れるか)） |
+| 買い目を決めて出す | 予測は確率と期待値を出すところまで。当日のレースをまとめて予想して「買い」（複勝・期待値の線以上）を出すのは、道具 `tools/当日の予想/`（[15-decisions.md](15-decisions.md#8-回収率を評価に入れるか)） |
 
 ## 文書情報
 

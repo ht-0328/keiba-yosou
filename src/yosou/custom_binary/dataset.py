@@ -28,6 +28,10 @@ EVALUATION = EntryColumns({
     columns.FIELD_SIZE: "field_size",
 })
 USED_POPULARITY = "使用した人気"
+#: 予測のときの期待値の材料（その時点のオッズと頭数）。モデルには渡さない。
+MARKET = EntryColumns({"単勝オッズ": "win_odds", "複勝オッズ（最低）": "place_odds_low"})
+MARKET_FIELD_SIZE = "出走頭数"
+MARKET_WHOLE_FIELD = "全頭が対象"
 
 # 過去走の欠損と、今回の未発表情報は区別する。依存項目にも同じ確認を適用する。
 ANNOUNCED_COLUMNS = {
@@ -110,6 +114,8 @@ class CustomDataset:
             frame = self.builder.build(records.with_entries(rows))
             kept = kept[self.settings.conditions.mask(frame.loc[kept.index])]
         ids = IDS.select(kept).assign(**{USED_POPULARITY: kept["popularity"]})
+        # 3着以内の確率を頭数にそろえ直せるのは、同じレースの全頭が対象のときだけ。
+        market = MARKET.select(kept).assign(**{MARKET_FIELD_SIZE: len(rows), MARKET_WHOLE_FIELD: len(kept) == len(rows)})
         baseline = None
         if kept.empty:
             features = pd.DataFrame(index=kept.index, columns=list(self.settings.selected))
@@ -117,7 +123,7 @@ class CustomDataset:
             features = frame.loc[kept.index, list(self.settings.selected)]
             if self.settings.odds_baseline:
                 baseline = OddsBaseline(self.settings.target).build(rows).at(kept.index)
-        return PredictionData(ids, features, self.settings.timing, self.builder.catalog, baseline)
+        return PredictionData(ids, features, self.settings.timing, self.builder.catalog, baseline, market)
 
     def _check_announced(self, rows: pd.DataFrame) -> None:
         for source in self.builder.sources:
