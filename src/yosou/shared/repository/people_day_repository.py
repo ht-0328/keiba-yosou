@@ -13,6 +13,9 @@ from .target_scope import TargetScope
 class PeopleDayRepository:
     """対象の出走に関わる騎手（か調教師）ごと、開催日ごとの、出走数と3着以内の数を読む。
 
+    展開から着順を予想する予想のために、最初のコーナーの記録がある出走の数（``early_starts``）と、そのうち
+    先頭だった数（``early_leads``）・先団（前から3分の1まで）だった数（``early_fronts``）も読む。
+
     期間は、対象のいちばん早い開催日の ``window_days`` 日前から、いちばん遅い開催日の前日まで。
     """
 
@@ -38,7 +41,11 @@ class PeopleDayRepository:
         sql = f"""
         SELECT {code} AS person_code, CAST(race_date AS DATE) AS race_date,
                CAST(count(*) AS INTEGER) AS starts,
-               CAST(sum(CASE WHEN finish <= 3 THEN 1 ELSE 0 END) AS INTEGER) AS places
+               CAST(sum(CASE WHEN finish <= 3 THEN 1 ELSE 0 END) AS INTEGER) AS places,
+               CAST(sum(CASE WHEN first_corner_rank IS NOT NULL AND field_size > 1 THEN 1 ELSE 0 END) AS INTEGER) AS early_starts,
+               CAST(sum(CASE WHEN first_corner_rank = 1 AND field_size > 1 THEN 1 ELSE 0 END) AS INTEGER) AS early_leads,
+               CAST(sum(CASE WHEN field_size > 1 AND (first_corner_rank - 1) / (field_size - 1) <= 1 / 3
+                             THEN 1 ELSE 0 END) AS INTEGER) AS early_fronts
         FROM {facts.FACTS_TABLE}
         WHERE ran
           AND {code} IN (SELECT {code} FROM {scope.relation})

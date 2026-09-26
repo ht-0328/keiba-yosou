@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from yosou.shared.betting import TicketType
+
 from ..column_names import LONGSHOT_PROB
 from .breadth import Breadth
 from .column_rule import ColumnRule
@@ -19,7 +21,6 @@ from .picker import (
     PopularityPicker,
 )
 from .ticket_plan import TicketPlan
-from .ticket_type import TicketType
 
 #: 低配当目を削る線（ルール集 SRF-04・SRT-05）。
 TRIO_ODDS_FLOOR = 100.0

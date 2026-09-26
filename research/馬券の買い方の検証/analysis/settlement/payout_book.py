@@ -6,9 +6,11 @@ from collections.abc import Mapping
 
 import pandas as pd
 
-from ..repository import REFUNDED, void_column
-from ..repository.payout_repository import COMBO, YEN
-from ..ticket import Ticket, TicketType
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import REFUNDED, void_column
+from yosou.shared.repository.payout_repository import COMBO, YEN
+
+from ..ticket import Ticket
 
 _RACE_ID = "race_id"
 

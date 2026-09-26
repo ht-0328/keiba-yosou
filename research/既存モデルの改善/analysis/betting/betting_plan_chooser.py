@@ -10,7 +10,7 @@ import pandas as pd
 
 from yosou.shared.dataset import RACE_DATE
 
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
 
 from ..scores.conservative_rate import ConservativeRate
 from .betting_plan import BettingPlan

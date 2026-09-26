@@ -7,9 +7,9 @@ from datetime import date
 import duckdb
 import pandas as pd
 
-from 馬券の買い方の検証.analysis.repository import FinalOddsRepository, RaceDayRange
-from 馬券の買い方の検証.analysis.repository.final_odds_repository import COMBO, ODDS, ODDS_HIGH
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import FinalOddsRepository, RaceDayRange
+from yosou.shared.repository.final_odds_repository import COMBO, ODDS, ODDS_HIGH
 
 from .combination_table import CombinationTable
 

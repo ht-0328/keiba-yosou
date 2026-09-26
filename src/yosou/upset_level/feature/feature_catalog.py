@@ -7,13 +7,13 @@
 from __future__ import annotations
 
 from yosou.shared.feature import BASE_FEATURES, MARKET_FEATURES, Feature, FeatureCatalog, FeatureKind, PredictionTiming
+from yosou.shared.feature import race_condition_summary as a
 
 from . import (
     condition_upset_rate_features as e,
     favorite_risk_features as d,
     field_strength_spread_features as c,
     odds_shape_features as b,
-    race_condition_summary as a,
 )
 
 _N = FeatureKind.NUMERIC

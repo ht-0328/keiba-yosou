@@ -17,6 +17,7 @@
 | ``TargetBaseline`` | 目的変数の基準（ロジット）の作り方の決まり（インターフェース）。渡すと、モデルは基準からの上げ下げを学ぶ |
 | ``BaselineLogit`` | 目的変数の基準（ロジット）の値と、それが分かる最初の時点 |
 | ``Top3Baseline`` | 3着以内の基準 = オッズから見た3着以内率（Harville の式）。近走と適性の予想と穴馬の予想が使う |
+| ``RaceResultSource`` | レースごとの結果の読み方の決まり（インターフェース）。荒れ具合は払戻、展開は前半・後半タイムと基準 |
 | ``RaceTargetLabeler`` | 目的変数の付け方の決まり（インターフェース。レース単位。列は複数でよい） |
 | ``Top3TargetBuilder`` | 目的変数「3着以内なら 1」（「1着」「複勝的中」の列も付ける）。近走と適性の予想と穴馬の予想が使う |
 | ``RaceResultSummary`` | 出走の行から、レースごとの結果（勝ち馬の人気・1番人気の着順とオッズ など）をまとめる。評価用の列 |
@@ -63,6 +64,7 @@ from .popularity_input import PopularityInput
 from .prediction_data import PredictionData
 from .race_dataset_builder import RaceDatasetBuilder
 from .race_records_loader import RaceRecordsLoader
+from .race_result_source import RaceResultSource
 from .race_result_summary import RaceResultSummary
 from .race_target_labeler import RaceTargetLabeler
 from .required_info_check import RequiredInfoCheck
@@ -84,7 +86,7 @@ __all__ = [
     "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData",
     "TrainingPeriod", "PeriodSplitter", "SplitData",
     "HistoryRecordsLoader", "RaceRecordsLoader", "SampleSelector", "TargetLabeler", "RaceTargetLabeler",
-    "Top3TargetBuilder", "TOP3", "WIN", "PLACE_HIT", "RaceResultSummary",
+    "Top3TargetBuilder", "TOP3", "WIN", "PLACE_HIT", "RaceResultSummary", "RaceResultSource",
     "TargetBaseline", "BaselineLogit", "Top3Baseline",
     "PopularityInput", "PopularityApplier", "OddsInput", "OddsResolver",
     "RequiredInfoCheck", "FieldOddsCheck", "FlatRunnerFilter", "JUMP", "LARGE_FIELD_FROM",

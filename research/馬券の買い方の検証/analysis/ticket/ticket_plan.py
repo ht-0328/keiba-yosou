@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from yosou.shared.betting import TicketType
+
 from .breadth import Breadth
 from .column_rule import ColumnRule
-from .ticket_type import TicketType
 
 
 @dataclass(frozen=True)

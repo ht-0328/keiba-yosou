@@ -30,10 +30,11 @@ from yosou.shared.dataset import RACE_DATE  # noqa: E402
 from yosou.shared.dataset.column_names import PLACE_ODDS_LOW, PLACE_PAYOUT  # noqa: E402
 from yosou.shared.place_value import PlacePriceEstimator  # noqa: E402
 
-from 馬券の買い方の検証.analysis.ticket import TicketType  # noqa: E402
+from yosou.shared.betting import TicketType  # noqa: E402
 
 from 馬券の買い方の検証.analysis.race_material.race_table_builder import GRADED_CODES  # noqa: E402
-from 馬券の買い方の検証.analysis.repository import RaceDayRange, RaceFactRepository  # noqa: E402
+from yosou.shared.repository import RaceDayRange  # noqa: E402
+from 馬券の買い方の検証.analysis.repository import RaceFactRepository  # noqa: E402
 
 from 既存モデルの改善.analysis.betting import (  # noqa: E402
     BacktestSummary,

@@ -13,6 +13,7 @@ from ..repository import (
     PedigreeDayRepository,
     PeopleDayRepository,
     PlaceOddsRepository,
+    RaceEarlyRecordRepository,
     TargetScope,
     WorkoutCoverageRepository,
     WorkoutRepository,
@@ -25,9 +26,14 @@ _PLACE_ODDS_KEY = ["race_id", "horse_no"]
 
 
 class EntryRecordsLoader:
-    """リポジトリを順に呼んで、対象の出走の記録（``EntryRecords``）を集める。SQL は持たない。"""
+    """リポジトリを順に呼んで、対象の出走の記録（``EntryRecords``）を集める。SQL は持たない。
 
-    def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
+    ``race_history`` は、レースごとの序盤と後半の記録を読むリポジトリ（展開から着順を予想する予想だけが渡す。
+    展開の設計書 04 の 2）。渡さなければ呼ばず、``EntryRecords.race_history`` は空の表になる（ほかの予想は SQL が増えない）。
+    """
+
+    def __init__(self, con: duckdb.DuckDBPyConnection,
+                 race_history: RaceEarlyRecordRepository | None = None) -> None:
         self._entries = EntryRepository(con)
         self._place_odds = PlaceOddsRepository(con)
         self._career_counts = CareerCountRepository(con)
@@ -38,6 +44,7 @@ class EntryRecordsLoader:
         self._trainer_days = PeopleDayRepository.for_trainers(con, PEOPLE_WINDOW_DAYS)
         self._sire_days = PedigreeDayRepository.for_sires(con, PEOPLE_WINDOW_DAYS)
         self._damsire_days = PedigreeDayRepository.for_damsires(con, PEOPLE_WINDOW_DAYS)
+        self._race_history = race_history
 
     def load(self, scope: TargetScope) -> EntryRecords:
         """``scope`` の出走の記録。"""
@@ -53,6 +60,7 @@ class EntryRecordsLoader:
             trainer_days=self._trainer_days.read(scope),
             sire_days=self._sire_days.read(scope),
             damsire_days=self._damsire_days.read(scope),
+            race_history=self._race_history.read(scope) if self._race_history is not None else pd.DataFrame(),
         )
 
     def _with_career_counts(self, entries: pd.DataFrame, career_counts: pd.DataFrame) -> pd.DataFrame:

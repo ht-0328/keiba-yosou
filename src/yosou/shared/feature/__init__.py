@@ -6,6 +6,8 @@
 | ``Feature``・``FeatureKind`` | 一覧の1行と、その型 |
 | ``FeatureGroup`` | まとまりのクラスに共通の決まり（インターフェース。1頭ごと） |
 | ``RaceFeatureGroup`` | レース単位のまとまりのクラスに共通の決まり（インターフェース） |
+| ``FieldFeatureGroup`` | 同じレースの馬どうしで比べるまとまり（G など）のクラスに共通の決まり（インターフェース） |
+| ``RaceConditionSummary`` | レース単位のまとまり「レースの条件」（11個）。荒れ具合の予想と展開の予想が使う |
 | ``PredictionTiming`` | 予測する時点（木曜・前日・当日）と、その時点で分からない特徴量 |
 | ``EntryRecords`` | 特徴量を作る元の記録の入れ物（1頭ごと） |
 | ``RaceRecords`` | レース単位の特徴量を作る元の記録の入れ物（1頭ごとの特徴量と払戻を含む） |
@@ -26,10 +28,12 @@ from .feature import Feature
 from .feature_builder import FeatureBuilder
 from .feature_catalog import BASE_FEATURES, MARKET_FEATURES, ODDS_FEATURES, POPULARITY_FEATURES, FeatureCatalog
 from .feature_group import FeatureGroup
+from .field_feature_group import FieldFeatureGroup
 from .feature_kind import FeatureKind
 from .history import RecentRunSummary, WorkoutCoverage
 from .prediction_timing import PredictionTiming
 from .race_feature_builder import RaceFeatureBuilder
+from .race_condition_summary import FIELD_SIZE, GOING, HANDICAP, SPECIAL_RACE, RaceConditionSummary
 from .race_feature_group import RaceFeatureGroup
 from .race_records import RaceRecords
 from .time_windows import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS
@@ -39,6 +43,7 @@ __all__ = [
     "FeatureBuilder", "RaceFeatureBuilder", "EntryRecords", "RaceRecords", "EntryColumns", "PredictionTiming",
     "WorkoutCoverage", "RecentRunSummary",
     "BASE_FEATURES", "POPULARITY_FEATURES", "MARKET_FEATURES", "ODDS_FEATURES", "FeatureCatalog", "Feature", "FeatureKind",
-    "FeatureGroup", "RaceFeatureGroup",
+    "FeatureGroup", "RaceFeatureGroup", "FieldFeatureGroup",
+    "RaceConditionSummary", "GOING", "FIELD_SIZE", "SPECIAL_RACE", "HANDICAP",
     "WORKOUT_WINDOW_DAYS", "PEOPLE_WINDOW_DAYS", "as_numbers", "as_yes_no", "typed_features",
 ]

@@ -74,10 +74,12 @@ class TrainingData:
             self.catalog, self.label_name, self.class_labels, self._baseline_at(rows),
         )
 
-    def with_label(self, label_name: str) -> TrainingData:
+    def with_label(self, label_name: str, class_labels: tuple[int, ...] | None = None) -> TrainingData:
         """モデルに当てさせる列を ``label_name`` に持ち替えた学習データ（荒れ具合の設計書 08 の 2）。
 
         その列が欠損値の行（発売の無い券種のレースなど）は、学習できないので除く。無い列なら ``ValueError``。
+        ``class_labels`` を渡すと、目的変数の値の並びも持ち替える（展開の予想は、同じ学習データから二値と3クラスと
+        回帰を作るため。展開の設計書 04 の 2）。省略すると今の並びのまま。
         """
         if label_name not in self.targets.columns:
             names = "・".join(self.targets.columns)
@@ -85,7 +87,8 @@ class TrainingData:
         is_labeled = self.targets[label_name].notna()
         return TrainingData(
             self.ids[is_labeled], self.features[is_labeled], self.targets[is_labeled],
-            self.evaluation[is_labeled], self.catalog, label_name, self.class_labels, self._baseline_at(is_labeled),
+            self.evaluation[is_labeled], self.catalog, label_name,
+            self.class_labels if class_labels is None else tuple(class_labels), self._baseline_at(is_labeled),
         )
 
     def _baseline_at(self, rows: pd.Series) -> BaselineLogit | None:

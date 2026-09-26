@@ -7,10 +7,10 @@ from datetime import date
 import duckdb
 import pandas as pd
 
-from 馬券の買い方の検証.analysis.repository import FinalOddsRepository, PayoutRepository, RaceDayRange
-from 馬券の買い方の検証.analysis.repository.final_odds_repository import COMBO, ODDS
-from 馬券の買い方の検証.analysis.repository.payout_repository import YEN
-from 馬券の買い方の検証.analysis.ticket import TicketType
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import FinalOddsRepository, PayoutRepository, RaceDayRange
+from yosou.shared.repository.final_odds_repository import COMBO, ODDS
+from yosou.shared.repository.payout_repository import YEN
 
 #: 出力の列の名前。
 LOWEST_ODDS, PAYOUT_YEN = "最低オッズ", "払戻"

@@ -5,8 +5,9 @@ from __future__ import annotations
 import itertools
 from collections.abc import Sequence
 
+from yosou.shared.betting import TicketType
+
 from .ticket import Ticket
-from .ticket_type import TicketType
 
 
 class FormationTickets:

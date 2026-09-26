@@ -2,7 +2,9 @@
 
 import pytest
 
-from 馬券の買い方の検証.analysis.ticket import FormationTickets, Ticket, TicketType
+from yosou.shared.betting import TicketType
+
+from 馬券の買い方の検証.analysis.ticket import FormationTickets, Ticket
 from 馬券の買い方の検証.analysis.ticket.picker import (
     CombinedPicker,
     FormRankPicker,
