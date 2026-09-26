@@ -1,0 +1,12 @@
+# 当日の予想の「馬体重なし」のモデル。reports/custom_binary/today_top3_pool_noweight/ に保存する（無ければ初回に学習する）。
+# 研究「特徴量の組み合わせ探索」で、テスト期間の複勝の回収率を確かめた設定と同じ。
+name: today_top3_pool_noweight
+features_file: features_馬体重なし.txt
+target: 馬券内
+timing: 当日
+odds_baseline: true
+training:
+  warmup_from: 2016-01-01
+  train_from: 2017-01-01
+  valid_from: 2023-01-01
+  test_from: 2025-01-01
