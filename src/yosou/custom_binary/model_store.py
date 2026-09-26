@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 
 from yosou.shared.ml_model import MEMBER_TYPES, EnsembleModel
+from yosou.shared.place_value import PlacePriceEstimator
 from yosou.shared.repository import ModelRepository
 
 from .feature.registry import FeatureRegistry
@@ -15,6 +16,8 @@ from .settings import ModelSettings
 
 FORMAT_VERSION = 1
 MANIFEST = "model.json"
+#: 複勝の想定払戻倍率の帯ごとの倍率（学習期間の払戻から求めた値）。予想の期待値に使う。
+PLACE_PRICE = "place_price.json"
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -47,7 +50,8 @@ class ModelStore:
         if self.root.exists():
             raise ValueError(f"保存先は既に存在します。別のnameを指定してください: {self.root}")
 
-    def save(self, settings: ModelSettings, registry: FeatureRegistry, models, validation: list[dict], counts: dict) -> None:
+    def save(self, settings: ModelSettings, registry: FeatureRegistry, models, validation: list[dict], counts: dict,
+             place_price: PlacePriceEstimator | None = None) -> None:
         self.check_new()
         # 排他的な作成で、別プロセスによる同名保存も拒否する。
         try:
@@ -56,12 +60,21 @@ class ModelStore:
             raise ValueError(f"保存先は既に存在します: {self.root}") from error
         self.repository.save(settings.timing, models, settings.parameters)
         write_json(self.root / "validation.json", validation)
+        if place_price is not None:
+            write_json(self.root / PLACE_PRICE, place_price.state())
         # manifestは最後。途中で失敗したフォルダは完成モデルとして扱わない。
         write_json(self.root / MANIFEST, {
             "format_version": FORMAT_VERSION, "settings": settings.as_dict(),
             "feature_schema": registry.schema(settings.selected), "code_version": code_version(),
             "created_at": datetime.now(timezone.utc).isoformat(), "sample_counts": counts,
         })
+
+    def place_price(self) -> PlacePriceEstimator | None:
+        """学習のときに保存した複勝の想定払戻倍率。保存していない古いモデルは None（最低オッズのまま使う）。"""
+        path = self.root / PLACE_PRICE
+        if not path.is_file():
+            return None
+        return PlacePriceEstimator.from_state(json.loads(path.read_text(encoding="utf-8")))
 
     def load(self, registry: FeatureRegistry) -> tuple[ModelSettings, EnsembleModel]:
         if not (self.root / MANIFEST).is_file():

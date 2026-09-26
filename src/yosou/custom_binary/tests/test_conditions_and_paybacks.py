@@ -161,3 +161,41 @@ def test_bootstrap_lower_is_below_the_rate_and_needs_two_days():
     lower = bootstrap_lower(days, payouts)
     assert lower is not None and lower <= payouts.sum() / (100 * len(payouts))
     assert bootstrap_lower(days[:2], payouts[:2]) is None
+
+
+def market(win, place, field, whole):
+    return pd.DataFrame({"単勝オッズ": win, "複勝オッズ（最低）": place, "出走頭数": field, "全頭が対象": whole})
+
+
+def test_prediction_values_for_win_and_top3():
+    from ..evaluation import prediction_values
+    from yosou.shared.place_value import PlacePriceEstimator
+
+    win = prediction_values(np.array([0.5, 0.1]), "勝利", market([2.0, 12.0], [1.1, 3.0], 2, True), None)
+    assert win["期待値"].tolist() == pytest.approx([1.0, 1.2])
+    # 8頭立ての全頭（ここでは2頭だけ書く）: 合計を3にそろえる。倍率 1.5 の見積もり。
+    price = PlacePriceEstimator.from_state({"bands": [0.0, 1.5, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0, 1e9],
+                                            "factors": [1.5] * 8})
+    top3 = prediction_values(np.array([0.6, 0.9]), "馬券内", market([3.0, 5.0], [1.2, 2.0], 8, True), price)
+    assert top3["3着以内の確率"].tolist() == pytest.approx([1.0, 1.0])  # 3 × 0.6/1.5 = 1.2 → 上限の1
+    assert top3["期待値"].tolist() == pytest.approx([1.8, 3.0])
+    part = prediction_values(np.array([0.2, 0.1]), "馬券外", market([3.0, 5.0], [1.2, 2.0], 8, False), None)
+    assert part["3着以内の確率"].tolist() == pytest.approx([0.8, 0.9])  # 一部の馬だけなら、そろえ直さない
+    assert part["期待値"].tolist() == pytest.approx([0.96, 1.8])  # 倍率が無ければ最低オッズのまま
+
+
+def test_place_price_is_saved_and_prediction_shows_expected_value(season_db, settings, tmp_path):
+    from .. import workflow
+    from ..model_store import ModelStore
+
+    registry = default_registry()
+    settings = replace(settings, odds_baseline=True)
+    with db.open_db(season_db) as con:
+        data = CustomDataset(con, settings, registry).training()
+    store = ModelStore(tmp_path / "with_price")
+    workflow.fit_and_save(data, settings, registry, store)
+    assert store.place_price() is not None
+    odds = [f"{pair.split(':')[0]}:{3.0 + int(pair.split(':')[1])}" for pair in POPS]
+    result = workflow.predict(season.CARD_RACE_ID, store.root, season_db, registry, POPS, odds)
+    assert {"単勝オッズ", "3着以内の確率", "想定払戻倍率", "期待値"} <= set(result.columns)
+    assert ModelStore(tmp_path / "missing").place_price() is None

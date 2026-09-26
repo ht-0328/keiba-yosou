@@ -55,6 +55,7 @@
 | 同じ採点を表で見る（終わったレースなら着順も並ぶ） | `uv run python tools/傾向スコア/trend_score.py --date 2026-09-13 --venue 中山 --race 11 --detail` |
 | 点数化項目の一覧 | `uv run python tools/傾向スコア/trend_score.py --items`（説明は `tools/傾向スコア/score-items.md`） |
 | 傾向スコアが当たっているかを終わったレースで確かめる | `uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/trend-score/backtest-2026-08.md` |
+| 当日のレースを予想して、買い（複勝・期待値 1.2 以上）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース） |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
 | 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日） |
 | テストを走らせる | `uv run python -m pytest -q` |
