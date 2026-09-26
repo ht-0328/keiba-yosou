@@ -1,12 +1,12 @@
 # 13 CatBoost で学習・予測するための設計
 
-**この文書で決めること:** 07〜10 で決めた学習データ（特徴量と目的変数）は、LightGBM と CatBoost に共通である。この文書では、それを CatBoost で学習・予測するために、CatBoost だけに必要な次の3つを、4つの予想（先頭・序盤の位置・ペースの区分・前半タイム）について決める。
+**この文書で決めること:** 07〜10 で決めた学習データ（特徴量と目的変数）は、LightGBM と CatBoost に共通である。この文書では、それを CatBoost で学習・予測するために、CatBoost だけに必要な次の3つを、8種類のモデル（先頭・序盤の位置・ペースの区分・前半タイム・4コーナーの位置・上がりの速さ・後半タイム・1着）について決める。
 
 | 決めること | 結論 |
 |---|---|
 | 1. 学習データの渡し方 | 手本と同じ。カテゴリ特徴量は文字列のまま `cat_features` に指定し、欠損値だけ文字列「不明」にする。この予想で足す特徴量は、すべて数値なのでそのまま渡す |
 | 2. ハイパーパラメータの初期値 | 目的関数だけ予想ごとに変え、ほかは手本と同じ値から始める。先頭は二値分類（`Logloss`）、序盤の位置とペースの区分は多クラス分類（`MultiClass`）、前半タイムは分位点回帰（`MultiQuantile`。1つのモデルで 10%・50%・90%） |
-| 3. 学習・予測・保存の手順 | 4つの予想 × 3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）で、12組のモデルを学習する。先頭は、学習のあとに温度を決めて一緒に保存する（4.〜6.） |
+| 3. 学習・予測・保存の手順 | 8種類 × 3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）で、24組のモデルを学習する。先頭と1着は、学習のあとに温度を決めて一緒に保存する（4.〜6.） |
 
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 - LightGBM の設計は [12-lightgbm.md](12-lightgbm.md) を参照。
@@ -25,19 +25,23 @@
 
 CatBoost の引数名で書く。ここの値は設定ファイルの初期値で、プログラムを書き換えずに設定ファイルで変えられる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。値は仮で、検証データで調整する。
 
-**4つの予想に共通の値**は、手本と同じである（[手本の 13 の「2. ハイパーパラメータの初期値」](../近走と適性から3着以内を予想/13-catboost.md#2-ハイパーパラメータの初期値)）: `learning_rate` 0.05、`iterations` 2000、`early_stopping_rounds` 100、`depth` 6、`l2_leaf_reg` 3、`random_seed` 42。
+**8種類のモデルに共通の値**は、手本と同じである（[手本の 13 の「2. ハイパーパラメータの初期値」](../近走と適性から3着以内を予想/13-catboost.md#2-ハイパーパラメータの初期値)）: `learning_rate` 0.05、`iterations` 2000、`early_stopping_rounds` 100、`depth` 6、`l2_leaf_reg` 3、`random_seed` 42。
 
 **予想ごとに違うもの**は、目的関数だけである。どれも設定ファイルでは変えられない（変えると、予測の値の意味が変わるため）。
 
 | 予想 | ライブラリのクラス | `loss_function` | 早期終了に使うデータ | 理由 |
 |---|---|---|---|---|
-| ① 先頭 | `CatBoostClassifier`（`CatBoostLeaderModel` の中の `CatBoostModel`） | `Logloss` | 検証データの前半 | 1頭ずつ「先頭になるか」を学ぶ。レースの中でそろえるのは、そのあと（[05-sequence.md の図3](05-sequence.md#図3-先頭の確率をレースの中でそろえる)） |
+| ① 先頭 | `CatBoostClassifier`（`CatBoostWithinRaceModel` の中の `CatBoostModel`） | `Logloss` | 検証データの前半 | 1頭ずつ「先頭になるか」を学ぶ。レースの中でそろえるのは、そのあと（[05-sequence.md の図3](05-sequence.md#図3-先頭の確率をレースの中でそろえる)） |
 | ② 序盤の位置 | `CatBoostClassifier` | `MultiClass` | 検証データ | 先団・中団・後方の3つの確率を返す。クラスの数は `y` から決まる |
 | ③ ペースの区分 | `CatBoostClassifier` | `MultiClass` | 検証データ | ハイ・平均・スローの3つの確率を返す |
 | ③ 前半タイム | `CatBoostRegressor` を1つ | `MultiQuantile:alpha=0.1,0.5,0.9` | 検証データ | 1つのモデルで 10%・50%・90% の分位点を返す（`predict()` が 行数 × 3） |
+| ④ 4コーナーの位置・⑤ 上がりの速さ | `CatBoostRegressor`（`CatBoostRegressionModel`） | `RMSE` | 検証データ | 0〜1 の値を、二乗誤差で当てる（[03-library-basics.md の 4.](03-library-basics.md#4-4コーナーの位置と上がりの速さの回帰)） |
+| ⑥ 後半タイム | `CatBoostRegressor` を1つ | `MultiQuantile:alpha=0.1,0.5,0.9` | 検証データ | ③と同じ |
+| ⑦ 1着 | `CatBoostClassifier`（`CatBoostWithinRaceModel` の中の `CatBoostModel`） | `Logloss` | 検証データの前半 | ①と同じ。温度は検証データの後半で決める |
 
 - 1 と 0 の数・クラスの数の偏りを直す設定（`auto_class_weights`）は使わない（[10-target.md の 6.](10-target.md#6-クラスと-10-の数の偏り)）。
-- 1レースごとの学習データ（③）は行が少ないので、`depth` を 4・6 で検証データで比べる（荒れ具合の予想と同じ）。
+- 1レースごとの学習データ（③⑥）は行が少ないので、`depth` を 4・6 で検証データで比べる（荒れ具合の予想と同じ）。
+- 年ごとの確かめ（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率)）では、1年につき 18 のモデルを学習する。CatBoost は 1頭ごとの約 30〜40 万行で1つに数分かかるので、年ごとの確かめのときだけ `learning_rate` 0.1・`iterations` 1000 の設定ファイルを使ってよい（使った設定は結果に書く）。
 - **比べる候補:** ① を `CatBoostRanker(loss_function="QuerySoftMax")` にすると、はじめからレースの中で合計 1 になるように学べる（[03-library-basics.md の 2.](03-library-basics.md#2-先頭の確率をレースの中で合計-1-にそろえる)）。最初の作り方にはせず、[15-decisions.md の 1](15-decisions.md#1-先頭の確率の作り方) で決める。
 
 ## 3. カテゴリ特徴量の値の変え方（フローチャート）
@@ -46,15 +50,17 @@ CatBoost の引数名で書く。ここの値は設定ファイルの初期値�
 
 ## 4. 学習のやりとり（シーケンス図）
 
-**① 先頭** は、`CatBoostLeaderModel` が中の `CatBoostModel` を学習させてから温度を決める。流れは [05-sequence.md の図3](05-sequence.md#図3-先頭の確率をレースの中でそろえる)、中の `CatBoostModel` の学習は [手本の 13 の「4.」](../近走と適性から3着以内を予想/13-catboost.md#4-学習のやりとりシーケンス図) と同じである。
+**① 先頭** は、`CatBoostWithinRaceModel` が中の `CatBoostModel` を学習させてから温度を決める。流れは [05-sequence.md の図3](05-sequence.md#図3-先頭の確率をレースの中でそろえる)、中の `CatBoostModel` の学習は [手本の 13 の「4.」](../近走と適性から3着以内を予想/13-catboost.md#4-学習のやりとりシーケンス図) と同じである。
 
 **② 序盤の位置・③ ペースの区分** は、共通の `CatBoostMulticlassModel` の学習で、[荒れ具合の 13 の「4.」](../レースの荒れ具合を4段階で予想/13-catboost.md#4-学習のやりとりシーケンス図) と同じである（クラスの数が 4 ではなく 3）。
 
-**③ 前半タイム** は、`PaceTimeTrainingWorkflow` から、次の流れで3つの時点ごとに1回ずつ呼ぶ。
+**⑦ 1着** は、①と同じ流れである。**④⑤** は、`GroupFitter` の中の `KindTrainer` から、下の③の図と同じ流れ（`loss_function` が `RMSE`、`predict()` が 行数 × 1）で呼ぶ。**⑥** は③と同じ流れである。
+
+**③ 前半タイム** は、`GroupFitter` の中の `KindTrainer` から、次の流れで呼ぶ（時点ごと・年ごとに1回ずつ）。
 
 ```mermaid
 sequenceDiagram
-    participant W as PaceTimeTrainingWorkflow
+    participant W as KindTrainer
     participant M as CatBoostQuantileModel
     participant V as CatBoostEncoder
     participant K as CatBoostRegressor
@@ -89,8 +95,8 @@ sequenceDiagram
 
 ## 6. 保存
 
-- `ModelRepository` が、各モデルの `save(パス)` を呼ぶ。書き込みは手本と同じく `save_model()` で、読み込みは `load(パス, 設定)` で `load_model()` を使う。カテゴリ特徴量の列名はモデルの中に残るので、別に保存しなくてよい。
-- `CatBoostLeaderModel` は、中の `CatBoostModel` のファイルに加えて、温度を同じフォルダの小さな JSON に書く。温度が無いと、予測のときにレースの中でそろえられないためである。
+- `KindModelStore` の中の共通の `ModelRepository` が、各モデルの `save(パス)` を呼ぶ。書き込みは手本と同じく `save_model()` で、読み込みは `load(パス, 設定)` で `load_model()` を使う。カテゴリ特徴量の列名はモデルの中に残るので、別に保存しなくてよい。ファイルの名前は、二値（①⑦）と多クラス（②③）が `catboost.cbm`、分位点回帰（③⑥）が `catboost_quantile.cbm`、回帰（④⑤）が `catboost_regression.cbm`。
+- `CatBoostWithinRaceModel` は、中の `CatBoostModel` のファイルに加えて、温度を同じフォルダの小さな JSON に書く。温度が無いと、予測のときにレースの中でそろえられないためである。
 - 保存先: Git の対象外の `reports/race_development/models/<予想>/<時点>/`（[04-classes.md の「4. パッケージ構成」](04-classes.md#4-パッケージ構成)）。
 
 ## 文書情報
@@ -98,3 +104,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-26 |
+| 更新 | 2026-09-26 後半と着順のモデル（④〜⑦）を足した |
