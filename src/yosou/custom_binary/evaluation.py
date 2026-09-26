@@ -12,6 +12,8 @@ from yosou.shared.feature.value_types import as_numbers
 from yosou.shared.ml_model import EnsembleModel
 from yosou.shared.place_value import PlacePriceEstimator
 
+from .dataset import MARKET_FIELD_SIZE, MARKET_WHOLE_FIELD
+
 
 HISTORICAL_NOTE = (
     "過去の確定人気・確定オッズを使用。木曜・前日・当日の制限は入力項目の制限であり、"
@@ -145,6 +147,28 @@ def paybacks(data: TrainingData, probability: np.ndarray, target: str,
     for line in EXPECTED_VALUE_LINES:
         results.append(bet_result(data, np.nan_to_num(value, nan=-1.0) >= line, f"期待値{line:g}以上"))
     return results
+
+
+def prediction_values(probability: np.ndarray, target: str, market: pd.DataFrame,
+                      place_price: PlacePriceEstimator | None) -> pd.DataFrame:
+    """予測した1レースの、期待値とその材料。学習の評価（``expected_values``）と同じ計算を、その時点のオッズで行う。
+
+    ``market`` は ``CustomDataset.prediction()`` が作る表（単勝オッズ・複勝オッズ（最低）・出走頭数・全頭が対象）。
+    """
+    win = as_numbers(market["単勝オッズ"]).to_numpy()
+    if target == "勝利":
+        return pd.DataFrame({"単勝オッズ": win, "期待値": probability * win}, index=market.index)
+    coming = 1 - probability if target == "馬券外" else probability
+    field = int(market[MARKET_FIELD_SIZE].iloc[0])
+    if bool(market[MARKET_WHOLE_FIELD].iloc[0]) and coming.sum() > 0:
+        places = 3.0 if field >= FULL_PLACE_FIELD else 2.0
+        coming = np.clip(coming * places / coming.sum(), 0.0, 1.0)
+    lowest = as_numbers(market["複勝オッズ（最低）"])
+    price = lowest if place_price is None else place_price.estimate(lowest)
+    return pd.DataFrame({
+        "単勝オッズ": win, "複勝オッズ（最低）": lowest.to_numpy(), "3着以内の確率": coming,
+        "想定払戻倍率": price.to_numpy(), "期待値": coming * price.to_numpy(),
+    }, index=market.index)
 
 
 def fitted_place_price(train: TrainingData) -> PlacePriceEstimator:
