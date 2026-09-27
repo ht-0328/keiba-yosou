@@ -46,12 +46,15 @@
 | `extract.py` | 入口①。元DB から中間データ（parquet）を作る |
 | `backtest.py` | 入口②。学習と検証を回して、結果を `reports/` に書く |
 | `market_check.py` | 入口③（診断）。単勝オッズの歪みが直せるかを年ごとに測る |
+| `extract_tickets.py` | 入口④。元DB から、券種ごとの買い目のオッズと払戻を中間データにする |
+| `backtest_tickets.py` | 入口⑤。複勝以外の券種（単勝・ワイド・馬連・馬単・3連複・3連単）を期待値で買って確かめる（[docs/05-券種ごとの検証.md](docs/05-券種ごとの検証.md)） |
 | `analysis/repository/` | 元DB から読む部品。1つのクラスが1つの SQL を持つ |
 | `analysis/cache_loader.py` | 中間データを1つの表にまとめる |
 | `analysis/market/` | オッズから確率を作る部品（条件付きロジット・Harville/Stern） |
 | `analysis/feature/` | モデルに渡す列を作る部品 |
 | `analysis/probability/` | LightGBM と CatBoost で確率を出す部品 |
 | `analysis/ticket/` | 買い目を選ぶ部品（想定払戻倍率・期待値・確率のそろえ直し） |
+| `analysis/tickets/` | 複勝以外の券種の部品（買い目の確率・オッズの帯ごとの較正・印・線の決め方） |
 | `analysis/backtest/` | 検証の部品（ウォークフォワード・回収率・信頼区間） |
 | `analysis/bet_rule.py` | 採用した買い方（どの期待値から買うか） |
 | `tests/` | 架空の値で部品を確かめるテスト |
@@ -63,15 +66,21 @@
 2. [docs/02-市場の測り方.md](docs/02-市場の測り方.md) — オッズから確率を作る手順
 3. [docs/03-実験と結果.md](docs/03-実験と結果.md) — 何を試して何が分かったか
 4. [docs/04-買い方.md](docs/04-買い方.md) — 期待値で買う手順と、そのときの回収率
+5. [docs/05-券種ごとの検証.md](docs/05-券種ごとの検証.md) — 複勝以外の券種でも同じ作りで 100% を超えるか
 
 ## 動かし方
 
 リポジトリ直下（`keiba-yosou/`）から実行する。
 
 ```bash
-uv run python research/回収率100超/extract.py    # 元DB から中間データを作る（数十分）
-uv run python research/回収率100超/backtest.py   # 学習と検証（2時間ほど）
-uv run python -m pytest -q research              # 部品のテスト（架空の値だけ）
+uv run python research/回収率100超/extract.py            # 元DB から中間データを作る（数十分）
+uv run python research/回収率100超/backtest.py           # 学習と検証（2時間ほど）
+uv run python research/回収率100超/extract_tickets.py    # 券種ごとの買い目のオッズと払戻を読み出す（十数分）
+uv run python research/回収率100超/backtest_tickets.py   # 複勝以外の券種の検証（学習に数時間。2回目からは予測を使い回す）
+uv run python -m pytest -q research                      # 部品のテスト（架空の値だけ）
 ```
+
+中間データ（parquet）と表の書き出しに、pyarrow と tabulate が要る。pyproject には入っていないので、
+入っていない環境では `uv run --with pyarrow --with tabulate python ...` のように足して動かす。
 
 `extract.py` は元DB を読む間だけ開く。`backtest.py` は元DB に触らない。
