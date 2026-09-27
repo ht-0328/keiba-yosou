@@ -7,7 +7,7 @@
 | 1. 学習データの渡し方 | 危険な人気馬の予想と同じ。まとまり J の4個は数値特徴量なので、そのまま渡す。穴馬の区分と1着の列は渡さない |
 | 2. ハイパーパラメータの初期値 | 手本と同じ。変える点は無い |
 | 3. カテゴリ特徴量の値の変え方 | 手本と同じ |
-| 4.〜6. 学習・予測・保存の手順 | 3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）ごとに1つずつ、計3つのモデルを学習する。保存先は `reports/longshots_in_top3/models/` |
+| 4.〜6. 学習・予測・保存の手順 | 3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）ごとに1つずつ、計3つのモデルを学習する。保存先は `reports/穴馬が3着以内に入るかを予想/models/` |
 
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 - 学習データ・特徴量・目的変数は LightGBM と共通で、[08-training-data.md](08-training-data.md)・[09-features.md](09-features.md)・[10-target.md](10-target.md) を参照。
@@ -46,7 +46,7 @@
 
 - 保存のしかた（`save_model()` で書き込み、`load_model()` で読み込む）は、[手本の 13 の「6. 保存」](../近走と適性から3着以内を予想/13-catboost.md#6-保存) と同じである。
 - 保存するのは、3つの時点ごとのモデルと、学習に使った設定である。
-- 保存先: Git の対象外の `reports/longshots_in_top3/models/`（[04-classes.md](04-classes.md#2-パッケージ構成)）。LightGBM のモデルと同じフォルダに、時点ごとに置く。
+- 保存先: Git の対象外の `reports/穴馬が3着以内に入るかを予想/models/`（[04-classes.md](04-classes.md#2-パッケージ構成)）。LightGBM のモデルと同じフォルダに、時点ごとに置く。
 
 ## 文書情報
 

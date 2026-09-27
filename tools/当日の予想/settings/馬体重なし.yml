@@ -1,4 +1,4 @@
-# 当日の予想の「馬体重なし」のモデル。reports/custom_binary/today_top3_pool_noweight/ に保存する（無ければ初回に学習する）。
+# 当日の予想の「馬体重なし」のモデル。reports/特徴量と条件を選んで予想/today_top3_pool_noweight/ に保存する（無ければ初回に学習する）。
 # 研究「特徴量の組み合わせ探索」で、テスト期間の複勝の回収率を確かめた設定と同じ。
 name: today_top3_pool_noweight
 features_file: features_馬体重なし.txt

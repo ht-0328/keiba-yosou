@@ -11,8 +11,8 @@
 ```powershell
 uv run python -m yosou.custom_binary features
 uv run python -m yosou.custom_binary train --config examples/custom_binary/model.yml
-uv run python -m yosou.custom_binary predict <レースID> --models reports/custom_binary/top3_pop6_10
-uv run python -m yosou.custom_binary evaluate --models reports/custom_binary/top3_pop6_10
+uv run python -m yosou.custom_binary predict <レースID> --models reports/特徴量と条件を選んで予想/top3_pop6_10
+uv run python -m yosou.custom_binary evaluate --models reports/特徴量と条件を選んで予想/top3_pop6_10
 ```
 
 `<レースID>` は実際の16桁のIDに置き換えます。`--db` で元DBを指定できます。省略時は `YOSOU_DB` または隣の `jvdata-store/jvdata.duckdb` を使います。元DBは読取専用で開き、学習前に接続を閉じます。
@@ -35,7 +35,7 @@ popularity:
 
 | 設定 | 意味 |
 |---|---|
-| `name` | 保存先 `reports/custom_binary/<name>`。既存の名前は上書きできない |
+| `name` | 保存先 `reports/特徴量と条件を選んで予想/<name>`。既存の名前は上書きできない |
 | `features_file` | YAMLからの相対パス、または絶対パス |
 | `target` | `馬券内`は1〜3着、`馬券外`は4着以下と中止・失格、`勝利`は1着。同着は確定着順に従う |
 | `timing` | `木曜`・`前日`・`当日`。1設定につき1時点 |
@@ -103,7 +103,7 @@ conditions:
 発売前の想定人気や、DBにない人気・オッズは手入力できます。
 
 ```powershell
-uv run python -m yosou.custom_binary predict <レースID> --models reports/custom_binary/top3_pop6_10 --pops 1:3 2:1 3:2
+uv run python -m yosou.custom_binary predict <レースID> --models reports/特徴量と条件を選んで予想/top3_pop6_10 --pops 1:3 2:1 3:2
 ```
 
 上記は書式の例です。実際には全出走馬分を指定してください。木曜で馬番が決まっていない場合は `馬名:人気` を使います。人気の優先順は手入力の人気、手入力のオッズ順、DBの直近速報オッズ順、出走行の人気です。想定人気は発売後の実際の人気を保証しません。

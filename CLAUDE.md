@@ -7,7 +7,7 @@
 - 実行は `uv run python tools/<ツール>/<file>.py`。uv が PATH に無ければ `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe\uv.exe` を使う。
 - `*.bat` は UTF-8（BOM なし）・CRLF で保存し、コメントは日本語で書く。ただし日本語は、先頭の `goto :main` と `:main` の間のコメントの中にだけ書く（例 `tools/検索画面/run.bat`）。cmd.exe は bat をコンソールのコードページで読むので、実行される行に日本語があるとコメントの切れ端がコマンドとして実行される。Shift_JIS では保存しない（エディタや GitHub で文字化けする）。
 - テストは `uv run python -m pytest -q`。合成 DB（`tools/合成DB/synth.py`）だけを使い、実DBに触るテストを書かない。
-- 新しい集計を作ったら `uv run python tools/成績集計/perf.py --check` で `reports/stats` の値と一致することを確かめてから先へ進む。
+- 新しい集計を作ったら `uv run python tools/成績集計/perf.py --check` で `reports/成績集計` の値と一致することを確かめてから先へ進む。
 - コミットは Conventional Commits（`feat:` `fix:` `docs:` `refactor:` `test:` `chore:`）。main に直接積まず、作業ブランチで。push と PR は頼まれたときだけ。
 - コードの基準は `../software-engineering-guide/docs/01-good-code.md`（GC-01〜GC-17）。
 
@@ -17,7 +17,7 @@
 
 - **`keiba-yosou/`（メインの作業フォルダ）で、`git checkout` や `git switch` でブランチを切り替えない。** ほかのセッションが同じフォルダで作業していると、その足元のファイルとコミット先が変わってしまう。
 - 自分のブランチの作業は、keiba-yosou の隣に作業フォルダを作って、そこで行う。名前は `keiba-yosou-worktree-<ブランチの短い名前>`（例 `../keiba-yosou-worktree-form-aptitude-top3`）。隣に置くのは、元DB（`../jvdata-store`）を、道具が今までどおり見つけられるようにするためである。
-- 分けた作業フォルダの `reports/` は、メインの `reports/` へのつなぎ（ジャンクション）にする。`reports/` は Git の対象外で、作業フォルダごとに別になってしまうため。つなぐと、どの作業フォルダから書いても出力が1か所に集まり、`reports/stats` での答え合わせも使える。
+- 分けた作業フォルダの `reports/` は、メインの `reports/` へのつなぎ（ジャンクション）にする。`reports/` は Git の対象外で、作業フォルダごとに別になってしまうため。つなぐと、どの作業フォルダから書いても出力が1か所に集まり、`reports/成績集計` での答え合わせも使える。
 - コミットの前に `git branch --show-current` で、自分の作業のブランチかを確かめる。`git add` はファイルを名前で指定し、フォルダごと足さない（ほかのセッションが同じフォルダに書いていることがある）。
 - 見つけた未コミットの変更は、ほかのセッションが作業中のものかもしれない。自分のものと決めつけてコミットしない。
 

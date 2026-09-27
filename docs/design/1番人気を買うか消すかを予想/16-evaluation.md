@@ -10,12 +10,12 @@
 | 4. 買い方と掛け金 | 「単勝と複勝」は単勝 100円・複勝 200円、「複勝だけ」は複勝 300円、「消す」は買わない |
 | 5. 単位で分けない場合との比べ方 | 設定で `min_rows` を大きくすると芝ダごとに1つの単位になる。この形で評価して比べる |
 
-用語の意味は [02-glossary.md](02-glossary.md) を参照。評価のクラスは [04-classes.md](04-classes.md#evaluation--掛け金と成績の表)、評価の流れは [05-sequence.md の図2](05-sequence.md#図2-1年ごとの評価) を参照。**設計書には、評価の数値を書かない。** 数値は PR と Git の対象外の `reports/favorite_buy_or_fade/` に置く。
+用語の意味は [02-glossary.md](02-glossary.md) を参照。評価のクラスは [04-classes.md](04-classes.md#evaluation--掛け金と成績の表)、評価の流れは [05-sequence.md の図2](05-sequence.md#図2-1年ごとの評価) を参照。**設計書には、評価の数値を書かない。** 数値は PR と Git の対象外の `reports/1番人気を買うか消すかを予想/` に置く。
 
 ## 1. 1年ごとの評価（ウォークフォワード）
 
 ```powershell
-uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/favorite_buy_or_fade/evaluation.md --rows-out reports/favorite_buy_or_fade/evaluation-rows.csv
+uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/1番人気を買うか消すかを予想/evaluation.md --rows-out reports/1番人気を買うか消すかを予想/evaluation-rows.csv
 ```
 
 （1年ごとの評価をして、3つの表を `--out` に、判定した1番人気1頭ずつの表を `--rows-out` の CSV に書くコマンド）

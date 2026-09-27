@@ -128,7 +128,7 @@ sequenceDiagram
 
 - `ModelRepository` が `LightGbmModel.save(パス)` を呼ぶ。`LightGbmModel` は、学習済みの `LGBMClassifier` と、`LightGbmEncoder` のカテゴリの一覧を、`joblib.dump()` で書き込む。読み込みは `LightGbmModel.load(パス)` で、`joblib.load()` を使う。
 - 3つの時点ごとのモデルと、学習に使った設定を保存する（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。
-- 保存先: Git の対象外の `reports/form_aptitude_top3/models/`（[04-classes.md の「パッケージ構成」](04-classes.md#パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
+- 保存先: Git の対象外の `reports/近走と適性から3着以内を予想/models/`（[04-classes.md の「パッケージ構成」](04-classes.md#パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
 
 ## 文書情報
 

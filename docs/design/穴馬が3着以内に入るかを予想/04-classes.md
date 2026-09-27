@@ -77,7 +77,7 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`LongshotSelector` → `longshot_selector.py`）。学習したモデルは、Git の対象外の `reports/longshots_in_top3/models/` に、時点ごとに保存する。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`LongshotSelector` → `longshot_selector.py`）。学習したモデルは、Git の対象外の `reports/穴馬が3着以内に入るかを予想/models/` に、時点ごとに保存する。
 
 | 決まり | 理由 |
 |---|---|
@@ -139,7 +139,7 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 
 | 選び方 | 変わるクラス |
 |---|---|
-| 区分ごとに別のモデルにする（[15 の 3](15-decisions.md#3-区分ごとに別のモデルにするか)） | `LongshotSelector` が作られるときに区分を受け取り、`keep_samples()` でその区分の行だけを残す。`dataset_builder(接続, 区分)`。`TrainCommand` が区分ごとに `TrainingWorkflow` を回し、`reports/longshots_in_top3/models/<区分>/` に保存する。`PredictionWorkflow` は、`--zone` が無ければ2つのモデルを順に使う。`LongshotZoneFilter` は要らない |
+| 区分ごとに別のモデルにする（[15 の 3](15-decisions.md#3-区分ごとに別のモデルにするか)） | `LongshotSelector` が作られるときに区分を受け取り、`keep_samples()` でその区分の行だけを残す。`dataset_builder(接続, 区分)`。`TrainCommand` が区分ごとに `TrainingWorkflow` を回し、`reports/穴馬が3着以内に入るかを予想/models/<区分>/` に保存する。`PredictionWorkflow` は、`--zone` が無ければ2つのモデルを順に使う。`LongshotZoneFilter` は要らない |
 | 穴馬の区分を特徴量に入れる（[15 の 5](15-decisions.md#5-穴馬の区分を特徴量に入れるか)） | `feature/longshot_zone_features.py` に、`FeatureGroup` を守る `LongshotZoneFeatures`（出走の行の区分の列を、カテゴリ特徴量「穴馬の区分」にする）を足し、`CATALOG` に1個足して 76個にする |
 
 ## 文書情報

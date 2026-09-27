@@ -91,8 +91,8 @@ K = 1.0
 ```
 
 ```powershell
-uv run python -m yosou.favorite_buy_or_fade evaluate --config reports/favorite_buy_or_fade/settings/with-odds.toml --out reports/favorite_buy_or_fade/evaluation-with-odds.md
-uv run python -m yosou.favorite_buy_or_fade train --config reports/favorite_buy_or_fade/settings/with-odds.toml
+uv run python -m yosou.favorite_buy_or_fade evaluate --config reports/1番人気を買うか消すかを予想/settings/with-odds.toml --out reports/1番人気を買うか消すかを予想/evaluation-with-odds.md
+uv run python -m yosou.favorite_buy_or_fade train --config reports/1番人気を買うか消すかを予想/settings/with-odds.toml
 ```
 
 （1行目は、消しの線を 10点にし、単勝オッズから見た評価（K）も近さに使う方針で、1年ごとの評価をやり直すコマンド。2行目は、同じ方針で本番用のモデルを作り直すコマンド。初期値はオッズなしで予想する（K = 0.0）ので、オッズも使うときは、このように K = 1.0 などにする）

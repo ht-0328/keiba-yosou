@@ -40,8 +40,8 @@
 | 4 | 元DB の出走の行の単勝人気 | 終わったレースだけ（確定単勝人気） |
 
 ```powershell
-uv run python -m yosou.custom_binary predict 架空レースA --models reports/custom_binary/架空の設定 --pops 3:1 7:2 11:3 …（全頭ぶん）
-uv run python -m yosou.custom_binary predict 架空レースA --models reports/custom_binary/架空の設定 --odds 3:2.4 7:4.1 …（全頭ぶん）
+uv run python -m yosou.custom_binary predict 架空レースA --models reports/特徴量と条件を選んで予想/架空の設定 --pops 3:1 7:2 11:3 …（全頭ぶん）
+uv run python -m yosou.custom_binary predict 架空レースA --models reports/特徴量と条件を選んで予想/架空の設定 --odds 3:2.4 7:4.1 …（全頭ぶん）
 ```
 
 （1行目は、見た人気を馬番で渡して予測するコマンド。2行目は、見た単勝オッズを渡して、オッズの順から人気を作るコマンド）

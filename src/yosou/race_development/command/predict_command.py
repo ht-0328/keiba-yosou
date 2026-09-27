@@ -25,7 +25,7 @@ _ROUNDED_DIGITS = 3
 class PredictCommand:
     """``predict``: 1レースを、その時点のモデルで傾向（既存の予想）→ 前半 → 後半 → 着順の順に予測し、印と印どおりの買い目を出す（設計書 05 の図2）。
 
-    予測のたびに、予測用データと予測を ``reports/race_development/predictions/`` に書き足す。
+    予測のたびに、予測用データと予測を ``reports/展開から着順を予想/predictions/`` に書き足す。
     """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:

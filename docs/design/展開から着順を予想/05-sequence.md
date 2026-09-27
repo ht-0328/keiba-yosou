@@ -18,9 +18,9 @@
 | `DevelopmentTrainingWorkflow`・`BacktestWorkflow` など | この予想のクラス。一覧と仕事は [04-classes.md](04-classes.md#3-この予想だけのクラスの一覧) を参照 | public メソッドを1回呼ぶ | ある（2026-09-26 に作った） |
 | `DatasetBuilder`・`EnsembleModel`・`ModelRepository` など | 共通のクラス。[手本の 04](../近走と適性から3着以内を予想/04-classes.md#クラスの一覧) を参照 | public メソッドを1回呼ぶ | ある（一部を変える。[04-classes.md の 2.](04-classes.md#2-共通の部品に足すもの変えるもの)） |
 | `LGBMClassifier`・`CatBoostClassifier`・`LGBMRegressor`・`CatBoostRegressor` | ライブラリのクラス（図には出さず、12・13 に書く） | `fit()`・`predict_proba()`・`predict()` を1回呼ぶ | ライブラリはある |
-| モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/race_development/models/` にできる |
-| 予測の記録 | 予測のたびに書き足すファイル | 1回書き込む | `predict` を実行すると、`reports/race_development/predictions/` にできる |
-| 学習に使っていない予測・年ごとの確かめの表 | 前の組の年ごとの予測と、精算の表 | 1回書き込むか、1回読み込む | `train`・`backtest` を実行すると、`reports/race_development/out_of_sample/`・`reports/race_development/backtest/` にできる |
+| モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/展開から着順を予想/models/` にできる |
+| 予測の記録 | 予測のたびに書き足すファイル | 1回書き込む | `predict` を実行すると、`reports/展開から着順を予想/predictions/` にできる |
+| 学習に使っていない予測・年ごとの確かめの表 | 前の組の年ごとの予測と、精算の表 | 1回書き込むか、1回読み込む | `train`・`backtest` を実行すると、`reports/展開から着順を予想/out_of_sample/`・`reports/展開から着順を予想/backtest/` にできる |
 
 ## 図1. 学習
 
@@ -211,7 +211,7 @@ sequenceDiagram
     WF-->>C: 年の並びぶんの予測をつないだもの
 ```
 
-**説明。** 年ごとの予測は `reports/race_development/out_of_sample/` に残し、2回目からは読むだけにする。学習（`train`）でも年ごとの確かめ（`backtest`）でも、同じ年・同じ組・同じ時点の予測は同じものなので、一度作れば両方で使える。ただし、設定ファイルか学習データの期間を変えたら、残した予測は使えないので、`OutOfSampleRepository` は、予測と一緒に設定ファイルの中身と期間を書いておき、違っていれば「まだ無い」と答える。前半の組の予測を作るときの学習データには、傾向の組の予測（V）が、後半の組の予測を作るときの学習データには、V と前半の組の予測（S）が、すでに足してある。
+**説明。** 年ごとの予測は `reports/展開から着順を予想/out_of_sample/` に残し、2回目からは読むだけにする。学習（`train`）でも年ごとの確かめ（`backtest`）でも、同じ年・同じ組・同じ時点の予測は同じものなので、一度作れば両方で使える。ただし、設定ファイルか学習データの期間を変えたら、残した予測は使えないので、`OutOfSampleRepository` は、予測と一緒に設定ファイルの中身と期間を書いておき、違っていれば「まだ無い」と答える。前半の組の予測を作るときの学習データには、傾向の組の予測（V）が、後半の組の予測を作るときの学習データには、V と前半の組の予測（S）が、すでに足してある。
 
 ## 図6. 年ごとの的中率と回収率の確かめ
 

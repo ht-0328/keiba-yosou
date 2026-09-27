@@ -7,7 +7,7 @@
 | 1. 学習データの渡し方 | 手本と同じ（数値はそのまま、カテゴリは文字列のまま `cat_features` に指定、カテゴリの欠損値は文字列「不明」）。目的変数は学習する券種の列（0〜3）だけを渡す |
 | 2. ハイパーパラメータの初期値 | 目的関数は多クラス分類（`MultiClass`）。ほかは手本と同じ値から始める |
 | 3. カテゴリ特徴量の値の変え方 | 手本と同じ |
-| 4.〜6. 学習・予測・保存の手順 | 券種ごとに、3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）につき1つずつ、計 12 のモデルを学習する。`predict_proba` は4列を返す。保存先は `reports/upset_level/models/<券種>/<時点>/` |
+| 4.〜6. 学習・予測・保存の手順 | 券種ごとに、3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）につき1つずつ、計 12 のモデルを学習する。`predict_proba` は4列を返す。保存先は `reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/` |
 
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 - 学習データ・特徴量・目的変数は LightGBM と共通で、[08-training-data.md](08-training-data.md)・[09-features.md](09-features.md)・[10-target.md](10-target.md) を参照。
@@ -89,7 +89,7 @@ sequenceDiagram
 
 - 保存のしかた（`save_model()` で書き込み、`load_model()` で読み込む）は、[手本の 13 の「6. 保存」](../近走と適性から3着以内を予想/13-catboost.md#6-保存) と同じである。
 - 保存するのは、券種ごと・時点ごとのモデル（12個）と、学習に使った設定である。
-- 保存先: Git の対象外の `reports/upset_level/models/<券種>/<時点>/`（[04-classes.md](04-classes.md#4-パッケージ構成)）。LightGBM のモデルと同じフォルダに置く。
+- 保存先: Git の対象外の `reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/`（[04-classes.md](04-classes.md#4-パッケージ構成)）。LightGBM のモデルと同じフォルダに置く。
 
 ## 文書情報
 

@@ -24,10 +24,10 @@ USAGE = """1番人気を「消す」「単勝と複勝を買う」「複勝だ�
 
 1年ごとの評価（評価の年ごとに、その前年までで学習し直す）:
 
-    uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/favorite_buy_or_fade/evaluation.md
+    uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/1番人気を買うか消すかを予想/evaluation.md
     uv run python -m yosou.favorite_buy_or_fade evaluate --config my_settings.toml
 
-本番用の学習（reports/favorite_buy_or_fade/models/ に保存する）と、1レースの判定:
+本番用の学習（reports/1番人気を買うか消すかを予想/models/ に保存する）と、1レースの判定:
 
     uv run python -m yosou.favorite_buy_or_fade train
     uv run python -m yosou.favorite_buy_or_fade predict --date 2026-09-27 --venue 中山 --race 11 --odds 3:2.4 7:5.1 ...

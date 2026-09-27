@@ -567,7 +567,7 @@ renderers.perf = async (main, {params}) => {
   const checkBox = el("div", {id: "check"});
   const checkButton = el("button", {type: "button", onclick: async () => { checkBox.innerHTML = ""; try { checkBox.append(resultBlock(await api("/api/check", {to: params.to}))); } catch (err) { checkBox.append(errorBlock(err)); } }},
     `答え合わせ（${META.check.describe}）`);
-  main.append(el("div", {class: "card"}, form, el("div", {class: "toolbar"}, checkButton, el("span", {class: "hint"}, "reports/stats のページの値と、この集計の値を比べます。"))), checkBox);
+  main.append(el("div", {class: "card"}, form, el("div", {class: "toolbar"}, checkButton, el("span", {class: "hint"}, "reports/成績集計 のページの値と、この集計の値を比べます。"))), checkBox);
   const query = {...params, dimension};
   const table = await api("/api/perf", query);
   const cliParams = {...query}; delete cliParams.dimension;

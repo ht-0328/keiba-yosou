@@ -50,7 +50,7 @@ def predictor(season_db, tmp_path, monkeypatch) -> SameDayPredictor:
     result = SameDayPredictor(models, default_registry(), season_db, line=0.0)
     logs: list[str] = []
     result.ensure_models(log=logs.append)
-    assert len(logs) == 2 and all((tmp_path / "reports" / "custom_binary" / name / "model.json").is_file()
+    assert len(logs) == 2 and all((tmp_path / "reports" / "特徴量と条件を選んで予想" / name / "model.json").is_file()
                                   for name in ("with_weight", "without_weight"))
     return result
 

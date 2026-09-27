@@ -1,6 +1,6 @@
 """傾向スコア: 当日のレースと条件が同じ過去レースの傾向を出し、出走馬を項目ごとに +1 / −1 で採点して順位を付ける。
 
-    uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --venue 中山 --race 11 --html          # グラフ付きのページを reports/trend-score/ に書く
+    uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --venue 中山 --race 11 --html          # グラフ付きのページを reports/傾向スコア/ に書く
     uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --venue 中山 --race 11 --condition 良 --pops "3:1,7:2,1:3" --html --open
     uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --all --open                            # その日の全レースのページと、一覧のページを書く
     uv run python tools/傾向スコア/trend_score.py 2026091906040511                                          # 表だけを標準出力へ（rid で）
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import card, cli, db, race, trend, trend_html  # noqa: E402
 
 #: グラフ付きのページの既定の置き場（Git 対象外）。
-REPORT_DIR = Path(__file__).resolve().parents[2] / "reports" / "trend-score"
+REPORT_DIR = Path(__file__).resolve().parents[2] / "reports" / "傾向スコア"
 _AUTO = "auto"
 
 
@@ -123,9 +123,9 @@ def build_parser():
                       help=f"差が偶然では起きにくいことを求める強さ。0 で求めない（既定: {trend.MIN_Z}）")
     output = parser.add_argument_group("出力")
     output.add_argument("--html", nargs="?", const=_AUTO, metavar="PATH",
-                        help="グラフ付きのページ（HTML 1ファイル）を書く。PATH を省くと reports/trend-score/<日付>-<競馬場>-<R>.html")
+                        help="グラフ付きのページ（HTML 1ファイル）を書く。PATH を省くと reports/傾向スコア/<日付>-<競馬場>-<R>.html")
     output.add_argument("--all", action="store_true",
-                        help="--date（と --venue）の全レースのページと、一覧のページを書く。--html にフォルダを渡すと置き場を変えられる（既定は reports/trend-score/）")
+                        help="--date（と --venue）の全レースのページと、一覧のページを書く。--html にフォルダを渡すと置き場を変えられる（既定は reports/傾向スコア/）")
     output.add_argument("--open", action="store_true", help="書いたページをブラウザで開く")
     output.add_argument("--detail", action="store_true", help="表の出力に、傾向・馬ごとの内訳・同レースの過去も入れる（既定は見出しとランキングだけ）")
     output.add_argument("--items", action="store_true", help="点数化項目の一覧を出して終わる")

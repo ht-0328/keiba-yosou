@@ -22,12 +22,12 @@
 ## 使い方
 
 ```powershell
-uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/favorite_buy_or_fade/evaluation.md
+uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/1番人気を買うか消すかを予想/evaluation.md
 uv run python -m yosou.favorite_buy_or_fade train
 uv run python -m yosou.favorite_buy_or_fade predict --date 2026-09-27 --venue 中山 --race 11 --odds 1:12.5 2:3.8 3:2.4
 ```
 
-（1行目は、評価の年ごとにその前年までで学習し直して判定し、年ごと・判定ごと・単位ごとの表を出すコマンド。2行目は、本番用のモデルを学習して `reports/favorite_buy_or_fade/models/` に保存するコマンド。3行目は、1レースの1番人気の単位・3つの点数・判定を出すコマンド。`--odds` は「馬番:オッズ」を並べる。オッズは1番人気を決めるためだけに使う）
+（1行目は、評価の年ごとにその前年までで学習し直して判定し、年ごと・判定ごと・単位ごとの表を出すコマンド。2行目は、本番用のモデルを学習して `reports/1番人気を買うか消すかを予想/models/` に保存するコマンド。3行目は、1レースの1番人気の単位・3つの点数・判定を出すコマンド。`--odds` は「馬番:オッズ」を並べる。オッズは1番人気を決めるためだけに使う）
 
 方針を変えるときは、変えたい項目だけを書いた設定ファイルを `--config` で渡して、`evaluate` か `train` を実行し直す。1回あたり1分ほどで終わる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。
 

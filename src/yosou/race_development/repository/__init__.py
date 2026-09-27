@@ -7,7 +7,7 @@
 | ``PredictionArchiveRepository`` | 予測のたびに、予測用データ（特徴量）と予測を書き足す（上書きしない） |
 | ``BacktestArtifactRepository`` | 年ごとの確かめの、年ごとの予測・精算の表と、結果の表（Markdown） |
 
-どれも JV-Data から作ったものなので、置き場所は Git の対象外の ``reports/race_development/`` にする。
+どれも JV-Data から作ったものなので、置き場所は Git の対象外の ``reports/展開から着順を予想/`` にする。
 """
 
 from .backtest_artifact_repository import BacktestArtifactRepository

@@ -52,7 +52,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 └── tests/                      この予想の組み立てのテスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`TrainingWorkflow` → `training_workflow.py`）。学習したモデルは、Git の対象外の `reports/form_aptitude_top3/models/` に、時点ごとに保存する。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`TrainingWorkflow` → `training_workflow.py`）。学習したモデルは、Git の対象外の `reports/近走と適性から3着以内を予想/models/` に、時点ごとに保存する。
 
 | 決まり | 理由 |
 |---|---|

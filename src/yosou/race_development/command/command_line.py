@@ -20,7 +20,7 @@ USAGE = """既存の予想から見たレースの傾向に合う展開（前半
 ⑤ 上がりの速さ・⑥ 後半のペース）の特徴量に入れ、前半と後半の結果を着順（⑦ 1着の確率）の特徴量に入れる。
 1着の確率から 2着・3着と買い目ごとの確率を出し、印（◎○▲△☆注）と買い目を決める。
 
-学習（時点ごとに、既存の4つの予想と7つの予想のモデルを学習し、reports/race_development/models/ に保存する）:
+学習（時点ごとに、既存の4つの予想と7つの予想のモデルを学習し、reports/展開から着順を予想/models/ に保存する）:
 
     uv run python -m yosou.race_development train
     uv run python -m yosou.race_development train --timings 当日
@@ -34,8 +34,8 @@ USAGE = """既存の予想から見たレースの傾向に合う展開（前半
     uv run python -m yosou.race_development backtest
     uv run python -m yosou.race_development backtest --years 2024-2026
 
-途中の結果（学習データ・年ごとの予測・精算の表）は reports/race_development/ に残し、止まったら続きから再開する。
-結果の表は reports/race_development/backtest/results.md にも書く。設計書は docs/design/展開から着順を予想/。
+途中の結果（学習データ・年ごとの予測・精算の表）は reports/展開から着順を予想/ に残し、止まったら続きから再開する。
+結果の表は reports/展開から着順を予想/backtest/results.md にも書く。設計書は docs/design/展開から着順を予想/。
 """
 
 

@@ -198,7 +198,7 @@ def test_empty_and_one_class_training_fail_before_save(season_db, settings, tmp_
 
 def test_cli_train_predict_evaluate_json(season_db, settings, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(workflow, "PROJECT_ROOT", tmp_path)
-    models = tmp_path / "reports" / "custom_binary" / settings.name
+    models = tmp_path / "reports" / "特徴量と条件を選んで予想" / settings.name
     for args in [
         ["train", "--config", str(tmp_path / "model.yml")],
         ["predict", season.CARD_RACE_ID, "--models", str(models), "--pops", *POPS],

@@ -17,7 +17,7 @@ USAGE = """レースの荒れ具合を4段階（固い・中荒れ・大荒れ�
 荒れ具合は券種（単勝・馬連・3連複・3連単）ごとに、払戻の額で決める（単勝 500/1,000/3,000円、馬連 1,000/3,000/1万円、
 3連複 3,000/1万/5万円、3連単 2万/10万/50万円 が、中荒れ・大荒れ・超荒れの境）。
 
-学習（券種ごと・3つの時点ごとに LightGBM と CatBoost を学習し、reports/upset_level/models/<券種>/<時点>/ に保存する）:
+学習（券種ごと・3つの時点ごとに LightGBM と CatBoost を学習し、reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/ に保存する）:
 
     uv run python -m yosou.upset_level train
     uv run python -m yosou.upset_level train --bet 3連単 --config my_settings.toml

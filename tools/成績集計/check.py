@@ -1,6 +1,6 @@
-"""答え合わせ: ``reports/stats`` のページに載っている成績と、``perf`` の集計を突き合わせる。
+"""答え合わせ: ``reports/成績集計`` のページに載っている成績と、``perf`` の集計を突き合わせる。
 
-基準は **東京 芝・左 1600m 良 の1番人気** の成績7つ。ページ（``reports/stats/05-turf-1600.md``）の
+基準は **東京 芝・左 1600m 良 の1番人気** の成績7つ。ページ（``reports/成績集計/05-turf-1600.md``）の
 ``## 芝・左 1600m 良`` → ``### 単勝人気`` → 先頭セルが ``1`` の行を読み、同じ条件で集計した値と比べる。
 新しい集計を作ったら、ここが一致することを確かめてから先へ進む。
 
@@ -25,7 +25,7 @@ from 共通.render import Table  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 #: 答え合わせに使うページと、その中の節・表・行。
-CHECK_PAGE = ROOT / "reports" / "stats" / "05-turf-1600.md"
+CHECK_PAGE = ROOT / "reports" / "成績集計" / "05-turf-1600.md"
 CHECK_SECTION = "芝・左 1600m 良"
 CHECK_TABLE = "単勝人気"
 CHECK_LABEL = "1"

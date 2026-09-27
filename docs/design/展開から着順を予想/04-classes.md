@@ -221,12 +221,12 @@
 
 | クラス | 読む・書くもの | 主な public メソッド |
 |---|---|---|
-| `DatasetRepository` | 1頭ごと・1レースごと・既存の予想ごとの学習データ（`reports/race_development/datasets/`）。作った条件（元DB の更新日時と期間）と一緒に残す | `load(名前, 条件)`・`save(名前, 条件, データ)` |
-| `OutOfSampleRepository` | 前の組の「学習に使っていない予測」（`reports/race_development/out_of_sample/<組>/<時点>/<年>.pkl`）。作った条件と一緒に残す | `load(組, 時点, 年, 条件)`・`save(…)` |
-| `BacktestArtifactRepository` | 年ごとの確かめの、年ごとの精算の表と、結果の表（`reports/race_development/backtest/`） | `exists`・`load`・`save`・`save_text` |
-| `PredictionArchiveRepository` | 予測のたびに、予測用データ（特徴量）と予測を書き足す（`reports/race_development/predictions/<開催日>/`）。上書きしない | `save(開催日, レースID, 時点, 予測した時刻, 表)` |
+| `DatasetRepository` | 1頭ごと・1レースごと・既存の予想ごとの学習データ（`reports/展開から着順を予想/datasets/`）。作った条件（元DB の更新日時と期間）と一緒に残す | `load(名前, 条件)`・`save(名前, 条件, データ)` |
+| `OutOfSampleRepository` | 前の組の「学習に使っていない予測」（`reports/展開から着順を予想/out_of_sample/<組>/<時点>/<年>.pkl`）。作った条件と一緒に残す | `load(組, 時点, 年, 条件)`・`save(…)` |
+| `BacktestArtifactRepository` | 年ごとの確かめの、年ごとの精算の表と、結果の表（`reports/展開から着順を予想/backtest/`） | `exists`・`load`・`save`・`save_text` |
+| `PredictionArchiveRepository` | 予測のたびに、予測用データ（特徴量）と予測を書き足す（`reports/展開から着順を予想/predictions/<開催日>/`）。上書きしない | `save(開催日, レースID, 時点, 予測した時刻, 表)` |
 
-途中の結果は pickle で書く（この環境には parquet の道具（pyarrow）が無いため）。学習済みモデルは `KindModelStore`（共通の `ModelRepository`）が `reports/race_development/models/<予想>/<時点>/` に、既存の予想のモデルは `TendencyModelStore` が `reports/race_development/models/tendency/<既存の予想>/<区分・券種>/<時点>/` に書く。どれも JV-Data から作ったもので、公開しないので Git の対象外に置く。
+途中の結果は pickle で書く（この環境には parquet の道具（pyarrow）が無いため）。学習済みモデルは `KindModelStore`（共通の `ModelRepository`）が `reports/展開から着順を予想/models/<予想>/<時点>/` に、既存の予想のモデルは `TendencyModelStore` が `reports/展開から着順を予想/models/tendency/<既存の予想>/<区分・券種>/<時点>/` に書く。どれも JV-Data から作ったもので、公開しないので Git の対象外に置く。
 
 ## 4. パッケージ構成
 

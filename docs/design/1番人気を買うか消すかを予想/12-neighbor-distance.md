@@ -9,7 +9,7 @@
 | 3. 尺度をそろえる | 数の列を標準化する。平均と標準偏差は、単位ごとに、3つのグループを合わせた学習データから求める。どの行も同じ値の列は使わない。0/1 の列は標準化せず 1/√2 を掛ける |
 | 4. 特徴量の重み | まとまり A〜K の重みを掛ける。A〜J は 1.0、K（単勝オッズから見た評価）は 0。オッズなしで予想するため。重み 0 のまとまりは使わない |
 | 5. 似た馬の探し方 | `NearestNeighbors` で、ユークリッド距離の近い k頭（10頭）を探す。k はグループの頭数 − 1 を超えない |
-| 6. 保存 | 学習したモデルの一式を pickle で、方針を `settings.json` で、`reports/favorite_buy_or_fade/models/` に書く |
+| 6. 保存 | 学習したモデルの一式を pickle で、方針を `settings.json` で、`reports/1番人気を買うか消すかを予想/models/` に書く |
 
 - 用語の意味（k近傍法・距離・標準化・ワンホットエンコーディング）は [02-glossary.md](02-glossary.md) を参照。
 - 道具の使い方の基本は [03-library-basics.md](03-library-basics.md) を参照。
@@ -110,7 +110,7 @@ flowchart TD
 ## 6. 保存
 
 - 学習したモデルの一式（`SimilarityModelSet`: 単位の決め方・単位ごとの `UnitSimilarity`・方針）を、`SimilarityModelRepository` が pickle で `similarity_models.pkl` に書く。学習に使った方針は、人が読める形で `settings.json` にも書く。
-- 置き場所: Git の対象外の `reports/favorite_buy_or_fade/models/`（`--models` で変えられる）。JV-Data から作ったもので、公開しないため。`train` を実行し直すと、前のものを置き換える。
+- 置き場所: Git の対象外の `reports/1番人気を買うか消すかを予想/models/`（`--models` で変えられる）。JV-Data から作ったもので、公開しないため。`train` を実行し直すと、前のものを置き換える。
 - pickle は、知らないファイルを読むと危ないので、自分で書いたファイルだけを読む。
 - 予測（`predict`）は、保存した一式の方針（時点・判定の線）をそのまま使う。
 
