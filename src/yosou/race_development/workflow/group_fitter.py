@@ -13,8 +13,9 @@ from yosou.shared.ml_model import EnsembleModel
 from yosou.shared.setting import HyperparameterSettings
 
 from ..dataset import label_names as names
-from ..feature import GroupForecast
+from ..feature import GroupForecast, PriorForecasts
 from ..ml_model import OrderLambdaFitter, ValidationHalves
+from ..tendency import TendencyFitter, TendencySink
 from .development_model_kind import DevelopmentModelKind
 from .forecast_group import ForecastGroup
 from .kind_datasets import KindDatasets
@@ -31,30 +32,35 @@ ModelSink = Callable[[DevelopmentModelKind, list[Any], float | None], None]
 class GroupFitter:
     """1つの組の予想ごとに、LightGBM と CatBoost を学習し、予測する年のサンプルを予測する（設計書 05 の図5）。
 
-    年ごとの確かめのモデルは、予測を出したら捨てる（設計書 04 の「workflow/」）。学習（train）は ``sink`` を渡して、
-    最新の年のモデルを受け取って保存する。⑦ は、検証データの後半で、2着・3着の割り当てのならしの指数 λ も決めて、予測の表に入れる。
+    傾向の組は、既存の4つの予想を ``TendencyFitter`` で学習して予測する。
+    年ごとの確かめのモデルは、予測を出したら捨てる（設計書 04 の「workflow/」）。学習（train）は ``sink``（傾向の組は
+    ``tendency_sink``）を渡して、最新の年のモデルを受け取って保存する。⑦ は、検証データの後半で、2着・3着の割り当ての
+    ならしの指数 λ も決めて、予測の表に入れる。
     """
 
     def __init__(self) -> None:
         self._trainer = KindTrainer()
         self._forecaster = KindForecaster()
+        self._tendency = TendencyFitter()
 
-    def fit_predict(self, group: ForecastGroup, period: YearPeriod, datasets: KindDatasets,
-                    early: GroupForecast | None, late: GroupForecast | None, timing: PredictionTiming,
-                    settings: HyperparameterSettings, sink: ModelSink | None = None) -> GroupForecast:
+    def fit_predict(self, group: ForecastGroup, period: YearPeriod, datasets: KindDatasets, priors: PriorForecasts,
+                    timing: PredictionTiming, settings: HyperparameterSettings, sink: ModelSink | None = None,
+                    tendency_sink: TendencySink | None = None) -> GroupForecast:
         """予測する年（``period.predict_first_day`` から）の、組の全部の予想の予測。"""
+        if group is ForecastGroup.TENDENCY:
+            return self._tendency.fit_predict(period, datasets.tendency, timing, settings, tendency_sink)
         horse_parts: list[pd.DataFrame] = []
         race_parts: list[pd.DataFrame] = []
         for kind in group.kinds:
-            predicted = self._fit_predict_kind(kind, period, datasets, early, late, timing, settings, sink)
+            predicted = self._fit_predict_kind(kind, period, datasets, priors, timing, settings, sink)
             (race_parts if kind.spec.per_race else horse_parts).append(predicted)
-        return GroupForecast(self._joined(horse_parts, [RACE_ID, HORSE_ID]), self._joined(race_parts, [RACE_ID]))
+        return GroupForecast.joined(horse_parts, race_parts)
 
     def _fit_predict_kind(self, kind: DevelopmentModelKind, period: YearPeriod, datasets: KindDatasets,
-                          early: GroupForecast | None, late: GroupForecast | None, timing: PredictionTiming,
-                          settings: HyperparameterSettings, sink: ModelSink | None) -> pd.DataFrame:
+                          priors: PriorForecasts, timing: PredictionTiming, settings: HyperparameterSettings,
+                          sink: ModelSink | None) -> pd.DataFrame:
         """1つの予想を学習して予測し、ID 列と予測の列の表にする。"""
-        data = datasets.of(kind, early, late)
+        data = datasets.of(kind, priors)
         labeled = datasets.labeled(kind, data)
         train = labeled.between(period.train_first_day, period.valid_first_day).for_timing(timing)
         valid = labeled.between(period.valid_first_day, period.predict_first_day).for_timing(timing)
@@ -75,12 +81,3 @@ class GroupFitter:
         win = EnsembleModel(members).predict_proba(second_half)
         finish = second_half.targets[names.FINISH].to_numpy()
         return OrderLambdaFitter().fit(win, second_half.ids[RACE_ID].to_numpy(), finish)
-
-    def _joined(self, parts: list[pd.DataFrame], keys: list[str]) -> pd.DataFrame:
-        """予想ごとの予測の表を、ID 列で1つにする。無ければ ID 列だけの空の表。"""
-        if not parts:
-            return pd.DataFrame(columns=keys)
-        joined = parts[0]
-        for part in parts[1:]:
-            joined = joined.merge(part, on=keys, how="outer")
-        return joined.reset_index(drop=True)

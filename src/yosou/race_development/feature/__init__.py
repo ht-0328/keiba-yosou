@@ -11,10 +11,12 @@
 | ``PaceMaterialFeatures`` | P. ペースの材料（1レースごと 10個） |
 | ``PaceBaselineFeatures`` | Q. 前半タイムの基準とコース（1レースごと 6個） |
 | ``LateMaterialFeatures`` | U. 後半の材料（1レースごと 7個） |
+| ``TendencyFeatures`` | V. 既存の予想から見た傾向（1頭ごと 16個・1レースごと 11個） |
 | ``EarlyForecastFeatures`` | S. 前半の予想の結果（1頭ごと 9個・1レースごと 6個） |
 | ``LateForecastFeatures`` | T. 後半の予想の結果（7個） |
-| ``GroupForecast`` | 1つの組（前半・後半・着順）の予測の入れ物と、その列の名前 |
-| ``StackedColumns`` | 特徴量を予想ごとの一覧に合わせ、前の組の予測の列（S・T）を足す |
+| ``GroupForecast`` | 1つの組（傾向・前半・後半・着順）の予測の入れ物と、その列の名前 |
+| ``PriorForecasts`` | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
+| ``StackedColumns`` | 特徴量を予想ごとの一覧に合わせ、前の組の予測の列（V・S・T）を足す |
 | ``RaceOrderStatistic`` | 同じレースの馬の値の、何番目に大きい（小さい）値 |
 | ``feature_catalog.py`` | 特徴量の一覧（1回で作る ``HORSE_CATALOG``・``RACE_CATALOG`` と、予想ごとの一覧） |
 | ``history/`` | 過去の記録から数える部品 |
@@ -40,6 +42,12 @@ from .feature_catalog import (
 )
 from .group_forecast import (
     BACK_PROBABILITY,
+    FAVORITE_OUT_PROBABILITY,
+    LONGSHOT_TOP3_PROBABILITY,
+    TOP3_PROBABILITY,
+    UPSET_BETS,
+    big_upset_probability,
+    calm_probability,
     CLOSING_PREDICTION,
     CORNER4_PREDICTION,
     EVEN_PROBABILITY,
@@ -58,12 +66,17 @@ from .late_forecast_features import LateForecastFeatures
 from .late_material_features import LateMaterialFeatures
 from .pace_baseline_features import PaceBaselineFeatures
 from .pace_material_features import PaceMaterialFeatures
+from .prior_forecasts import PriorForecasts
 from .stacked_columns import StackedColumns
+from .tendency_features import REQUIRED_HORSE_FEATURES, REQUIRED_RACE_FEATURES, TendencyFeatures
 
 __all__ = [
     "EarlyHistoryFeatures", "EarlyFieldComparisonFeatures", "CourseShapeFeatures", "ClosingHistoryFeatures",
     "ClosingFieldComparisonFeatures", "PaceMaterialFeatures", "PaceBaselineFeatures", "LateMaterialFeatures",
-    "EarlyForecastFeatures", "LateForecastFeatures", "GroupForecast", "StackedColumns",
+    "EarlyForecastFeatures", "LateForecastFeatures", "GroupForecast", "StackedColumns", "PriorForecasts",
+    "TendencyFeatures", "REQUIRED_HORSE_FEATURES", "REQUIRED_RACE_FEATURES",
+    "TOP3_PROBABILITY", "FAVORITE_OUT_PROBABILITY", "LONGSHOT_TOP3_PROBABILITY", "UPSET_BETS", "calm_probability",
+    "big_upset_probability",
     "HORSE_CATALOG", "RACE_CATALOG", "EARLY_HORSE_CATALOG", "EARLY_RACE_CATALOG", "LATE_HORSE_CATALOG",
     "LATE_RACE_CATALOG", "FINISH_CATALOG", "FINISH_PLAIN_CATALOG",
     "LEADER_PROBABILITY", "FRONT_PROBABILITY", "MIDDLE_PROBABILITY", "BACK_PROBABILITY",

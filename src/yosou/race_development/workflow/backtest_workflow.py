@@ -16,7 +16,7 @@ from yosou.shared.setting import HyperparameterSettings
 
 from ..betting import ReturnSummary
 from ..evaluation import FinishYearMetrics, PlaceCalibration, StageYearMetrics
-from ..feature import GroupForecast
+from ..feature import GroupForecast, PriorForecasts
 from ..repository import BacktestArtifactRepository, DatasetRepository, OutOfSampleRepository
 from ..setting import DEFAULT_SETTINGS_PATH
 from .backtest_frames import BacktestFrames
@@ -38,7 +38,7 @@ TIMING = PredictionTiming.RACE_DAY
 class BacktestWorkflow:
     """年ごとの確かめ（設計書 05 の図6・16 の 7）。ほかのクラスを順に呼んで、データを受け渡すだけで、自分では計算しない。
 
-    学習データを作る → 前半・後半・着順の組の「学習に使っていない予測」を年ごとに作る → 年ごとに印と買い目を作って精算する →
+    学習データを作る → 傾向・前半・後半・着順の組の「学習に使っていない予測」を年ごとに作る → 年ごとに印と買い目を作って精算する →
     当たり具合と回収率の表にする。元DB を開くのは、学習データを作る段と、年ごとの確定オッズ・払戻を読む段だけ。
     途中の結果（学習データ・年ごとの予測・精算の表）は ``root`` の下に残し、止まったら続きから再開する。
     """
@@ -57,9 +57,12 @@ class BacktestWorkflow:
         years = sorted(years)
         datasets = self._datasets.load(years[-1])
         schedule = WalkForwardSchedule()
-        early = self._forecast(ForecastGroup.EARLY, schedule, years, datasets, None, None, settings)
-        late = self._forecast(ForecastGroup.LATE, schedule, years, datasets, early, None, settings)
-        finish = self._forecast(ForecastGroup.FINISH, schedule, years, datasets, early, late, settings)
+        tendency = self._forecast(ForecastGroup.TENDENCY, schedule, years, datasets, PriorForecasts(), settings)
+        priors = PriorForecasts(tendency)
+        priors = priors.with_early(self._forecast(ForecastGroup.EARLY, schedule, years, datasets, priors, settings))
+        priors = priors.with_late(self._forecast(ForecastGroup.LATE, schedule, years, datasets, priors, settings))
+        finish = self._forecast(ForecastGroup.FINISH, schedule, years, datasets, priors, settings)
+        early, late = priors.early, priors.late
         frames = BacktestFrames(datasets)
         settled = pd.concat([self._settled(year, frames, early, finish) for year in years], ignore_index=True)
         stage_years = list(range(schedule.first_year(ForecastGroup.EARLY), years[-1] + 1))
@@ -68,7 +71,7 @@ class BacktestWorkflow:
         horses = all_horses[all_horses["年"].isin([str(year) for year in years])]
         return BacktestReport(
             returns=ReturnSummary().table(settled),
-            finish=FinishYearMetrics().table(horses, self._finish_training_rows(years, datasets, early, late)),
+            finish=FinishYearMetrics().table(horses, self._finish_training_rows(years, datasets, priors)),
             stages=StageYearMetrics().table(all_horses, frames.races(all_years, early, late), stage_years),
             calibration=PlaceCalibration().table(horses),
             order_lambdas=self._order_lambdas(finish, horses),
@@ -80,11 +83,10 @@ class BacktestWorkflow:
         return self._artifacts.save_text(name, text)
 
     def _forecast(self, group: ForecastGroup, schedule: WalkForwardSchedule, years: list[int], datasets: KindDatasets,
-                  early: GroupForecast | None, late: GroupForecast | None,
-                  settings: HyperparameterSettings) -> GroupForecast:
+                  priors: PriorForecasts, settings: HyperparameterSettings) -> GroupForecast:
         """その組が予測を出せる最初の年から、確かめる最後の年までの予測。"""
         group_years = list(range(schedule.first_year(group), years[-1] + 1))
-        return self._predictor.predict(group, group_years, datasets, early, late, TIMING, settings)
+        return self._predictor.predict(group, group_years, datasets, priors, TIMING, settings)
 
     def _settled(self, year: int, frames: BacktestFrames, early: GroupForecast, finish: GroupForecast) -> pd.DataFrame:
         """その年の精算した買い目。前に精算したものがあれば読む（予測が同じなら）。"""
@@ -103,11 +105,10 @@ class BacktestWorkflow:
     def _fingerprint(self, table: pd.DataFrame) -> str:
         return f"{int(pd.util.hash_pandas_object(table, index=False).sum()) & 0xFFFFFFFF:08x}"
 
-    def _finish_training_rows(self, years: list[int], datasets: KindDatasets, early: GroupForecast,
-                              late: GroupForecast) -> dict[str, int]:
+    def _finish_training_rows(self, years: list[int], datasets: KindDatasets, priors: PriorForecasts) -> dict[str, int]:
         """年 → その年の ⑦ のモデルの学習データの行数（早い年ほど少ないことを、表に並べて見せるため）。"""
         kind = DevelopmentModelKind.FINISH
-        labeled = datasets.labeled(kind, datasets.of(kind, early, late))
+        labeled = datasets.labeled(kind, datasets.of(kind, priors))
         days = pd.to_datetime(labeled.ids[RACE_DATE])
         schedule = WalkForwardSchedule()
         return {

@@ -8,6 +8,7 @@ import time
 from datetime import date
 from pathlib import Path
 
+from 共通 import render
 from 共通.render import Table
 
 from yosou.shared.feature import PredictionTiming
@@ -20,14 +21,14 @@ _TIMING_CHOICES = " / ".join(f"{timing.label}（{timing.value}）" for timing in
 
 
 class TrainCommand:
-    """``train``: 時点ごとに、7つの予想の LightGBM と CatBoost を学習して保存する（設計書 05 の図1）。
+    """``train``: 時点ごとに、既存の4つの予想（傾向の組）と7つの予想の LightGBM と CatBoost を学習して保存する（設計書 05 の図1）。
 
     学習するのは ``--year`` 年のモデル（学習は組の最初の年 〜 前の年の9月、検証は前の年の10〜12月）。
     後半と着順のモデルの学習データに入れる前の組の予測は、年ごとに学習し直して作る（年ごとの確かめと共有し、作ったものは読むだけ）。
     """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
-        parser = subparsers.add_parser("train", help="時点ごとに7つの予想のモデルを学習して保存する", allow_abbrev=False)
+        parser = subparsers.add_parser("train", help="時点ごとに、既存の4つの予想と7つの予想のモデルを学習して保存する", allow_abbrev=False)
         parser.add_argument("--year", type=int, default=date.today().year,
                             help="学習するモデルの年（既定: 今年。前の年の12月までのデータで学習する）")
         parser.add_argument("--timings", nargs="*", default=None, metavar="時点",
@@ -36,6 +37,8 @@ class TrainCommand:
         parser.add_argument("--root", type=Path, default=PROJECT_ROOT / "reports" / YOSOU_NAME,
                             help=f"モデルと途中の結果の置き場所（既定: reports/{YOSOU_NAME}。Git の対象外）")
         parser.add_argument("--db", type=Path, default=None, help="元DB のパス（既定: ../jvdata-store/jvdata.duckdb か環境変数 YOSOU_DB）")
+        parser.add_argument("--format", choices=render.FORMATS, default=render.DEFAULT_FORMAT, help="出力の形式（既定: markdown）")
+        parser.add_argument("--out", type=Path, default=None, help="このファイルに書く（省略すると標準出力）")
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:

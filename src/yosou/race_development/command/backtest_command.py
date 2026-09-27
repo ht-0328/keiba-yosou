@@ -16,7 +16,7 @@ from .backtest_tables import BacktestTables
 from .yosou_name import PROJECT_ROOT, YOSOU_NAME
 
 #: 確かめる年の既定（設計書 15 の 18）。
-DEFAULT_YEARS = "2020-2026"
+DEFAULT_YEARS = "2021-2026"
 #: 結果の表のファイルの名前（``reports/race_development/backtest/`` の下）。
 RESULT_NAME = "results"
 
@@ -29,7 +29,7 @@ class BacktestCommand:
             "backtest", help="年ごとに学習し直して過去のレースを予測し、券種ごと・年ごとの的中率と回収率を出す", allow_abbrev=False,
         )
         parser.add_argument("--years", default=DEFAULT_YEARS,
-                            help=f"確かめる年（例: 2020-2026 か 2024,2025。既定: {DEFAULT_YEARS}）")
+                            help=f"確かめる年（例: 2021-2026 か 2024,2025。既定: {DEFAULT_YEARS}）")
         parser.add_argument("--config", type=Path, default=BACKTEST_SETTINGS_PATH,
                             help="ハイパーパラメータの設定ファイル（TOML。既定は setting/backtest_settings.toml。速さのために学習率を上げたもの）")
         parser.add_argument("--root", type=Path, default=PROJECT_ROOT / "reports" / YOSOU_NAME,
@@ -51,7 +51,7 @@ class BacktestCommand:
         return tables
 
     def _years(self, text: str) -> list[int]:
-        """``2020-2026`` か ``2024,2025`` の書き方から年の並びを作る。"""
+        """``2021-2026`` か ``2024,2025`` の書き方から年の並びを作る。"""
         if "-" in text:
             first, last = (int(part) for part in text.split("-", 1))
             return list(range(first, last + 1))

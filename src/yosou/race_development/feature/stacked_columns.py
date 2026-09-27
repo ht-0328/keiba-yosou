@@ -15,23 +15,28 @@ Data = TypeVar("Data", TrainingData, PredictionData)
 
 
 class StackedColumns:
-    """特徴量の表を、予想ごとの一覧（``catalog``）の列にし、前の組の予測（S・T）の列を足す（設計書 04 の 1・08 の 4）。
+    """特徴量の表を、予想ごとの一覧（``catalog``）の列にし、前の組の予測（V・S・T）の列を足す（設計書 04 の 1・08 の 4）。
 
     学習データは元DB から1頭ごとと1レースごとの2回だけ作り、予想ごとの学習データは、ここで列を選び直して作る。
     前の組の予測が無い行（前の組が予測を出していない年）は、後の組の学習データから外す（設計書 16 の 7）。
+    どの行に前の組の予測があるかは、呼ぶ側が ``available`` で渡す（人気馬だけの確率のように、欠損値が普通の列があるため）。
     予測用データは行を外さない（前の組の予測は、必ず付いているため）。
     """
 
-    def apply(self, data: Data, catalog: FeatureCatalog, stacked: pd.DataFrame | None = None) -> Data:
-        """``stacked`` は ``data`` と同じ index の、前の組の予測から作った特徴量（無ければ None）。"""
+    def apply(self, data: Data, catalog: FeatureCatalog, stacked: pd.DataFrame | None = None,
+              available: pd.Series | None = None) -> Data:
+        """``stacked`` は ``data`` と同じ index の、前の組の予測から作った特徴量（無ければ None）。
+
+        ``available`` は、前の組の予測がそろっている行（真偽。``data`` と同じ index）。None なら行を外さない。
+        """
         extra = stacked if stacked is not None else pd.DataFrame(index=data.features.index)
         combined = pd.concat([data.features, extra], axis=1)
         columns = list(self._columns_of(data, catalog))
         features = typed_features(combined[columns], catalog.categorical)
         placed = replace(data, features=features, catalog=catalog)
-        if not isinstance(placed, TrainingData) or extra.empty:
+        if not isinstance(placed, TrainingData) or available is None:
             return placed
-        return placed.where(extra.notna().all(axis=1))
+        return placed.where(available)
 
     def _columns_of(self, data: Data, catalog: FeatureCatalog) -> tuple[str, ...]:
         """予測用データは、その時点で使う列だけ。学習データは一覧の全部（時点ごとの列は、学習のときに選ぶ）。"""

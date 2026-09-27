@@ -7,8 +7,8 @@
 | フィクスチャ | 中身 |
 |---|---|
 | ``development_db`` | この予想のための合成DB のパス |
-| ``datasets`` | 1頭ごと・1レースごとの学習データ（``KindDatasets``） |
-| ``forecasts`` | 前半・後半・着順の組を、決めた期間で学習して予測した結果（3つの ``GroupForecast``） |
+| ``datasets`` | 1頭ごと・1レースごと・既存の予想ごとの学習データ（``KindDatasets``） |
+| ``forecasts`` | 傾向・前半・後半・着順の組を、決めた期間で学習して予測した結果（4つの ``GroupForecast``） |
 """
 
 from __future__ import annotations
@@ -28,8 +28,10 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.setting import HyperparameterSettings
 
 from ..dataset import horse_dataset_builder, race_dataset_builder
+from ..feature import PriorForecasts
 from ..feature.history import pace_baseline
 from ..setting import DEFAULT_SETTINGS_PATH
+from ..tendency import TendencyDatasets, TendencySource
 from ..workflow import ForecastGroup, GroupFitter, KindDatasets, YearPeriod
 
 #: テストでだけ使う、基準に要るレースの数（架空のシーズンは短く、本番の 30 レースでは春まで基準が作れないため）。
@@ -38,9 +40,10 @@ TEST_MIN_RACES = 5
 _SEED = 20260926
 _SPREAD = 15
 #: 組ごとの学習・検証・予測の期間（架空のシーズン 2023年10月〜2024年12月の中で、前の組の予測が後の組の学習に足りるように）。
-EARLY_PERIOD = YearPeriod(date(2024, 1, 1), date(2024, 3, 1), date(2024, 4, 1), date(2025, 1, 1))
-LATE_PERIOD = YearPeriod(date(2024, 4, 1), date(2024, 6, 15), date(2024, 8, 1), date(2025, 1, 1))
-FINISH_PERIOD = YearPeriod(date(2024, 8, 1), date(2024, 10, 1), date(2024, 11, 1), date(2025, 1, 1))
+TENDENCY_PERIOD = YearPeriod(date(2024, 1, 1), date(2024, 2, 15), date(2024, 3, 15), date(2025, 1, 1))
+EARLY_PERIOD = YearPeriod(date(2024, 3, 15), date(2024, 5, 1), date(2024, 6, 1), date(2025, 1, 1))
+LATE_PERIOD = YearPeriod(date(2024, 6, 1), date(2024, 7, 15), date(2024, 8, 15), date(2025, 1, 1))
+FINISH_PERIOD = YearPeriod(date(2024, 8, 15), date(2024, 10, 1), date(2024, 11, 1), date(2025, 1, 1))
 
 
 @pytest.fixture(scope="session")
@@ -60,27 +63,30 @@ def development_db(season_sample: synth.Sample, tmp_path_factory: pytest.TempPat
 
 @pytest.fixture(scope="session")
 def datasets(development_db: Path, season_period: TrainingPeriod) -> KindDatasets:
-    """1頭ごと・1レースごとの学習データ。基準に要るレースの数だけ、テストの間は小さくする。"""
+    """1頭ごと・1レースごと・既存の予想ごとの学習データ。基準に要るレースの数だけ、テストの間は小さくする。"""
     original = pace_baseline.MIN_RACES
     pace_baseline.MIN_RACES = TEST_MIN_RACES
     try:
         with db.open_db(development_db) as con:
             horses = horse_dataset_builder(con).build_training_data(season_period)
             races = race_dataset_builder(con).build_training_data(season_period)
+            tendency = {source: source.spec.builder(con).build_training_data(season_period) for source in TendencySource}
     finally:
         pace_baseline.MIN_RACES = original
-    return KindDatasets(horses, races)
+    return KindDatasets(horses, races, TendencyDatasets(tendency))
 
 
 @pytest.fixture(scope="session")
 def forecasts(datasets: KindDatasets, fast_settings_path: Path):
-    """前半 → 後半 → 着順の順に、決めた期間で学習して予測した結果（前半, 後半, 着順）。"""
+    """傾向 → 前半 → 後半 → 着順の順に、決めた期間で学習して予測した結果（前の組の予測の束, 着順）。"""
     settings = HyperparameterSettings.load(fast_settings_path, defaults=DEFAULT_SETTINGS_PATH)
     fitter, timing = GroupFitter(), PredictionTiming.RACE_DAY
-    early = fitter.fit_predict(ForecastGroup.EARLY, EARLY_PERIOD, datasets, None, None, timing, settings)
-    late = fitter.fit_predict(ForecastGroup.LATE, LATE_PERIOD, datasets, early, None, timing, settings)
-    finish = fitter.fit_predict(ForecastGroup.FINISH, FINISH_PERIOD, datasets, early, late, timing, settings)
-    return early, late, finish
+    priors = PriorForecasts(fitter.fit_predict(ForecastGroup.TENDENCY, TENDENCY_PERIOD, datasets, PriorForecasts(),
+                                               timing, settings))
+    priors = priors.with_early(fitter.fit_predict(ForecastGroup.EARLY, EARLY_PERIOD, datasets, priors, timing, settings))
+    priors = priors.with_late(fitter.fit_predict(ForecastGroup.LATE, LATE_PERIOD, datasets, priors, timing, settings))
+    finish = fitter.fit_predict(ForecastGroup.FINISH, FINISH_PERIOD, datasets, priors, timing, settings)
+    return priors, finish
 
 
 def _race_key(row: dict[str, str]) -> tuple[str, ...]:
