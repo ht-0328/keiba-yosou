@@ -10,6 +10,7 @@
 - ``race`` / ``horse`` / ``runners`` / ``browse``  レース・馬・出走・表の読み出し
 - ``card``     出馬表（これから走るレースの一覧、出走馬、各馬の近走）
 - ``trend`` / ``trend_items`` / ``trend_backtest`` / ``trend_html``  傾向スコア（採点・項目の登録簿・検証・グラフ付きの HTML）
+- ``ability``  能力指数（スピード指数・基準タイムと馬場差・ペース補正・近走のまとめ・1レースのランキング）
 - ``static``   画面の部品（``trend.js``）。検索画面のサーバーと ``trend_html`` が使う
 - ``raw``      生の値（仕様書の桁のままの文字列）を表に出す数や文字にする
 - ``render``   Markdown / CSV / JSON の整形
