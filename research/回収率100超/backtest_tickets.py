@@ -42,6 +42,8 @@ from 回収率100超.analysis.tickets import (  # noqa: E402
     RaceWinTable,
     StudyResult,
     TicketKind,
+    WidePriceBook,
+    WinBasedSource,
     YearTicketScorer,
 )
 
@@ -67,6 +69,7 @@ def main() -> None:
     parser.add_argument("--last-year", type=int, default=2026)
     parser.add_argument("--retrain", action="store_true", help="予測を使い回さずに学習し直す")
     args = parser.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
 
     runners = CacheLoader(args.cache).read()
     stern = _fit_stern(runners)
@@ -147,13 +150,14 @@ def _study_kind(kind: TicketKind, args: argparse.Namespace, probability: ComboPr
     """1つの券種を、年ごとに点数を付けてから、2通りの買い方で確かめる。"""
     tickets_dir = args.cache / "tickets"
     payouts = pd.read_parquet(tickets_dir / f"{kind.key}_payout.parquet")
-    wide_hits = _wide_hits(tickets_dir, payouts, args.last_year) if kind.lowest_price else None
+    wide_prices = WidePriceBook(tickets_dir, payouts, 2016, args.last_year) if kind.lowest_price else None
     calibrator = OddsBandCalibrator(kind.bands)
-    scorer = YearTicketScorer(kind, probability, wins)
+    scorer = YearTicketScorer(kind, WinBasedSource(probability, wins))
     candidates, marked, upset = [], [], []
     for year in range(FIRST_PREDICTED_YEAR, args.last_year + 1):
         odds = pd.read_parquet(tickets_dir / f"{kind.key}_{year}.parquet")
-        score = scorer.score(odds, payouts, calibrator, _price(odds, wide_hits, year),
+        price = odds["odds"] if wide_prices is None else wide_prices.price(odds, year)
+        score = scorer.score(odds, payouts, calibrator, price,
                              keep_all=kind.key in MARK_KINDS)
         calibrator.add(score.raw["odds"].to_numpy(), score.raw["raw_probability"].to_numpy(),
                        score.raw["hit"].to_numpy())
@@ -168,25 +172,6 @@ def _study_kind(kind: TicketKind, args: argparse.Namespace, probability: ComboPr
         marks = _for_evaluation(chosen, day_of)
         results["印のルール"] = LineStudy().run(marks.assign(stake=marks["stake_units"] * UNIT_YEN), cap=None)
     return results
-
-
-def _wide_hits(tickets_dir: Path, payouts: pd.DataFrame, last_year: int) -> pd.DataFrame:
-    """ワイドの当たった買い目の、年・最低オッズ・払戻（受け取る額の見込みを作るため）。"""
-    frames = []
-    for year in range(2016, last_year + 1):
-        odds = pd.read_parquet(tickets_dir / f"wide_{year}.parquet")
-        hits = odds.merge(payouts, on=["rid", "h1", "h2"], how="inner")
-        frames.append(hits.assign(year=year)[["year", "odds", "payout"]])
-    return pd.concat(frames, ignore_index=True)
-
-
-def _price(odds: pd.DataFrame, wide_hits: pd.DataFrame | None, year: int) -> pd.Series:
-    """受け取る額の見込み。ワイドは最低オッズ × 帯ごとの倍率（評価する年より前の当たりから）、ほかはオッズ。"""
-    if wide_hits is None:
-        return odds["odds"]
-    train = wide_hits[wide_hits["year"] < year]
-    estimator = PlacePriceEstimator().fit(train["odds"], train["payout"], pd.Series(1, index=train.index))
-    return estimator.estimate(odds["odds"])
 
 
 def _mark_rows(all_rows: pd.DataFrame, mark_tickets: pd.DataFrame, kind: TicketKind) -> pd.DataFrame:

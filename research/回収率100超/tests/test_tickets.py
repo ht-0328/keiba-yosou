@@ -16,6 +16,7 @@ from 回収率100超.analysis.tickets import (
     OddsBandCalibrator,
     RaceMarks,
     RaceWinTable,
+    WinBasedSource,
     YearTicketScorer,
 )
 
@@ -77,7 +78,7 @@ def test_期待値は直した確率と見込みの額の積で_当たりに払�
     wins = RaceWinTable(pd.Series([1, 1]), pd.Series([1, 2]), pd.Series([0.6, 0.4]))
     odds = pd.DataFrame({"rid": [1, 1], "h1": [1, 2], "odds": [1.5, 3.0]})
     payouts = pd.DataFrame({"rid": [1], "h1": [2], "payout": [300]})
-    score = YearTicketScorer(kind, HARVILLE, wins).score(
+    score = YearTicketScorer(kind, WinBasedSource(HARVILLE, wins)).score(
         odds, payouts, OddsBandCalibrator(kind.bands), odds["odds"])
     rows = score.all_rows.set_index("flat")
     assert rows.loc[1, "ev"] == pytest.approx(0.4 * 3.0)
