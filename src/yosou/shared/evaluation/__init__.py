@@ -16,6 +16,8 @@
 | ``ClassMetricCalculator`` | 多クラス分類のクラスごとの確率と正解から、評価指標を計算する |
 | ``ClassEvaluation`` | 多クラス分類の、1つの時点・1つのモデルの当たり具合の値 |
 | ``TrainingReport`` | 学習の結果の入れ物（使った期間・期間ごとのデータ・当たり具合・保存したフォルダ） |
+| ``ProbabilityBands`` | 予想した確率と、実際に 1 になった割合を、確率の帯ごとに並べる（確率のずれ） |
+| ``ValueBands`` | 複勝の期待値と、実際の的中率・回収率を、期待値の帯ごとに並べる |
 
 ``TrainingReport`` は、共通の ``workflow/`` の ``TrainingWorkflow`` が作り、``command/`` の ``TrainingReportTables``
 （多クラス分類は ``ClassTrainingReportTables``）が表にする。
@@ -27,10 +29,12 @@ from .class_model_evaluator import ClassModelEvaluator
 from .evaluation import Evaluation
 from .metric_calculator import MetricCalculator
 from .model_evaluator import ENSEMBLE_NAME, ModelEvaluator
+from .probability_bands import ProbabilityBands
 from .training_report import TrainingReport
+from .value_bands import ValueBands
 
 __all__ = [
     "ModelEvaluator", "MetricCalculator", "Evaluation",
     "ClassModelEvaluator", "ClassMetricCalculator", "ClassEvaluation",
-    "TrainingReport", "ENSEMBLE_NAME",
+    "TrainingReport", "ENSEMBLE_NAME", "ProbabilityBands", "ValueBands",
 ]

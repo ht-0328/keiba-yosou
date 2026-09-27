@@ -4,6 +4,7 @@
     uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3 --variants current improved
     uv run python research/既存モデルの改善/walk_forward.py --model form_aptitude_top3 --windows 2025年後半  # 1つの区切りだけ試す
     uv run python research/既存モデルの改善/walk_forward.py --model upset_level                        # 荒れ具合（現行の作り方・券種ごと）
+    uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3 --variants improved --timing 木曜  # 時点を替える
 
 出るもの: reports/既存モデルの改善/predictions/<予想の名前>/<作り方>.pkl（予測の表）と <作り方>-log.csv（木の数・秒）。
 学習データは build_tables.py で保存した表を読む（元DB は開かない）。ハイパーパラメータは予想の初期値のまま。
@@ -23,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import cli  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
+from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.shared.setting import HyperparameterSettings  # noqa: E402
 
 from 既存モデルの改善.analysis.tables import TableStore, spec_named  # noqa: E402
@@ -55,6 +57,9 @@ def main(args) -> None:
         return
     runner = WalkForwardRunner(WindowTrainer(settings), windows)
     variants = [variant for variant in variants_of(spec.name) if not args.variants or variant.key in args.variants]
+    if args.timing is not None:
+        available = tuple(data.catalog.columns_for(args.timing))
+        variants = [variant.at_timing(args.timing, available) for variant in variants]
     store = PredictionStore(args.predictions)
     rows = [_run(runner, store, data, variant) for variant in variants]
     cli.emit(Table(["作り方", "予測の行数", "ファイル"], rows, title=f"{spec.label}: 区切りごとの予測"), args)
@@ -98,6 +103,9 @@ def _parser():
     parser.add_argument("--model", required=True, help="予想の名前（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="回す作り方（省略すると全部）")
     parser.add_argument("--windows", nargs="*", default=None, metavar="区切り", help="回す区切り（例 2025年後半。省略すると7つ全部）")
+    parser.add_argument("--timing", type=PredictionTiming.parse, default=None, metavar="時点",
+                        help="予測する時点（木曜・前日・当日）。省略すると作り方の時点（当日）。付けると、その時点で使えない列を外し、"
+                             "予測を <作り方>-<時点>.pkl（例 improved-thursday.pkl）に保存する")
     parser.add_argument("--tables", type=Path, default=_DEFAULT_TABLES, help="学習データの表の置き場所")
     parser.add_argument("--predictions", type=Path, default=_DEFAULT_PREDICTIONS, help="予測の表の置き場所")
     return parser

@@ -34,6 +34,7 @@
 | `compare.py` | 入口④: 現行・オッズだけ・変更版を比べる表を出す（`--only form_experiments` で、材料の実験を変更版と比べた採否の表） |
 | `backtest.py` | 入口⑤: 直した予想から馬の期待値と役割を決め、券種で期待値を積んで買う買い方を、過去のレースで確かめる |
 | `build_experiments.py` | 入口⑥: 材料を1つずつ足す実験の表を作る（能力指数・当日の馬場傾向 など） |
+| `calibration.py` | 入口⑦: 穴馬の予想の確率のずれを、7つの区切り × 3つの時点で確かめ、較正（Platt scaling・isotonic regression）と比べる（issue #31） |
 | `analysis/` | 部品（下の表） |
 | `docs/` | 進め方（`01-進め方.md`）と結果の読み方（`02-結果の読み方.md`） |
 | `tests/` | 部品のテスト（合成データだけ） |
@@ -56,6 +57,7 @@
 | `ticket_combos/` | 券種ごとの買い目の候補の作り方と、点数の上限・賭け金の決め方 |
 | `betting/` | 買い方の検証（確率の補正・賭け金・券種で期待値を積む・勝負するレースを検証期間で決める） |
 | `experiments/`・`repository/` | 材料を1つずつ足す実験（と、そのための元DB の読み出し） |
+| `calibration/` | 確率のずれを測る材料の表と、較正の方法の比べ方 |
 
 ## 動かし方
 
@@ -65,6 +67,7 @@
 uv run python research/既存モデルの改善/build_tables.py                                   # ① 学習データ（数分）
 uv run python research/既存モデルの改善/walk_forward.py --model form_aptitude_top3        # ② 全頭（40分ほど）
 uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3         # ② 穴馬
+uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3 --variants improved --timing 木曜  # ② 時点を替える（既定は当日。予測は improved-thursday.pkl）
 uv run python research/既存モデルの改善/walk_forward.py --model favorites_out_of_top3     # ② 人気馬
 uv run python research/既存モデルの改善/walk_forward.py --model upset_level               # ② 荒れ具合（現行の作り方）
 uv run python research/既存モデルの改善/upset_calc.py                                     # ③ 荒れ具合（計算）
@@ -73,11 +76,13 @@ uv run python research/既存モデルの改善/backtest.py                     
 uv run python research/既存モデルの改善/build_experiments.py                              # ⑥ 材料の実験の表
 uv run python research/既存モデルの改善/walk_forward.py --model form_experiments          # ⑥ 材料の実験（2時間ほど）
 uv run python research/既存モデルの改善/compare.py --only form_experiments                # ⑥ 材料の実験の採否の表
+uv run python research/既存モデルの改善/calibration.py                                   # ⑦ 穴馬の確率のずれ（先に ② の穴馬を --timing 木曜・前日 でも回す）
 uv run python -m pytest -q research/既存モデルの改善                                       # 部品のテスト
 ```
 
 出るもの（どれも `reports/既存モデルの改善/`）: `tables/`（学習データ）、`predictions/`（予測）、`compare/<予想>.md`（比べ方の表）、
-`backtest/結果.md`（買い方の検証の表）と買い目の CSV。
+`backtest/結果.md`（買い方の検証の表）と買い目の CSV。⑦ だけは、穴馬の予想の報告の置き場所
+`reports/穴馬が3着以内に入るかを予想/calibration-walk-forward.md` に出す（本番のモデルの `calibration` コマンドの結果と並べて読むため）。
 
 ## 注意
 

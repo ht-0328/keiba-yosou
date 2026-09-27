@@ -8,6 +8,7 @@ from typing import NoReturn
 
 from 共通 import cli
 
+from .calibration_command import CalibrationCommand
 from .predict_command import PredictCommand
 from .train_command import TrainCommand
 
@@ -34,6 +35,11 @@ USAGE = """穴馬が3着以内に入るかを予想する。
 --zone 中穴 か --zone 大穴 を付けると、その区分の穴馬だけを出す。付けなければ穴馬すべてを出す。
 区分は 13頭以下なら 4〜6番人気が中穴・7番人気以下が大穴、14頭以上なら 6〜9番人気が中穴・10番人気以下が大穴。
 
+確率のずれの確認（保存したモデルの「3着以内に入る確率」と実際の割合、複勝の期待値と実際の回収率を、
+学習に使っていない検証・テストの期間で、時点 × 中穴・大穴ごとに比べる。学習のときと同じ期間の区切りを渡す）:
+
+    uv run python -m yosou.longshots_in_top3 calibration --out reports/穴馬が3着以内に入るかを予想/calibration.md
+
 予測の前に、jvdata-store で出走馬名表・出馬表・出走別着度数・調教を取り込んでおく（前日と当日は速報も）。
 設計書は docs/design/穴馬が3着以内に入るかを予想/。
 """
@@ -43,7 +49,7 @@ class CommandLine:
     """引数を読み、サブコマンド（train・predict）を実行し、結果の表を出す。元DB は各コマンドが要る段だけ読むだけで開く。"""
 
     def __init__(self) -> None:
-        self._commands = (TrainCommand(), PredictCommand())
+        self._commands = (TrainCommand(), PredictCommand(), CalibrationCommand())
 
     def run(self, argv: Sequence[str] | None = None) -> NoReturn:
         """``argv`` を省略すると、コマンドラインの引数を読む。誤りは1行で見せて exit 1、成功なら exit 0。"""
@@ -54,7 +60,7 @@ class CommandLine:
             prog="python -m yosou.longshots_in_top3", description=USAGE,
             formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False,
         )
-        subparsers = parser.add_subparsers(dest="command", required=True, metavar="{train,predict}")
+        subparsers = parser.add_subparsers(dest="command", required=True, metavar="{train,predict,calibration}")
         for command in self._commands:
             command.add_parser(subparsers)
         return parser
