@@ -7,9 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .combo_probability import ComboProbability
+from .combo_source import ComboSource
 from .odds_band_calibrator import OddsBandCalibrator
-from .race_win_table import RaceWinTable
 from .ticket_kind import TicketKind
 
 #: 残す買い目の期待値の下限。検証で動かす線（1.0〜1.5）の、いちばん低い値。
@@ -35,16 +34,15 @@ class YearTicketScorer:
     """買い目ごとに、確率（較正のあと）・期待値・払戻を付ける。
 
     手順:
-    1. レースごとに、勝率から全部の買い目の確率の表を作り、オッズの行に当てる（``ComboProbability``）。
+    1. レースごとに、確率の出どころ（``ComboSource``）から全部の買い目の確率の表を受け取り、オッズの行に当てる。
     2. 払戻の表と突き合わせ、当たった買い目に払戻を付ける（当たらなければ 0）。
     3. 前の年までの実績で、オッズの帯ごとに確率を直す（``OddsBandCalibrator``）。
     4. 期待値 = 直した確率 × 受け取る額の見込み。ワイドは最低オッズ × 帯ごとの倍率、ほかはオッズそのもの。
     """
 
-    def __init__(self, kind: TicketKind, probability: ComboProbability, wins: RaceWinTable) -> None:
+    def __init__(self, kind: TicketKind, source: ComboSource) -> None:
         self._kind = kind
-        self._probability = probability
-        self._wins = wins
+        self._source = source
 
     def score(self, odds: pd.DataFrame, payouts: pd.DataFrame, calibrator: OddsBandCalibrator,
               price: pd.Series, keep_all: bool = True) -> YearScore:
@@ -76,10 +74,10 @@ class YearTicketScorer:
         return result
 
     def _race_probability(self, rid: int, flat: np.ndarray) -> np.ndarray:
-        wins = self._wins.get(rid)
-        if wins is None:
+        table = self._source.table(self._kind, rid)
+        if table is None:
             return np.full(len(flat), np.nan)
-        return self._probability.table(self._kind, wins)[flat]
+        return table[flat]
 
     def _payout_by_flat(self, payouts: pd.DataFrame, horses: list[str]) -> pd.DataFrame:
         """払戻の表を、rid・flat・payout の形にする。同じ買い目が2行あれば大きい方。"""
