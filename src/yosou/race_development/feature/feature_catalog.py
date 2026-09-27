@@ -6,12 +6,14 @@
 
 | 一覧 | 予想 | 数（当日） |
 |---|---|---|
-| ``EARLY_HORSE_CATALOG`` | ① 先頭・② 序盤の位置 | 98（A〜I・K・L・M） |
-| ``EARLY_RACE_CATALOG`` | ③ 前半のペース | 27（R・P・Q） |
-| ``LATE_HORSE_CATALOG`` | ④ 4コーナーの位置・⑤ 上がりの速さ | 120（①② の全部・N・O・S） |
-| ``LATE_RACE_CATALOG`` | ⑥ 後半のペース | 40（③ の全部・U・1レースごとの S） |
-| ``FINISH_CATALOG`` | ⑦ 着順 | 127（④⑤ の全部・T） |
-| ``FINISH_PLAIN_CATALOG`` | ⑦ の比べる基準（前半・後半の予想を入れない） | 111（⑦ から S・T を除く） |
+| ``EARLY_HORSE_CATALOG`` | ① 先頭・② 序盤の位置 | 114（A〜I・K・L・M・V） |
+| ``EARLY_RACE_CATALOG`` | ③ 前半のペース | 38（R・P・Q・1レースごとの V） |
+| ``LATE_HORSE_CATALOG`` | ④ 4コーナーの位置・⑤ 上がりの速さ | 136（①② の全部・N・O・S） |
+| ``LATE_RACE_CATALOG`` | ⑥ 後半のペース | 51（③ の全部・U・1レースごとの S） |
+| ``FINISH_CATALOG`` | ⑦ 着順 | 143（④⑤ の全部・T） |
+| ``FINISH_PLAIN_CATALOG`` | ⑦ の比べる基準（前半・後半の予想を入れない。V は入れる） | 127（⑦ から S・T を除く） |
+
+V（既存の予想から見た傾向）は、どの予想にも入れる（利用者の決定。設計書 15 の 22）。
 """
 
 from __future__ import annotations
@@ -26,6 +28,20 @@ from yosou.shared.feature import (
     FeatureCatalog,
     FeatureKind,
     PredictionTiming,
+)
+
+from .group_forecast import UPSET_BETS
+from .tendency_features import (
+    FAVORITE_OUT,
+    FAVORITE_OUT_MAX,
+    LONGSHOT_TOP3,
+    LONGSHOT_TOP3_MAX,
+    TOP3,
+    TOP3_GAP,
+    TOP3_LEADING_GAP,
+    TOP3_RANK,
+    big_upset_feature,
+    calm_feature,
 )
 
 _N = FeatureKind.NUMERIC
@@ -82,6 +98,22 @@ T_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "T", _N) for name in (
     "4コーナーの位置の予測", "上がりの速さの予測", "4コーナーの位置の予測のレース内順位", "上がりの速さの予測のレース内順位",
     "位置と上がりの予測の和", "位置と上がりの予測の和のレース内順位", "後半タイムの基準との差の予測",
 ))
+#: V. 既存の予想から見た傾向（1レースごと 11個）。人気馬・穴馬の確率は、既存の予想が前日からしかモデルを持たないので前日から。
+V_RACE_FEATURES: tuple[Feature, ...] = (
+    *(Feature(name, "V", _N) for label in UPSET_BETS.values() for name in (calm_feature(label), big_upset_feature(label))),
+    Feature(TOP3_LEADING_GAP, "V", _N),
+    Feature(FAVORITE_OUT_MAX, "V", _N, _DAY_BEFORE),
+    Feature(LONGSHOT_TOP3_MAX, "V", _N, _DAY_BEFORE),
+)
+#: V. 既存の予想から見た傾向（1頭ごと 16個。1頭ごとの 5個と、1レースごとの 11個）。
+V_HORSE_FEATURES: tuple[Feature, ...] = (
+    Feature(TOP3, "V", _N),
+    Feature(TOP3_RANK, "V", _N),
+    Feature(TOP3_GAP, "V", _N),
+    Feature(FAVORITE_OUT, "V", _N, _DAY_BEFORE),
+    Feature(LONGSHOT_TOP3, "V", _N, _DAY_BEFORE),
+    *V_RACE_FEATURES,
+)
 #: R. レースの条件（11個。荒れ具合の予想の A と同じ。共通の ``RaceConditionSummary`` が作る）。
 R_FEATURES: tuple[Feature, ...] = (
     Feature("競馬場", "R", _C),
@@ -121,9 +153,9 @@ HORSE_CATALOG = FeatureCatalog(BASE_FEATURES + K_FEATURES + L_FEATURES + M_FEATU
 #: 1レースごとに1回で作る特徴量（34個）。
 RACE_CATALOG = FeatureCatalog(R_FEATURES + P_FEATURES + Q_FEATURES + U_FEATURES)
 #: 予想ごとの一覧。
-EARLY_HORSE_CATALOG = FeatureCatalog(BASE_FEATURES + K_FEATURES + L_FEATURES + M_FEATURES)
-EARLY_RACE_CATALOG = FeatureCatalog(R_FEATURES + P_FEATURES + Q_FEATURES)
-LATE_HORSE_CATALOG = FeatureCatalog(HORSE_CATALOG.features + S_HORSE_FEATURES)
-LATE_RACE_CATALOG = FeatureCatalog(RACE_CATALOG.features + S_RACE_FEATURES)
+EARLY_HORSE_CATALOG = FeatureCatalog(BASE_FEATURES + K_FEATURES + L_FEATURES + M_FEATURES + V_HORSE_FEATURES)
+EARLY_RACE_CATALOG = FeatureCatalog(R_FEATURES + P_FEATURES + Q_FEATURES + V_RACE_FEATURES)
+LATE_HORSE_CATALOG = FeatureCatalog(HORSE_CATALOG.features + V_HORSE_FEATURES + S_HORSE_FEATURES)
+LATE_RACE_CATALOG = FeatureCatalog(RACE_CATALOG.features + V_RACE_FEATURES + S_RACE_FEATURES)
 FINISH_CATALOG = FeatureCatalog(LATE_HORSE_CATALOG.features + T_FEATURES)
-FINISH_PLAIN_CATALOG = HORSE_CATALOG
+FINISH_PLAIN_CATALOG = FeatureCatalog(HORSE_CATALOG.features + V_HORSE_FEATURES)
