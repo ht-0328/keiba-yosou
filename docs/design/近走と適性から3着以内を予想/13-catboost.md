@@ -28,7 +28,7 @@
 
 ## 2. ハイパーパラメータの初期値
 
-`catboost.CatBoostClassifier` の引数名で書く。ここの値は設定ファイルの初期値で、プログラムを書き換えずに設定ファイルで変えられる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。値は仮で、検証データで調整する。調整のやり方は、検証データの分け方と一緒に次の設計書で決める。
+`catboost.CatBoostClassifier` の引数名で書く。ここの値は設定ファイルの初期値で、プログラムを書き換えずに設定ファイルで変えられる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。値は仮で、検証データで調整する。調整のやり方は [16-evaluation.md の「5. ハイパーパラメータの調整のやり方」](16-evaluation.md#5-ハイパーパラメータの調整のやり方) を参照。
 
 | 引数 | 初期値 | 意味 | 理由 |
 |---|---|---|---|
@@ -107,3 +107,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-21 |
+| 更新 | 2026-09-28: ハイパーパラメータの調整のやり方を、16-evaluation.md へのリンクにした |
