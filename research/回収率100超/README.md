@@ -17,8 +17,8 @@
 **回収率 100% を超えた**。開催日を単位にしたブートストラップの 90% の幅の下限も 100% を上回っている。
 線の決め方を前半の年だけに絞った確認でも、後半の年で 100% を超えた。
 実測値は `reports/回収率100超/`（Git 対象外）にある。
-ただし確定オッズでの検証なので、締め切り前のオッズで同じことができるかはまだ確かめていない
-（[docs/04-買い方.md](docs/04-買い方.md) の「残っている課題」）。
+ただし確定オッズでの検証である。過去1年の締め切り前のオッズで確かめると、**発走の10分前のオッズで買えば 100% を大きく割り、
+発走の1分前のオッズなら確定オッズとほぼ同じ**だった（[docs/04-買い方.md](docs/04-買い方.md) の 6-1）。
 
 ## この文書で使う言葉の意味
 
@@ -48,6 +48,7 @@
 | `market_check.py` | 入口③（診断）。単勝オッズの歪みが直せるかを年ごとに測る |
 | `extract_tickets.py` | 入口④。元DB から、券種ごとの買い目のオッズと払戻を中間データにする |
 | `backtest_tickets.py` | 入口⑤。複勝以外の券種（単勝・ワイド・馬連・馬単・3連複・3連単）を期待値で買って確かめる（[docs/05-券種ごとの検証.md](docs/05-券種ごとの検証.md)） |
+| `check_pre_deadline.py` | 入口⑥。締め切り前のオッズ（時系列オッズ）で買っていたら回収率がどうなったかを、過去1年のレースで確かめる（[docs/04-買い方.md](docs/04-買い方.md) の 6-1） |
 | `analysis/repository/` | 元DB から読む部品。1つのクラスが1つの SQL を持つ |
 | `analysis/cache_loader.py` | 中間データを1つの表にまとめる |
 | `analysis/market/` | オッズから確率を作る部品（条件付きロジット・Harville/Stern） |
@@ -77,6 +78,7 @@ uv run python research/回収率100超/extract.py            # 元DB から中�
 uv run python research/回収率100超/backtest.py           # 学習と検証（2時間ほど）
 uv run python research/回収率100超/extract_tickets.py    # 券種ごとの買い目のオッズと払戻を読み出す（十数分）
 uv run python research/回収率100超/backtest_tickets.py   # 複勝以外の券種の検証（学習に数時間。2回目からは予測を使い回す）
+uv run python research/回収率100超/check_pre_deadline.py # 締め切り前のオッズでの確認（先に backtest.py と、jvdata-store で時系列オッズの取り込み）
 uv run python -m pytest -q research                      # 部品のテスト（架空の値だけ）
 ```
 
