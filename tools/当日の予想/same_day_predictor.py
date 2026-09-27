@@ -54,16 +54,21 @@ class SameDayPredictor:
 
         元DB は1回だけ開いて全レースで使い回す（開くたびに事実表を作り直すと、1レースに1分近くかかる）。
         """
-        loaded = [(model.label, workflow.LoadedModel.load(model.folder(self._registry), self._registry))
-                  for model in self._models]
+        loaded = self.load_models()
         buys, tables = [], []
         with db.open_db(self._database) as con:
-            for race in self._races(con, day, after):
+            for race in self.races(con, day, after):
                 tables.append(self._race_table(con, race, loaded, buys))
         buy_table = Table(BUY_COLUMNS, buys, title=f"買い（複勝・期待値 {self._line:g} 以上）", note=self._note(len(tables)))
         return [buy_table, *tables]
 
-    def _races(self, con, day: str, after: str) -> list[dict]:
+    def load_models(self) -> list[tuple[str, workflow.LoadedModel]]:
+        """（表に出す名前, 読み込んだモデル）を、並べた順に。何レースも予想するときは1回だけ読む。"""
+        return [(model.label, workflow.LoadedModel.load(model.folder(self._registry), self._registry))
+                for model in self._models]
+
+    def races(self, con, day: str, after: str) -> list[dict]:
+        """開催日 ``day`` の、発走が ``after`` 以降のレース（出馬表の一覧の行。``rid``・``発走``・``場``・``R`` …）。"""
         listed = card.list_cards(con, date_from=day, date_to=day)
         rows = [dict(zip(listed.columns, row)) for row in listed.rows]
         return sorted((row for row in rows if (row["発走"] or "") >= after), key=lambda row: (row["発走"], row["場"]))
@@ -71,7 +76,7 @@ class SameDayPredictor:
     def _race_table(self, con, race: dict, loaded: list, buys: list) -> Table:
         title = f"{race['場']}{race['R']}R {race['発走']} {race['コース']}{race['距離']}m {race['レース名'] or ''}".strip()
         try:
-            label, result = self._predict(con, race["rid"], loaded)
+            label, result = self.predict(con, race["rid"], loaded)
         except ValueError as error:
             return Table(["理由"], [[str(error)]], title=f"{title}（予想できない）")
         records = [dict(zip(result.columns, row)) for row in result.rows]
@@ -89,7 +94,8 @@ class SameDayPredictor:
                              _round(value, 2), label])
         return Table(RACE_COLUMNS, rows, title=f"{title}（{label}）")
 
-    def _predict(self, con, race_id: str, loaded: list) -> tuple[str, Table]:
+    def predict(self, con, race_id: str, loaded: list) -> tuple[str, Table]:
+        """並べた順のモデルで1レースを予想する。どれでも予想できなければ ``ValueError``。"""
         message = ""
         for label, model in loaded:
             try:

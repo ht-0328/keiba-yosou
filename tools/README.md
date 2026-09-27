@@ -59,6 +59,7 @@
 | 傾向スコアが当たっているかを終わったレースで確かめる | `uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/傾向スコア/backtest-2026-08.md` |
 | 出走馬を能力指数の高い順に並べる（これから走るレースにも、終わったレースにも） | `uv run python tools/能力指数/ability.py --date 2026-09-27 --venue 中山 --race 11`（`--detail` で各馬の近5走のスピード指数、`--condition 稍重` で発表前の馬場状態、`--all` でその日の全レース） |
 | 当日のレースを予想して、買い（複勝・期待値 1.2 以上）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース） |
+| 当日の予想を発走の約10分前のオッズで「買ったつもり」で記録し、結果で精算する（フォワードテスト） | `uv run python tools/フォワードテスト/follow.py`（開催日の間動き続ける。ふだんはタスク スケジューラが `tools/フォワードテスト/run.bat` を呼ぶ。登録は `register_schedule.bat`。成績は `reports/フォワードテスト/成績.md`） |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
 | 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日） |
 | テストを走らせる | `uv run python -m pytest -q` |
