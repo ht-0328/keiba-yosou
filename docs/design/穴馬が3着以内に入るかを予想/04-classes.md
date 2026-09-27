@@ -69,7 +69,7 @@ src/yosou/shared/                   3つの予想から使う部品
 
 src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想する
 ├── __main__.py                     コマンドの入口（command/ を呼ぶだけ）
-├── command/                        コマンド（train・predict）の引数
+├── command/                        コマンド（train・predict・calibration）の引数
 ├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
 ├── dataset/                        穴馬の決まり・区分・行を選ぶ・区分で絞る
 ├── feature/                        この予想の特徴量の一覧
@@ -125,11 +125,23 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 | クラス | 置き場所 | 仕事 | 主な public メソッド |
 |---|---|---|---|
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | この予想 | `train`: 学習する。期間の引数から `TrainingPeriod` を作る | `add_parser(subparsers)`、`run(引数)` |
+| `TrainCommand` | この予想 | `train`: 学習する。期間の引数（`PeriodArguments`）から `TrainingPeriod` を作る | `add_parser(subparsers)`、`run(引数)` |
 | `PredictCommand` | この予想 | `predict`: 1レースの穴馬を予測する。`--pops` で全頭の人気を受け取って `PopularityInput` にし、`--zone` を `LongshotZone` にする | `add_parser(subparsers)`、`run(引数)` |
-| `CommonArguments` | `shared` | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`） | `add_to(parser)` |
+| `CalibrationCommand` | この予想 | `calibration`: 保存したモデルで、学習に使っていない検証・テストの期間の穴馬を3つの時点で予測し、確率のずれと複勝の期待値の当たり具合を表にする（[16-evaluation.md の 4](16-evaluation.md#4-確率のずれの確かめ方)） | `add_parser(subparsers)`、`run(引数)` |
+| `PeriodArguments` | この予想 | `train` と `calibration` に共通の、期間の区切りの引数（`--warmup-from` `--train-from` `--valid-from` `--test-from`）。読んだ値から `TrainingPeriod` を作る | `add_to(parser)`、`period(引数)` |
+| `CommonArguments` | `shared` | サブコマンドに共通の引数（`--models` `--db` `--format` `--out`） | `add_to(parser)` |
 | `TrainingReportTables` | `shared` | 学習の結果を表にする | `tables()` |
 | `PredictionTable` | `shared` | 予測の結果を、3着以内に入る確率の高い順の表にする。`extra_columns` に「人気順位」「穴馬の区分」を渡して、その2列も出す | `table()` |
+
+`calibration` が使う共通の部品は次のとおり。どれも、目的変数が 3着以内の予想（全頭の予想など）でもそのまま使える形にして `shared` に置いた。
+
+| クラス | 置き場所 | 仕事 | 主な public メソッド |
+|---|---|---|---|
+| `SegmentedHoldoutPrediction` | `shared/workflow/` | 学習データのうち検証・テストの期間の行を、区分（中穴・大穴）ごとの保存したモデルで予測する。区分は評価用の列で分ける（学習のときの `SegmentedTraining` と同じ） | `predict(学習データ, 時点)` |
+| `CalibrationCheck` | `shared/workflow/` | 期間 × 時点ごとに予測し、正解・確率・人気・払戻と、オッズが分かる時点（前日・当日）なら複勝的中の確率と期待値を並べた材料の表を作る | `run(時期で分けたデータ)` |
+| `ProbabilityBands` | `shared/evaluation/` | 予想した確率と実際の割合を、確率の帯ごとに並べる。帯ごとのずれの平均（ECE）も出す | `table(正解, 確率)`、`gap(正解, 確率)` |
+| `ValueBands` | `shared/evaluation/` | 複勝の期待値と、実際の的中率・回収率を、期待値の帯ごとに並べる。線以上を全部買ったときの成績も出す | `table(期待値, 的中の確率, 払戻)`、`at_least(…, 線)` |
+| `CalibrationReportTables` | `shared/command/` | 材料の表を、4つの表（まとめ・確率の帯ごと・人気ごと・期待値の帯ごと）にする | `tables()` |
 
 `--timing` は、時点の書き方を共通の `PredictionTiming.parse()` で読む。`--zone` の書き方が違うときに止めるのは `LongshotZone.parse()` で、誤りは `共通.cli` が1行で見せる（同じ判断を2か所に書かない）。
 
@@ -141,9 +153,11 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 |---|---|
 | 区分ごとに別のモデルにする（[15 の 3](15-decisions.md#3-区分ごとに別のモデルにするか)） | `LongshotSelector` が作られるときに区分を受け取り、`keep_samples()` でその区分の行だけを残す。`dataset_builder(接続, 区分)`。`TrainCommand` が区分ごとに `TrainingWorkflow` を回し、`reports/穴馬が3着以内に入るかを予想/models/<区分>/` に保存する。`PredictionWorkflow` は、`--zone` が無ければ2つのモデルを順に使う。`LongshotZoneFilter` は要らない |
 | 穴馬の区分を特徴量に入れる（[15 の 5](15-decisions.md#5-穴馬の区分を特徴量に入れるか)） | `feature/longshot_zone_features.py` に、`FeatureGroup` を守る `LongshotZoneFeatures`（出走の行の区分の列を、カテゴリ特徴量「穴馬の区分」にする）を足し、`CATALOG` に1個足して 76個にする |
+| 確率を較正する（[15 の 13](15-decisions.md#13-確率を較正するか)） | `shared/ml_model/` に較正のクラス（Platt scaling なら傾きと切片を持つ）と、区分 × 時点ごとに較正をファイルに読み書きするリポジトリを足す。`TrainCommand` が学習のあとに検証期間の予測で較正を学んで保存し、`SegmentedPrediction`（予測）と `SegmentedHoldoutPrediction`（`calibration`）が平均の確率に当てる。複勝の期待値は、その確率から出す（`PlaceValueColumns` は変えない）。比べたときの較正の部品は、研究「既存モデルの改善」の `analysis/calibration/` にある |
 
 ## 文書情報
 
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-23 |
+| 更新 | 2026-09-28: 確率のずれを確かめる `calibration` コマンドと、その部品を足した |

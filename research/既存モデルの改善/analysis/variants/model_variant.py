@@ -43,6 +43,15 @@ class ModelVariant:
         baseline = timed.baseline if self.uses_baseline else None
         return replace(timed, features=timed.features[list(self.columns)], baseline=baseline)
 
+    def at_timing(self, timing: PredictionTiming, available: tuple[str, ...]) -> ModelVariant:
+        """時点を替えた作り方。その時点で使えない列（``available`` に無い列）は外し、保存する名前に時点を付ける。
+
+        例: 穴馬の変更版を木曜にすると、単勝オッズから見た評価の列が外れ、名前は ``improved-thursday`` になる。
+        """
+        columns = tuple(column for column in self.columns if column in available)
+        return replace(self, key=f"{self.key}-{timing.value}", name=f"{self.name}（{timing.label}）",
+                       columns=columns, timing=timing)
+
     def segments(self, data: TrainingData) -> list[str]:
         """学習データを分ける区分の名前（分けない作り方は「全体」だけ）。"""
         if self.segment_column is None:

@@ -10,7 +10,7 @@
 - 人気の渡し方: 予測のときは、利用者が `--pops` で全頭の人気を渡す（木曜は 馬名:人気、前日・当日は 馬番:人気）。前日・当日は、元DB に締め切り前のオッズがあれば、そこから作る（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)）。
 - データの元: JRA-VAN Data Lab. の中央競馬のデータ（jvdata-store が DuckDB に貯めたもの）。
 - 用語の意味: [02-glossary.md](02-glossary.md) を参照。
-- 状態: 決めることは決まった（[15-decisions.md](15-decisions.md)）。プログラムは `src/yosou/longshots_in_top3/` に作った（人気に関する部品と 3着以内の目的変数の部品は `src/yosou/shared/` に移した。[04-classes.md](04-classes.md#1-共通の部品とこの予想だけの部品の分け方)）。実データでの学習はこれから。2026-09-24 に、既存モデルの修正計画に沿って直した（オッズから作った基準の補正・中穴と大穴で別のモデル・複勝の期待値。[15-decisions.md の 12](15-decisions.md#12-既存モデルの修正計画での直し)）。
+- 状態: 決めることは決まった（[15-decisions.md](15-decisions.md)）。プログラムは `src/yosou/longshots_in_top3/` に作った（人気に関する部品と 3着以内の目的変数の部品は `src/yosou/shared/` に移した。[04-classes.md](04-classes.md#1-共通の部品とこの予想だけの部品の分け方)）。実データでの学習はこれから。2026-09-24 に、既存モデルの修正計画に沿って直した（オッズから作った基準の補正・中穴と大穴で別のモデル・複勝の期待値。[15-decisions.md の 12](15-decisions.md#12-既存モデルの修正計画での直し)）。2026-09-28 に、確率のずれを測る `calibration` コマンドを足し、ずれがほぼ無いことを確かめて、較正は足さないと決めた（[15-decisions.md の 13](15-decisions.md#13-確率を較正するか)）。
 
 **1レースで、複数の穴馬を挙げられる。** 穴馬1頭ずつに別々の確率を出すので、1レースの出力は「穴馬ごとの、3着以内に入る確率」の表（高い順）になる。穴馬は出走馬の大半（16頭立てなら 6〜16番人気の 11頭）なので、「1レースで挙げるのは1頭まで」のような決まりは設けない（[15-decisions.md](15-decisions.md#11-買いと判定する線引きを設計書に入れるか)）。
 
@@ -82,8 +82,8 @@ LightGBM と CatBoost でどう学習・予測するかは [03-library-basics.md
 | [12-lightgbm.md](12-lightgbm.md) | LightGBM で学習・予測するための設計 | 確認待ち |
 | [13-catboost.md](13-catboost.md) | CatBoost で学習・予測するための設計 | 確認待ち |
 | [14-hyperparameter-settings.md](14-hyperparameter-settings.md) | ハイパーパラメータを設定ファイルで指定する | 確認待ち |
-| [15-decisions.md](15-decisions.md) | 決めたこと（11個）。決めた内容と、選ばなかった選び方 | 決定 |
-| [16-evaluation.md](16-evaluation.md) | 当たり具合の測り方（期間の分け方、評価指標、人気の基準との比べ方）と「買い」の線引き | 決定 |
+| [15-decisions.md](15-decisions.md) | 決めたこと（13個）。決めた内容と、選ばなかった選び方 | 決定 |
+| [16-evaluation.md](16-evaluation.md) | 当たり具合の測り方（期間の分け方、評価指標、人気の基準との比べ方）と「買い」の線引き、確率のずれの確かめ方 | 決定 |
 | （次に書く） | アンサンブルのやり方、学習と予測のコマンドの引数 | 未着手 |
 
 ## 決めたこと

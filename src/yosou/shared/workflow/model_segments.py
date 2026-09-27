@@ -38,6 +38,12 @@ class ModelSegments:
             return pd.Series(True, index=table.index)
         return table[self.column].eq(label)
 
+    def labels_of(self, table: pd.DataFrame) -> pd.Series:
+        """``table`` の行ごとの区分の名前。分けないときは全部「全体」。"""
+        if self.column is None:
+            return pd.Series(WHOLE, index=table.index)
+        return table[self.column].astype(str)
+
     def root_of(self, root: Path, label: str) -> Path:
         """その区分のモデルの置き場所。"""
         if self.column is None:
