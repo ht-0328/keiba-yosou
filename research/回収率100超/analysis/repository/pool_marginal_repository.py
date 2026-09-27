@@ -7,13 +7,13 @@ from dataclasses import dataclass
 import duckdb
 import pandas as pd
 
-from .race_key_sql import JRA_ONLY, RID
+from .race_key_sql import JRA_ONLY, RID, final_odds_rows
 
 #: 1頭目だけを見る券種（馬単・3連単）の SQL。組番の先頭2桁が1着の馬番。
 _FIRST_HORSE_SQL = f"""
 with オッズ as (
     select {RID} as rid, substr(組番, 1, 2) as horse_text, 1.0 / ({{price}}) as inverse
-    from {{table}}
+    from {{rows}}
     where 開催年 >= '{{first_year}}' and {JRA_ONLY} and ({{price}}) > 0
 ),
 レース合計 as (select rid, sum(inverse) as total from オッズ group by rid)
@@ -27,7 +27,7 @@ group by オッズ.rid, オッズ.horse_text
 _ALL_HORSES_SQL = f"""
 with オッズ as (
     select {RID} as rid, {{combo}} as combo, 1.0 / ({{price}}) as inverse
-    from {{table}}
+    from {{rows}}
     where 開催年 >= '{{first_year}}' and {JRA_ONLY} and ({{price}}) > 0
 ),
 レース合計 as (select rid, sum(inverse) as total from オッズ group by rid),
@@ -84,6 +84,7 @@ POOL_MARGINALS: tuple[PoolMarginal, ...] = (
 class PoolMarginalRepository:
     """1つの券種のオッズから、馬ごとの確率を1列ぶん読む。
 
+    読むのは確定オッズの断面だけ（``final_odds_rows``）。
     オッズの逆数は「その買い目に、どれだけの金が入ったか」の代わりになる。レース内で合計1にそろえると、
     市場がその買い目に付けた確率になる。それを馬ごとに足し合わせると、「その馬が1着になる確率」
     （馬単・3連単）や「その馬が組に入る確率」（馬連・3連複・ワイド）が出る。
@@ -96,7 +97,7 @@ class PoolMarginalRepository:
     def read(self, marginal: PoolMarginal) -> pd.DataFrame:
         """``rid``・``horse_no``・``marginal.column`` の3列。"""
         template = _FIRST_HORSE_SQL if marginal.first_horse_only else _ALL_HORSES_SQL
-        sql = template.format(table=marginal.table, first_year=self._first_year,
+        sql = template.format(rows=final_odds_rows(marginal.table), first_year=self._first_year,
                               column=marginal.column, combo=marginal.combo, price=marginal.price,
                               horses_per_combo=marginal.horses_per_combo)
         return self._connection.execute(sql).fetch_df()

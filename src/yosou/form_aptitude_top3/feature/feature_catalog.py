@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from yosou.shared.feature import BASE_FEATURES, MARKET_FEATURES, Feature, FeatureCatalog
 
-#: J. 市場の評価（3個）。荒れ具合の予想とも共通なので、一覧は ``yosou.shared.feature`` にある。
+#: J. 市場の評価（4個）。荒れ具合の予想とも共通なので、一覧は ``yosou.shared.feature`` にある。
 J_FEATURES: tuple[Feature, ...] = MARKET_FEATURES
 
 #: この予想の特徴量の一覧（まとまり A〜I と J。当日は 75個）。

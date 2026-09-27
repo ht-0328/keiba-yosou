@@ -60,7 +60,7 @@ sequenceDiagram
     RS->>RS: 入れる行を選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
-    F-->>D: 特徴量 74個
+    F-->>D: 特徴量 75個
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数
     D-->>W: 学習データ
@@ -72,11 +72,11 @@ sequenceDiagram
         W->>MR: save（時点、2つのモデル、設定）
         MR-->>W: 保存した
     end
-    W->>W: 検証データで当たり具合を確かめる（穴馬の 16-evaluation.md）
+    W->>W: 検証データで当たり具合を確かめる（16-evaluation.md）
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 74個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 75個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
 
 ## 図2. 予測
 
@@ -225,14 +225,14 @@ sequenceDiagram
 
 ## まだ決まっていないところ
 
-クラスは作ってある（[04-classes.md](04-classes.md)）。次のところは、まだ決まっていないか、仮の作りである。
+クラスは作ってある（[04-classes.md](04-classes.md)）。次のところは、はじめは決まっていないか、仮の作りだった。今の状態を右の列に書く。
 
 | 図の中の部分 | 今の状態 |
 |---|---|
-| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 穴馬の予想の設計書で決めた（[穴馬の 16](../穴馬が3着以内に入るかを予想/16-evaluation.md)。2025年7月から検証、2026年1月からテスト。ログ損失・AUC・Brier に、人気の基準との比べ方と同じ人気の中での AUC を足した。どの予想でも同じ） |
-| アンサンブルの平均のしかた | 仮に単純な平均。次の設計書で決める |
-| 学習をやり直す間隔 | 決まっていない。次の設計書で決める |
-| 予測確率を利用者に見せる形（表・画面など） | 決まっていない。次の設計書で決める |
+| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 決めた（[16-evaluation.md](16-evaluation.md)。既定の区切りと指標は穴馬の予想と共通。予想を直すときは 7つの半年の区切りで確かめる） |
+| アンサンブルの平均のしかた | 決めた。重みを付けない単純な平均（[03-library-basics.md の 6.](03-library-basics.md#6-2つの予測確率を合わせる)、[15-decisions.md の 8](15-decisions.md#8-アンサンブルの平均のしかた)） |
+| 学習をやり直す間隔 | 決めていない。利用者が `train` を実行したときに学習し直す。目安は半年（[16-evaluation.md の「今はしないこと」](16-evaluation.md#今はしないこと)） |
+| 予測確率を利用者に見せる形（表・画面など） | 決めた。確率の高い順の表（[04-classes.md の「コマンドの引数」](04-classes.md#コマンドの引数)、[15-decisions.md の 10](15-decisions.md#10-予測の表の形とコマンドの引数)） |
 
 ## 文書情報
 
@@ -240,3 +240,5 @@ sequenceDiagram
 |---|---|
 | 作成日 | 2026-09-21 |
 | 更新 | 2026-09-23: 図2・図4 に、予測に使うオッズを決めて反映する段を足した |
+| 更新 | 2026-09-28: 「まだ決まっていないところ」を、16-evaluation.md と 15-decisions.md の 8〜10 で決めた状態に直した |
+| 更新 | 2026-09-28: 図1の特徴量の数を 75個にそろえた |

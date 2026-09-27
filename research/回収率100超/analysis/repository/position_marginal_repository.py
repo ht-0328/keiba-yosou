@@ -5,12 +5,12 @@ from __future__ import annotations
 import duckdb
 import pandas as pd
 
-from .race_key_sql import JRA_ONLY, RID
+from .race_key_sql import JRA_ONLY, RID, final_odds_rows
 
 _SQL = f"""
 with オッズ as (
     select {RID} as rid, 組番 as combo, 1.0 / (try_cast(オッズ as double) / 10.0) as inverse
-    from {{table}}
+    from {{rows}}
     where 開催年 >= '{{first_year}}' and {JRA_ONLY} and try_cast(オッズ as double) > 0
 ),
 レース合計 as (select rid, sum(inverse) as total from オッズ group by rid),
@@ -38,6 +38,7 @@ class PositionMarginalRepository:
 
     勝率だけに潰すと、「勝つほどではないが上位には来る」という市場の見方が消える。
     3連単の買い目には着順の情報が入っているので、1着ぶん・2着ぶん・3着ぶんを別々に足す。
+    読むのは確定オッズの断面だけ（``final_odds_rows``）。
     """
 
     def __init__(self, connection: duckdb.DuckDBPyConnection, first_year: int = 2016) -> None:
@@ -51,6 +52,6 @@ class PositionMarginalRepository:
             f'    sum(case when 着順ごと.position = {index + 1} then 着順ごと.inverse else 0 end)'
             f' / max(レース合計.total) as "{column}"'
             for index, column in enumerate(columns))
-        sql = _SQL.format(table=table, first_year=self._first_year, positions=positions,
+        sql = _SQL.format(rows=final_odds_rows(table), first_year=self._first_year, positions=positions,
                           columns=pieces)
         return self._connection.execute(sql).fetch_df()

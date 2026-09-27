@@ -16,7 +16,7 @@ from .model_segments import ModelSegments
 
 class SegmentedHoldoutPrediction:
     """学習データのうち、学習に使っていない期間（検証・テスト）の行を、区分ごとの保存したモデルで予測する
-    （確率のずれを確かめるのに使う。穴馬の設計書 16 の 4）。
+    （確率のずれを確かめるのに使う。穴馬の設計書 16 の 5）。
 
     ``SegmentedPrediction`` は予測用データ（1レース）を受け取り、区分を ID 列の横の列で分ける。こちらは学習データを受け取り、
     区分を評価用の列で分ける（学習のときの ``SegmentedTraining`` と同じ）。結果は、2つのモデルの確率の平均で、
