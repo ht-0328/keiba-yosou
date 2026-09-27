@@ -1,6 +1,6 @@
 # 04 クラスとパッケージの設計
 
-**この文書で決めること:** 手本の予想とこの予想で、同じ仕事をするクラスをどこに置くか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。
+**この文書で決めること:** 手本の予想とこの予想で、同じ仕事をするクラスをどこに置くか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。学習と予測のコマンドの引数のうち、手本と違うものは何か。
 
 **結論: データを読む・特徴量を作る・学習する・予測するのクラスは、手本の予想と共通である。共通のクラスは `src/yosou/shared/` に移し、両方の予想から使う。この予想だけに作るのは、人気馬の行を選ぶ・目的変数を付ける・人気を決める・人気の特徴量を作る、の4つの仕事のクラスと、予測の流れを進める `PredictionWorkflow`、コマンドである。学習の流れ（`TrainingWorkflow`）は中身が同じなので、共通にする。**
 
@@ -11,6 +11,8 @@
 
 **2026-09-23 の追記。** 穴馬の予想（[穴馬の 04 の「1. 共通の部品と、この予想だけの部品の分け方」](../穴馬が3着以内に入るかを予想/04-classes.md#1-共通の部品とこの予想だけの部品の分け方)）を作るときに、この文書で「この予想だけのクラス」としていたもののうち、人気を決める部品（`PopularityApplier`・`PopularityInput`）、締め切り前のオッズ（`AnnouncedOddsRepository`）、まとまり J（`PopularityHistoryFeatures`・`PopularityRunSummary`・一覧 `POPULARITY_FEATURES`）を `src/yosou/shared/` に移し、2つの予想から使う形にした。多頭数の線引き（14頭）も共通の定数になった。`PopularityInput` は、木曜用に「馬名:人気」も受け取る。下の表の「dataset/」「feature/」「repository/」のうち、それらの行は今は共通のクラスである（仕事は変わらない）。
 
+**2026-09-24 の追記。** 既存モデルの修正計画での直し（[15-decisions.md の 11](15-decisions.md#11-既存モデルの修正計画での直し)）で、この予想だけのクラスに、人気帯（`FavoriteBand`）・基準（`OutOfTop3Baseline`）・危険の判定（`danger/` の `DangerThreshold`・`DangerJudge`、`DangerThresholdStep`、`DangerThresholdRepository`）・人気帯での分け方（`SEGMENTS`）が増えた。共通の部品には、基準の決まり（`TargetBaseline`）、まとまり K（`OddsFeatures`）、区分ごとに学習・予測する `SegmentedTraining`・`SegmentedPrediction` が増えた。下の表は、2026-09-28 にコードで確かめて、それらを書き足したものである。
+
 ## 1. 共通の部品と、この予想だけの部品の分け方
 
 手本の予想（`src/yosou/form_aptitude_top3/`）には、この予想でもそのまま要るクラスが多い。同じクラスを2つのパッケージに複製すると、片方だけ直したときに食い違う。そこで、**共通のクラスを `src/yosou/shared/` に移し、両方の予想から使う。** これが、この予想を作るときの最初の作業になる（[15-decisions.md](15-decisions.md#8-共通部分の置き方)）。
@@ -18,12 +20,12 @@
 | まとまり | 共通にするか | 中身 |
 |---|---|---|
 | `repository/`（データの読み書き） | 共通 | 出走の行・出走別着度数・過去走・調教・速報・締め切り前のオッズを読むクラス。読む SQL は予想で変わらない |
-| `dataset/`（学習データ・予測用データを作る） | 大半を共通 | `DatasetBuilder`・記録を集めるクラス・`TrainingPeriod`・`PeriodSplitter`・速報を反映するクラス |
-| `feature/`（特徴量を作る） | 大半を共通 | `FeatureBuilder`・まとまり A〜I の9クラス・過去の記録から数える部品・`PredictionTiming` |
-| `ml_model/`（機械学習のモデル） | 共通 | `LightGbmModel`・`CatBoostModel`・エンコーダー・`EnsembleModel` |
+| `dataset/`（学習データ・予測用データを作る） | 大半を共通 | `DatasetBuilder`・記録を集めるクラス・`TrainingPeriod`・`PeriodSplitter`・速報を反映するクラス。2026-09-24 からは、目的変数の基準の決まり `TargetBaseline` と、その値 `BaselineLogit` も共通 |
+| `feature/`（特徴量を作る） | 大半を共通 | `FeatureBuilder`・まとまり A〜I の9クラス・過去の記録から数える部品・`PredictionTiming`。2026-09-24 からは、単勝オッズから見た評価（まとまり K）の `OddsFeatures` と、オッズから見た勝率・3着以内率（Harville の式）を出す `feature/odds/` も共通 |
+| `ml_model/`（機械学習のモデル） | 共通 | `LightGbmModel`・`CatBoostModel`・エンコーダー・`EnsembleModel`。基準を使って学んだかを覚えておく `BaselineCheck` も共通 |
 | `setting/`（設定ファイルを読む） | 共通 | 設定ファイルを読む5クラス。初期値のファイルだけは予想ごとに持つ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `evaluation/`（当たり具合を測る） | 共通 | 評価指標を計算するクラス。指標は [穴馬の 16](../穴馬が3着以内に入るかを予想/16-evaluation.md#2-評価指標) で決めた（どの予想でも同じ） |
-| `workflow/`（流れを進める） | 学習は共通、予測は予想ごと | `TrainingWorkflow` は、学習する時点の並びとハイパーパラメータの初期値のファイルを受け取るだけなので共通。`PredictionWorkflow` は人気の扱いが違うので予想ごと |
+| `workflow/`（流れを進める） | 学習は共通、予測は予想ごと | `TrainingWorkflow` は、学習する時点の並びとハイパーパラメータの初期値のファイルを受け取るだけなので共通。学習データを区分（この予想では人気帯）に分けて区分ごとに学習・予測する `ModelSegments`・`SegmentedTraining`・`SegmentedPrediction` も共通（2026-09-24）。`PredictionWorkflow` は人気の扱いが違うので予想ごと |
 | `command/` | 予想ごと | 使うクラスの組み立てと、時点の数と、コマンドの引数が違う |
 
 **共通のクラスが、予想ごとの違いを知らずに済むようにする。** そのために、`shared` にはインターフェース（`Protocol`）を置き、予想ごとのクラスがそれを守る。
@@ -32,7 +34,8 @@
 |---|---|---|
 | `SampleSelector` | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `FavoriteSelector` |
 | `TargetLabeler` | `build(サンプルの行)`、`label_name` | `OutOfTop3TargetBuilder` |
-| `FeatureGroup` | `build(記録)` | `PopularityHistoryFeatures` |
+| `FeatureGroup` | `build(記録)` | `PopularityHistoryFeatures`、共通の `OddsFeatures`（まとまり K） |
+| `TargetBaseline` | `known_from`（基準が分かる最初の時点）、`build(レースの全頭の行)` | `OutOfTop3Baseline`（2026-09-24） |
 | `ProbabilityModel` | `fit`・`predict_proba`・`save`・`load` | 共通の `LightGbmModel`・`CatBoostModel` をそのまま使う |
 
 | 決まり | 理由 |
@@ -41,6 +44,7 @@
 | `DatasetBuilder` は、行を選ぶクラス（`SampleSelector`）と目的変数を付けるクラス（`TargetLabeler`）を、作られるときに受け取る | 予想ごとの違いが、渡すクラスの中に収まる。`DatasetBuilder` の中に「どの予想か」の if 文が増えない |
 | `FeatureBuilder` は、まとまりのクラス（`FeatureGroup`）の一覧を受け取る | まとまり J を足すのは、一覧に `PopularityHistoryFeatures` を足すだけで済む |
 | `keep_samples()` は、特徴量を作ったあとに呼ぶ | レース内順位は、レースの全出走馬から計算する。人気馬だけに絞るのは、そのあとになる（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)） |
+| 基準（`OutOfTop3Baseline`）も、人気馬に絞る前のレースの全頭で作ってから、人気馬の行だけにする（`DatasetBuilder` が行う） | オッズから見た3着以内率は、同じレースのほかの馬のオッズも使って出すため |
 | 手本の予想も、移したあとの `shared` を使う形に直す | 同じ仕事のクラスが2つに増えると、直すときに片方を忘れる |
 
 手本の `RunnerSelector` と `TargetBuilder` は、`form_aptitude_top3` に残す。この2つは「全頭を入れる」「3着以内なら 1」という、手本の予想の決めごとだからである。`RunnerSelector` には、そのまま返す `keep_samples()` を足して、`SampleSelector` の決まりを守らせる。
@@ -65,15 +69,17 @@ src/yosou/shared/                   両方の予想から使う部品
 
 src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想する
 ├── __main__.py                     コマンドの入口（command/ を呼ぶだけ）
-├── command/                        コマンド（train・predict）の引数
-├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
-├── dataset/                        人気馬の行を選ぶ・目的変数を付ける（人気を決める部品は 2026-09-23 に shared へ）
-├── feature/                        この予想の特徴量の一覧（まとまり J を作る部品は 2026-09-23 に shared へ）
+├── command/                        コマンド（train・predict）の引数と、学習のあとに危険の線を決める段（DangerThresholdStep）
+├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点と、人気帯での分け方（SEGMENTS）
+├── dataset/                        人気馬の行を選ぶ・人気帯・目的変数を付ける・基準を作る（人気を決める部品は 2026-09-23 に shared へ）
+├── danger/                         危険度の線を決める・危険を判定する（2026-09-24）
+├── repository/                     危険度の線のファイルを読み書きする（2026-09-24。元DB を読む SQL は持たない）
+├── feature/                        この予想の特徴量の一覧（まとまり J・K を作る部品は shared にある）
 ├── setting/                        ハイパーパラメータの初期値のファイル
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`FavoriteSelector` → `favorite_selector.py`）。学習したモデルは、Git の対象外の `reports/人気馬が4着以下になるかを予想/models/` に、時点ごとに保存する。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`FavoriteSelector` → `favorite_selector.py`）。学習したモデルは、Git の対象外の `reports/人気馬が4着以下になるかを予想/models/` の下に、人気帯ごと・時点ごとに保存する（`<first・second_third・fourth_fifth>/<day_before・race_day>/`）。直下には、危険度の線のファイル `danger_thresholds.json` を置く。
 
 | 決まり | 理由 |
 |---|---|
@@ -90,9 +96,12 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 |---|---|---|---|
 | `FavoriteRule` | 人気馬の決まりを表す値。頭数の線引き（14頭以上が多頭数）と、頭数ごとの人気の範囲を持つ | `popularity_range(出走頭数)`、`is_favorite(人気, 出走頭数)`、`are_favorites(人気の列, 出走頭数の列)` | ― |
 | `FavoriteSelector` | 学習データ・予測用データに入れる行を選び、「人気馬か」の列を足す。特徴量を作ったあとに、人気馬の行だけを残す（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `FavoriteRule`、共通の `FlatRunnerFilter` |
+| `FavoriteBand` | 人気帯（1番人気・2〜3番人気・4〜5番人気）を表す値（列挙）。人気順位から人気帯の名前を付け、モデルを置くフォルダの名前（`first`・`second_third`・`fourth_fifth`）を持つ（2026-09-24） | `labels_of(人気順位の列)`、`label`、`key` | ― |
 | `OutOfTop3TargetBuilder` | 目的変数を付ける。4着以下なら 1、3着以内なら 0（[10-target.md](10-target.md#作り方)） | `build(サンプルの行)`、`label_name` | ― |
-| `PopularityApplier` | 予測のときに使う「馬番 → 人気」を決める。利用者が渡した人気を使い、無ければ元DB の締め切り前のオッズから作る（[06-flowchart.md](06-flowchart.md#図2-予測用データに人気を当てる)） | `resolve(レースID, 渡された人気)` | `AnnouncedOddsRepository` |
-| `PopularityInput` | 利用者が渡した「馬番 → 人気」を表す値。`--pops 3:1 7:2` や `--pops 3:1,7:2` のような引数から作る | `of(引数の文字列)`、`as_mapping()` | ― |
+| `OutOfTop3Baseline` | 目的変数の基準を作る。オッズから見た4着以下の確率（1 − オッズから見た3着以内率）のロジット。共通の `Top3Baseline` の符号を変えて作る。`TargetBaseline` を守る（2026-09-24） | `known_from`（前日）、`build(レースの全頭の行)` | 共通の `Top3Baseline` |
+| `PopularityApplier`（共通） | 予測のときに使う「馬番 → 人気」を決める。`--pops` の人気 → 渡されたオッズか締め切り前のオッズの小さい順 → 無し、の順（[06-flowchart.md](06-flowchart.md#図2-予測用データに人気を当てる)） | `resolve(レースID, 渡された人気, オッズ)` | `AnnouncedOddsRepository` |
+| `PopularityInput`（共通） | 利用者が渡した「馬番 → 人気」を表す値。`--pops 3:1 7:2` や `--pops 3:1,7:2` のような引数から作る | `of(引数の文字列)`、`as_mapping()` | ― |
+| `OddsResolver`・`OddsInput`（共通） | 予測のときに使う「馬番 → 単勝オッズ」を決める（`--odds` → 締め切り前のオッズ → 無し）。手本と同じ（2026-09-24 からこの予想も使う） | `resolve(レースID, 渡されたオッズ)` | `AnnouncedOddsRepository` |
 
 決めた「馬番 → 人気」は、`PredictionWorkflow` が共通の `DatasetBuilder.build_prediction_data()` に渡し、出走の行に当てるのは共通の `RaceEntryTableRepository` である。人気を当てる仕事を出走の行の作り手に任せるので、`FavoriteSelector` は人気を決める手順を知らずに済む（[05-sequence.md](05-sequence.md#図2-予測)）。
 
@@ -100,11 +109,24 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `PopularityHistoryFeatures` | まとまり J の4個を作る（[09-features.md](09-features.md#j-人気と人気の履歴4個)）。`FeatureGroup` を守る | `build(記録)` | `PopularityRunSummary`、共通の `AsOfLookup` |
-| `PopularityRunSummary` | 過去走を、馬ごとの「その走までの近5走の人気のまとめ」にする（`feature/history/`） | `build(過去走)` | ― |
-| `feature_catalog.py` の `J_FEATURES`・`CATALOG` | まとまり J の4個の一覧と、A〜I（共通の `BASE_FEATURES`）に J を足した、この予想の特徴量の一覧 | ―（値） | 共通の `FeatureCatalog` |
+| `PopularityHistoryFeatures`（共通） | まとまり J の4個を作る（[09-features.md](09-features.md#j-人気と人気の履歴4個)）。`FeatureGroup` を守る | `build(記録)` | `PopularityRunSummary`、共通の `AsOfLookup` |
+| `PopularityRunSummary`（共通） | 過去走を、馬ごとの「その走までの近5走の人気のまとめ」にする（`feature/history/`） | `build(過去走)` | ― |
+| `CATALOG`（`feature/__init__.py`） | この予想の特徴量の一覧。A〜I（共通の `BASE_FEATURES`）に、J（共通の `POPULARITY_FEATURES`）と K（共通の `ODDS_FEATURES`。2026-09-24）を足したもの | ―（値） | 共通の `FeatureCatalog` |
 
-`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに `PopularityHistoryFeatures` を足したまとまりの並びを渡す（`dataset/dataset_assembly.py`）。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。
+`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに `PopularityHistoryFeatures` と `OddsFeatures`（まとまり K）を足したまとまりの並びを渡す（`dataset/dataset_assembly.py`）。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。2026-09-24 からは `CATALOG` も `BASE_FEATURES + POPULARITY_FEATURES + ODDS_FEATURES` で、当日は 78個である（K の3個は前日から使う。[15-decisions.md の 4](15-decisions.md#4-単勝オッズを特徴量に入れるか)）。
+
+### danger/ — 危険度の線を決める・危険を判定する（2026-09-24）
+
+| クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
+|---|---|---|---|
+| `DangerThreshold` | 1つの時点・1つの人気帯の、危険度の線を検証データで決める（候補は 0.00〜0.20、30頭未満の線は選ばない。[16-evaluation.md の 3.](16-evaluation.md#3-危険の線引き)） | `choose(危険度の列, 実際の4着以下の列)` | ― |
+| `DangerJudge` | 予測の結果に、オッズから見た4着以下の確率・危険度・危険を足す。線の無い人気帯は危険と判定しない | `judge(平均の確率, オッズから見た4着以下の確率, 人気帯)` | ― |
+
+### repository/ — 危険度の線のファイル（この予想だけ。2026-09-24）
+
+| クラス | 読む・書くもの | 主な public メソッド |
+|---|---|---|
+| `DangerThresholdRepository` | 時点 → 人気帯 → 危険度の線を、モデルの置き場所の `danger_thresholds.json` に書く・読む。ファイルが無ければ（2026-09-24 より前に学習したモデル）空を返す | `save(線)`、`load()` |
 
 ### repository/ — 締め切り前のオッズ（共通）
 
@@ -118,28 +140,46 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `PredictionWorkflow` | 予測の流れを進める。人気を決め、予測用データを作り、その時点のモデルを読み込み、2つの予測確率を平均する。木曜を渡されたら `ValueError` | `run(レースID, 時点, 渡された人気)` | `PopularityApplier`、共通の `DatasetBuilder`・`ModelRepository`・`EnsembleModel` |
+| `PredictionWorkflow` | 予測の流れを進める。木曜なら止め、オッズを決め、人気を決め、予測用データを作り、人気帯ごとのモデルで2つの予測確率を平均し（`SegmentedPrediction`）、危険度と危険を足す（`DangerJudge`） | `run(レースID, 時点, 渡された人気, 渡されたオッズ)` | 共通の `OddsResolver`・`PopularityApplier`・`DatasetBuilder`・`SegmentedPrediction`、`DangerJudge` |
 | `prediction_timings.py` の `TIMINGS` | この予想が学習し、予測を出す時点（前日・当日）の並び | ―（値） | ― |
+| `model_segments.py` の `SEGMENTS` | 学習データを人気帯で分ける決まり（共通の `ModelSegments`。区分の列は「人気帯」、フォルダは `first`・`second_third`・`fourth_fifth`。2026-09-24） | ―（値） | ― |
 
 `PredictionWorkflow` は、ほかのクラスを呼んで受け渡すだけで、計算・判断・SQL は書かない。
 
-**学習の流れ（`TrainingWorkflow`）と、学習の結果の入れ物（`TrainingReport`）は、共通の `shared/` に置く。** 手本の予想とこの予想で、`TrainingWorkflow` の中身は同じで、違うのは「学習する時点の並び」と「ハイパーパラメータの初期値のファイル」だけだからである。この2つは、作られるときに受け取る（`TrainingWorkflow(組み立て, 期間, モデルの置き場所, 時点の並び, 初期値のファイル)`）。この予想は `TIMINGS`（前日・当日の2つ）を渡すので、モデルは合わせて4つになる。
+**学習の流れ（`TrainingWorkflow`）と、学習の結果の入れ物（`TrainingReport`）は、共通の `shared/` に置く。** 手本の予想とこの予想で、`TrainingWorkflow` の中身は同じで、違うのは「学習する時点の並び」と「ハイパーパラメータの初期値のファイル」だけだからである。この2つは、作られるときに受け取る（`TrainingWorkflow(組み立て, 期間, モデルの置き場所, 時点の並び, 初期値のファイル)`）。2026-09-24 からは、共通の `SegmentedTraining` が学習データを `SEGMENTS` の人気帯ごとに分け、人気帯ごとに `TrainingWorkflow` を回す。この予想は `TIMINGS`（前日・当日の2つ）を渡すので、モデルは 3つの人気帯 × 2つの時点 × 2つで、12個になる（[05-sequence.md の図1](05-sequence.md#図1-学習)）。
 
 ### command/ — コマンド
 
 | クラス | 置き場所 | 仕事 | 主な public メソッド |
 |---|---|---|---|
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | この予想 | `train`: 学習する。期間の引数から `TrainingPeriod` を作る。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `add_parser(subparsers)`、`run(引数)` |
-| `PredictCommand` | この予想 | `predict`: 1レースの人気馬を予測する。`--pops` で人気を受け取り、`PopularityInput` にする | `add_parser(subparsers)`、`run(引数)` |
+| `TrainCommand` | この予想 | `train`: 学習する。期間の引数から `TrainingPeriod` を作り、共通の `SegmentedTraining` で人気帯ごとに学習し、最後に `DangerThresholdStep` を呼ぶ。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `add_parser(subparsers)`、`run(引数)` |
+| `DangerThresholdStep` | この予想 | 学習のあとに、保存したモデルで検証データを予測し、時点ごと・人気帯ごとの危険度の線を `DangerThreshold` で決めて、`DangerThresholdRepository` で保存する（2026-09-24） | `run(学習の結果, 人気帯, モデルの置き場所, 時点)` |
+| `PredictCommand` | この予想 | `predict`: 1レースの人気馬を予測する。`--pops` を `PopularityInput`、`--odds` を `OddsInput` にし、保存した危険度の線を読んで `DangerJudge` を作る | `add_parser(subparsers)`、`run(引数)` |
 | `CommonArguments` | `shared` | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`） | `add_to(parser)` |
 | `TrainingReportTables` | `shared` | 学習の結果を表にする | `tables()` |
-| `PredictionTable` | `shared` | 予測の結果を、4着以下になる確率の高い順の表にする。`extra_columns` に「人気順位」を渡して、人気の列も出す | `table()` |
+| `PredictionTable` | `shared` | 予測の結果を、4着以下になる確率の高い順の表にする。`extra_columns` に「人気順位」「人気帯」「オッズから見た4着以下の確率」「危険度」「危険」を渡して、その列も出す | `table()` |
 
 `--timing` は、時点の書き方を共通の `PredictionTiming.parse()` で読む。木曜を渡されたときに止めるのは `PredictionWorkflow` で、誤りは `共通.cli` が1行で見せる（同じ判断を2か所に書かない）。
+
+## 4. コマンドの引数
+
+コマンドは `uv run python -m yosou.favorites_out_of_top3 <train か predict> …` で動かす。**引数の多くは手本と同じである。** 共通の引数（`--models`・`--db`・`--format`・`--out`）、`train` の `--config` と期間の4つ、`predict` の `rid`・`--date`・`--venue`・`--race`・`--odds`、引数の決まりは、[手本の 04 の「コマンドの引数」](../近走と適性から3着以内を予想/04-classes.md#コマンドの引数) を参照。下の表は `--help` の出力とコードで確かめた、この予想で違うところだけである。
+
+| コマンド | 引数・出力 | この予想では |
+|---|---|---|
+| 共通 | `--models` の既定 | `reports/人気馬が4着以下になるかを予想/models`。中は `<人気帯>/<時点>/`（人気帯は `first`・`second_third`・`fourth_fifth`、時点は `day_before`・`race_day`）に分かれ、直下に危険の線のファイル `danger_thresholds.json` を置く |
+| `train` | 学習するモデル | 3つの人気帯 × 2つの時点（前日・当日）× 2つのモデル = 12個。学習データに行が無い人気帯は学習しない |
+| `train` | 出す表 | 人気帯ごとに、手本と同じ4つの表（学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル）。最後に「危険の判定の線（検証データで決めた値）」の表（[16-evaluation.md の 3.](16-evaluation.md#3-危険の線引き)）。複勝の見込みの倍率は出さない |
+| `predict` | `--timing` | `前日`・`当日` だけ。`木曜` を渡すと、馬番も人気も決まっていないので止まる（[07-prediction-timing.md](07-prediction-timing.md)） |
+| `predict` | `--pops 馬番:人気 …` | 利用者が見た単勝人気。空白かコンマで区切る。人気馬の範囲の馬だけ渡せばよい。省略したときの決め方は [07-prediction-timing.md の「予測のときの人気の与え方」](07-prediction-timing.md#予測のときの人気の与え方) |
+| `predict` | `--odds 馬番:オッズ …` | 意味は手本と同じ。この予想では、`--pops` を省くと、このオッズの小さい順を人気にする。オッズから作った基準に使うので、全頭ぶん渡す |
+| `predict` | 出す表 | 1レースの人気馬を「4着以下になる確率」（平均）の高い順に並べた表。列は、順位・馬番・馬名・人気順位・人気帯・オッズから見た4着以下の確率・危険度・危険、そのあとに 4着以下になる確率（平均）・LightGBM・CatBoost の確率 |
 
 ## 文書情報
 
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-22 |
+| 更新 | 2026-09-28: 「4. コマンドの引数」を足した |
+| 更新 | 2026-09-28: 2026-09-24 の直し（基準・人気帯ごとのモデル・危険の判定）で増えたクラスとフォルダ（`FavoriteBand`・`OutOfTop3Baseline`・`danger/`・`repository/`・`SEGMENTS`・`DangerThresholdStep`、共通の `SegmentedTraining` など）を書き足した |

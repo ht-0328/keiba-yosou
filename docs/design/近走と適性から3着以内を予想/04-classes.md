@@ -1,6 +1,6 @@
 # 04 クラスとパッケージの設計
 
-**この文書で決めること:** データを読む・特徴量を作る・学習する・予測するを、どのクラスにやらせるか。それらのクラスを順に呼んで流れを進める（オーケストレーションする）のは、どのクラスか。クラスを、どのフォルダ（パッケージ）・ファイルに置くか。
+**この文書で決めること:** データを読む・特徴量を作る・学習する・予測するを、どのクラスにやらせるか。それらのクラスを順に呼んで流れを進める（オーケストレーションする）のは、どのクラスか。クラスを、どのフォルダ（パッケージ）・ファイルに置くか。学習と予測のコマンドが、どんな引数を受け取り、何を出すか。
 
 **結論: 学習の流れは `TrainingWorkflow`、予測の流れは `PredictionWorkflow` が進める。** この2つは、ほかのクラスを順に呼んでデータを受け渡すだけで、自分では計算しない。仕事は1つのクラスに1つずつ分け、1つのファイルに1つのクラスを置く。元DB を読む SQL は、1つの SQL につき1つのリポジトリにして、`repository/` にまとめる。
 
@@ -47,7 +47,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 ├── command/                    コマンド（train・predict）の引数。入口
 ├── workflow/                   予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
 ├── dataset/                    入れる行の選び方・目的変数（3着以内）・予測に使うオッズの決め方と、DatasetBuilder の組み立て
-├── feature/                    まとまり J（市場の評価）を作る。この予想の特徴量 74個の一覧（CATALOG）
+├── feature/                    まとまり J（市場の評価）を作る。この予想の特徴量 75個の一覧（CATALOG）
 ├── setting/                    ハイパーパラメータの初期値のファイル
 └── tests/                      この予想の組み立てのテスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
@@ -137,7 +137,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `FeatureBuilder` | 入口。まとまりごとのクラスを順に呼んで、1つの表にする。特徴量の一覧（`FeatureCatalog`）とまとまりのクラスは、作られるときに受け取る。時点を受け取り、その時点で使う特徴量だけを返す | `build(記録, 時点)` |
-| `FeatureCatalog` | 1つの予想が使う特徴量の一覧を表す値。この予想の一覧は `CATALOG = FeatureCatalog(BASE_FEATURES + J_FEATURES)`（74個） | `names`、`categorical`、`columns_for(時点)`、`categorical_columns_of(特徴量の表)` |
+| `FeatureCatalog` | 1つの予想が使う特徴量の一覧を表す値。この予想の一覧は `CATALOG = FeatureCatalog(BASE_FEATURES + J_FEATURES)`（当日は 75個） | `names`、`categorical`、`columns_for(時点)`、`categorical_columns_of(特徴量の表)` |
 | `PredictionTiming` | 予測する時点（木曜・前日・当日）を表す値。時点の前後を答える（[07-prediction-timing.md](07-prediction-timing.md)） | `is_at_or_after(時点)`、`parse(書き方)` |
 | `Feature`・`FeatureKind` | 特徴量の一覧の1行（名前・まとまり・型・いつから分かるか）と、その型。どの予想でも使う 71個は `feature_catalog.py` の `BASE_FEATURES`（[09-features.md](09-features.md) の表の写し） | `is_known_at(時点)` |
 | `MarketFeatures`（この予想） | まとまり J（市場の評価）の3個を作る: 単勝オッズ、人気順位（オッズの小さい順）、オッズから見た勝率（1/オッズをレース内で合計 1 に）。`FeatureGroup` を守る | `build(記録)` |
@@ -158,7 +158,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `LightGbmEncoder` | 特徴量を、LightGBM が受け取れる形に変える。学習データから作ったカテゴリの一覧を持つ（[12-lightgbm.md の 3.](12-lightgbm.md)） | `fit(学習データ)`、`transform(データ)` |
 | `CatBoostModel` | CatBoost で学習・予測する（[13-catboost.md](13-catboost.md)） | `LightGbmModel` と同じ |
 | `CatBoostEncoder` | 特徴量を、CatBoost が受け取れる形に変える（[13-catboost.md の 3.](13-catboost.md)） | `transform(データ)` |
-| `EnsembleModel` | 2つのモデルの予測確率を平均する | `predict_proba(データ)` |
+| `EnsembleModel` | 2つのモデルの予測確率を、同じ重みで平均する（決まりは [03-library-basics.md の 6.](03-library-basics.md#6-2つの予測確率を合わせる)） | `predict_proba(データ)`、`predict_members(データ)`（モデルごとの確率）、`combine(モデルごとの確率)`（平均） |
 
 ### setting/ — 設定ファイル（初期値のファイルはこの予想、読むクラスは `shared`）
 
@@ -181,6 +181,49 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `Evaluation` | 1つの時点・1つのモデルの当たり具合の値 | ― |
 | `TrainingReport` | 学習の結果の入れ物。予想ごとの `workflow/` が作り、`command/` の `TrainingReportTables` が表にする | ― |
 
+## コマンドの引数
+
+コマンドは `train`（学習）と `predict`（1レースの予測）の2つで、リポジトリ直下から `uv run python -m yosou.form_aptitude_top3 <train か predict> …` で動かす。引数の一覧は `--help` で出る（下の表は、`--help` の出力と `command/` のコードで確かめた）。ほかの予想も、同じ名前の引数は同じ意味で使う。
+
+### 2つに共通の引数
+
+`shared` の `CommonArguments` が足す。ほかの道具（`tools/`）と同じ名前にそろえてある。
+
+| 引数 | 既定 | 意味 |
+|---|---|---|
+| `--models` | `reports/<予想の名前>/models`（この予想は `reports/近走と適性から3着以内を予想/models`） | 学習したモデルの置き場所。`train` は書き、`predict` は読む。JV-Data から作ったもので公開しないので、Git の対象外の `reports/` に置く |
+| `--db` | `../jvdata-store/jvdata.duckdb`（環境変数 `YOSOU_DB` があればそのパス） | 元DB のパス。読むだけで、書き込まない |
+| `--format` | `markdown` | 出力の形式。`markdown`・`csv`・`json` のどれか |
+| `--out` | 無し（標準出力） | 出力をこのファイルに書く |
+
+### train の引数
+
+| 引数 | 既定 | 意味 |
+|---|---|---|
+| `--config` | 無し（初期値の設定ファイル `setting/default_settings.toml`） | ハイパーパラメータの設定ファイル（TOML）。書いた項目だけが初期値から置き換わる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
+| `--warmup-from`・`--train-from`・`--valid-from`・`--test-from` | [08-training-data.md の「4. 期間の指定」](08-training-data.md#4-期間の指定) の表 | 学習データの期間の4つの区切り。検証データとテストデータの使い方は [16-evaluation.md の「1. 期間の分け方」](16-evaluation.md#1-期間の分け方) |
+
+`train` が出す表は、学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル（ここまで `TrainingReportTables`）と、複勝の見込みの倍率（`PlacePriceStep`）の5つである。表の見方は [16-evaluation.md](16-evaluation.md#2-評価指標) を参照。
+
+### predict の引数
+
+| 引数 | 既定 | 意味 |
+|---|---|---|
+| `rid`（位置引数） | ― | 予測するレースの rid（16桁） |
+| `--date`・`--venue`・`--race` | ― | rid を省くときに、開催日（YYYY-MM-DD）・競馬場の名前かコード・レース番号の3つでレースを指定する。rid も3つもそろっていなければ止まる |
+| `--timing`（必須） | ― | 予測する時点。`木曜`・`前日`・`当日`（英語の `thursday`・`day_before`・`race_day` でもよい）。その時点で学習したモデルを使う（[07-prediction-timing.md](07-prediction-timing.md)） |
+| `--odds 馬番:オッズ …` | 無し | 利用者が見た単勝オッズ。空白で区切っても（`--odds 3:2.4 7:5.1`）、コンマで区切っても（`--odds 3:2.4,7:5.1`）よい。前日と当日に使う。省略したときの決め方は [07-prediction-timing.md の「予測のときのオッズの与え方」](07-prediction-timing.md#予測のときのオッズの与え方) |
+
+`predict` が出す表は、1レースの出走馬を「3着以内に入る確率」（LightGBM と CatBoost の平均）の高い順に並べた1つである。列は、順位・馬番・馬名と、前日・当日なら単勝オッズ・オッズから見た3着以内率・複勝的中の確率・複勝の期待値、そのあとに 3着以内に入る確率（平均）・LightGBM・CatBoost の確率が続く。木曜はオッズを使わないので、オッズの4列は出ない。複勝の期待値は、`train` で保存した複勝の見込みの倍率があるときだけ出る。
+
+### 引数の決まり
+
+| 決まり | 理由 |
+|---|---|
+| 引数の名前を途中まで書く省略（`--tim` など）は受け付けない | 書き間違いを、別の引数と取り違えないようにする |
+| 引数の書き方の誤り（知らない引数・`--timing` の書き間違いなど）は、使い方を出して止まる。足りない情報（元DB・オッズ・学習したモデルが無いなど）は、「エラー:」で始まる1行の案内を出して止まる（終了コード 1。`tools/共通/cli.py`） | 何を直せばよいかを、その場で分かるようにする。黙って別の値で続けない |
+| 元DB は、`train` では学習データを読む段だけ開き、学習のあいだは閉じておく | 学習は何分もかかる。そのあいだ、ほかの道具が元DB を開けなくならないようにする |
+
 ## 文書情報
 
 | 項目 | 内容 |
@@ -189,3 +232,4 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | 更新 | 2026-09-21: 実装に合わせて、1ファイル1クラス・1 SQL 1 リポジトリの決まりと、フォルダの構成を書き直した |
 | 更新 | 2026-09-22: 予想で変わらないクラスを `src/yosou/shared/` に移したのに合わせて、パッケージ構成とクラスの置き場所を書き直した |
 | 更新 | 2026-09-23: 単勝オッズを特徴量に足したのに合わせて、`MarketFeatures`・`OddsInput`・`OddsResolver`・`AnnouncedOddsApplier`・`AnnouncedOddsRepository` を足した |
+| 更新 | 2026-09-28: 「コマンドの引数」を足した。`EnsembleModel` の行に平均のしかたを書いた。特徴量の数を 75個にそろえた |

@@ -1,6 +1,6 @@
 # 04 クラスとパッケージの設計
 
-**この文書で決めること:** 手本の予想・危険な人気馬の予想と、この予想で、同じ仕事をするクラスをどこに置くか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。
+**この文書で決めること:** 手本の予想・危険な人気馬の予想と、この予想で、同じ仕事をするクラスをどこに置くか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。学習と予測のコマンドの引数のうち、手本と違うものは何か。
 
 **結論: データを読む・特徴量を作る・学習する・予測するのクラスは、手本と危険な人気馬の予想と共通で、すでに `src/yosou/shared/` にある。この予想では、危険な人気馬の予想だけが持っている「人気に関する部品」と、手本だけが持っている「3着以内の目的変数を付ける部品」も `shared` に移し、3つの予想から使う。この予想だけに作るのは、穴馬の行を選ぶ・区分を決める・区分で絞る、の仕事のクラスと、予測の流れを進める `PredictionWorkflow`、コマンドである。学習の流れ（`TrainingWorkflow`）は共通のものをそのまま使う。**
 
@@ -8,6 +8,8 @@
 - 共通のクラスの一覧（どのクラスが何をするか）は [手本の 04 の「クラスの一覧」](../近走と適性から3着以内を予想/04-classes.md#クラスの一覧) を参照。人気に関するクラスの仕事は [人気馬の 04 の「3. この予想だけのクラスの一覧」](../人気馬が4着以下になるかを予想/04-classes.md#3-この予想だけのクラスの一覧) を参照。この文書には、この予想だけのクラスと、移すものを書く。
 - 用語の意味（public メソッド・オーケストレーション・インターフェース・リポジトリ・エンコーダー）は [手本の 02 の「機械学習の用語」](../近走と適性から3着以内を予想/02-glossary.md#機械学習の用語) を参照。
 - クラスどうしが、どの順にどのメソッドを呼ぶかは [05-sequence.md](05-sequence.md) を参照。
+
+**2026-09-24 の追記。** 既存モデルの修正計画での直し（[15-decisions.md の 12](15-decisions.md#12-既存モデルの修正計画での直し)）で、この予想は、共通の基準（`Top3Baseline`）・まとまり K（`OddsFeatures`）・区分ごとの学習と予測（`SegmentedTraining`・`SegmentedPrediction`）・複勝の期待値（`place_value/`・`PlacePriceStep`）を使うようになり、この予想だけのものとして区分での分け方（`SEGMENTS`）が増えた。下の表は、2026-09-28 にコードで確かめて、それらを書き足したものである。
 
 ## 1. 共通の部品と、この予想だけの部品の分け方
 
@@ -26,10 +28,11 @@
 | まとまり | 共通にするか | この予想だけのもの |
 |---|---|---|
 | `repository/`（データの読み書き） | 共通（締め切り前のオッズを読むものを含む） | 無し |
-| `dataset/`（学習データ・予測用データを作る） | 大半を共通 | 穴馬の決まり・区分・行の選択・区分での絞り込み |
-| `feature/`（特徴量を作る） | 共通（まとまり A〜J） | この予想の特徴量の一覧 `CATALOG` だけ |
+| `dataset/`（学習データ・予測用データを作る） | 大半を共通（2026-09-24 からは、基準の決まり `TargetBaseline` と、3着以内の基準 `Top3Baseline`、オッズを決める `OddsResolver`・`OddsInput` も共通） | 穴馬の決まり・区分・行の選択・区分での絞り込み |
+| `feature/`（特徴量を作る） | 共通（まとまり A〜J と、2026-09-24 からは K の `OddsFeatures`） | この予想の特徴量の一覧 `CATALOG` だけ |
 | `ml_model/`・`setting/`・`evaluation/` | 共通 | 初期値の設定ファイルだけ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
-| `workflow/`（流れを進める） | 学習は共通、予測は予想ごと | `PredictionWorkflow`、予測を出す時点の並び |
+| `place_value/`（複勝の期待値。2026-09-24） | 共通（手本と同じ `PlaceValueColumns` など） | 無し |
+| `workflow/`（流れを進める） | 学習は共通（2026-09-24 からは、区分ごとに学習・予測する `SegmentedTraining`・`SegmentedPrediction` も共通）、予測は予想ごと | `PredictionWorkflow`、予測を出す時点の並び、区分での分け方 `SEGMENTS` |
 | `command/` | 部品は共通、入口は予想ごと | コマンドの組み立てと引数（`--pops`・`--zone`） |
 
 **共通のクラスが、予想ごとの違いを知らずに済むようにする。** そのために、`shared` のインターフェース（`Protocol`）を、この予想のクラスが守る（手本・危険な人気馬の予想と同じ仕組み）。
@@ -38,7 +41,8 @@
 |---|---|---|
 | `SampleSelector` | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `LongshotSelector` |
 | `TargetLabeler` | `build(サンプルの行)`、`label_name` | 共通の `Top3TargetBuilder` をそのまま使う |
-| `FeatureGroup` | `build(記録)` | 共通の `PopularityHistoryFeatures` をそのまま使う。この予想で新しく足すまとまりは無い |
+| `FeatureGroup` | `build(記録)` | 共通の `PopularityHistoryFeatures`（J）と `OddsFeatures`（K。2026-09-24）をそのまま使う。この予想で新しく足すまとまりは無い |
+| `TargetBaseline` | `known_from`（基準が分かる最初の時点）、`build(レースの全頭の行)` | 共通の `Top3Baseline` をそのまま使う（2026-09-24。手本と同じ基準） |
 | `ProbabilityModel` | `fit`・`predict_proba`・`save`・`load` | 共通の `LightGbmModel`・`CatBoostModel` をそのまま使う |
 
 | 決まり | 理由 |
@@ -47,7 +51,8 @@
 | 予想のパッケージどうしも参照しない（`longshots_in_top3` から `favorites_out_of_top3` を import しない） | 両方で使う部品は `shared` に置く。予想を直したときに、ほかの予想が壊れない |
 | `DatasetBuilder` は、行を選ぶクラス（`SampleSelector`）と目的変数を付けるクラス（`TargetLabeler`）を、作られるときに受け取る | 予想ごとの違いが、渡すクラスの中に収まる |
 | `keep_samples()` は、特徴量を作ったあとに呼ぶ | レース内順位は、レースの全出走馬から計算する。穴馬だけに絞るのは、そのあとになる（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)） |
-| 区分で絞るのは、予測確率を出したあとにする | モデルは穴馬すべてで学習し、穴馬すべてに確率を出す。区分は出力の絞り込みだけである（[15-decisions.md](15-decisions.md#3-区分ごとに別のモデルにするか)） |
+| 区分で絞るのは、予測確率を出したあとにする | 2026-09-24 からは、中穴と大穴で別のモデルを学習し、穴馬すべてに、その区分のモデルで確率を出す。`--zone` は出力の絞り込みだけである（[15-decisions.md](15-decisions.md#3-区分ごとに別のモデルにするか)） |
+| 基準（`Top3Baseline`）は、穴馬に絞る前のレースの全頭で作ってから、穴馬の行だけにする（`DatasetBuilder` が行う） | オッズから見た3着以内率は、同じレースのほかの馬のオッズも使って出すため |
 | 「穴馬の区分」の列は、共通の `DatasetBuilder` に「出走の行から残す列」として渡し、学習データの評価用の列と予測の結果に足す | 区分は `LongshotSelector` が出走の行に足す。`DatasetBuilder` は列の名前を受け取るだけで、「どの予想か」を知らずに済む |
 | 手本と危険な人気馬の予想も、移したあとの `shared` を使う形に直す | 同じ仕事のクラスが2つに増えると、直すときに片方を忘れる |
 
@@ -58,26 +63,27 @@
 ```text
 src/yosou/shared/                   3つの予想から使う部品
 ├── repository/                     データの読み書き。1 SQL につき 1 リポジトリ（締め切り前のオッズを含む）
-├── dataset/                        学習データ・予測用データを作る（人気を決める部品、3着以内の目的変数、多頭数の線引きを含む）
-├── feature/                        特徴量を作る（まとまり A〜J と、過去の記録から数える部品）
+├── dataset/                        学習データ・予測用データを作る（人気を決める部品、3着以内の目的変数と基準、多頭数の線引きを含む）
+├── feature/                        特徴量を作る（まとまり A〜K と、過去の記録から数える部品）
 ├── ml_model/                       LightGBM・CatBoost・エンコーダー・2つの平均
+├── place_value/                    複勝の期待値（2026-09-24）
 ├── setting/                        設定ファイルを読む
 ├── evaluation/                     当たり具合を測る
-├── workflow/                       学習の流れ（TrainingWorkflow）
-├── command/                        コマンドの部品のうち、予想に依らないもの（共通の引数・結果の表）
+├── workflow/                       学習の流れ（TrainingWorkflow）と、区分ごとの学習・予測（SegmentedTraining・SegmentedPrediction）
+├── command/                        コマンドの部品のうち、予想に依らないもの（共通の引数・結果の表・複勝の見込みの倍率を決める段）
 └── tests/                          共通の部品のテストと、テスト用の合成のシーズン
 
 src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想する
 ├── __main__.py                     コマンドの入口（command/ を呼ぶだけ）
 ├── command/                        コマンド（train・predict）の引数
-├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
+├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点と、区分での分け方（SEGMENTS）
 ├── dataset/                        穴馬の決まり・区分・行を選ぶ・区分で絞る
 ├── feature/                        この予想の特徴量の一覧
 ├── setting/                        ハイパーパラメータの初期値のファイル
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`LongshotSelector` → `longshot_selector.py`）。学習したモデルは、Git の対象外の `reports/穴馬が3着以内に入るかを予想/models/` に、時点ごとに保存する。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`LongshotSelector` → `longshot_selector.py`）。学習したモデルは、Git の対象外の `reports/穴馬が3着以内に入るかを予想/models/` の下に、区分ごと・時点ごとに保存する（`<mid・big>/<thursday・day_before・race_day>/`）。直下には、複勝の見込みの倍率のファイル `place_price.json` を置く。
 
 | 決まり | 理由 |
 |---|---|
@@ -97,39 +103,40 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 | `LongshotSelector` | 学習データ・予測用データに入れる行を選び、「穴馬か」「穴馬の区分」の列を足す。特徴量を作ったあとに、穴馬の行だけを残す（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)）。予測では、人気の分からない馬が1頭でもいれば止める（[06-flowchart.md](06-flowchart.md#図2-予測用データに人気を当てる)） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `LongshotRule`、共通の `FlatRunnerFilter` |
 | `LongshotZoneFilter` | 予測の結果を、指定された区分の行だけにする。指定が無ければそのまま返す | `apply(予測の結果, 区分)` | ― |
 | `column_names.py` の `IS_LONGSHOT`・`LONGSHOT_ZONE` | 「穴馬か」「穴馬の区分」の列の名前 | ―（値） | ― |
-| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`LongshotSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまり A〜F・H・I と共通の `PopularityHistoryFeatures`、残す列「穴馬の区分」）を渡して、共通の `DatasetBuilder` を組み立てる | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
+| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`LongshotSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまり A〜F・H・I と共通の `PopularityHistoryFeatures`・`OddsFeatures`、残す列「穴馬の区分」、基準の作り方 `Top3Baseline`）を渡して、共通の `DatasetBuilder` を組み立てる | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
 
-決めた「馬番（木曜は馬名）→ 人気」は、`PredictionWorkflow` が共通の `DatasetBuilder.build_prediction_data()` に渡し、出走の行に当てるのは共通の `RaceEntryTableRepository` である（危険な人気馬の予想と同じ。[05-sequence.md](05-sequence.md#図2-予測)）。「穴馬の区分」の列は `LongshotSelector` が足し、モデルには渡さず、出力の表と評価にだけ使う（[08-training-data.md](08-training-data.md#2-列の種類)）。
+決めた「馬番（木曜は馬名）→ 人気」は、`PredictionWorkflow` が共通の `DatasetBuilder.build_prediction_data()` に渡し、出走の行に当てるのは共通の `RaceEntryTableRepository` である（危険な人気馬の予想と同じ。[05-sequence.md](05-sequence.md#図2-予測)）。「穴馬の区分」の列は `LongshotSelector` が足し、特徴量としてはモデルに渡さない。学習データを区分に分けること（2026-09-24 から）と、出力の表と評価に使う（[08-training-data.md](08-training-data.md#2-列の種類)）。
 
 ### feature/ — 特徴量の一覧
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `feature_catalog.py` の `CATALOG` | この予想の特徴量の一覧。共通の A〜I（`BASE_FEATURES`）に共通の J（`POPULARITY_FEATURES`）を足したもの（75個。[09-features.md](09-features.md)） | ―（値） | 共通の `FeatureCatalog` |
+| `CATALOG`（`feature/__init__.py`） | この予想の特徴量の一覧。共通の A〜I（`BASE_FEATURES`）に共通の J（`POPULARITY_FEATURES`）と K（`ODDS_FEATURES`。2026-09-24）を足したもの（当日は 78個。[09-features.md](09-features.md)） | ―（値） | 共通の `FeatureCatalog` |
 
-この予想で新しく作るまとまり（`FeatureGroup`）は無い。`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに共通の `PopularityHistoryFeatures` を足したまとまりの並びを渡す。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。
+この予想で新しく作るまとまり（`FeatureGroup`）は無い。`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに共通の `PopularityHistoryFeatures` と `OddsFeatures` を足したまとまりの並びを渡す。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。
 
 ### workflow/ — 流れを進める
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `PredictionWorkflow` | 予測の流れを進める。人気を決め、予測用データを作り、その時点のモデルを読み込み、2つの予測確率を平均し、区分で絞る | `run(レースID, 時点, 渡された人気, 区分)` | 共通の `PopularityApplier`・`DatasetBuilder`・`ModelRepository`・`EnsembleModel`、`LongshotZoneFilter` |
+| `PredictionWorkflow` | 予測の流れを進める。オッズを決め、人気を決め、予測用データを作り、区分ごとのモデルで2つの予測確率を平均し（`SegmentedPrediction`）、前日・当日は複勝の期待値を足し（`PlaceValueColumns`）、区分で絞る | `run(レースID, 時点, 渡された人気, 区分, 渡されたオッズ)` | 共通の `OddsResolver`・`PopularityApplier`・`DatasetBuilder`・`SegmentedPrediction`・`PlaceValueColumns`、`LongshotZoneFilter` |
 | `prediction_timings.py` の `TIMINGS` | この予想が学習し、予測を出す時点（木曜・前日・当日）の並び。手本と同じ3つ | ―（値） | ― |
+| `model_segments.py` の `SEGMENTS` | 学習データを中穴と大穴で分ける決まり（共通の `ModelSegments`。区分の列は「穴馬の区分」、フォルダは `mid`・`big`。2026-09-24） | ―（値） | ― |
 
 `PredictionWorkflow` は、ほかのクラスを呼んで受け渡すだけで、計算・判断・SQL は書かない。
 
-**学習の流れ（`TrainingWorkflow`）は、共通のものをそのまま使う。** この予想は `TIMINGS`（3つ）と、初期値の設定ファイルを渡す。モデルは合わせて6つになる（[07-prediction-timing.md](07-prediction-timing.md)）。
+**学習の流れ（`TrainingWorkflow`）は、共通のものをそのまま使う。** この予想は `TIMINGS`（3つ）と、初期値の設定ファイルを渡す。2026-09-24 からは、共通の `SegmentedTraining` が学習データを `SEGMENTS` の区分ごとに分け、区分ごとに `TrainingWorkflow` を回す。モデルは 2つの区分 × 3つの時点 × 2つで、12個になる（[05-sequence.md の図1](05-sequence.md#図1-学習)）。
 
 ### command/ — コマンド
 
 | クラス | 置き場所 | 仕事 | 主な public メソッド |
 |---|---|---|---|
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | この予想 | `train`: 学習する。期間の引数から `TrainingPeriod` を作る | `add_parser(subparsers)`、`run(引数)` |
-| `PredictCommand` | この予想 | `predict`: 1レースの穴馬を予測する。`--pops` で全頭の人気を受け取って `PopularityInput` にし、`--zone` を `LongshotZone` にする | `add_parser(subparsers)`、`run(引数)` |
+| `TrainCommand` | この予想 | `train`: 学習する。期間の引数から `TrainingPeriod` を作り、共通の `SegmentedTraining` で区分ごとに学習し、最後に共通の `PlacePriceStep` で複勝の見込みの倍率を保存する | `add_parser(subparsers)`、`run(引数)` |
+| `PredictCommand` | この予想 | `predict`: 1レースの穴馬を予測する。`--pops` で全頭の人気を受け取って `PopularityInput` にし、`--odds` を `OddsInput`、`--zone` を `LongshotZone` にする。保存した複勝の見込みの倍率を読んで `PlaceValueColumns` を作る | `add_parser(subparsers)`、`run(引数)` |
 | `CommonArguments` | `shared` | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`） | `add_to(parser)` |
 | `TrainingReportTables` | `shared` | 学習の結果を表にする | `tables()` |
-| `PredictionTable` | `shared` | 予測の結果を、3着以内に入る確率の高い順の表にする。`extra_columns` に「人気順位」「穴馬の区分」を渡して、その2列も出す | `table()` |
+| `PredictionTable` | `shared` | 予測の結果を、3着以内に入る確率の高い順の表にする。`extra_columns` に「人気順位」「穴馬の区分」と、前日・当日は「オッズから見た3着以内率」「複勝的中の確率」「複勝の期待値」を渡して、その列も出す | `table()` |
 
 `--timing` は、時点の書き方を共通の `PredictionTiming.parse()` で読む。`--zone` の書き方が違うときに止めるのは `LongshotZone.parse()` で、誤りは `共通.cli` が1行で見せる（同じ判断を2か所に書かない）。
 
@@ -139,11 +146,27 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 
 | 選び方 | 変わるクラス |
 |---|---|
-| 区分ごとに別のモデルにする（[15 の 3](15-decisions.md#3-区分ごとに別のモデルにするか)） | `LongshotSelector` が作られるときに区分を受け取り、`keep_samples()` でその区分の行だけを残す。`dataset_builder(接続, 区分)`。`TrainCommand` が区分ごとに `TrainingWorkflow` を回し、`reports/穴馬が3着以内に入るかを予想/models/<区分>/` に保存する。`PredictionWorkflow` は、`--zone` が無ければ2つのモデルを順に使う。`LongshotZoneFilter` は要らない |
+| 区分ごとに1つのモデルにする（[15 の 3](15-decisions.md#3-区分ごとに別のモデルにするか) のはじめの決定。2026-09-24 に「中穴と大穴で別のモデル」に決め直した） | `SEGMENTS` が要らなくなり、`SegmentedTraining`・`SegmentedPrediction` には区分「全体」1つだけの `ModelSegments()` を渡す（手本と同じ）。モデルは `models/<時点>/` に置く。上の一覧の、ほかのクラスは変わらない |
 | 穴馬の区分を特徴量に入れる（[15 の 5](15-decisions.md#5-穴馬の区分を特徴量に入れるか)） | `feature/longshot_zone_features.py` に、`FeatureGroup` を守る `LongshotZoneFeatures`（出走の行の区分の列を、カテゴリ特徴量「穴馬の区分」にする）を足し、`CATALOG` に1個足して 76個にする |
+
+## 5. コマンドの引数
+
+コマンドは `uv run python -m yosou.longshots_in_top3 <train か predict> …` で動かす。**引数の多くは手本と同じである。** 共通の引数（`--models`・`--db`・`--format`・`--out`）、`train` の `--config` と期間の4つ、`predict` の `rid`・`--date`・`--venue`・`--race`・`--timing`・`--odds`、引数の決まりは、[手本の 04 の「コマンドの引数」](../近走と適性から3着以内を予想/04-classes.md#コマンドの引数) を参照。下の表は `--help` の出力とコードで確かめた、この予想で違うところだけである。
+
+| コマンド | 引数・出力 | この予想では |
+|---|---|---|
+| 共通 | `--models` の既定 | `reports/穴馬が3着以内に入るかを予想/models`。中は `<区分>/<時点>/`（区分は `mid`（中穴）・`big`（大穴）、時点は `thursday`・`day_before`・`race_day`）に分かれ、直下に複勝の見込みの倍率のファイルを置く |
+| `train` | 学習するモデル | 2つの区分 × 3つの時点 × 2つのモデル = 12個（[15-decisions.md の 3](15-decisions.md#3-区分ごとに別のモデルにするか)） |
+| `train` | 出す表 | 区分ごとに、手本と同じ4つの表（学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル）。最後に、手本と同じ複勝の見込みの倍率の表 |
+| `predict` | `--pops 人気 …` | 利用者が見た単勝人気を**全頭ぶん**。前日・当日は `馬番:人気`、木曜は `馬名:人気`。空白かコンマで区切る。省略したときの決め方は [07-prediction-timing.md の「予測のときの人気の与え方」](07-prediction-timing.md#予測のときの人気の与え方) |
+| `predict` | `--odds 馬番:オッズ …` | 意味は手本と同じ。この予想では、`--pops` を省くと、このオッズの小さい順を人気にする。全頭ぶん渡す |
+| `predict` | `--zone` | `中穴` か `大穴`。その区分の穴馬だけを出す。省略すると穴馬すべてを出す。出力を絞るだけで、学習には関係しない |
+| `predict` | 出す表 | 1レースの穴馬を「3着以内に入る確率」（平均）の高い順に並べた表。列は、順位・馬番・馬名・人気順位・穴馬の区分と、前日・当日ならオッズから見た3着以内率・複勝的中の確率・複勝の期待値、そのあとに 3着以内に入る確率（平均）・LightGBM・CatBoost の確率 |
 
 ## 文書情報
 
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-23 |
+| 更新 | 2026-09-28: 「5. コマンドの引数」を足した |
+| 更新 | 2026-09-28: 2026-09-24 の直し（基準・中穴と大穴ごとのモデル・複勝の期待値）で増えたクラスとフォルダ（`SEGMENTS`、共通の `Top3Baseline`・`OddsFeatures`・`SegmentedTraining`・`SegmentedPrediction`・`place_value/` など）を書き足し、「4.」の区分の行を決め直したあとの形に直した |
