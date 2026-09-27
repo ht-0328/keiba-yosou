@@ -3,5 +3,6 @@
 from .learning_table import LearningTable
 from .market_excess_rate import MarketExcessRate
 from .pool_features import PoolFeatures
+from .pre_deadline_table import PRE_DEADLINE_POOLS, PreDeadlineTable
 
-__all__ = ["LearningTable", "MarketExcessRate", "PoolFeatures"]
+__all__ = ["PRE_DEADLINE_POOLS", "LearningTable", "MarketExcessRate", "PoolFeatures", "PreDeadlineTable"]

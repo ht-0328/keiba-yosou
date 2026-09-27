@@ -50,7 +50,7 @@ class LearningTable:
 
     def build(self, runners: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         """（表, 特徴量の列名）を返す。"""
-        table = self._add_market_place_rate(runners)
+        table = self.add_market_place_rate(runners)
         table, market_columns = PoolFeatures(POOL_COLUMNS, WIN_BASELINE, PLACE_BASELINE).add_to(table)
         excess = MarketExcessRate()
         for name, column in EXCESS_GROUPS.items():
@@ -60,7 +60,7 @@ class LearningTable:
                     + list(HORSE_COLUMNS) + ["field", "place_places"])
         return table, [column for column in features if column in table.columns]
 
-    def _add_market_place_rate(self, runners: pd.DataFrame) -> pd.DataFrame:
+    def add_market_place_rate(self, runners: pd.DataFrame) -> pd.DataFrame:
         """単勝オッズだけから作った複勝率を足す（Stern 補正つき Harville）。
 
         複勝の対象着順は、5〜7頭立てなら2着まで、8頭以上なら3着までになる。
