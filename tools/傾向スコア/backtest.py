@@ -1,6 +1,6 @@
 """傾向スコアの検証: 終わったレースに同じ採点を当てて、点数の高い馬が本当に来ているかを成績7つで出す。
 
-    uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/trend-score/backtest-2026-08.md
+    uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/傾向スコア/backtest-2026-08.md
     uv run python tools/傾向スコア/backtest.py --from 2026-01-01 --sample 300                 # 期間から 300 レースを等間隔に選ぶ
     uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --venue 中山 --surface 芝 --no-market --min-z 0
 

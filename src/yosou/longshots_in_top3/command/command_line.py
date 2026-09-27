@@ -16,7 +16,7 @@ USAGE = """穴馬が3着以内に入るかを予想する。
 
 穴馬は、13頭以下のレースなら 4番人気以下、14頭以上なら 6番人気以下の馬（人気馬の裏返し）。
 
-学習（3つの時点ごとに LightGBM と CatBoost を学習し、reports/longshots_in_top3/models/ に保存する）:
+学習（3つの時点ごとに LightGBM と CatBoost を学習し、reports/穴馬が3着以内に入るかを予想/models/ に保存する）:
 
     uv run python -m yosou.longshots_in_top3 train
     uv run python -m yosou.longshots_in_top3 train --config my_settings.toml

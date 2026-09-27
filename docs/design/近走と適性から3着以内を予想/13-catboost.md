@@ -100,7 +100,7 @@ sequenceDiagram
 
 - `ModelRepository` が `CatBoostModel.save(パス)` を呼ぶ。`CatBoostModel` は、学習済みの `CatBoostClassifier` を `save_model()` で書き込む。カテゴリ特徴量の列名はモデルの中に残るので、別に保存しなくてよい。読み込みは `CatBoostModel.load(パス)` で、`load_model()` を使う。
 - 3つの時点ごとのモデルと、学習に使った設定を保存する（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。
-- 保存先: Git の対象外の `reports/form_aptitude_top3/models/`（[04-classes.md の「パッケージ構成」](04-classes.md#パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
+- 保存先: Git の対象外の `reports/近走と適性から3着以内を予想/models/`（[04-classes.md の「パッケージ構成」](04-classes.md#パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
 
 ## 文書情報
 

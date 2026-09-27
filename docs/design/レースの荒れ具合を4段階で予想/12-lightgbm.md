@@ -7,7 +7,7 @@
 | 1. 学習データの渡し方 | 手本と同じ（数値はそのまま、カテゴリは `category` 型）。この予想のカテゴリ特徴量は値の種類が少ないので、「その他」にまとめる段は実質通らない。目的変数は学習する券種の列（0〜3）だけを渡す |
 | 2. ハイパーパラメータの初期値 | 目的関数は多クラス分類（`multiclass`、`num_class` は 4）。ほかは手本と同じ値から始める |
 | 3. カテゴリ特徴量の値の変え方 | 手本と同じ手順（`LightGbmEncoder`）。まとめる対象の名前の列が無いので、欠損値の判断だけが働く |
-| 4.〜6. 学習・予測・保存の手順 | 券種ごとに、3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）につき1つずつ、計 12 のモデルを学習する。`predict_proba` は4列を返す。保存先は `reports/upset_level/models/<券種>/<時点>/` |
+| 4.〜6. 学習・予測・保存の手順 | 券種ごとに、3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）につき1つずつ、計 12 のモデルを学習する。`predict_proba` は4列を返す。保存先は `reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/` |
 
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 - 学習データ・特徴量・目的変数は CatBoost と共通で、[08-training-data.md](08-training-data.md)・[09-features.md](09-features.md)・[10-target.md](10-target.md) を参照。
@@ -95,7 +95,7 @@ sequenceDiagram
 
 - 保存のしかた（`joblib.dump()` で、学習済みの `LGBMClassifier` とカテゴリの一覧を書き込み、`joblib.load()` で読む）は、[手本の 12 の「6. 保存」](../近走と適性から3着以内を予想/12-lightgbm.md#6-保存) と同じである。
 - 保存するのは、券種ごと・時点ごとのモデル（12個）と、学習に使った設定である。
-- 保存先: Git の対象外の `reports/upset_level/models/<券種>/<時点>/`（[04-classes.md](04-classes.md#4-パッケージ構成)）。券種ごとに `ModelRepository` を1つ作り、置き場所だけを変える。モデルは JV-Data から作ったもので、公開しないため。
+- 保存先: Git の対象外の `reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/`（[04-classes.md](04-classes.md#4-パッケージ構成)）。券種ごとに `ModelRepository` を1つ作り、置き場所だけを変える。モデルは JV-Data から作ったもので、公開しないため。
 
 ## 文書情報
 

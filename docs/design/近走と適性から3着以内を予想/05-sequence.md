@@ -18,7 +18,7 @@
 | 元DB | jvdata-store が作った DuckDB。この AI は読むだけ | SQL を1回流す | ある |
 | `TrainingWorkflow` など | この AI のクラス。一覧と仕事は [04-classes.md](04-classes.md) を参照 | public メソッドを1回呼ぶ | ある（`src/yosou/form_aptitude_top3/`） |
 | `LGBMClassifier`・`CatBoostClassifier` | ライブラリのクラス | `fit()` か `predict_proba()` を1回呼ぶ | ライブラリはある |
-| モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/form_aptitude_top3/models/` にできる |
+| モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/近走と適性から3着以内を予想/models/` にできる |
 
 ## 図の読み方
 

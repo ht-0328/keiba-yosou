@@ -153,7 +153,7 @@ src/yosou/upset_level/              レースの荒れ具合を4段階で予想�
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`UpsetLevelRule` → `upset_level_rule.py`）。学習したモデルは、Git の対象外の `reports/upset_level/models/<券種>/<時点>/` に保存する（券種ごとに `ModelRepository` を1つ作り、置き場所を変える。`ModelRepository` は変えない）。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`UpsetLevelRule` → `upset_level_rule.py`）。学習したモデルは、Git の対象外の `reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/` に保存する（券種ごとに `ModelRepository` を1つ作り、置き場所を変える。`ModelRepository` は変えない）。
 
 | 決まり | 理由 |
 |---|---|

@@ -59,7 +59,7 @@ def fit_and_save(data: TrainingData, settings: ModelSettings, registry: FeatureR
 
 def train(config: Path, database: Path | None, registry: FeatureRegistry) -> list[Table]:
     settings = ModelSettings.load(config, registry)
-    store = ModelStore(PROJECT_ROOT / "reports" / "custom_binary" / settings.name)
+    store = ModelStore(PROJECT_ROOT / "reports" / "特徴量と条件を選んで予想" / settings.name)
     store.check_new()
     with db.open_db(database) as con:
         data = CustomDataset(con, settings, registry).training()

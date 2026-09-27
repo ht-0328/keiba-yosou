@@ -10,7 +10,7 @@
 ## 設定ファイルの形
 
 ```yaml
-# 1つのモデルの作り方。name ごとに reports/custom_binary/<name>/ に保存する（上書きしない）。
+# 1つのモデルの作り方。name ごとに reports/特徴量と条件を選んで予想/<name>/ に保存する（上書きしない）。
 name: top3_turf_short_pop6_10
 features_file: features.txt   # 設定ファイルからの相対パス
 target: 馬券内                # 馬券内 / 馬券外 / 勝利

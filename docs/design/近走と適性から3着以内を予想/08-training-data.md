@@ -89,7 +89,7 @@ uv run python -m yosou.form_aptitude_top3 train --warmup-from 2023-01-01 --train
 
 - 行を増やすと当たり具合は上がるが、10年全部まで延ばしても、それ以上は上がらない。古い年ほど、今のレースと傾向がずれていると考えられる。
 - 2021年8月は、ウッドチップ調教の記録がそろう最初の月である（記録は 2021年7月27日から）。学習データのほぼ全部の行で、調教の特徴量を「不明」にせずに使える。
-- 当たり具合の値は、Git の対象外の `reports/form_aptitude_top3/period/summary.txt` にある。
+- 当たり具合の値は、Git の対象外の `reports/近走と適性から3着以内を予想/period/summary.txt` にある。
 
 ## 文書情報
 

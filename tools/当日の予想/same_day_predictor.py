@@ -28,7 +28,7 @@ class SameDayModel:
 
     def folder(self, registry: FeatureRegistry) -> Path:
         name = ModelSettings.load(self.config, registry).name
-        return workflow.PROJECT_ROOT / "reports" / "custom_binary" / name
+        return workflow.PROJECT_ROOT / "reports" / "特徴量と条件を選んで予想" / name
 
 
 class SameDayPredictor:

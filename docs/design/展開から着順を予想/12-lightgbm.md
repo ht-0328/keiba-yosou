@@ -104,7 +104,7 @@ sequenceDiagram
 - `LightGbmWithinRaceModel` は、中の `LightGbmModel` の中身（`LGBMClassifier` とエンコーダーの中身）に、温度を足して書き込む。温度が無いと、予測のときにレースの中でそろえられないためである。
 - `LightGbmQuantileModel` は、3つの `LGBMRegressor` と、エンコーダーの中身（列の並びとカテゴリの一覧）を1つのファイルに書き込む。`LightGbmRegressionModel` は、1つの `LGBMRegressor` とエンコーダーの中身を書き込む。
 - ⑦の λ は、2つのライブラリの平均に対して決める値なので、モデルのファイルではなく、`FinishForecaster` が `finish/<時点>/order_lambda.json` に書く。
-- 保存先: Git の対象外の `reports/race_development/models/<予想>/<時点>/`（予想は `leader`・`position`・`pace_class`・`pace_time`・`corner4`・`closing`・`late_pace_time`・`finish`。[04-classes.md の「4. パッケージ構成」](04-classes.md#4-パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
+- 保存先: Git の対象外の `reports/展開から着順を予想/models/<予想>/<時点>/`（予想は `leader`・`position`・`pace_class`・`pace_time`・`corner4`・`closing`・`late_pace_time`・`finish`。[04-classes.md の「4. パッケージ構成」](04-classes.md#4-パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
 
 ## 文書情報
 

@@ -97,7 +97,7 @@ sequenceDiagram
 
 - `KindModelStore` の中の共通の `ModelRepository` が、各モデルの `save(パス)` を呼ぶ。書き込みは手本と同じく `save_model()` で、読み込みは `load(パス, 設定)` で `load_model()` を使う。カテゴリ特徴量の列名はモデルの中に残るので、別に保存しなくてよい。ファイルの名前は、二値（①⑦）と多クラス（②③）が `catboost.cbm`、分位点回帰（③⑥）が `catboost_quantile.cbm`、回帰（④⑤）が `catboost_regression.cbm`。
 - `CatBoostWithinRaceModel` は、中の `CatBoostModel` のファイルに加えて、温度を同じフォルダの小さな JSON に書く。温度が無いと、予測のときにレースの中でそろえられないためである。
-- 保存先: Git の対象外の `reports/race_development/models/<予想>/<時点>/`（[04-classes.md の「4. パッケージ構成」](04-classes.md#4-パッケージ構成)）。
+- 保存先: Git の対象外の `reports/展開から着順を予想/models/<予想>/<時点>/`（[04-classes.md の「4. パッケージ構成」](04-classes.md#4-パッケージ構成)）。
 
 ## 文書情報
 

@@ -54,7 +54,7 @@ sequenceDiagram
             W->>W: LightGbmMulticlassModel を作り、その時点の列だけで学習させる（12-lightgbm.md の 4.）
             W->>W: CatBoostMulticlassModel を作り、その時点の列だけで学習させる（13-catboost.md の 4.）
             W->>MR: save（時点、2つのモデル、設定）
-            MR-->>W: 保存した（reports/upset_level/models/<券種>/<時点>/）
+            MR-->>W: 保存した（reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/）
         end
         W->>W: 検証データで当たり具合を確かめる（16-evaluation.md）
         W-->>TC: その券種の学習の結果
@@ -173,7 +173,7 @@ sequenceDiagram
 | この予想のクラス（`RaceSelector`・`UpsetLevelRule`・`UpsetLevelLabeler`・まとまり A〜E・`PredictionWorkflow`・コマンド） | 作った（`src/yosou/upset_level/`） |
 | 合成DB（`tools/合成DB/synth.py`）と `shared/tests/synthetic_season` の払戻 | `hr`（フラグ）・`hr__馬連払戻`・`hr__3連複払戻`・`hr__3連単払戻` の表と、人気から決めた架空の払戻を足した。締め切り前のオッズ（`o1__単勝オッズ`）は無いままで、テストは `--odds` で渡す経路を通る |
 | `AnnouncedOddsRepository` が読むオッズ | 手本と同じ。今の元DB には断面がごく少数しか無く、取り込んでいないレースは `--odds` で全頭ぶん渡す |
-| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | [16-evaluation.md](16-evaluation.md) で決め、`ClassModelEvaluator` と `UserRuleBaseline` で測る。実データでの値は `reports/upset_level/` |
+| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | [16-evaluation.md](16-evaluation.md) で決め、`ClassModelEvaluator` と `UserRuleBaseline` で測る。実データでの値は `reports/レースの荒れ具合を4段階で予想/` |
 | アンサンブルの平均のしかた | 手本と同じく単純な平均。重みを付ける案は、当たり具合を見てから |
 
 ## 文書情報

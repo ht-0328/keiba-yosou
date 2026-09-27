@@ -39,7 +39,7 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダの `__init__.py` の先頭に「クラス → 仕事」の表を書いた。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`FavoriteOnlySelector` → `favorite_only_selector.py`）。学習したモデルの一式は、Git の対象外の `reports/favorite_buy_or_fade/models/` に保存する。フォルダ名を `model` にしない決まり（[手本の 04 の「分け方の決まり」](../近走と適性から3着以内を予想/04-classes.md#分け方の決まり)）に合わせ、近さのモデルのフォルダは `similarity` とした。
+各フォルダの `__init__.py` の先頭に「クラス → 仕事」の表を書いた。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`FavoriteOnlySelector` → `favorite_only_selector.py`）。学習したモデルの一式は、Git の対象外の `reports/1番人気を買うか消すかを予想/models/` に保存する。フォルダ名を `model` にしない決まり（[手本の 04 の「分け方の決まり」](../近走と適性から3着以内を予想/04-classes.md#分け方の決まり)）に合わせ、近さのモデルのフォルダは `similarity` とした。
 
 | 決まり | 理由 |
 |---|---|
@@ -100,7 +100,7 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 
 | 名前 | 読む・書くもの | 主な public メソッド |
 |---|---|---|
-| `SimilarityModelRepository` | 学習したモデルの一式（pickle）と、学習に使った方針（`settings.json`）。置き場所は `reports/favorite_buy_or_fade/models/`（[12-neighbor-distance.md の「6.」](12-neighbor-distance.md#6-保存)） | `save(一式)`、`load()` |
+| `SimilarityModelRepository` | 学習したモデルの一式（pickle）と、学習に使った方針（`settings.json`）。置き場所は `reports/1番人気を買うか消すかを予想/models/`（[12-neighbor-distance.md の「6.」](12-neighbor-distance.md#6-保存)） | `save(一式)`、`load()` |
 
 ### setting/ — 方針
 

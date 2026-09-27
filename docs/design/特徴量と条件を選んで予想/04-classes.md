@@ -47,7 +47,7 @@ src/yosou/custom_binary/
 └── tests/                    テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-学習したモデルは、Git の対象外の `reports/custom_binary/<設定の name>/` に、設定ごとに保存する（[12-lightgbm.md](12-lightgbm.md#6-保存)）。
+学習したモデルは、Git の対象外の `reports/特徴量と条件を選んで予想/<設定の name>/` に、設定ごとに保存する（[12-lightgbm.md](12-lightgbm.md#6-保存)）。
 
 | 決まり | 理由 |
 |---|---|

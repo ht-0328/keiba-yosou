@@ -17,7 +17,7 @@ from .yosou_name import PROJECT_ROOT, YOSOU_NAME
 
 #: 確かめる年の既定（設計書 15 の 18）。
 DEFAULT_YEARS = "2021-2026"
-#: 結果の表のファイルの名前（``reports/race_development/backtest/`` の下）。
+#: 結果の表のファイルの名前（``reports/展開から着順を予想/backtest/`` の下）。
 RESULT_NAME = "results"
 
 

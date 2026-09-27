@@ -7,9 +7,9 @@
     uv run python tools/成績集計/perf.py class --by-popularity          # クラス×人気
     uv run python tools/成績集計/perf.py course --pop 1 --min-runs 30   # コース単位（競馬場×コース×距離×馬場状態）の1番人気
     uv run python tools/成績集計/perf.py popularity-top --cross tm-top --venue 中山
-    uv run python tools/成績集計/perf.py --check                       # reports/stats の値と答え合わせ
+    uv run python tools/成績集計/perf.py --check                       # reports/成績集計 の値と答え合わせ
 
-出力は reports/stats と同じ9列（切り口 | 出走数 | 着別度数 | 勝率 | 連対率 | 複勝率 | 馬券外率 | 単勝回収率 | 複勝回収率）。
+出力は reports/成績集計 と同じ9列（切り口 | 出走数 | 着別度数 | 勝率 | 連対率 | 複勝率 | 馬券外率 | 単勝回収率 | 複勝回収率）。
 取消・除外は出走に数えない。競走中止・失格は「出走して馬券外」。回収率の基準は 80%（控除率 20%）。
 """
 
@@ -61,7 +61,7 @@ def build_parser():
     parser = cli.build_parser(__doc__, filters=True, limit=None)
     parser.add_argument("dimension", nargs="?", help="切り口の名前（--list で一覧）")
     parser.add_argument("--list", action="store_true", help="切り口の一覧を出して終わる")
-    parser.add_argument("--check", action="store_true", help="reports/stats の東京 芝・左 1600m 良 の1番人気と答え合わせ")
+    parser.add_argument("--check", action="store_true", help="reports/成績集計 の東京 芝・左 1600m 良 の1番人気と答え合わせ")
     parser.add_argument("--top", type=int, default=None, help="順位を付ける切り口（騎手・血統・馬）で出す件数（既定: 全部）")
     parser.add_argument("--min-runs", type=int, default=None, help="出走数がこれ未満の行を落とす（既定: 切り口ごと）")
     parser.add_argument("--rank-by", choices=perf.RANK_KEYS, default=perf.DEFAULT_RANK_KEY, help="順位を付ける列（既定: 勝率）")

@@ -11,7 +11,7 @@ class BacktestArtifactRepository:
     """年ごとの予測・精算の表を ``<root>/<年>/<名前>.pkl`` に、結果の表（Markdown）を ``<root>/<名前>.md`` に書く（設計書 04 の「repository/」）。
 
     止まったら、終わった年の表を読んで続きから再開する。払戻などの JV-Data 由来の数値を含むので、``root`` は
-    Git の対象外（``reports/race_development/backtest/``）にする。
+    Git の対象外（``reports/展開から着順を予想/backtest/``）にする。
     """
 
     def __init__(self, root: Path) -> None:

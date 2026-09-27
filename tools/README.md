@@ -56,7 +56,7 @@
 | その日の全レースを採点して、一覧のページと各レースのページを書く | `uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --all --open`（`--venue 中山` で競馬場を絞る。`--condition 良` も付けられる） |
 | 同じ採点を表で見る（終わったレースなら着順も並ぶ） | `uv run python tools/傾向スコア/trend_score.py --date 2026-09-13 --venue 中山 --race 11 --detail` |
 | 点数化項目の一覧 | `uv run python tools/傾向スコア/trend_score.py --items`（説明は `tools/傾向スコア/score-items.md`） |
-| 傾向スコアが当たっているかを終わったレースで確かめる | `uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/trend-score/backtest-2026-08.md` |
+| 傾向スコアが当たっているかを終わったレースで確かめる | `uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/傾向スコア/backtest-2026-08.md` |
 | 出走馬を能力指数の高い順に並べる（これから走るレースにも、終わったレースにも） | `uv run python tools/能力指数/ability.py --date 2026-09-27 --venue 中山 --race 11`（`--detail` で各馬の近5走のスピード指数、`--condition 稍重` で発表前の馬場状態、`--all` でその日の全レース） |
 | 当日のレースを予想して、買い（複勝・期待値 1.2 以上）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース） |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
@@ -87,9 +87,9 @@
 | `出走検索/runners.py` | 条件を組み合わせて出走（1行 = 1頭）を検索 | 共通の絞り込み、`--sort date/odds/finish/pop`、`--offset`、`--columns`（事実表の列一覧） |
 | `人気馬が負けたレース/lost_favorites.py` | 対象 = `--pop`（既定 1）と `--odds`、事象 = `--finish`（既定 `4-` = 馬券外。競走中止・失格を含む）。この3つは絞り込みではなく規則 | 共通の絞り込み、`--offset` |
 | `穴馬が勝ったレース/longshot_wins.py` | 対象 = `--odds`（既定 `10-`）か `--pop`（書いた方だけ効く。両方なら AND）、事象 = `--finish`（既定 `1`） | 同上 |
-| `成績集計/perf.py` | 成績7つを切り口ごとに。`reports/stats` と同じ9列 | 位置引数 切り口、`--list`、`--check`、`--top`、`--min-runs`、`--rank-by`、`--by-popularity`、`--cross 切り口`（何度でも） |
+| `成績集計/perf.py` | 成績7つを切り口ごとに。`reports/成績集計` と同じ9列 | 位置引数 切り口、`--list`、`--check`、`--top`、`--min-runs`、`--rank-by`、`--by-popularity`、`--cross 切り口`（何度でも） |
 | `回収率探索/explore.py` | 条件を固定し、切り口（人気・オッズ帯・枠・前走の着順・逃げ経験・持ち時計順位 …）を1つずつ当てて、単勝か複勝の回収率が閾値以上の値を回収率順に。年ごとの回収率も添える | `--dimensions a,b`（既定は `--list` の○）、`--min-runs`（既定 30）、`--threshold`（%、既定 100）、`--target both/win/place`、`--pairs`（2つの組み合わせ、切り口 12 個まで）、`--top` |
-| `傾向スコア/trend_score.py` | 1レースの傾向と採点。母集団は開催日より前の 同レース → 4つ一致 → 3つ以上一致 → 2つ以上一致。値ごとの成績を基準値と比べ、出走数が足りるいちばん狭い段で「頭向き・相手向き（+1）」「悪い（−1）」を判定する。確定前のレースにも、終わったレースにも使える | 位置引数 rid、または `--date --venue --race`。手で与える材料 `--condition` `--pops 馬番:人気,...` `--weights 馬番:馬体重:増減,...`。線引き `--scope` `--min-runs` `--good` `--bad` `--min-z`。出力 `--html [PATH]`（グラフ付きの HTML 1ファイル。既定は `reports/trend-score/`）`--open` `--detail` `--items` |
+| `傾向スコア/trend_score.py` | 1レースの傾向と採点。母集団は開催日より前の 同レース → 4つ一致 → 3つ以上一致 → 2つ以上一致。値ごとの成績を基準値と比べ、出走数が足りるいちばん狭い段で「頭向き・相手向き（+1）」「悪い（−1）」を判定する。確定前のレースにも、終わったレースにも使える | 位置引数 rid、または `--date --venue --race`。手で与える材料 `--condition` `--pops 馬番:人気,...` `--weights 馬番:馬体重:増減,...`。線引き `--scope` `--min-runs` `--good` `--bad` `--min-z`。出力 `--html [PATH]`（グラフ付きの HTML 1ファイル。既定は `reports/傾向スコア/`）`--open` `--detail` `--items` |
 | `傾向スコア/backtest.py` | 終わったレースを同じ採点にかけて、点数の順位別・人気の順位別・点数の帯別・点数の順位×人気の帯の成績7つを出す。1レースに数秒かかる | レースを選ぶ絞り込み（`--from` は必須）、`--sample N`（等間隔に間引く）、`--no-market`（人気を使う項目を外す）、線引きは上と同じ |
 | `能力指数/ability.py` | 1レースの出走馬の能力指数（基礎の速さ・距離／コース／馬場の適性・使った走の数）を高い順に。終わったレースなら、その走のスピード指数と着順も並ぶ。過去の全部の走のスピード指数は `reports/能力指数/cache/` にとっておき、DB に新しい確定成績が入ったときだけ作り直す（1〜2分） | 位置引数 rid、または `--date --venue --race`、`--all`（`--date`（と `--venue`）の全レース）、`--condition`、`--detail`、`--rebuild`（必ず作り直す）、`--cache` |
 | `検索画面/web.py` | ブラウザの検索画面（13タブ） | `--port`（既定 8767）、`--open`、`--idle`（既定 60 秒） |
@@ -152,7 +152,7 @@
 新しい集計や列を足したら、次の2つを通してから先へ進む。
 
 ```powershell
-uv run python tools/成績集計/perf.py --check   # reports/stats の東京 芝・左 1600m 良 の1番人気と、成績7つが一致すること
+uv run python tools/成績集計/perf.py --check   # reports/成績集計 の東京 芝・左 1600m 良 の1番人気と、成績7つが一致すること
 uv run python -m pytest -q                      # 合成DB のテスト（実DB には触らない）
 ```
 

@@ -16,7 +16,7 @@ USAGE = """人気馬が4着以下になるかを予想する。
 
 人気馬は、13頭以下のレースなら 1〜3番人気、14頭以上なら 1〜5番人気の馬。
 
-学習（2つの時点ごとに LightGBM と CatBoost を学習し、reports/favorites_out_of_top3/models/ に保存する）:
+学習（2つの時点ごとに LightGBM と CatBoost を学習し、reports/人気馬が4着以下になるかを予想/models/ に保存する）:
 
     uv run python -m yosou.favorites_out_of_top3 train
     uv run python -m yosou.favorites_out_of_top3 train --config my_settings.toml
