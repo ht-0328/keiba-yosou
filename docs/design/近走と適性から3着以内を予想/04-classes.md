@@ -47,7 +47,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 ├── command/                    コマンド（train・predict）の引数。入口
 ├── workflow/                   予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
 ├── dataset/                    入れる行の選び方・目的変数（3着以内）・予測に使うオッズの決め方と、DatasetBuilder の組み立て
-├── feature/                    まとまり J（市場の評価）を作る。この予想の特徴量 74個の一覧（CATALOG）
+├── feature/                    まとまり J（市場の評価）を作る。この予想の特徴量 75個の一覧（CATALOG）
 ├── setting/                    ハイパーパラメータの初期値のファイル
 └── tests/                      この予想の組み立てのテスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
@@ -137,7 +137,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `FeatureBuilder` | 入口。まとまりごとのクラスを順に呼んで、1つの表にする。特徴量の一覧（`FeatureCatalog`）とまとまりのクラスは、作られるときに受け取る。時点を受け取り、その時点で使う特徴量だけを返す | `build(記録, 時点)` |
-| `FeatureCatalog` | 1つの予想が使う特徴量の一覧を表す値。この予想の一覧は `CATALOG = FeatureCatalog(BASE_FEATURES + J_FEATURES)`（74個） | `names`、`categorical`、`columns_for(時点)`、`categorical_columns_of(特徴量の表)` |
+| `FeatureCatalog` | 1つの予想が使う特徴量の一覧を表す値。この予想の一覧は `CATALOG = FeatureCatalog(BASE_FEATURES + J_FEATURES)`（当日は 75個） | `names`、`categorical`、`columns_for(時点)`、`categorical_columns_of(特徴量の表)` |
 | `PredictionTiming` | 予測する時点（木曜・前日・当日）を表す値。時点の前後を答える（[07-prediction-timing.md](07-prediction-timing.md)） | `is_at_or_after(時点)`、`parse(書き方)` |
 | `Feature`・`FeatureKind` | 特徴量の一覧の1行（名前・まとまり・型・いつから分かるか）と、その型。どの予想でも使う 71個は `feature_catalog.py` の `BASE_FEATURES`（[09-features.md](09-features.md) の表の写し） | `is_known_at(時点)` |
 | `MarketFeatures`（この予想） | まとまり J（市場の評価）の3個を作る: 単勝オッズ、人気順位（オッズの小さい順）、オッズから見た勝率（1/オッズをレース内で合計 1 に）。`FeatureGroup` を守る | `build(記録)` |
@@ -232,4 +232,4 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | 更新 | 2026-09-21: 実装に合わせて、1ファイル1クラス・1 SQL 1 リポジトリの決まりと、フォルダの構成を書き直した |
 | 更新 | 2026-09-22: 予想で変わらないクラスを `src/yosou/shared/` に移したのに合わせて、パッケージ構成とクラスの置き場所を書き直した |
 | 更新 | 2026-09-23: 単勝オッズを特徴量に足したのに合わせて、`MarketFeatures`・`OddsInput`・`OddsResolver`・`AnnouncedOddsApplier`・`AnnouncedOddsRepository` を足した |
-| 更新 | 2026-09-28: 「コマンドの引数」を足した。`EnsembleModel` の行に平均のしかたを書いた |
+| 更新 | 2026-09-28: 「コマンドの引数」を足した。`EnsembleModel` の行に平均のしかたを書いた。特徴量の数を 75個にそろえた |

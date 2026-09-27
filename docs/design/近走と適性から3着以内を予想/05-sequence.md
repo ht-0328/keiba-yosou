@@ -60,7 +60,7 @@ sequenceDiagram
     RS->>RS: 入れる行を選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
-    F-->>D: 特徴量 74個
+    F-->>D: 特徴量 75個
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数
     D-->>W: 学習データ
@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 74個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 75個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
 
 ## 図2. 予測
 
@@ -241,3 +241,4 @@ sequenceDiagram
 | 作成日 | 2026-09-21 |
 | 更新 | 2026-09-23: 図2・図4 に、予測に使うオッズを決めて反映する段を足した |
 | 更新 | 2026-09-28: 「まだ決まっていないところ」を、16-evaluation.md と 15-decisions.md の 8〜10 で決めた状態に直した |
+| 更新 | 2026-09-28: 図1の特徴量の数を 75個にそろえた |
