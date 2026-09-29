@@ -12,13 +12,14 @@ from yosou.shared.dataset.column_names import (
 from yosou.shared.feature import FeatureCatalog, PredictionTiming
 from yosou.shared.tests import synthetic_season as season
 
-from ..dataset import CustomDataset
-from ..evaluation import bootstrap_lower, paybacks, place_probability
+from ..dataset import CustomDataset, OddsBaseline
+from ..evaluation import BootstrapLowerBound, Paybacks, PlaceProbability, PredictionValues
 from ..feature.registrations import default_registry
-from ..row_conditions import RowConditions
-from ..settings import ModelSettings, PopularityRange
+from ..setting import ModelSettings, PopularityRange, RowConditions
+from ..store import ModelStore
+from ..workflow import TrainingWorkflow
 from .test_settings import BASE, config
-from .test_workflow import POPS, settings  # noqa: F401  （フィクスチャ）
+from .test_workflow import POPS, predict, settings  # noqa: F401  （フィクスチャ）
 
 
 def test_conditions_roundtrip_and_mask(tmp_path):
@@ -85,7 +86,7 @@ def sample_data(target: str, field_size: int = 16) -> TrainingData:
 
 
 def test_paybacks_for_all_top_pick_and_expected_value():
-    rows = {row["買い方"]: row for row in paybacks(sample_data("勝利"), np.array([0.3, 0.2, 0.5, 0.1]), "勝利")}
+    rows = {row["買い方"]: row for row in Paybacks().of(sample_data("勝利"), np.array([0.3, 0.2, 0.5, 0.1]), "勝利")}
     everyone = rows["対象の全頭（モデルなし）"]
     assert everyone["点数"] == 4 and everyone["単勝回収率"] == pytest.approx(1300 / 400)
     assert everyone["複勝回収率"] == pytest.approx(430 / 400)
@@ -97,14 +98,14 @@ def test_paybacks_for_all_top_pick_and_expected_value():
 
 
 def test_out_of_top3_model_bets_on_low_probability():
-    rows = {row["買い方"]: row for row in paybacks(sample_data("馬券外"), np.array([0.9, 0.2, 0.3, 0.8]), "馬券外")}
+    rows = {row["買い方"]: row for row in Paybacks().of(sample_data("馬券外"), np.array([0.9, 0.2, 0.3, 0.8]), "馬券外")}
     assert rows["各レースで確率1位"]["複勝回収率"] == pytest.approx((200 + 120) / 200)
     assert rows["期待値1.5以上"]["点数"] == 1  # (1-0.2)×2.0 = 1.6 だけ
 
 
 def test_paybacks_of_empty_data():
     empty = sample_data("勝利").where(pd.Series(False, index=range(4)))
-    assert paybacks(empty, np.array([]), "勝利")[0]["点数"] == 0
+    assert Paybacks().of(empty, np.array([]), "勝利")[0]["点数"] == 0
 
 
 @pytest.mark.parametrize("extra,match", [
@@ -118,28 +119,23 @@ def test_invalid_odds_baseline(tmp_path, extra, match):
 
 @pytest.mark.parametrize("target", ["勝利", "馬券内", "馬券外"])
 def test_odds_baseline_train_save_and_load(season_db, settings, tmp_path, target):
-    from .. import workflow
-    from ..model_store import ModelStore
-
     registry = default_registry()
     settings = replace(settings, target=target, odds_baseline=True)
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()
     assert data.baseline is not None and len(data.baseline.values) == len(data)
     store = ModelStore(tmp_path / "baseline")
-    workflow.fit_and_save(data, settings, registry, store)
+    TrainingWorkflow(registry).fit_and_save(data, settings, store)
     loaded, ensemble = store.load(registry)
     assert loaded.odds_baseline
     test = data.between(settings.period.test_first_day, None)
     probability = ensemble.predict_proba(test)
     assert np.isfinite(probability).all() and ((0 < probability) & (probability < 1)).all()
     with pytest.raises(ValueError, match="基準確率"):
-        workflow.fit_and_save(replace(data, baseline=None), settings, registry, ModelStore(tmp_path / "x"))
+        TrainingWorkflow(registry).fit_and_save(replace(data, baseline=None), settings, ModelStore(tmp_path / "x"))
 
 
 def test_win_baseline_sums_to_one_within_race():
-    from ..odds_baseline import OddsBaseline
-
     entries = pd.DataFrame({"race_id": ["a"] * 3 + ["b"] * 2, "win_odds": [2.0, 4.0, 8.0, 1.5, 3.0]})
     probability = OddsBaseline("勝利").build(entries).probabilities()
     assert probability.groupby(entries["race_id"]).sum().tolist() == pytest.approx([1.0, 1.0])
@@ -149,18 +145,18 @@ def test_win_baseline_sums_to_one_within_race():
 def test_place_probability_is_rescaled_only_for_complete_races():
     probability = np.array([0.6, 0.6, 0.3, 0.2])
     # 2頭立て（7頭以下）で全頭そろっているので、合計を2にそろえ直す（上限は1）。
-    full = place_probability(sample_data("馬券内", field_size=2), probability, "馬券内")
+    full = PlaceProbability().of(sample_data("馬券内", field_size=2), probability, "馬券内")
     assert full.tolist() == pytest.approx([1.0, 1.0, 1.0, 0.8])
-    assert place_probability(sample_data("馬券内"), probability, "馬券内").tolist() == pytest.approx(probability)
-    assert place_probability(sample_data("馬券外"), probability, "馬券外").tolist() == pytest.approx(1 - probability)
+    assert PlaceProbability().of(sample_data("馬券内"), probability, "馬券内").tolist() == pytest.approx(probability)
+    assert PlaceProbability().of(sample_data("馬券外"), probability, "馬券外").tolist() == pytest.approx(1 - probability)
 
 
 def test_bootstrap_lower_is_below_the_rate_and_needs_two_days():
     days = np.array(["d1", "d1", "d2", "d3", "d3"])
     payouts = np.array([0, 300, 0, 0, 150])
-    lower = bootstrap_lower(days, payouts)
+    lower = BootstrapLowerBound().of(days, payouts)
     assert lower is not None and lower <= payouts.sum() / (100 * len(payouts))
-    assert bootstrap_lower(days[:2], payouts[:2]) is None
+    assert BootstrapLowerBound().of(days[:2], payouts[:2]) is None
 
 
 def market(win, place, field, whole):
@@ -168,34 +164,30 @@ def market(win, place, field, whole):
 
 
 def test_prediction_values_for_win_and_top3():
-    from ..evaluation import prediction_values
     from yosou.shared.place_value import PlacePriceEstimator
 
-    win = prediction_values(np.array([0.5, 0.1]), "勝利", market([2.0, 12.0], [1.1, 3.0], 2, True), None)
+    win = PredictionValues().of(np.array([0.5, 0.1]), "勝利", market([2.0, 12.0], [1.1, 3.0], 2, True), None)
     assert win["期待値"].tolist() == pytest.approx([1.0, 1.2])
     # 8頭立ての全頭（ここでは2頭だけ書く）: 合計を3にそろえる。倍率 1.5 の見積もり。
     price = PlacePriceEstimator.from_state({"bands": [0.0, 1.5, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0, 1e9],
                                             "factors": [1.5] * 8})
-    top3 = prediction_values(np.array([0.6, 0.9]), "馬券内", market([3.0, 5.0], [1.2, 2.0], 8, True), price)
+    top3 = PredictionValues().of(np.array([0.6, 0.9]), "馬券内", market([3.0, 5.0], [1.2, 2.0], 8, True), price)
     assert top3["3着以内の確率"].tolist() == pytest.approx([1.0, 1.0])  # 3 × 0.6/1.5 = 1.2 → 上限の1
     assert top3["期待値"].tolist() == pytest.approx([1.8, 3.0])
-    part = prediction_values(np.array([0.2, 0.1]), "馬券外", market([3.0, 5.0], [1.2, 2.0], 8, False), None)
+    part = PredictionValues().of(np.array([0.2, 0.1]), "馬券外", market([3.0, 5.0], [1.2, 2.0], 8, False), None)
     assert part["3着以内の確率"].tolist() == pytest.approx([0.8, 0.9])  # 一部の馬だけなら、そろえ直さない
     assert part["期待値"].tolist() == pytest.approx([0.96, 1.8])  # 倍率が無ければ最低オッズのまま
 
 
 def test_place_price_is_saved_and_prediction_shows_expected_value(season_db, settings, tmp_path):
-    from .. import workflow
-    from ..model_store import ModelStore
-
     registry = default_registry()
     settings = replace(settings, odds_baseline=True)
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()
     store = ModelStore(tmp_path / "with_price")
-    workflow.fit_and_save(data, settings, registry, store)
+    TrainingWorkflow(registry).fit_and_save(data, settings, store)
     assert store.place_price() is not None
     odds = [f"{pair.split(':')[0]}:{3.0 + int(pair.split(':')[1])}" for pair in POPS]
-    result = workflow.predict(season.CARD_RACE_ID, store.root, season_db, registry, POPS, odds)
+    result = predict(season.CARD_RACE_ID, store.root, season_db, registry, POPS, odds)
     assert {"単勝オッズ", "3着以内の確率", "想定払戻倍率", "期待値"} <= set(result.columns)
     assert ModelStore(tmp_path / "missing").place_price() is None

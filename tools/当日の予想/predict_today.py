@@ -21,8 +21,8 @@ sys.path[:0] = [str(HERE.parents[0]), str(HERE)]
 
 from 共通 import cli, render  # noqa: E402
 
-from yosou.custom_binary import workflow  # noqa: E402
 from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.store import PROJECT_ROOT  # noqa: E402
 
 from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
 
@@ -42,7 +42,7 @@ def main(args) -> None:
     predictor.ensure_models()
     tables = predictor.run(day, after)
     cli.emit(tables, args)
-    saved = workflow.PROJECT_ROOT / "reports" / "当日の予想" / f"{day}_{after.replace(':', '')}.md"
+    saved = PROJECT_ROOT / "reports" / "当日の予想" / f"{day}_{after.replace(':', '')}.md"
     saved.parent.mkdir(parents=True, exist_ok=True)
     render.write(render.render(tables, "markdown"), saved, fmt="markdown")
     print(f"\n保存先: {saved}")

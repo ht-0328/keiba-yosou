@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from yosou.custom_binary.feature.registry import FeatureRegistry
-from yosou.custom_binary.settings import ModelSettings
+from yosou.custom_binary.setting import ModelSettings
 
 from .search_periods import SearchPeriods
 

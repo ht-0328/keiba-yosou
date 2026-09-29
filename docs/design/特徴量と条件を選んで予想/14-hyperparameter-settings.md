@@ -71,7 +71,7 @@ catboost:
 |---|---|---|
 | 書式 | TOML | YAML。ハイパーパラメータ以外（特徴量・目的・条件など）も1つのファイルに書くため（[15-decisions.md](15-decisions.md#1-設定をyamlの1ファイルにまとめるか)） |
 | 指定のしかた | `train --config <TOML>` を省略すれば初期値 | `train --config <YAML>` は必ず指定する。ハイパーパラメータを省略すれば初期値 |
-| 初期値の置き場所 | `src/yosou/form_aptitude_top3/setting/default_settings.toml` | **手本の同じファイルを読んでいる。** 予想のパッケージどうしで import しない決まりと違うので、直すなら `custom_binary` に初期値のファイルを持つ（[04-classes.md](04-classes.md#4-手本の決まりと違うところ)） |
+| 初期値の置き場所 | `src/yosou/form_aptitude_top3/setting/default_settings.toml` | `src/yosou/custom_binary/setting/default_settings.toml`。値は手本と同じ。予想のパッケージどうしで import しない決まりに合わせ、自分のファイルを持つ（2026-09-30 に直した。[04-classes.md](04-classes.md#4-手本の決まりと違うところ)） |
 | 同じ設定で学習するモデルの数 | 3つの時点 | 設定の1つの時点だけ（[07-prediction-timing.md](07-prediction-timing.md#時点ごとにモデルを分ける理由)） |
 
 ## 文書情報

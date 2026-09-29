@@ -22,14 +22,14 @@ sys.path[:0] = [str(HERE.parents[0]), str(HERE.parents[1] / "src")]
 
 from 共通 import cli, db  # noqa: E402
 
-from yosou.custom_binary import workflow  # noqa: E402
 from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.store import PROJECT_ROOT  # noqa: E402
 
 from 当日の予想.predict_today import DEFAULT_LINE, MODELS, SameDayPredictor  # noqa: E402
 from フォワードテスト.forward_follower import ForwardFollower  # noqa: E402
 from フォワードテスト.ledger import Ledger  # noqa: E402
 
-LEDGER = workflow.PROJECT_ROOT / "reports" / "フォワードテスト"
+LEDGER = PROJECT_ROOT / "reports" / "フォワードテスト"
 LOG_FILE = LEDGER / "動作の記録.log"
 
 

@@ -8,9 +8,11 @@ from pathlib import Path
 from 共通 import card, db
 from 共通.render import Table
 
-from yosou.custom_binary import workflow
+from yosou.custom_binary.command import PredictionTable
 from yosou.custom_binary.feature.registry import FeatureRegistry
-from yosou.custom_binary.settings import ModelSettings
+from yosou.custom_binary.setting import ModelSettings
+from yosou.custom_binary.store import MODELS_ROOT
+from yosou.custom_binary.workflow import LoadedModel, PredictionWorkflow, TrainingWorkflow
 
 #: 1レースで表に出す馬の数（期待値の高い順）。
 TOP_HORSES = 5
@@ -26,28 +28,32 @@ class SameDayModel:
     label: str
     config: Path
 
-    def folder(self, registry: FeatureRegistry) -> Path:
+    def folder(self, registry: FeatureRegistry, models_root: Path = MODELS_ROOT) -> Path:
+        """学習したモデルのフォルダ（``models_root`` の下の、設定の name のフォルダ）。"""
         name = ModelSettings.load(self.config, registry).name
-        return workflow.PROJECT_ROOT / "reports" / "特徴量と条件を選んで予想" / name
+        return models_root / name
 
 
 class SameDayPredictor:
     """発走前のレースを、並べた順のモデルで予想する。前のモデルで予想できない（馬体重が未発表など）ときは次のモデルを使う。
 
     モデルが保存されていなければ、はじめに学習する（1つ数分）。期待値が ``line`` 以上の馬を「買い」（複勝）にする。
+    モデルの置き場所は ``models_root``（省略すると ``reports/特徴量と条件を選んで予想/``）。
     """
 
-    def __init__(self, models: list[SameDayModel], registry: FeatureRegistry, database: Path | None, line: float) -> None:
+    def __init__(self, models: list[SameDayModel], registry: FeatureRegistry, database: Path | None, line: float,
+                 models_root: Path = MODELS_ROOT) -> None:
         self._models = models
         self._registry = registry
         self._database = database
         self._line = line
+        self._models_root = models_root
 
     def ensure_models(self, log=print) -> None:
         for model in self._models:
-            if not (model.folder(self._registry) / "model.json").is_file():
+            if not (model.folder(self._registry, self._models_root) / "model.json").is_file():
                 log(f"「{model.label}」のモデルが無いので学習します（数分かかります）: {model.config.name}")
-                workflow.train(model.config, self._database, self._registry)
+                TrainingWorkflow(self._registry, self._database, self._models_root).run(model.config)
 
     def run(self, day: str, after: str) -> list[Table]:
         """開催日 ``day``（YYYY-MM-DD）の、発走が ``after``（HH:MM）以降のレースを予想する。
@@ -62,9 +68,9 @@ class SameDayPredictor:
         buy_table = Table(BUY_COLUMNS, buys, title=f"買い（複勝・期待値 {self._line:g} 以上）", note=self._note(len(tables)))
         return [buy_table, *tables]
 
-    def load_models(self) -> list[tuple[str, workflow.LoadedModel]]:
+    def load_models(self) -> list[tuple[str, LoadedModel]]:
         """（表に出す名前, 読み込んだモデル）を、並べた順に。何レースも予想するときは1回だけ読む。"""
-        return [(model.label, workflow.LoadedModel.load(model.folder(self._registry), self._registry))
+        return [(model.label, LoadedModel.load(model.folder(self._registry, self._models_root), self._registry))
                 for model in self._models]
 
     def races(self, con, day: str, after: str) -> list[dict]:
@@ -97,9 +103,10 @@ class SameDayPredictor:
     def predict(self, con, race_id: str, loaded: list) -> tuple[str, Table]:
         """並べた順のモデルで1レースを予想する。どれでも予想できなければ ``ValueError``。"""
         message = ""
+        workflow = PredictionWorkflow(con, self._registry)
         for label, model in loaded:
             try:
-                return label, workflow.predict_race(con, race_id, model, self._registry)
+                return label, PredictionTable(model.settings).table(workflow.run(race_id, model))
             except ValueError as error:
                 message = str(error)
         raise ValueError(message)

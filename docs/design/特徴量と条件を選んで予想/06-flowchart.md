@@ -10,7 +10,7 @@
 
 ## 図1. 学習データに入れる行の選び方
 
-`CustomDataset.training()` と、そこから呼ぶ `select_training_data()` の中で行う判断。事実表の1行（1レースの1頭）が、学習データの1行になるまで。
+`CustomDataset.training()` と、そこから呼ぶ `TrainingDataSelector.select()` の中で行う判断。事実表の1行（1レースの1頭）が、学習データの1行になるまで。
 
 ```mermaid
 flowchart TD

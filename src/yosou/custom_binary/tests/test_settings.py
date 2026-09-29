@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from ..feature.registrations import default_registry
-from ..settings import ModelSettings, PopularityRange
+from ..setting import ModelSettings, PopularityRange
 
 
 BASE = "name: sample\nfeatures_file: features.txt\ntarget: 馬券内\ntiming: 当日\n"

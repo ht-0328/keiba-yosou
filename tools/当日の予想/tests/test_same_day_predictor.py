@@ -6,7 +6,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from 合成DB import synth  # noqa: E402
-from yosou.custom_binary import workflow  # noqa: E402
 from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
 from yosou.shared.tests import synthetic_season as season  # noqa: E402
 
@@ -40,14 +39,14 @@ catboost: {{early_stopping_rounds: 3, params: {{iterations: 8, depth: 3}}}}
 
 
 @pytest.fixture
-def predictor(season_db, tmp_path, monkeypatch) -> SameDayPredictor:
-    monkeypatch.setattr(workflow, "PROJECT_ROOT", tmp_path)
+def predictor(season_db, tmp_path) -> SameDayPredictor:
     models = [
         # 1つ目は馬体重を使う（確定前のレースには馬体重が無いので、予想できずに2つ目へ回る）。
         SameDayModel("馬体重あり", config(tmp_path, "with_weight", "当日", "馬齢\n斤量\n馬体重\n")),
         SameDayModel("馬体重なし", config(tmp_path, "without_weight", "前日", "馬齢\n斤量\n前走の着順\n")),
     ]
-    result = SameDayPredictor(models, default_registry(), season_db, line=0.0)
+    models_root = tmp_path / "reports" / "特徴量と条件を選んで予想"
+    result = SameDayPredictor(models, default_registry(), season_db, line=0.0, models_root=models_root)
     logs: list[str] = []
     result.ensure_models(log=logs.append)
     assert len(logs) == 2 and all((tmp_path / "reports" / "特徴量と条件を選んで予想" / name / "model.json").is_file()
