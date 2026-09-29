@@ -41,6 +41,7 @@ class BuyOrFadeSettings:
     train_first_year: int
     first_year: int
     last_year: int
+    tune_last_year: int
 
     def __post_init__(self) -> None:
         if self.timing not in _TIMINGS:
@@ -49,6 +50,8 @@ class BuyOrFadeSettings:
             raise ValueError("similarity.k と unit.min_rows は 1 以上にしてください")
         if not self.train_first_year < self.first_year <= self.last_year:
             raise ValueError("evaluation は train_first_year < first_year <= last_year にしてください")
+        if not self.first_year - 1 <= self.tune_last_year <= self.last_year:
+            raise ValueError("evaluation の tune_last_year は first_year − 1 から last_year までにしてください")
 
     @classmethod
     def load(cls, path: Path | None = None) -> BuyOrFadeSettings:
@@ -77,6 +80,7 @@ class BuyOrFadeSettings:
             train_first_year=int(evaluation["train_first_year"]),
             first_year=int(evaluation["first_year"]),
             last_year=int(evaluation["last_year"]),
+            tune_last_year=int(evaluation["tune_last_year"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,8 +93,11 @@ class BuyOrFadeSettings:
 
     @classmethod
     def from_dict(cls, values: Mapping[str, Any]) -> BuyOrFadeSettings:
-        """``to_dict`` で保存した形から作る。"""
+        """``to_dict`` で保存した形から作る。``tune_last_year`` を足す前に保存した一式は、全部の年を方針を決める年とみなす
+        （評価の表の分け方にだけ使う値で、予測には効かない）。
+        """
         return cls(**{
+            "tune_last_year": values["last_year"],
             **values, "timing": PredictionTiming.parse(values["timing"]),
             "excluded_features": tuple(values["excluded_features"]),
         })
