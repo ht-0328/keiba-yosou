@@ -7,15 +7,18 @@ from pathlib import Path
 from 共通 import db
 from 成績集計 import check
 from 成績集計.reference_index_writer import ReferenceIndexWriter
+from 成績集計.reference_labels import ReferenceLabels
 from 成績集計.reference_page_writer import ReferencePageWriter
 from 成績集計.reference_runs import ReferenceRuns
 from 成績集計.reference_tally import ReferenceTally
-from 成績集計.repository import FinalRunnerRepository, PayoutRepository
+from 成績集計.repository import FinalRunnerRepository, MiningScoreRepository, PayoutRepository, PedigreeRepository
 
 
 def _build(database: Path, out_dir: Path, date_from: str | None = None, date_to: str | None = None):
     with db.open_db(database) as con:
-        runs = ReferenceRuns().build(FinalRunnerRepository(con).read(date_from, date_to), PayoutRepository(con).read())
+        runs = ReferenceRuns().build(FinalRunnerRepository(con).read(), PayoutRepository(con).read(),
+                                     PedigreeRepository(con).read(), MiningScoreRepository(con).read(), date_from, date_to)
+    runs = ReferenceLabels().add(runs)
     ReferencePageWriter(ReferenceTally(), "2026-09-30").write(runs, out_dir)
     ReferenceIndexWriter("2026-09-30").write(runs, out_dir)
     return runs
@@ -51,3 +54,21 @@ def test_the_period_limits_the_races(synth_db: Path, tmp_path: Path):
     assert runs["race_date"].min() == "2025-04-12" and runs["rid"].nunique() == 1
     index = (tmp_path / "index.md").read_text(encoding="utf-8")
     assert "2025-04-12 〜 2025-04-12" in index and "[芝 1600m](05-turf-1600.md)" in index
+
+
+def test_each_section_has_the_same_tables_as_before_in_the_same_order(synth_db: Path, tmp_path: Path):
+    """前のページ（scripts/stats_doc.py が作っていたもの）と同じ見出しを、同じ並びで置く。"""
+    _build(synth_db, tmp_path)
+    section = (tmp_path / "05-turf-1600.md").read_text(encoding="utf-8").split("\n## ")[1]
+    titles = [line[4:] for line in section.splitlines() if line.startswith("### ")]
+    assert titles[:4] == ["単勝人気", "枠番", "馬番", "単勝オッズ"]
+    assert titles[9:12] == ["馬（勝率の上位 10・出走 2 以上）", "脚質", "上がり3F順位"]
+    assert titles[20:22] == ["データマイニング予想の範囲", "タイム型順位"]
+    assert titles[-3:] == ["月別 × 人気", "月別 × 人気帯 × タイム型", "月別 × 人気帯 × 対戦型"]
+    assert len(titles) == 38 and "#### 1勝クラス" in section
+
+
+def test_the_mining_range_names_the_races_with_predictions(synth_db: Path, tmp_path: Path):
+    _build(synth_db, tmp_path)
+    page = (tmp_path / "05-turf-1600.md").read_text(encoding="utf-8")
+    assert "タイム型 4 レース（2024-04-06〜2025-04-12）、対戦型 4 レース（2024-04-06〜2025-04-12）。" in page

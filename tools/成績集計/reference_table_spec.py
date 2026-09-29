@@ -1,34 +1,48 @@
-"""基準のページの節（コース×馬場状態）に置く表の決まり。"""
+"""基準のページの節（コース×馬場状態）に置く、成績の表1つの決まり。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-#: 騎手・調教師を勝率で並べるときの件数と、要る出走数（少ないと率が極端になりやすい）。
-RANKED_TOP, RANKED_MIN_RUNS = 10, 5
+import pandas as pd
+
+from 成績集計.reference_tally import PERF_HEADER, ReferenceTally
+
+EMPTY = "該当なし"
 
 
 @dataclass(frozen=True)
 class ReferenceTableSpec:
-    """節の中の1つの表。``title`` は見出し、``label`` は先頭の列の名前、``column`` は ``ReferenceRuns`` の列。
+    """``columns``（``ReferenceRuns``・``ReferenceLabels`` の列）で分けた成績の表。見出しの列名は ``labels``。
 
-    ``ranked`` なら、出走 ``RANKED_MIN_RUNS`` 以上の値のうち勝率の上位 ``RANKED_TOP`` 件だけ出す。
+    ``shown`` は表に出す ``columns`` の番号（省略で全部）。``top`` があれば、出走 ``min_runs`` 以上の値のうち勝率の上位
+    ``top`` 件だけ出す。
     """
 
     title: str
-    label: str
-    column: str
-    ranked: bool = False
+    labels: tuple[str, ...]
+    columns: tuple[str, ...]
+    shown: tuple[int, ...] | None = None
+    top: int | None = None
+    min_runs: int = 0
+
+    def used_columns(self) -> tuple[str, ...]:
+        """この表を作るのに要る、出走の表の列。"""
+        return self.columns
+
+    def lines(self, runs: pd.DataFrame, tally: ReferenceTally) -> list[str]:
+        return ["", f"### {self.title}", "", *self.body(runs, tally)]
+
+    def body(self, runs: pd.DataFrame, tally: ReferenceTally) -> list[str]:
+        shown = self.shown if self.shown is not None else tuple(range(len(self.columns)))
+        if self.top is None:
+            rows = tally.rows(runs, self.columns, shown)
+        else:
+            rows = tally.top_rows(runs, self.columns, shown, top=self.top, min_runs=self.min_runs)
+        return markdown_table(self.labels, rows) if rows else [EMPTY]
 
 
-#: 各節に置く表。答え合わせ（``check.py``）は「単勝人気」の表の「1」の行を読む。
-SECTION_TABLES: tuple[ReferenceTableSpec, ...] = (
-    ReferenceTableSpec("単勝人気", "単勝人気", "popularity"),
-    ReferenceTableSpec("単勝オッズ", "単勝オッズ", "odds_band"),
-    ReferenceTableSpec("枠番", "枠番", "frame_no"),
-    ReferenceTableSpec("馬番", "馬番", "horse_no"),
-    ReferenceTableSpec("性別（牡牝が混ざったレースだけ）", "性別", "mixed_sex"),
-    ReferenceTableSpec("馬齢（年齢が混ざったレースだけ）", "馬齢", "mixed_age"),
-    ReferenceTableSpec(f"騎手（勝率の上位 {RANKED_TOP}・出走 {RANKED_MIN_RUNS} 以上）", "騎手", "jockey", ranked=True),
-    ReferenceTableSpec(f"調教師（勝率の上位 {RANKED_TOP}・出走 {RANKED_MIN_RUNS} 以上）", "調教師", "trainer", ranked=True),
-)
+def markdown_table(labels: tuple[str, ...], rows: list[list[str]]) -> list[str]:
+    header = [*labels, *PERF_HEADER]
+    return ["| " + " | ".join(header) + " |", "| " + " | ".join([":---"] * len(header)) + " |",
+            *("| " + " | ".join(row) + " |" for row in rows)]
