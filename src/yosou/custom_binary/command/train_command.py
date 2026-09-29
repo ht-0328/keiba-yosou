@@ -5,7 +5,7 @@ from pathlib import Path
 
 from 共通.render import Table
 
-from ..feature.registrations import default_registry
+from ..feature.default_registry import DefaultRegistry
 from ..workflow import TrainingWorkflow
 from .common_options import CommonOptions
 from .training_tables import TrainingTables
@@ -23,5 +23,5 @@ class TrainCommand:
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:
-        trained = TrainingWorkflow(default_registry(), args.db).run(args.config)
+        trained = TrainingWorkflow(DefaultRegistry().build(), args.db).run(args.config)
         return TrainingTables(trained).tables()

@@ -14,7 +14,7 @@ from yosou.shared.tests import synthetic_season as season
 
 from ..dataset import CustomDataset, OddsBaseline
 from ..evaluation import BootstrapLowerBound, Paybacks, PlaceProbability, PredictionValues
-from ..feature.registrations import default_registry
+from ..feature.default_registry import DefaultRegistry
 from ..setting import ModelSettings, PopularityRange, RowConditions
 from ..store import ModelStore
 from ..workflow import TrainingWorkflow
@@ -24,7 +24,7 @@ from .test_workflow import POPS, predict, settings  # noqa: F401  （フィク�
 
 def test_conditions_roundtrip_and_mask(tmp_path):
     text = BASE + "conditions:\n  距離: {max: 1400}\n  芝ダ: 芝\n  競馬場: [東京, 中山]\n"
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     loaded = ModelSettings.load(config(tmp_path, text), registry)
     assert loaded.conditions.as_dict() == {"距離": {"max": 1400}, "芝ダ": ["芝"], "競馬場": ["東京", "中山"]}
     assert ModelSettings.from_saved(loaded.as_dict(), registry).as_dict() == loaded.as_dict()
@@ -49,11 +49,11 @@ def test_conditions_roundtrip_and_mask(tmp_path):
 def test_invalid_conditions(tmp_path, conditions, match):
     text = BASE.replace("当日", "木曜") + "conditions:\n" + conditions
     with pytest.raises(ValueError, match=match):
-        ModelSettings.load(config(tmp_path, text), default_registry())
+        ModelSettings.load(config(tmp_path, text), DefaultRegistry().build())
 
 
 def test_conditions_filter_after_full_field_features(season_db, settings):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     whole = replace(settings, selected=("斤量とレースの平均との差",), popularity=PopularityRange())
     distances = RowConditions.parse({"距離": {"max": 1600}}, registry, PredictionTiming.RACE_DAY)
     with db.open_db(season_db) as con:
@@ -66,7 +66,7 @@ def test_conditions_filter_after_full_field_features(season_db, settings):
 
 
 def test_prediction_with_unmatched_condition_is_empty(season_db, settings):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     nothing = RowConditions.parse({"距離": {"max": 1}}, registry, PredictionTiming.RACE_DAY)
     pops = {int(pair.split(":")[0]): int(pair.split(":")[1]) for pair in POPS}
     with db.open_db(season_db) as con:
@@ -114,12 +114,12 @@ def test_paybacks_of_empty_data():
 ])
 def test_invalid_odds_baseline(tmp_path, extra, match):
     with pytest.raises(ValueError, match=match):
-        ModelSettings.load(config(tmp_path, BASE.replace("当日", "木曜") + extra), default_registry())
+        ModelSettings.load(config(tmp_path, BASE.replace("当日", "木曜") + extra), DefaultRegistry().build())
 
 
 @pytest.mark.parametrize("target", ["勝利", "馬券内", "馬券外"])
 def test_odds_baseline_train_save_and_load(season_db, settings, tmp_path, target):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     settings = replace(settings, target=target, odds_baseline=True)
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()
@@ -180,7 +180,7 @@ def test_prediction_values_for_win_and_top3():
 
 
 def test_place_price_is_saved_and_prediction_shows_expected_value(season_db, settings, tmp_path):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     settings = replace(settings, odds_baseline=True)
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()

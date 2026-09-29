@@ -6,7 +6,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from 合成DB import synth  # noqa: E402
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
 from yosou.shared.tests import synthetic_season as season  # noqa: E402
 
 from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
@@ -46,7 +46,7 @@ def predictor(season_db, tmp_path) -> SameDayPredictor:
         SameDayModel("馬体重なし", config(tmp_path, "without_weight", "前日", "馬齢\n斤量\n前走の着順\n")),
     ]
     models_root = tmp_path / "reports" / "特徴量と条件を選んで予想"
-    result = SameDayPredictor(models, default_registry(), season_db, line=0.0, models_root=models_root)
+    result = SameDayPredictor(models, DefaultRegistry().build(), season_db, line=0.0, models_root=models_root)
     logs: list[str] = []
     result.ensure_models(log=logs.append)
     assert len(logs) == 2 and all((tmp_path / "reports" / "特徴量と条件を選んで予想" / name / "model.json").is_file()

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import pandas as pd
 
 from yosou.shared.feature import EntryRecords, PredictionTiming
-from yosou.shared.feature.feature_catalog import BASE_FEATURES, ODDS_FEATURES, POPULARITY_FEATURES
 from yosou.shared.feature.feature_kind import FeatureKind
 from yosou.shared.feature.group import (
     AptitudeFeatures, HorseFeatures, OddsFeatures, PedigreeFeatures, PeopleFeatures,
@@ -27,6 +26,8 @@ COMPARISON_DEPENDENCIES = ("斤量", "近5走の平均着差", "騎手の近1年
 
 @dataclass(frozen=True)
 class GroupColumn:
+    """共通のまとまり ``group``（A〜K）の1列 ``name``。同じ計算の中では、まとまりを1回だけ作って使い回す。"""
+
     name: str
     description: str
     kind: FeatureKind
@@ -46,10 +47,3 @@ class GroupColumn:
             else:
                 cache[self.group] = generator.build(records)
         return cache[self.group][self.name]
-
-
-def builtin_features() -> tuple[GroupColumn, ...]:
-    return tuple(GroupColumn(
-        feature.name, feature.name, feature.kind, feature.known_from,
-        COMPARISON_DEPENDENCIES if feature.group == "G" else (), feature.group,
-    ) for feature in (*BASE_FEATURES, *POPULARITY_FEATURES, *ODDS_FEATURES))

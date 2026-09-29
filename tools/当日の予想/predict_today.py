@@ -21,7 +21,7 @@ sys.path[:0] = [str(HERE.parents[0]), str(HERE)]
 
 from 共通 import cli, render  # noqa: E402
 
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
 from yosou.custom_binary.store import PROJECT_ROOT  # noqa: E402
 
 from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
@@ -38,7 +38,7 @@ DEFAULT_LINE = 1.2
 def main(args) -> None:
     day = args.date or date.today().isoformat()
     after = args.after or datetime.now().strftime("%H:%M")
-    predictor = SameDayPredictor(MODELS, default_registry(), args.db, args.line)
+    predictor = SameDayPredictor(MODELS, DefaultRegistry().build(), args.db, args.line)
     predictor.ensure_models()
     tables = predictor.run(day, after)
     cli.emit(tables, args)

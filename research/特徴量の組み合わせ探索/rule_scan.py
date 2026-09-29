@@ -17,7 +17,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "research"), str(ROOT / "tools"), str(ROOT / "src")]
 
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
 
 from 特徴量の組み合わせ探索.analysis.condition_bins import ConditionBins  # noqa: E402
 from 特徴量の組み合わせ探索.analysis.feature_table import FeatureTable  # noqa: E402
@@ -42,7 +42,7 @@ def main() -> None:
     table = FeatureTable.load(args.cache)
     periods = SearchPeriods().names(table.rows["race_date"])
     discover = (periods == "見つける").to_numpy()
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     conditions = [
         ConditionBins.fit(name, table.frame[name], registry.definitions[name].kind, discover)
         for name in table.frame.columns if name not in NOT_HORSE_CONDITIONS

@@ -11,11 +11,10 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.tests import synthetic_season as season
 
 from ..dataset import CustomDataset
-from ..extra_data import ExtraDataLoader, PoolProbabilitySource
-from ..extra_data.extra_data_loader import race_relation
+from ..extra_data import ExtraDataLoader, PoolProbabilitySource, RaceRelation
 from ..feature.builder import SelectedFeatureBuilder
+from ..feature.default_registry import DefaultRegistry
 from ..feature.pool_gap import PoolGap
-from ..feature.registrations import default_registry
 from ..repository import POOLS
 from .test_workflow import POPS, settings  # noqa: F401  （フィクスチャ）
 
@@ -55,7 +54,7 @@ def pool_db(tmp_path):
 def test_pool_probabilities_by_hand(pool_db):
     path, race_id = pool_db
     with db.open_db(path) as con:
-        values = PoolProbabilitySource().read(con, race_relation(race_id)).set_index("horse_no").sort_index()
+        values = PoolProbabilitySource().read(con, RaceRelation().of(race_id)).set_index("horse_no").sort_index()
     win = values["pool_trifecta_win"].dropna()
     assert win.to_dict() == pytest.approx({1: 0.1 / 0.175, 2: 0.05 / 0.175, 4: 0.025 / 0.175})
     trio = values["pool_trio_top3"]
@@ -71,7 +70,7 @@ def test_attach_keeps_rows_and_index(pool_db):
     path, race_id = pool_db
     entries = pd.DataFrame({"race_id": [race_id] * 3 + ["9999"], "horse_no": [4, 1, None, 1]}, index=[30, 10, 20, 40])
     with db.open_db(path) as con:
-        attached = ExtraDataLoader(con).attach(entries, race_relation(race_id), ("券種オッズ",))
+        attached = ExtraDataLoader(con).attach(entries, RaceRelation().of(race_id), ("券種オッズ",))
     assert attached.index.tolist() == [30, 10, 20, 40]
     assert attached["pool_trio_top3"].iloc[:2].tolist() == pytest.approx([0.1 / 0.3, 1.0])
     assert attached["pool_trio_top3"].iloc[2:].isna().all()  # 馬番の無い行・ほかのレースは欠損値
@@ -81,11 +80,11 @@ def test_unknown_source_and_bad_race_id():
     with pytest.raises(ValueError, match="未登録"):
         ExtraDataLoader(None).attach(pd.DataFrame({"race_id": [], "horse_no": []}), "(SELECT 1)", ("なし",))
     with pytest.raises(ValueError, match="数字"):
-        race_relation("1' OR '1'='1")
+        RaceRelation().of("1' OR '1'='1")
 
 
 def test_sources_are_read_only_when_needed():
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     assert SelectedFeatureBuilder(registry, ("馬齢",), PredictionTiming.RACE_DAY).sources == ()
     # 単勝との差は、依存する券種の確率を通して元データを使う。
     gap = SelectedFeatureBuilder(registry, ("3連複から見た3着以内率と単勝の差",), PredictionTiming.RACE_DAY)
@@ -96,7 +95,7 @@ def test_sources_are_read_only_when_needed():
 
 
 def test_pool_feature_names_are_listed():
-    names = set(default_registry().definitions)
+    names = set(DefaultRegistry().build().definitions)
     for spec in POOLS:
         assert {spec.name, f"{spec.name}と単勝の差"} <= names
 
@@ -111,7 +110,7 @@ def test_gap_is_log_difference_from_win_odds_market():
 
 
 def test_missing_pool_odds_in_training_and_prediction(season_db, settings):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     selected = ("馬齢", "3連単から見た勝率", "3連単から見た勝率と単勝の差")
     pool_settings = replace(settings, selected=selected)
     pops = {int(pair.split(":")[0]): int(pair.split(":")[1]) for pair in POPS}

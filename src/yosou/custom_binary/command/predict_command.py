@@ -5,7 +5,7 @@ import argparse
 from 共通 import db
 from 共通.render import Table
 
-from ..feature.registrations import default_registry
+from ..feature.default_registry import DefaultRegistry
 from ..workflow import LoadedModel, PredictionWorkflow
 from .common_options import CommonOptions
 from .prediction_table import PredictionTable
@@ -27,7 +27,7 @@ class PredictCommand:
 
     def run(self, args: argparse.Namespace) -> Table:
         """モデルを読んでから元DB を開き、予想し終えたら閉じる。"""
-        registry = default_registry()
+        registry = DefaultRegistry().build()
         model = LoadedModel.load(args.models, registry)
         with db.open_db(args.db) as con:
             result = PredictionWorkflow(con, registry).run(args.race_id, model, args.pops, args.odds)

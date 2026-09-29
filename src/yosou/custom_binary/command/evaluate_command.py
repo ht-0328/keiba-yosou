@@ -5,7 +5,7 @@ import argparse
 from 共通.render import Table
 
 from ..evaluation import HISTORICAL_NOTE, PAYBACK_NOTE
-from ..feature.registrations import default_registry
+from ..feature.default_registry import DefaultRegistry
 from ..workflow import TestEvaluationWorkflow
 from .common_options import CommonOptions
 
@@ -22,7 +22,7 @@ class EvaluateCommand:
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:
-        result = TestEvaluationWorkflow(default_registry(), args.db).run(args.models)
+        result = TestEvaluationWorkflow(DefaultRegistry().build(), args.db).run(args.models)
         return [
             Table.from_records(result["scores"], title="テスト期間の成績", note=HISTORICAL_NOTE),
             Table.from_records(result["paybacks"], title="テスト期間の回収率", note=PAYBACK_NOTE),

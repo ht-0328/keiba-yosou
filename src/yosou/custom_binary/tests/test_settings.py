@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from ..feature.registrations import default_registry
+from ..feature.default_registry import DefaultRegistry
 from ..setting import ModelSettings, PopularityRange
 
 
@@ -19,7 +19,7 @@ def config(tmp_path: Path, text: str = BASE, features: str = "距離\n馬齢\n")
 def test_relative_path_bom_comments_and_roundtrip(tmp_path, monkeypatch):
     path = config(tmp_path, features=" # 説明\n\n 距離 \n馬齢\n")
     monkeypatch.chdir(tmp_path.parent)
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     settings = ModelSettings.load(path, registry)
     assert settings.selected == ("距離", "馬齢")
     assert ModelSettings.from_saved(settings.as_dict(), registry).as_dict() == settings.as_dict()
@@ -44,30 +44,30 @@ def test_relative_path_bom_comments_and_roundtrip(tmp_path, monkeypatch):
 ])
 def test_invalid_yaml(tmp_path, extra, match):
     with pytest.raises(ValueError, match=match):
-        ModelSettings.load(config(tmp_path, BASE + extra), default_registry())
+        ModelSettings.load(config(tmp_path, BASE + extra), DefaultRegistry().build())
 
 
 @pytest.mark.parametrize("key,value", [("name", "../escape"), ("name", "CON"), ("target", "複勝"), ("timing", "翌日")])
 def test_invalid_identity(tmp_path, key, value):
     text = "\n".join(f"{key}: {value}" if line.startswith(f"{key}:") else line for line in BASE.splitlines())
     with pytest.raises(ValueError):
-        ModelSettings.load(config(tmp_path, text), default_registry())
+        ModelSettings.load(config(tmp_path, text), DefaultRegistry().build())
 
 
 @pytest.mark.parametrize("features,match", [("距離\n距離\n", ":2:.*重複"), ("距離\nない項目\n", ":2:.*未登録"), ("# none\n", ":1:.*ありません")])
 def test_feature_file_errors(tmp_path, features, match):
     with pytest.raises(ValueError, match=match):
-        ModelSettings.load(config(tmp_path, features=features), default_registry())
+        ModelSettings.load(config(tmp_path, features=features), DefaultRegistry().build())
 
 
 def test_thursday_rejects_weight_instead_of_dropping_column(tmp_path):
     with pytest.raises(ValueError, match=":1:.*木曜には使えない"):
-        ModelSettings.load(config(tmp_path, BASE.replace("当日", "木曜"), "馬体重\n"), default_registry())
+        ModelSettings.load(config(tmp_path, BASE.replace("当日", "木曜"), "馬体重\n"), DefaultRegistry().build())
 
 
 def test_unsafe_yaml_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="YAML"):
-        ModelSettings.load(config(tmp_path, "!!python/object/apply:os.system ['echo unsafe']"), default_registry())
+        ModelSettings.load(config(tmp_path, "!!python/object/apply:os.system ['echo unsafe']"), DefaultRegistry().build())
 
 
 def test_omitted_popularity_bounds():

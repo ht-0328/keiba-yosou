@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "research"), str(ROOT / "tools"), str(ROOT / "src")]
 
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
 
 from 特徴量の組み合わせ探索.analysis.feature_table import FeatureTable  # noqa: E402
 from 特徴量の組み合わせ探索.analysis.model_configs import model_configs  # noqa: E402
@@ -34,7 +34,7 @@ def main() -> None:
                         help="form: 馬柱の特徴量の探索、pool: 券種オッズの特徴量を足した探索")
     args = parser.parse_args()
     table = FeatureTable.load(args.cache)
-    trial = ModelTrial(table, default_registry(), SearchPeriods())
+    trial = ModelTrial(table, DefaultRegistry().build(), SearchPeriods())
     args.out.mkdir(parents=True, exist_ok=True)
     for config in model_configs(args.group):
         path = args.out / f"{config.name}.json"

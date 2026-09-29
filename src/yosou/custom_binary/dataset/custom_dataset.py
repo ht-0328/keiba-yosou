@@ -8,7 +8,7 @@ from yosou.shared.dataset import (
 from yosou.shared.feature.value_types import as_numbers
 from yosou.shared.repository import TargetScope
 
-from ..extra_data.extra_data_loader import ExtraDataLoader, race_relation
+from ..extra_data import ExtraDataLoader, RaceRelation
 from ..feature.builder import SelectedFeatureBuilder
 from ..feature.registry import FeatureRegistry
 from ..setting import ModelSettings
@@ -47,7 +47,7 @@ class CustomDataset:
         if (records.entries["surface"] == "障害").any():
             raise ValueError("障害レースはこのモデルの対象外です")
         rows = FlatRunnerFilter().apply(records.entries)
-        rows = self.extra.attach(rows, race_relation(race_id), self.builder.sources)
+        rows = self.extra.attach(rows, RaceRelation().of(race_id), self.builder.sources)
         kept = rows[PopularityFilter().mask(rows, self.settings.popularity)]
         if kept.empty:
             return self._empty_data(rows, kept)

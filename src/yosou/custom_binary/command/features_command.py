@@ -4,7 +4,7 @@ import argparse
 
 from 共通 import render
 
-from ..feature.registrations import default_registry
+from ..feature.default_registry import DefaultRegistry
 from .common_options import CommonOptions
 
 
@@ -17,7 +17,7 @@ class FeaturesCommand:
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> render.Table:
-        registry = default_registry()
+        registry = DefaultRegistry().build()
         return render.Table.from_records([{
             "正式名称": feature.name, "説明": feature.description, "型": feature.kind.value,
             "利用可能時点": feature.known_from.label, "依存項目": " / ".join(feature.dependencies),

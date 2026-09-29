@@ -62,7 +62,7 @@ src/yosou/custom_binary/
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `CommandLine` | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` | 下の4つのコマンド |
-| `FeaturesCommand` | `features`: 選べる特徴量の一覧 | `run(引数)` | `default_registry()` |
+| `FeaturesCommand` | `features`: 選べる特徴量の一覧 | `run(引数)` | `DefaultRegistry` |
 | `TrainCommand` | `train`: 設定の YAML で学習して保存し、検証期間の成績を出す | `run(引数)` | `TrainingWorkflow`、`TrainingTables` |
 | `PredictCommand` | `predict`: 保存したモデルで1レースを予想する | `run(引数)` | `LoadedModel`、`PredictionWorkflow`、`PredictionTable` |
 | `EvaluateCommand` | `evaluate`: 未学習のテスト期間で評価する | `run(引数)` | `TestEvaluationWorkflow` |
@@ -138,9 +138,13 @@ src/yosou/custom_binary/
 | `FeatureRegistry` | 登録された特徴量の一覧。名前の重複・未登録の依存先・循環・時点に合わない特徴量を検出し、依存の順に並べる | `order(選んだ特徴量, 時点)`、`read_selection(特徴量テキスト, 時点)`、`catalog(選んだ特徴量)`、`schema(選んだ特徴量)` | ― |
 | `SelectedFeatureBuilder` | 選んだ特徴量と条件の列を、依存の順に1回ずつ計算する。共通のまとまりは1回の計算の中で使い回す | `build(記録)`、`sources` | `FeatureRegistry`、各 `FeatureDefinition` |
 | `GroupColumn` | 共通のまとまり（A〜K）の1列を、1個ずつ選べる形にする | `compute(…)` | 共通の `FeatureGroup` |
+| `BuiltinFeatures` | 共通の特徴量（78個）を、1個ずつの `GroupColumn` にして並べる | `all()` | `GroupColumn` |
 | `PoolProbability` | 券種オッズから見た確率（6個） | `compute(…)` | ― |
 | `PoolGap` | 券種オッズから見た確率と、単勝オッズから見た確率の対数の差（6個） | `compute(…)` | 共通の `MarketPlaces` |
-| `registrations.py` の `default_registry()` | 選べる特徴量の一覧を作る（共通の 78個 + 券種オッズの 12個 + 利用者が足したもの） | `default_registry()` | 上のクラス |
+| `PoolFeatureList` | 券種オッズの特徴量（12個）を並べる | `all()` | `PoolProbability`、`PoolGap` |
+| `DefaultRegistry` | 選べる特徴量の一覧を作る（共通の 78個 + `registrations.py` の `ADDITIONAL_FEATURES`（券種オッズの 12個 + 利用者が足したもの）） | `build()` | `BuiltinFeatures`、`FeatureRegistry` |
+
+新しい特徴量を足す場所は `registrations.py` の `ADDITIONAL_FEATURES`（値の一覧だけを置くファイル）である（[09-features.md](09-features.md#特徴量を足す仕組み)）。
 
 ### extra_data/・repository/ — 追加の元データ
 
@@ -148,8 +152,10 @@ src/yosou/custom_binary/
 |---|---|---|---|
 | `ExtraDataLoader` | 選んだ特徴量が使う追加の元データを読み、レースID・馬番で出走の行に列を足す。行の並びは変えない | `attach(出走の行, 対象のレース, 元データの名前)` | 各元データのクラス |
 | `PoolProbabilitySource` | 追加の元データ「券種オッズ」。6つの券種の確率を1つの表にする | `read(接続, 対象のレース)` | 下の2つのリポジトリ |
-| `FirstHorsePoolRepository` | 馬単・3連単から「1着になる確率」を読む SQL | `read(券種, 対象のレース)` | ― |
-| `AllHorsesPoolRepository` | 馬連・ワイド・3連複・複勝から「組に入る確率」を読む SQL | `read(券種, 対象のレース)` | ― |
+| `RaceRelation` | 予想する1レースだけを対象にする関係（SQL）。レースIDは数字だけを受け付ける | `of(レースID)` | ― |
+| `FirstHorsePoolRepository` | 馬単・3連単から「1着になる確率」を読む SQL | `read(券種, 対象のレース)` | `PoolOddsRowsSql` |
+| `AllHorsesPoolRepository` | 馬連・ワイド・3連複・複勝から「組に入る確率」を読む SQL | `read(券種, 対象のレース)` | `PoolOddsRowsSql` |
+| `PoolOddsRowsSql` | 上の2つのリポジトリに共通の、SQL の前半（`WITH` の中身。確定か最新の断面の、買い目ごとの 1/オッズ）を作る。SQL を流すのは各リポジトリ | `with_clause(券種, 対象のレース)` | ― |
 | `PoolSpec` | どの表のどの列をどう足すかの決まり（6券種ぶんの値 `POOLS`） | ―（値） | ― |
 
 ## 4. 手本の決まりと違うところ
@@ -162,6 +168,7 @@ src/yosou/custom_binary/
 | `settings.py` に3つのクラス、`dataset.py`・`evaluation.py`・`model_store.py` に関数が並ぶ | 1ファイル1クラス | クラスごとにファイルを分けた（関数はクラスにした。例: `select_training_data()` → `TrainingDataSelector`、`paybacks()` → `Paybacks`） |
 | 直下にファイルが並ぶ | 仕事の領域でフォルダを分ける | 手本と同じ `command/`・`workflow/`・`dataset/`・`setting/` に分け、`evaluation/`・`store/` を足した |
 | 初期値のハイパーパラメータを `form_aptitude_top3` の設定ファイルから読む | 予想のパッケージどうしで import しない | 初期値の設定ファイルを `custom_binary/setting/` に持った（値は同じ） |
+| `feature/`・`extra_data/`・`repository/` に関数だけのファイルが5つある（`default_registry()`・`builtin_features()`・`pool_features()`・`race_relation()`・`pool_odds_rows()`） | 1ファイル1クラス | それぞれクラスにした（`DefaultRegistry`・`BuiltinFeatures`・`PoolFeatureList`・`RaceRelation`・`PoolOddsRowsSql`）。特徴量を足す場所（`registrations.py` の `ADDITIONAL_FEATURES`）は変えていない |
 
 ## 文書情報
 
