@@ -24,6 +24,7 @@
 | 母集団の段 | 傾向を出す過去レースの広さ。狭い順に 同レース → 4つ一致（競馬場・コース・距離・馬場状態）→ 3つ以上一致 → 2つ以上一致。開催日より前・同じ芝ダだけ | `tools/共通/trend.py` の `LEVELS` |
 | 推定脚質 | 今回より前の直近3走の脚質の中央。脚質はレース後にしか分からないので、レース前の材料としてはこれを使う（事実表の `style_before`） | `tools/共通/facts.py` |
 | 切り口 | 成績を分ける軸（単勝人気・オッズ帯・騎手・コース単位 …） | `成績集計/perf.py --list` |
+| 特別競走番号 | 特別競走（重賞を含む）に付く4桁の番号。競走名が年によって変わっても番号は変わらないので、「同じレースの過去の開催」を集める鍵にする | `ra` の列。重賞の同定は `tools/共通/stakes.py` |
 | 合成DB | テスト用の小さな DuckDB。値は架空。実DB が無くても道具を試せる | `tools/合成DB/synth.py` |
 | 共通 | ツール同士で使い回す部品。入口を持たない | `tools/共通/` |
 
@@ -52,6 +53,9 @@
 | 成績7つを切り口ごとに出す | `uv run python tools/成績集計/perf.py popularity --venue 東京 --course 芝・左 --distance 1600 --condition 良` |
 | 集計が正しいか答え合わせ | `uv run python tools/成績集計/perf.py --check` |
 | 条件の中で回収率 100% 超えの切り口の値を探す | `uv run python tools/回収率探索/explore.py --venue 東京 --course 芝・左 --distance 1600 --condition 良` |
+| 重賞の一覧（特別競走番号・開催数） | `uv run python tools/重賞攻略/stakes.py --list` |
+| 1つの重賞の攻略ポイント（基準からのずれ・検定・回収率） | `uv run python tools/重賞攻略/stakes.py --name 有馬`（`--no 0008` や `--before 2025-12-01` も） |
+| 全重賞の攻略ページと索引を書く | `uv run python tools/重賞攻略/stakes.py --all`（`reports/重賞攻略/` に書く） |
 | 当日のレースの傾向を出して、出走馬を採点・順位付けする（グラフ付きのページ） | `uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --venue 中山 --race 11 --condition 良 --pops "3:1,7:2" --html --open` |
 | その日の全レースを採点して、一覧のページと各レースのページを書く | `uv run python tools/傾向スコア/trend_score.py --date 2026-09-19 --all --open`（`--venue 中山` で競馬場を絞る。`--condition 良` も付けられる） |
 | 同じ採点を表で見る（終わったレースなら着順も並ぶ） | `uv run python tools/傾向スコア/trend_score.py --date 2026-09-13 --venue 中山 --race 11 --detail` |
@@ -90,6 +94,7 @@
 | `穴馬が勝ったレース/longshot_wins.py` | 対象 = `--odds`（既定 `10-`）か `--pop`（書いた方だけ効く。両方なら AND）、事象 = `--finish`（既定 `1`） | 同上 |
 | `成績集計/perf.py` | 成績7つを切り口ごとに。`reports/成績集計` と同じ9列 | 位置引数 切り口、`--list`、`--check`、`--top`、`--min-runs`、`--rank-by`、`--by-popularity`、`--cross 切り口`（何度でも） |
 | `回収率探索/explore.py` | 条件を固定し、切り口（人気・オッズ帯・枠・前走の着順・逃げ経験・持ち時計順位 …）を1つずつ当てて、単勝か複勝の回収率が閾値以上の値を回収率順に。年ごとの回収率も添える | `--dimensions a,b`（既定は `--list` の○）、`--min-runs`（既定 30）、`--threshold`（%、既定 100）、`--target both/win/place`、`--pairs`（2つの組み合わせ、切り口 12 個まで）、`--top` |
+| `重賞攻略/stakes.py` | 重賞（G1・G2・G3）ごとの攻略ポイント。過去の開催の、基準（同じグレードの重賞全体・同じコースの全クラス・そのレースのほかの出走馬）からのずれを、検定の印・回収率付きのページにする。予想モデル「重賞の傾向と近走から3着以内を予想」の特徴量と同じ数え上げ（`共通/stakes.py`） | `--list`、`--name 有馬`（部分一致）、`--no 0008`（特別競走番号）、`--all`（全ページと索引を `--out-dir`（既定 `reports/重賞攻略/`）へ）、`--before`（その日より前の開催だけで数える） |
 | `傾向スコア/trend_score.py` | 1レースの傾向と採点。母集団は開催日より前の 同レース → 4つ一致 → 3つ以上一致 → 2つ以上一致。値ごとの成績を基準値と比べ、出走数が足りるいちばん狭い段で「頭向き・相手向き（+1）」「悪い（−1）」を判定する。確定前のレースにも、終わったレースにも使える | 位置引数 rid、または `--date --venue --race`。手で与える材料 `--condition` `--pops 馬番:人気,...` `--weights 馬番:馬体重:増減,...`。線引き `--scope` `--min-runs` `--good` `--bad` `--min-z`。出力 `--html [PATH]`（グラフ付きの HTML 1ファイル。既定は `reports/傾向スコア/`）`--open` `--detail` `--items` |
 | `傾向スコア/backtest.py` | 終わったレースを同じ採点にかけて、点数の順位別・人気の順位別・点数の帯別・点数の順位×人気の帯の成績7つを出す。1レースに数秒かかる | レースを選ぶ絞り込み（`--from` は必須）、`--sample N`（等間隔に間引く）、`--no-market`（人気を使う項目を外す）、線引きは上と同じ |
 | `能力指数/ability.py` | 1レースの出走馬の能力指数（基礎の速さ・距離／コース／馬場の適性・使った走の数）を高い順に。終わったレースなら、その走のスピード指数と着順も並ぶ。過去の全部の走のスピード指数は `reports/能力指数/cache/` にとっておき、DB に新しい確定成績が入ったときだけ作り直す（1〜2分） | 位置引数 rid、または `--date --venue --race`、`--all`（`--date`（と `--venue`）の全レース）、`--condition`、`--detail`、`--rebuild`（必ず作り直す）、`--cache` |

@@ -30,7 +30,7 @@ _LAPS: tuple[str, ...] = tuple(f"ラップタイム_{i:02d}" for i in range(1, 2
 
 RA_COLUMNS: tuple[str, ...] = (
     *_HEADER, *KEY_COLUMNS,
-    "競走名本題", "競走名略称10文字", "グレードコード", "競走種別コード", "競走記号コード", "重量種別コード",
+    "競走名本題", "競走名略称10文字", "特別競走番号", "グレードコード", "競走種別コード", "競走記号コード", "重量種別コード",
     "競走条件コード 最若年条件", "競走条件名称", "距離", "トラックコード", "コース区分", "発走時刻",
     "登録頭数", "出走頭数", "入線頭数", "天候コード", "芝馬場状態コード", "ダート馬場状態コード",
     *_LAPS, "前3ハロン", "前4ハロン", "後3ハロン", "後4ハロン",
@@ -170,13 +170,13 @@ def race_key(day: str, no: str, *, venue: str = "05", kai: str = "01", nichi: st
 
 def race(day: str, no: str, *, venue: str = "05", track: str = "11", distance: str = "1600",
          turf: str = "1", dirt: str = "0", field_size: str = "05", entries: str = "06",
-         name: str = "", condition: str = "005", grade: str = " ", stage: str = "7",
-         laps: tuple[str, ...] = (), **over: str) -> dict[str, str]:
+         name: str = "", condition: str = "005", grade: str = " ", stakes_no: str = "",
+         stage: str = "7", laps: tuple[str, ...] = (), **over: str) -> dict[str, str]:
     """レース1行（既定: 東京 芝・左 1600m 良、条件 1勝クラス、5頭出走）。"""
     values = {
         "レコード種別ID": "RA", "データ区分": stage, "データ作成年月日": day,
         **race_key(day, no, venue=venue),
-        "競走名本題": name, "グレードコード": grade, "競走種別コード": "13", "競走記号コード": "000",
+        "競走名本題": name, "特別競走番号": stakes_no, "グレードコード": grade, "競走種別コード": "13", "競走記号コード": "000",
         "重量種別コード": "3", "競走条件コード 最若年条件": condition, "距離": distance, "トラックコード": track,
         "コース区分": "A ", "発走時刻": "1500", "登録頭数": entries, "出走頭数": field_size, "入線頭数": field_size,
         "天候コード": "1", "芝馬場状態コード": turf, "ダート馬場状態コード": dirt,

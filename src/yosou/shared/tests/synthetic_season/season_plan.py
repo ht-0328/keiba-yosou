@@ -28,6 +28,8 @@ FLAT_RACES: tuple[RacePlan, ...] = (
 )
 #: 月の最初の土曜だけ行う障害のレース。
 JUMP_RACE = RacePlan("05", JUMP_TRACK, 3000, 3200)
+#: 月の最初の土曜だけ行う重賞（G3。毎月同じ特別競走番号で、同じレースの開催を重ねる）。
+STAKES_RACE = RacePlan("06", TURF_TRACK, 2000, 2005, grade="C", stakes_no="9001", name="テスト記念")
 
 #: 確定前のレースの開催日と rid。
 FUTURE_DAY = date(2025, 1, 11)

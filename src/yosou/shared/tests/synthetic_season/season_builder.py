@@ -19,6 +19,7 @@ from .season_plan import (
     JUMP_RACE,
     LAST_RACE_DAY,
     SEED,
+    STAKES_RACE,
 )
 from .synthetic_horse import SyntheticHorse
 from .workout_log import WorkoutLog
@@ -68,9 +69,9 @@ class SeasonBuilder:
             self._finished_races.add(day, plan, field)
 
     def _plans_on(self, day: date) -> list[RacePlan]:
-        """その日のレース。月の最初の土曜だけ、障害のレースを足す。"""
+        """その日のレース。月の最初の土曜だけ、障害のレースと重賞を足す。"""
         is_first_saturday = day.day <= _DAYS_PER_WEEK
-        return [*FLAT_RACES, JUMP_RACE] if is_first_saturday else list(FLAT_RACES)
+        return [*FLAT_RACES, JUMP_RACE, STAKES_RACE] if is_first_saturday else list(FLAT_RACES)
 
     def _shuffled_horses(self) -> list[SyntheticHorse]:
         horses = list(self._horses)

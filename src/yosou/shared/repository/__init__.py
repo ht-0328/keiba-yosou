@@ -14,6 +14,7 @@
 | ``PeopleDayRepository`` | 騎手か調教師の、日ごとの成績 |
 | ``PedigreeDayRepository`` | 父か母父の産駒の、日ごと・芝ダごとの成績 |
 | ``RaceEarlyRecordRepository`` | レースごとの序盤と後半の記録（最初のコーナー・先頭の馬番・前3ハロン・後3ハロン）。1行 = 1レース。展開から着順を予想する予想が使う |
+| ``StakesTendencyRepository`` | 重賞のレースごとの傾向（それより前の開催の数え上げと基準。``tools/共通/stakes.py`` の SQL）。1行 = 1レース。重賞の傾向と近走から3着以内を予想する予想が使う |
 | ``RacePayoutRepository`` | レースごとの4券種（単勝・馬連・3連複・3連単）の払戻と、成立したか。レース単位の予想が使う |
 | ``FinalOddsRepository`` | 1つの券種の確定オッズを、期間の全レースぶん 1組番1行で読む（o1〜o6。親の確定の断面と発表月日時分で結ぶ） |
 | ``PayoutRepository`` | 1つの券種の払戻の明細を、期間の全レースぶん 1組番1行で読む（hr__<券種>払戻。複勝・ワイド・同着の複数行はそのまま） |
@@ -52,6 +53,7 @@ from .race_early_record_repository import RaceEarlyRecordRepository
 from .race_entry_table_repository import RaceEntryTableRepository
 from .race_payout_repository import PAYOUT_TABLES, RacePayoutRepository
 from .scratch_repository import ScratchRepository
+from .stakes_tendency_repository import StakesTendencyRepository
 from .target_scope import TargetScope
 from .workout_coverage_repository import WorkoutCoverageRepository
 from .workout_repository import WorkoutRepository
@@ -61,6 +63,6 @@ __all__ = [
     "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "PlaceOddsRepository",
-    "ScratchRepository", "ModelRepository", "PlacePriceRepository",
+    "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository",
     "RaceDayRange", "FinalOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
 ]
