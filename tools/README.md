@@ -52,6 +52,7 @@
 | 条件に合う出走全体の成績7つを1行で出す | `uv run python tools/成績集計/perf.py total --venue 東京 --pop 1 --odds -1.9` |
 | 成績7つを切り口ごとに出す | `uv run python tools/成績集計/perf.py popularity --venue 東京 --course 芝・左 --distance 1600 --condition 良` |
 | 集計が正しいか答え合わせ | `uv run python tools/成績集計/perf.py --check` |
+| 答え合わせの基準のページ（`reports/成績集計/`）を作り直す | `uv run python tools/成績集計/build_pages.py`（2011年1月から DB の最後まで。作り直したら、出た期間を `成績集計/check.py` の `CHECK_DATE_FROM`・`CHECK_DATE_TO` に書く） |
 | 条件の中で回収率 100% 超えの切り口の値を探す | `uv run python tools/回収率探索/explore.py --venue 東京 --course 芝・左 --distance 1600 --condition 良` |
 | 重賞の一覧（特別競走番号・開催数） | `uv run python tools/重賞攻略/stakes.py --list` |
 | 1つの重賞の攻略ポイント（基準からのずれ・検定・回収率） | `uv run python tools/重賞攻略/stakes.py --name 有馬`（`--no 0008` や `--before 2025-12-01` も） |
@@ -62,7 +63,8 @@
 | 点数化項目の一覧 | `uv run python tools/傾向スコア/trend_score.py --items`（説明は `tools/傾向スコア/score-items.md`） |
 | 傾向スコアが当たっているかを終わったレースで確かめる | `uv run python tools/傾向スコア/backtest.py --from 2026-08-01 --to 2026-08-31 --out reports/傾向スコア/backtest-2026-08.md` |
 | 出走馬を能力指数の高い順に並べる（これから走るレースにも、終わったレースにも） | `uv run python tools/能力指数/ability.py --date 2026-09-27 --venue 中山 --race 11`（`--detail` で各馬の近5走のスピード指数、`--condition 稍重` で発表前の馬場状態、`--all` でその日の全レース） |
-| 当日のレースを予想して、買い（複勝・期待値 1.2 以上）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース） |
+| 当日のレースを予想して、買い（馬体重ありのモデルで複勝・期待値 1.2 以上。馬体重なしのモデルは「参考」で買わない）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース） |
+| 当日の予想のモデルごとに、買いの線を学習に使っていない期間（線を選ぶ期間と確かめる期間）で確かめる | `uv run python tools/当日の予想/line_check.py`（数分。結果は `reports/当日の予想/線の確かめ.md`。設定は `predict_today.py` の `MODELS` に手で書く） |
 | 当日の予想を発走の約10分前のオッズで「買ったつもり」で記録し、結果で精算する（フォワードテスト） | `uv run python tools/フォワードテスト/follow.py`（開催日の間動き続ける。ふだんはタスク スケジューラが `tools/フォワードテスト/run.bat` を呼ぶ。登録は `register_schedule.bat`。成績は `reports/フォワードテスト/成績.md`） |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
 | 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日） |
@@ -93,6 +95,7 @@
 | `人気馬が負けたレース/lost_favorites.py` | 対象 = `--pop`（既定 1）と `--odds`、事象 = `--finish`（既定 `4-` = 馬券外。競走中止・失格を含む）。この3つは絞り込みではなく規則 | 共通の絞り込み、`--offset` |
 | `穴馬が勝ったレース/longshot_wins.py` | 対象 = `--odds`（既定 `10-`）か `--pop`（書いた方だけ効く。両方なら AND）、事象 = `--finish`（既定 `1`） | 同上 |
 | `成績集計/perf.py` | 成績7つを切り口ごとに。`reports/成績集計` と同じ9列 | 位置引数 切り口、`--list`、`--check`、`--top`、`--min-runs`、`--rank-by`、`--by-popularity`、`--cross 切り口`（何度でも） |
+| `成績集計/build_pages.py` | 答え合わせの基準のページ（コースの単位ごとの成績と目次）を `reports/成績集計/` に書く。perf の事実表・集計を使わず、元DB の `se`・`ra`・払戻の子の表を直接読んで数える（別の道筋で数えた値と比べるため） | `--from`（既定 2011-01-01）、`--to`（既定 DB の最後）、`--out-dir` |
 | `回収率探索/explore.py` | 条件を固定し、切り口（人気・オッズ帯・枠・前走の着順・逃げ経験・持ち時計順位 …）を1つずつ当てて、単勝か複勝の回収率が閾値以上の値を回収率順に。年ごとの回収率も添える | `--dimensions a,b`（既定は `--list` の○）、`--min-runs`（既定 30）、`--threshold`（%、既定 100）、`--target both/win/place`、`--pairs`（2つの組み合わせ、切り口 12 個まで）、`--top` |
 | `重賞攻略/stakes.py` | 重賞（G1・G2・G3）ごとの攻略ポイント。過去の開催の、基準（同じグレードの重賞全体・同じコースの全クラス・そのレースのほかの出走馬）からのずれを、検定の印・回収率付きのページにする。予想モデル「重賞の傾向と近走から3着以内を予想」の特徴量と同じ数え上げ（`共通/stakes.py`） | `--list`、`--name 有馬`（部分一致）、`--no 0008`（特別競走番号）、`--all`（全ページと索引を `--out-dir`（既定 `reports/重賞攻略/`）へ）、`--before`（その日より前の開催だけで数える） |
 | `傾向スコア/trend_score.py` | 1レースの傾向と採点。母集団は開催日より前の 同レース → 4つ一致 → 3つ以上一致 → 2つ以上一致。値ごとの成績を基準値と比べ、出走数が足りるいちばん狭い段で「頭向き・相手向き（+1）」「悪い（−1）」を判定する。確定前のレースにも、終わったレースにも使える | 位置引数 rid、または `--date --venue --race`。手で与える材料 `--condition` `--pops 馬番:人気,...` `--weights 馬番:馬体重:増減,...`。線引き `--scope` `--min-runs` `--good` `--bad` `--min-z`。出力 `--html [PATH]`（グラフ付きの HTML 1ファイル。既定は `reports/傾向スコア/`）`--open` `--detail` `--items` |
@@ -162,7 +165,7 @@ uv run python tools/成績集計/perf.py --check   # reports/成績集計 の東
 uv run python -m pytest -q                      # 合成DB のテスト（実DB には触らない）
 ```
 
-`--check` はページを作った時点の DB の期間（`--from` の既定は `成績集計/check.py` の `CHECK_DATE_FROM`、`--to` の既定は `CHECK_DATE_TO`）で比べる。DB に古い年を足しても、この期間の外は数えない。一致しないときは、確定成績の範囲（`共通/keys.py` の `FINAL_STAGES`）、異常区分 4・5 の数え方、払戻の結合の順に疑う。
+`--check` はページを作った時点の DB の期間（`--from` の既定は `成績集計/check.py` の `CHECK_DATE_FROM`、`--to` の既定は `CHECK_DATE_TO`）で比べる。DB に古い年を足しても、この期間の外は数えない。ページは `成績集計/build_pages.py` が、perf とは別の道筋（元DB を直接読んで pandas で数える）で作る。作り直したら、この2つを合わせる。一致しないときは、確定成績の範囲（`共通/keys.py` の `FINAL_STAGES`）、異常区分 4・5 の数え方、払戻の結合の順に疑う。
 
 ## 落とし穴（元DB の約束）
 
