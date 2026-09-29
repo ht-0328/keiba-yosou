@@ -27,13 +27,14 @@ from 共通.ability import AbilitySettings, AbilityTables, FigureCache, RaceAbil
 from 共通.ability.figure_cache import DEFAULT_FOLDER as FIGURE_CACHE_FOLDER  # noqa: E402
 from 共通.filters import FILTER_FIELDS, Filters  # noqa: E402
 from 成績集計 import check  # noqa: E402
+from 重賞攻略.guide import StakesGuide  # noqa: E402
 from 検索画面.session import DbSession  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 DEFAULT_PORT = 8767
 APP_NAME = "keiba-yosou"
 #: API の版。画面（index.html の PAGE_VERSION）と合わないときは、古いサーバーが動いていると分かる。API を変えたら両方を上げる。
-APP_VERSION = "6"
+APP_VERSION = "7"
 #: 古い版のサーバーを止めて入れ替えるとき、ポートが空くのを待つ上限（秒）。
 _REPLACE_TIMEOUT_SECONDS = 10.0
 #: 画面が1度に出す行数の上限。
@@ -233,6 +234,18 @@ class Backend:
             raise ValueError(f"part は {', '.join(_ABILITY_PARTS)} のどれかです: {part}")
         return getattr(AbilityTables(), part)(self._ability_report(query))
 
+    def stakes(self, query: dict[str, list[str]]) -> render.Table:
+        """重賞の一覧（``tools/重賞攻略/stakes.py --list`` と同じ）。``before`` でその日より前の開催だけで数える。"""
+        with self.session.use() as con:
+            return StakesGuide.load(con, _first(query, "before") or None).list_table()
+
+    def stakes_detail(self, query: dict[str, list[str]]) -> dict[str, Any]:
+        """1つの重賞の攻略ポイントのページ（``stakes.py --no`` / ``--name`` と同じ Markdown）。"""
+        with self.session.use() as con:
+            guide = StakesGuide.load(con, _first(query, "before") or None)
+        built = guide.page(guide.choose(_first(query, "no") or None, _first(query, "name") or None))
+        return {"stakes_no": built.stakes_no, "stakes_name": built.stakes_name, "markdown": built.markdown}
+
     def horses(self, query: dict[str, list[str]]) -> render.Table:
         with self.session.use() as con:
             return horse.find_horses(con, _first(query, "name"), limit=_int(query, "limit", 50, low=1))
@@ -363,6 +376,10 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                 if _first(query, "format"):
                     return self._table(backend.ability_table(query), query, "ability")
                 return self._json(backend.ability(query))
+            if path == "/api/stakes":
+                return self._table(backend.stakes(query), query, "stakes")
+            if path == "/api/stakes/detail":
+                return self._json(backend.stakes_detail(query))
             if path == "/api/horses":
                 return self._table(backend.horses(query), query, "horses")
             if path == "/api/horses/detail":
