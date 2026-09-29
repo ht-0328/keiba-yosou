@@ -1,6 +1,6 @@
 """元DB から事実表（1行 = 1頭の出走）を中間データ（parquet）にする（研究「馬の力と展開でオッズに勝つ」の入口①）。
 
-    uv run --with pyarrow python research/馬の力と展開でオッズに勝つ/extract.py
+    uv run python research/馬の力と展開でオッズに勝つ/extract.py
 
 事実表は ``tools/共通/facts.py`` の定義そのまま。オッズ・人気の列も入るが、予想の材料には使わず、
 比べる相手（市場の当たり具合）と精算にだけ使う。出力は ``reports/馬の力と展開でオッズに勝つ/cache/``（Git 対象外）。
