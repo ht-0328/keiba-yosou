@@ -49,9 +49,9 @@ def _write_all(guide: StakesGuide, out_dir: Path) -> None:
     pages: list[page.StakesPage] = []
     for stakes_no in guide.stakes_numbers():
         built = guide.page(stakes_no)
-        (out_dir / built.file_name).write_text(built.markdown, encoding="utf-8")
+        (out_dir / built.file_name).write_text(built.markdown, encoding="utf-8", newline="\n")
         pages.append(built)
-    (out_dir / "README.md").write_text(_index_markdown(pages), encoding="utf-8")
+    (out_dir / "README.md").write_text(_index_markdown(pages), encoding="utf-8", newline="\n")
     print(f"{len(pages)} レースのページと索引を {out_dir} に書きました")
 
 
@@ -80,7 +80,7 @@ def _write_page_text(markdown: str, out: Path | None) -> None:
         sys.stdout.flush()
         return
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(markdown, encoding="utf-8")
+    out.write_text(markdown, encoding="utf-8", newline="\n")
 
 
 def build_parser():
