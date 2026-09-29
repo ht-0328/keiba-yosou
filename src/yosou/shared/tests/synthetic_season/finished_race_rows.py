@@ -57,6 +57,7 @@ class FinishedRaceRows:
             turf=_NO_GOING if plan.is_dirt else going_code,
             dirt=going_code if plan.is_dirt else _NO_GOING,
             field_size=f"{FIELD_SIZE:02d}", entries=f"{FIELD_SIZE:02d}",
+            name=plan.name, grade=plan.grade, stakes_no=plan.stakes_no,
         )
 
     def _add_runner(self, race: FinishedRace, number: int, horse: SyntheticHorse) -> None:
