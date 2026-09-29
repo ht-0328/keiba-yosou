@@ -50,15 +50,17 @@ class RaceAbility:
         header = card.race_header(con, rid)
         history = self._cache.load(con)
         entries = self._entries(con, rid, condition_code)
-        earlier = history[(history["race_id"] != rid) & (history["race_date"] < entries["race_date"].min())]
+        # 能力指数はその馬自身の走だけから作るので、出走馬の走だけに絞ってから作る（DB 全体を並べ替えると十数秒かかる）。
+        mine = history[history["horse_id"].isin(entries["horse_id"])]
+        earlier = mine[(mine["race_id"] != rid) & (mine["race_date"] < entries["race_date"].min())]
         combined = pd.concat([earlier, entries.assign(**{FIGURE: np.nan})[list(KEPT)]], ignore_index=True)
         indexed = AbilityIndex(self._settings).build(combined).iloc[len(earlier):]
-        this_run = history[history["race_id"] == rid].set_index("horse_id")[FIGURE]
+        this_run = mine[mine["race_id"] == rid].set_index("horse_id")[FIGURE]
         ranked = entries.join(indexed.drop(columns=list(KEPT)).set_axis(entries.index)).assign(
             **{THIS_RUN: entries["horse_id"].map(this_run)})
         ranked = ranked.sort_values([ABILITY, "horse_no"], ascending=[False, True], na_position="last")
         ranked.insert(0, RANK, ranked[ABILITY].rank(ascending=False, method="min"))
-        past = earlier[earlier["horse_id"].isin(entries["horse_id"])].sort_values("race_date", ascending=False)
+        past = earlier.sort_values("race_date", ascending=False)
         return RaceAbilityReport(rid, header, ranked.reset_index(drop=True), past, not this_run.empty)
 
     def _entries(self, con: duckdb.DuckDBPyConnection, rid: str, condition_code: str | None) -> pd.DataFrame:
