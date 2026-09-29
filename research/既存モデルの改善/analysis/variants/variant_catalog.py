@@ -52,6 +52,9 @@ VARIANTS: tuple[ModelVariant, ...] = (
     ModelVariant(_EXPERIMENTS, "base", "変更版（基準＋補正）", _IMPROVED_FORM, uses_baseline=True),
     *(ModelVariant(_EXPERIMENTS, key, f"変更版 ＋ {label}", _IMPROVED_FORM + names, uses_baseline=True)
       for key, (label, names, _) in EXPERIMENT_GROUPS.items()),
+    # 父の父の産駒の成績を、採用した市場に対する成績（今の本番の予想）に足したときの比べ（people と比べる）
+    ModelVariant(_EXPERIMENTS, "people_grandsire", "変更版 ＋ 市場に対する成績 ＋ 父の父の産駒の近1年の3着以内の割合",
+                 _IMPROVED_FORM + EXPERIMENT_GROUPS["people"][1] + EXPERIMENT_GROUPS["grandsire"][1], uses_baseline=True),
     *(ModelVariant(_EXPERIMENTS, _SPLIT_KEYS[column], f"変更版を{column.removeprefix('区分: ')}で分ける", _IMPROVED_FORM,
                    uses_baseline=True, segment_column=column) for column in CONDITION_COLUMNS),
 )
