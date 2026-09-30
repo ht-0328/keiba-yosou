@@ -1,6 +1,6 @@
 """券種オッズの材料は、締め切り前のオッズでも◎を良くするかを、過去1年のレースで確かめる（研究「一番人気を疑う」の入口④）。
 
-    uv run --with pyarrow --with tabulate python research/一番人気を疑う/pre_deadline_check.py
+    uv run python research/一番人気を疑う/pre_deadline_check.py
 
 オッズを使う予想（今の予想の当日版の材料）に、券種ごとのオッズから見た支持を足すと、◎が1番人気より多く3着以内に
 来た（研究「既存モデルの改善」の材料の実験）。ただし、それは確定オッズで確かめたもの。ここでは、2025年8月までの

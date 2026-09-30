@@ -39,3 +39,16 @@ git worktree list                                     # 今ある作業フォル
 
 - つなぎを外さずに `git worktree remove` しても、Git はつなぎの先をたどらない（メインの `reports/` は消えない）。ただし、つなぎと空のフォルダが残る。
 - 消す作業フォルダの中にいるシェル（Claude のシェルも含む）やエディタがあると、Windows がフォルダを消せず、`Permission denied` と出て空のフォルダが残る。Git の記録は外れているので、外に出てから `rmdir ..\keiba-yosou-worktree-<名前>`（空のフォルダだけを消す）で消す。
+
+macOS・Linux では、ジャンクションの代わりにシンボリックリンクでつなぐ（メインの作業フォルダで、bash や zsh から）:
+
+```bash
+git worktree add ../keiba-yosou-worktree-<名前> -b <ブランチ> <元>    # 作業フォルダを作る
+ln -s "$PWD/reports" ../keiba-yosou-worktree-<名前>/reports          # reports をメインへつなぐ
+uv sync --directory ../keiba-yosou-worktree-<名前>                   # その作業フォルダ用の .venv を作る
+
+rm ../keiba-yosou-worktree-<名前>/reports                            # つなぎを外す（末尾に / を付けない。付けるとつなぎの先をたどる）
+git worktree remove ../keiba-yosou-worktree-<名前>                   # 作業フォルダを消す
+```
+
+- 作業フォルダごとに `.venv` を作るので、その分のディスクを使う。uv のキャッシュから作るので、作るのは速い。使い終わった作業フォルダは消す。

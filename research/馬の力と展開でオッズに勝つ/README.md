@@ -40,10 +40,10 @@
 リポジトリ直下から。スピード指数の中間データ（`reports/能力指数/cache/figures.parquet`）と、研究「回収率100超」の中間データ（`extract.py`・`extract_tickets.py`）が先に要る。
 
 ```bash
-uv run --with pyarrow python research/馬の力と展開でオッズに勝つ/extract.py
-uv run --with pyarrow python research/馬の力と展開でオッズに勝つ/extract_extra.py
-uv run --with pyarrow --with tabulate python research/馬の力と展開でオッズに勝つ/experiment.py --name 基本 --rebuild
-uv run --with pyarrow --with tabulate python research/馬の力と展開でオッズに勝つ/experiment.py --name 全年 --also-placed --leaves 7 --min-child 2000 --learning-rate 0.02 --years 2018 2019 2020 2021 2022 2023 2024 2025 2026
-uv run --with pyarrow --with tabulate python research/馬の力と展開でオッズに勝つ/backtest.py --predictions 全年
+uv run python research/馬の力と展開でオッズに勝つ/extract.py
+uv run python research/馬の力と展開でオッズに勝つ/extract_extra.py
+uv run python research/馬の力と展開でオッズに勝つ/experiment.py --name 基本 --rebuild
+uv run python research/馬の力と展開でオッズに勝つ/experiment.py --name 全年 --also-placed --leaves 7 --min-child 2000 --learning-rate 0.02 --years 2018 2019 2020 2021 2022 2023 2024 2025 2026
+uv run python research/馬の力と展開でオッズに勝つ/backtest.py --predictions 全年
 uv run python -m pytest -q research/馬の力と展開でオッズに勝つ
 ```
