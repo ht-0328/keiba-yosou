@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import cli, render  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
+from yosou.shared.feature import PredictionTiming  # noqa: E402
+
 from 既存モデルの改善.analysis.comparison import (  # noqa: E402
     ExperimentComparison,
     FavoriteComparison,
@@ -47,6 +49,11 @@ _HORSE_COMPARISONS = {
     "stakes_tendency_top3": partial(FormComparison, subject="重賞", candidate="default", candidate_label="既定",
                                     value_keys=("default", "without_tendency", "odds_only")),
 }
+#: 時点を替えた予測（walk_forward.py の --timing）も比べる予想: 時点の保存の名前 → （表の題の名前, 比べる相手の作り方の鍵）。
+#: 重賞の木曜はオッズが無くオッズだけのモデルを作れないので、当日のオッズだけ（締め切りの市場の見立て）と比べる。
+_TIMING_COMPARISONS = {
+    "stakes_tendency_top3": {"thursday": ("重賞（木曜）", "odds_only"), "day_before": ("重賞（前日）", "odds_only-day_before")},
+}
 #: 引数なしで出す予想（材料の実験は、名前を指定したときだけ）。
 _DEFAULT_NAMES = ("form_aptitude_top3", "longshots_in_top3", "favorites_out_of_top3", "upset_level", "stakes_tendency_top3")
 #: 荒れ具合の、方法の保存名 → 表に出す名前。
@@ -71,7 +78,31 @@ def _tables_of(name: str, store: PredictionStore, tables: TableStore) -> list[Ta
     variants = [variant for variant in variants_of(name) if store.exists(name, variant.key)]
     predictions = {variant.key: store.read(name, variant.key) for variant in variants}
     labels = {variant.key: variant.name for variant in variants}
-    return _HORSE_COMPARISONS[name](data, predictions, labels, windows_of(name)).tables()
+    base = _HORSE_COMPARISONS[name](data, predictions, labels, windows_of(name)).tables()
+    timed = [_timing_tables(name, suffix, subject, reference, data, store)
+             for suffix, (subject, reference) in _TIMING_COMPARISONS.get(name, {}).items()]
+    return [*base, *(table for group in timed for table in group)]
+
+
+def _timing_tables(name: str, suffix: str, subject: str, reference: str, data, store: PredictionStore) -> list[Table]:
+    """時点を替えた予測の比べ方の表（その時点の既定を、比べる相手と比べる）。予測が無ければ空。"""
+    keys = [f"{variant.key}-{suffix}" for variant in variants_of(name)]
+    found = [key for key in dict.fromkeys([*keys, reference]) if store.exists(name, key)]
+    candidate = f"default-{suffix}"
+    if candidate not in found or reference not in found:
+        return []
+    predictions = {key: store.read(name, key) for key in found}
+    labels = {key: _label_of(name, key) for key in found}
+    return FormComparison(data, predictions, labels, windows_of(name), subject=subject, candidate=candidate,
+                          candidate_label="既定", value_keys=(candidate, f"without_tendency-{suffix}"),
+                          reference=reference).tables()
+
+
+def _label_of(name: str, key: str) -> str:
+    """時点つきの保存の名前（例 default-thursday）から、表に出す名前（例 既定（…）（木曜））。"""
+    base, _, suffix = key.partition("-")
+    variant = next(variant for variant in variants_of(name) if variant.key == base)
+    return f"{variant.name}（{PredictionTiming(suffix).label}）" if suffix else f"{variant.name}（当日）"
 
 
 def _write(name: str, result: list[Table], folder: Path) -> list[object]:

@@ -74,6 +74,8 @@ uv run python research/既存モデルの改善/walk_forward.py --model longshot
 uv run python research/既存モデルの改善/walk_forward.py --model favorites_out_of_top3     # ② 人気馬
 uv run python research/既存モデルの改善/walk_forward.py --model upset_level               # ② 荒れ具合（現行の作り方）
 uv run python research/既存モデルの改善/walk_forward.py --model stakes_tendency_top3      # ② 重賞（1年ずつの7つの区切り。数分）
+uv run python research/既存モデルの改善/walk_forward.py --model stakes_tendency_top3 --variants default without_tendency --timing 木曜  # ② 重賞の木曜（オッズだけは作れない）
+uv run python research/既存モデルの改善/walk_forward.py --model stakes_tendency_top3 --timing 前日  # ② 重賞の前日
 uv run python research/既存モデルの改善/upset_calc.py                                     # ③ 荒れ具合（計算）
 uv run python research/既存モデルの改善/compare.py                                        # ④ 比べ方の表
 uv run python research/既存モデルの改善/backtest.py                                       # ⑤ 組み合わせた買い方（勝負するレースの選び方の比べ方も出す）

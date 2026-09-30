@@ -103,3 +103,13 @@ def test_form_comparison_counts_the_stakes_default_against_odds_only():
     value_titles = [table.title for table in tables if "複勝を期待値で買ったとき（テスト期間）" in table.title]
     assert value_titles == [f"重賞（{names[key]}）: 複勝を期待値で買ったとき（テスト期間）"
                             for key in ("default", "without_tendency", "odds_only")]
+
+
+def test_form_comparison_can_compare_the_thursday_default_with_the_race_day_odds():
+    data = _synthetic_stakes(np.random.default_rng(1))
+    base = data.evaluation[TOP3_RATE]
+    predictions = {"odds_only": _predictions(data, base), "default-thursday": _predictions(data, base * 0.9 + 0.02)}
+    names = {"odds_only": "オッズだけ（当日）", "default-thursday": "既定（木曜）"}
+    tables = FormComparison(data, predictions, names, STAKES_WINDOWS[:2], subject="重賞（木曜）", candidate="default-thursday",
+                            candidate_label="既定", value_keys=("default-thursday",), reference="odds_only").tables()
+    assert tables[0].title.startswith("重賞（木曜）: 区切りごと") and "既定がオッズだけ（当日）より小さい" in tables[0].columns

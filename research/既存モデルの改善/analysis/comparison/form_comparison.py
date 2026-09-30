@@ -32,13 +32,16 @@ class FormComparison:
 
     ``predictions`` は作り方の鍵 → 予測の表、``names`` は作り方の鍵 → 表に出す名前。
     ``subject``（表の題の頭に付ける予想の名前）・``candidate``（オッズだけと比べる作り方の鍵）・``candidate_label``
-    （その短い呼び名）・``value_keys``（複勝を期待値で買う表を出す作り方の鍵）は、重賞の予想で替える。
-    例: 重賞の予想は ``subject="重賞"``・``candidate="default"``・``candidate_label="既定"``。
+    （その短い呼び名）・``value_keys``（複勝を期待値で買う表を出す作り方の鍵）・``reference``（比べる相手の作り方の鍵。
+    既定はオッズだけ）は、重賞の予想で替える。
+    例: 重賞の予想は ``subject="重賞"``・``candidate="default"``・``candidate_label="既定"``。木曜はオッズが無いので、
+    木曜の既定（``default-thursday``）を当日のオッズだけ（``odds_only``。締め切りの市場の見立て）と比べる。
     """
 
     def __init__(self, data: TrainingData, predictions: Mapping[str, pd.DataFrame], names: Mapping[str, str],
                  windows: tuple[TestWindow, ...], subject: str = "全頭", candidate: str = IMPROVED,
-                 candidate_label: str = "変更版", value_keys: tuple[str, ...] = (IMPROVED, CURRENT)) -> None:
+                 candidate_label: str = "変更版", value_keys: tuple[str, ...] = (IMPROVED, CURRENT),
+                 reference: str = ODDS_ONLY) -> None:
         join = PredictionJoin(data)
         self._joined = {key: join.of(frame) for key, frame in predictions.items()}
         self._names = dict(names)
@@ -49,6 +52,7 @@ class FormComparison:
         self._candidate = candidate
         self._candidate_label = candidate_label
         self._value_keys = tuple(key for key in value_keys if key in self._joined)
+        self._reference = reference
 
     def tables(self) -> list[Table]:
         return [
@@ -62,13 +66,13 @@ class FormComparison:
 
     def _by_window(self) -> Table:
         frame = pd.DataFrame([self._window_row(window) for window in self._windows])
-        improved, odds_only = f"{self._names[self._candidate]}: ログ損失", f"{self._names[ODDS_ONLY]}: ログ損失"
-        label = self._candidate_label
-        frame[f"{label}がオッズだけより小さい"] = np.where(frame[improved] < frame[odds_only], "はい", "いいえ")
+        improved, odds_only = f"{self._names[self._candidate]}: ログ損失", f"{self._names[self._reference]}: ログ損失"
+        label, reference = self._candidate_label, self._names[self._reference]
+        frame[f"{label}が{reference}より小さい"] = np.where(frame[improved] < frame[odds_only], "はい", "いいえ")
         count = int((frame[improved] < frame[odds_only]).sum())
         return self._format.table(
             frame, f"{self._subject}: 区切りごとの確率の誤差（テスト期間）",
-            note=f"ログ損失は小さいほど良い。{label}がオッズだけより小さい区切り: {count} / {len(frame)}"
+            note=f"ログ損失は小さいほど良い。{label}が{reference}より小さい区切り: {count} / {len(frame)}"
                  "（計画の採用の基準は 5 / 7 以上）。人気別AUC は同じ単勝人気の馬どうしで比べた AUC（0.5 は見分けられていない）。",
         )
 
