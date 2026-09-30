@@ -12,8 +12,11 @@ from yosou.shared.tests import synthetic_season as season  # noqa: E402
 
 import same_day_predictor  # noqa: E402
 from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
+from 当日の予想.stakes_predictor import StakesPredictor  # noqa: E402
 
 CARD_DAY = f"{season.CARD_RACE_ID[:4]}-{season.CARD_RACE_ID[4:6]}-{season.CARD_RACE_ID[6:8]}"
+#: 架空の1シーズンで、重賞「テスト記念」（6R）がある日（2024年12月の最初の土曜）。
+STAKES_DAY = "2024-12-07"
 
 
 @pytest.fixture(scope="module")
@@ -50,9 +53,14 @@ def _models(folder: Path, *, buys_without_weight: bool) -> list[SameDayModel]:
 
 
 @pytest.fixture
-def predictor(season_db, tmp_path, monkeypatch) -> SameDayPredictor:
+def models(tmp_path, monkeypatch) -> list[SameDayModel]:
     monkeypatch.setattr(workflow, "PROJECT_ROOT", tmp_path)
-    result = SameDayPredictor(_models(tmp_path, buys_without_weight=True), default_registry(), season_db, line=0.0)
+    return _models(tmp_path, buys_without_weight=True)
+
+
+@pytest.fixture
+def predictor(models, season_db, tmp_path) -> SameDayPredictor:
+    result = SameDayPredictor(models, default_registry(), season_db, line=0.0)
     logs: list[str] = []
     result.ensure_models(log=logs.append)
     assert len(logs) == 2 and all((tmp_path / "reports" / "特徴量と条件を選んで予想" / name / "model.json").is_file()
@@ -99,3 +107,21 @@ def test_the_mark_is_buy_only_for_a_model_that_buys():
     assert same_day_predictor._mark(True, True) == "買い"
     assert same_day_predictor._mark(True, False) == "参考"
     assert same_day_predictor._mark(False, True) == "" and same_day_predictor._mark(False, False) == ""
+
+
+def test_stakes_table_follows_the_stakes_race_and_leaves_buys_alone(predictor, models, season_db, tmp_path):
+    """重賞の日は、重賞のレースの表のすぐ下に重賞の予想の表が並ぶ。買いの一覧と注記のレース数は変わらない。
+
+    ここではモデルの置き場所を空にして、「モデルが無い」ときも落ちずに理由の表が出ることを確かめる
+    （学習済みのモデルでの予測は test_stakes_predictor.py）。
+    """
+    plain = predictor.run(STAKES_DAY, "00:00")
+    predictor_with_stakes = SameDayPredictor(models, default_registry(), season_db, 0.0,
+                                             StakesPredictor(tmp_path / "no_models"))
+    tables = predictor_with_stakes.run(STAKES_DAY, "00:00")
+    stakes = [index for index, table in enumerate(tables) if "重賞の予想" in table.title]
+    assert len(stakes) == 1
+    assert tables[stakes[0] - 1].title.startswith("東京6R")
+    assert tables[stakes[0]].title.endswith("（予想できない）")
+    assert tables[0].rows == plain[0].rows and tables[0].note == plain[0].note
+    assert len(tables) == len(plain) + 1

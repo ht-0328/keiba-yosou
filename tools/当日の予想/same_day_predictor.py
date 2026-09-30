@@ -12,6 +12,8 @@ from yosou.custom_binary import workflow
 from yosou.custom_binary.feature.registry import FeatureRegistry
 from yosou.custom_binary.settings import ModelSettings
 
+from 当日の予想.stakes_predictor import StakesPredictor
+
 #: 1レースで表に出す馬の数（期待値の高い順）。
 TOP_HORSES = 5
 #: 買いの一覧とレースごとの表の列。
@@ -44,14 +46,17 @@ class SameDayPredictor:
     モデルが保存されていなければ、はじめに学習する（1つ数分）。期待値がモデルの線（``SameDayModel.line``）以上の馬を
     「買い」（複勝）にする。買わないモデル（``buys`` が偽）では「参考」にして、買いの一覧に入れない。
     ``line`` を渡すと、どのモデルの線もその値に置き換える（線を変えて試すとき用。買うかどうかはモデルのまま）。
+    ``stakes`` を渡すと、重賞のレースには、その予想（重賞の傾向と近走から3着以内を予想）の表もレースの表の下に並べる。
+    重賞の予想は見せるだけで、買いの判断には使わない。
     """
 
     def __init__(self, models: list[SameDayModel], registry: FeatureRegistry, database: Path | None,
-                 line: float | None = None) -> None:
+                 line: float | None = None, stakes: StakesPredictor | None = None) -> None:
         self._models = {model.label: model for model in models}
         self._registry = registry
         self._database = database
         self._line = line
+        self._stakes = stakes
 
     def line_of(self, label: str) -> float:
         """モデル ``label`` の、印を付ける期待値の線。"""
@@ -75,9 +80,11 @@ class SameDayPredictor:
         loaded = self.load_models()
         buys, tables = [], []
         with db.open_db(self._database) as con:
-            for race in self.races(con, day, after):
+            races = self.races(con, day, after)
+            for race in races:
                 tables.append(self._race_table(con, race, loaded, buys))
-        buy_table = Table(BUY_COLUMNS, buys, title=f"買い（複勝・期待値 {self._lines_label()}）", note=self._note(len(tables)))
+                tables.extend(self._stakes_tables(con, race))
+        buy_table = Table(BUY_COLUMNS, buys, title=f"買い（複勝・期待値 {self._lines_label()}）", note=self._note(len(races)))
         return [buy_table, *tables]
 
     def load_models(self) -> list[tuple[str, workflow.LoadedModel]]:
@@ -113,6 +120,12 @@ class SameDayPredictor:
                              _round(value, 2), label])
         kind = label if model_buys else f"{label}・参考: 買わない"
         return Table(RACE_COLUMNS, rows, title=f"{title}（{kind}）")
+
+    def _stakes_tables(self, con, race: dict) -> list[Table]:
+        """重賞のレースなら、重賞の予想の表。重賞でないか、``stakes`` を渡していなければ空。"""
+        if self._stakes is None:
+            return []
+        return self._stakes.tables(con, race)
 
     def predict(self, con, race_id: str, loaded: list) -> tuple[str, Table]:
         """並べた順のモデルで1レースを予想する。どれでも予想できなければ ``ValueError``。"""
