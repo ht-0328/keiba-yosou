@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from itertools import product
 from pathlib import Path
 
@@ -26,13 +27,17 @@ from yosou.shared.ml_model import MEMBER_TYPES
 from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
 from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.feature.odds import TOP3_RATE
-from yosou.shared.place_value import PlaceValueColumns
+from yosou.shared.place_value import BANDS, PlaceValueColumns
+from yosou.shared.repository import PlacePriceRepository
 from yosou.shared.repository.place_price_repository import FILE_NAME as PLACE_PRICE_FILE
 from yosou.shared.tests import synthetic_season as season
 from yosou.shared.workflow import SegmentedPrediction
 
+from ..buy_line import BUY_LINE, IS_BUY
 from ..command import CommandLine
 from ..dataset import LONGSHOT_ZONE, LongshotZone, LongshotZoneFilter, dataset_builder
+from ..repository import BuyLineRepository
+from ..repository.buy_line_repository import FILE_NAME as BUY_LINES_FILE
 from ..workflow import PROBABILITY, SEGMENTS, TIMINGS, PredictionWorkflow
 
 #: 確定前の 1R（8頭登録・馬番8 は速報で取消）で、利用者が渡す全頭の人気。7頭立てなので 4番人気以下が穴馬。
@@ -49,7 +54,7 @@ def _workflow(con, models: Path) -> PredictionWorkflow:
     return PredictionWorkflow(
         dataset_builder(con), SegmentedPrediction(SEGMENTS, models),
         PopularityApplier(AnnouncedOddsRepository(con)), OddsResolver(AnnouncedOddsRepository(con)),
-        LongshotZoneFilter(), PlaceValueColumns(None),
+        LongshotZoneFilter(), PlaceValueColumns(None), {},
     )
 
 
@@ -81,10 +86,10 @@ def test_training_reports_validation_scores(trained):
 
 
 def test_prediction_of_a_finished_race_uses_the_final_popularity(
-        season_db: Path, trained, training_data: TrainingData):
+        longshot_db: Path, trained, training_data: TrainingData):
     models, _ = trained
     race_id = training_data.ids[RACE_ID].iloc[-1]
-    with db.open_db(season_db) as con:
+    with db.open_db(longshot_db) as con:
         prediction = _workflow(con, models).run(race_id, PredictionTiming.RACE_DAY)
     # 10頭立て（取消があれば 9頭）なので 4番人気以下。--pops を渡さなくても、元DB の確定単勝人気で選べる
     ranks = sorted(prediction["人気順位"].tolist())
@@ -95,10 +100,10 @@ def test_prediction_of_a_finished_race_uses_the_final_popularity(
     assert prediction[PROBABILITY].between(0, 1, inclusive="neither").all()
 
 
-def test_prediction_of_a_card_needs_the_popularity_of_every_runner(season_db: Path, trained):
+def test_prediction_of_a_card_needs_the_popularity_of_every_runner(longshot_db: Path, trained):
     models, _ = trained
     given = PopularityInput.of(GIVEN_POPULARITY)
-    with db.open_db(season_db) as con:
+    with db.open_db(longshot_db) as con:
         prediction = _workflow(con, models).run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given,
                                                 given_odds=GIVEN_ODDS)
         with pytest.raises(ValueError, match="--pops"):
@@ -112,10 +117,22 @@ def test_prediction_of_a_card_needs_the_popularity_of_every_runner(season_db: Pa
     assert prediction[LONGSHOT_ZONE].tolist() == [MID, MID, MID, BIG]
 
 
-def test_prediction_can_be_narrowed_to_a_zone(season_db: Path, trained):
+def test_prediction_stops_when_the_place_odds_are_not_in_the_db(season_db: Path, trained):
     models, _ = trained
     given = PopularityInput.of(GIVEN_POPULARITY)
     with db.open_db(season_db) as con:
+        # 複勝オッズの無い DB では、前日・当日の特徴量 M を作れないので、取り込み方を案内して止まる
+        with pytest.raises(ValueError, match="複勝オッズ"):
+            _workflow(con, models).run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given, given_odds=GIVEN_ODDS)
+        # 木曜は M を使わないので、複勝オッズが無くても予測できる
+        thursday = PopularityInput.of(_thursday_popularity(con))
+        assert len(_workflow(con, models).run(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY, thursday)) == 5
+
+
+def test_prediction_can_be_narrowed_to_a_zone(longshot_db: Path, trained):
+    models, _ = trained
+    given = PopularityInput.of(GIVEN_POPULARITY)
+    with db.open_db(longshot_db) as con:
         mid = _workflow(con, models).run(season.CARD_RACE_ID, PredictionTiming.DAY_BEFORE, given, LongshotZone.MID,
                                          GIVEN_ODDS)
         big = _workflow(con, models).run(season.CARD_RACE_ID, PredictionTiming.DAY_BEFORE, given, LongshotZone.BIG,
@@ -123,9 +140,9 @@ def test_prediction_can_be_narrowed_to_a_zone(season_db: Path, trained):
     assert mid[HORSE_NO].tolist() == [2, 4, 6] and big[HORSE_NO].tolist() == [7]
 
 
-def test_prediction_on_thursday_takes_the_popularity_by_horse_name(season_db: Path, trained):
+def test_prediction_on_thursday_takes_the_popularity_by_horse_name(longshot_db: Path, trained):
     models, _ = trained
-    with db.open_db(season_db) as con:
+    with db.open_db(longshot_db) as con:
         given = PopularityInput.of(_thursday_popularity(con))
         prediction = _workflow(con, models).run(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY, given)
         with pytest.raises(ValueError, match="--pops"):
@@ -147,34 +164,72 @@ def _run_command(argv: list[str]) -> int:
     return stopped.value.code
 
 
-def test_command_predicts_a_card_with_the_given_popularity(season_db: Path, trained, capsys):
+def test_command_predicts_a_card_with_the_given_popularity(longshot_db: Path, trained, capsys):
     models, _ = trained
     code = _run_command([
         "predict", season.CARD_RACE_ID, "--timing", "当日", "--pops", *GIVEN_POPULARITY, "--odds", *GIVEN_ODDS_TEXTS,
-        "--db", str(season_db), "--models", str(models), "--format", "csv",
+        "--db", str(longshot_db), "--models", str(models), "--format", "csv",
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + len(LONGSHOT_HORSE_NOS)
     assert lines[0] == f"順位,馬番,馬名,人気順位,{LONGSHOT_ZONE},{TOP3_RATE},{PROBABILITY},LightGBM,CatBoost"
 
 
-def test_command_narrows_the_output_by_zone(season_db: Path, trained, capsys):
+def test_command_narrows_the_output_by_zone(longshot_db: Path, trained, capsys):
     models, _ = trained
     code = _run_command([
         "predict", season.CARD_RACE_ID, "--timing", "前日", "--pops", ",".join(GIVEN_POPULARITY),
-        "--odds", ",".join(GIVEN_ODDS_TEXTS), "--zone", "大穴", "--db", str(season_db), "--models", str(models), "--format", "csv",
+        "--odds", ",".join(GIVEN_ODDS_TEXTS), "--zone", "大穴", "--db", str(longshot_db), "--models", str(models), "--format", "csv",
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 1 and f",{BIG}," in lines[1]
 
 
-def test_command_predicts_on_thursday_by_horse_names(season_db: Path, trained, capsys):
+@pytest.fixture()
+def priced_models(trained, tmp_path: Path) -> Path:
+    """学習したモデルの写しに、複勝の見込みの倍率（どの帯も 1.2）を置いたフォルダ（期待値と「買い」の列が出る）。"""
     models, _ = trained
-    with db.open_db(season_db) as con:
+    copied = tmp_path / "models"
+    shutil.copytree(models, copied)
+    PlacePriceRepository(copied).save({"bands": list(BANDS), "factors": [1.2] * (len(BANDS) - 1)})
+    return copied
+
+
+def _predict_card(longshot_db: Path, models: Path, capsys, *extra: str) -> list[dict[str, str]]:
+    """確定前の 1R を当日の時点で予測し、表の行を 列の名前 → 値 で返す。"""
+    code = _run_command([
+        "predict", season.CARD_RACE_ID, "--timing", "当日", "--pops", *GIVEN_POPULARITY, "--odds", *GIVEN_ODDS_TEXTS,
+        "--db", str(longshot_db), "--models", str(models), "--format", "csv", *extra,
+    ])
+    header, *lines = capsys.readouterr().out.strip().splitlines()
+    assert code == 0
+    return [dict(zip(header.split(","), line.split(","), strict=True)) for line in lines]
+
+
+def test_command_marks_the_longshots_over_the_saved_line(longshot_db: Path, priced_models: Path, capsys):
+    BuyLineRepository(priced_models).save({PredictionTiming.RACE_DAY: {MID: 0.0}})
+    rows = _predict_card(longshot_db, priced_models, capsys)
+    # 線を保存した中穴だけに「買い」が付き、線の無い大穴には付かない
+    assert {row[LONGSHOT_ZONE]: row[IS_BUY] for row in rows} == {MID: "買い", BIG: ""}
+    assert all(row[BUY_LINE] == ("0" if row[LONGSHOT_ZONE] == MID else "") for row in rows)
+    assert (priced_models / BUY_LINES_FILE).exists()
+
+
+def test_command_replaces_the_line_with_min_value(longshot_db: Path, priced_models: Path, capsys):
+    BuyLineRepository(priced_models).save({PredictionTiming.RACE_DAY: {MID: 0.0}})
+    everything = _predict_card(longshot_db, priced_models, capsys, "--min-value", "0")
+    nothing = _predict_card(longshot_db, priced_models, capsys, "--min-value", "1000")
+    assert [row[IS_BUY] for row in everything] == ["買い"] * len(LONGSHOT_HORSE_NOS)
+    assert [row[IS_BUY] for row in nothing] == [""] * len(LONGSHOT_HORSE_NOS)
+
+
+def test_command_predicts_on_thursday_by_horse_names(longshot_db: Path, trained, capsys):
+    models, _ = trained
+    with db.open_db(longshot_db) as con:
         given = _thursday_popularity(con)
     code = _run_command([
         "predict", season.ENTRY_LIST_RACE_ID, "--timing", "木曜", "--pops", *given,
-        "--db", str(season_db), "--models", str(models), "--format", "csv",
+        "--db", str(longshot_db), "--models", str(models), "--format", "csv",
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 5
@@ -182,45 +237,46 @@ def test_command_predicts_on_thursday_by_horse_names(season_db: Path, trained, c
     assert all(line.split(",")[1] == "" for line in lines[1:])
 
 
-def test_command_reports_an_unknown_horse_name(season_db: Path, trained, capsys):
+def test_command_reports_an_unknown_horse_name(longshot_db: Path, trained, capsys):
     models, _ = trained
     code = _run_command([
         "predict", season.ENTRY_LIST_RACE_ID, "--timing", "木曜", "--pops", "いない馬:1",
-        "--db", str(season_db), "--models", str(models),
+        "--db", str(longshot_db), "--models", str(models),
     ])
     assert code == 1 and "馬名 いない馬 はこのレースにいません" in capsys.readouterr().err
 
 
-def test_command_rejects_an_unknown_zone(season_db: Path, trained, capsys):
+def test_command_rejects_an_unknown_zone(longshot_db: Path, trained, capsys):
     models, _ = trained
     code = _run_command([
         "predict", season.CARD_RACE_ID, "--timing", "当日", "--zone", "超大穴",
-        "--db", str(season_db), "--models", str(models),
+        "--db", str(longshot_db), "--models", str(models),
     ])
     assert code != 0 and "超大穴" in capsys.readouterr().err
 
 
-def test_command_reports_errors_in_one_line(season_db: Path, trained, capsys):
+def test_command_reports_errors_in_one_line(longshot_db: Path, trained, capsys):
     models, _ = trained
     code = _run_command([
         "predict", season.JUMP_CARD_RACE_ID, "--timing", "当日",
-        "--db", str(season_db), "--models", str(models),
+        "--db", str(longshot_db), "--models", str(models),
     ])
     assert code == 1 and "障害レース" in capsys.readouterr().err
-    assert _run_command(["predict", "--timing", "当日", "--db", str(season_db)]) == 1
+    assert _run_command(["predict", "--timing", "当日", "--db", str(longshot_db)]) == 1
 
 
-def test_command_trains_and_writes_the_report(season_db: Path, fast_settings_path: Path, tmp_path: Path):
+def test_command_trains_and_writes_the_report(longshot_db: Path, fast_settings_path: Path, tmp_path: Path):
     out = tmp_path / "report.md"
     code = _run_command([
         "train", "--config", str(fast_settings_path), "--warmup-from", "2023-10-07",
         "--train-from", "2024-01-01", "--valid-from", "2024-07-01", "--test-from", "2024-10-01",
-        "--db", str(season_db), "--models", str(tmp_path / "models"), "--out", str(out),
+        "--db", str(longshot_db), "--models", str(tmp_path / "models"), "--out", str(out),
     ])
     text = out.read_text(encoding="utf-8")
     assert code == 0 and "検証データでの当たり具合" in text and "保存したモデル" in text
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     for timing in PredictionTiming:
         assert (tmp_path / "models" / "mid" / timing.value / SETTINGS_FILE).exists()
-    # 複勝の見込みの倍率も、モデルと一緒に保存する
+    # 複勝の見込みの倍率と「買い」の線も、モデルと一緒に保存する
     assert "複勝の見込みの倍率" in text and (tmp_path / "models" / PLACE_PRICE_FILE).exists()
+    assert "「買い」の線の候補ごとの成績" in text and (tmp_path / "models" / BUY_LINES_FILE).exists()

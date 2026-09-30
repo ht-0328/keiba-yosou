@@ -15,6 +15,7 @@ from yosou.shared.workflow import SegmentedTraining
 from ..dataset import dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..workflow import SEGMENTS, TIMINGS
+from .buy_line_step import BuyLineStep
 from .period_arguments import PeriodArguments
 from .yosou_name import YOSOU_NAME
 
@@ -23,6 +24,7 @@ class TrainCommand:
     """``train``: 区分（中穴・大穴）ごと・3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。
 
     学習のあとに、複勝の見込みの倍率（学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
+    最後に、時点ごと・区分ごとの「買い」の線（検証データで決めたもの）も保存する（設計書 16 の 3）。
     """
 
     def __init__(self) -> None:
@@ -49,4 +51,5 @@ class TrainCommand:
         reports = training.train(training_data, args.config)
         tables = list(chain.from_iterable(TrainingReportTables(report, label).tables() for label, report in reports))
         place_price = PlacePriceStep().run(training_data.between(None, period.valid_first_day), args.models)
-        return [*tables, place_price]
+        buy_lines = BuyLineStep(SEGMENTS, TIMINGS).run(training_data, period, args.models)
+        return [*tables, place_price, *buy_lines]
