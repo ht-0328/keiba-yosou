@@ -8,6 +8,7 @@
 - ``finish``: 確定着順。着順が付かない（競走中止・失格・未確定）なら NULL。
 - 払戻は円（当たらなければ 0）。オッズは倍（無ければ NULL）。人気は整数（無ければ NULL）。
 - 馬場状態は、ダートのコースならダートの、芝と障害なら芝の（芝が 0 ならダートの）。
+- 前走（``prev_*``・``interval_days``・``*_change``）は、同じ馬が1つ前に出走したレース。取消・除外のレースは数えない。
 - 無い表（払戻・血統・マイニング）は空の関係で代替し、列は NULL か 0 になる。
 
     from 共通 import facts
@@ -100,7 +101,7 @@ FACT_COLUMNS: dict[str, str] = {
 }
 #: 途中の計算にだけ使い、事実表には残さない列。
 _HELPER_COLUMNS = (
-    "cond_code", "style_code", "prev_class_order", "prev_jockey_code",
+    "cond_code", "style_code", "prev_class_order", "prev_jockey_code", "prev_run",
     "area_code", "has_blinker", "is_apprentice", "style_no", "weight_type_code", "leader_text_no",
 )
 #: 推定脚質に使う近走の数。3走の中央を取る（2走なら前寄り、1走ならその脚質）。
@@ -354,25 +355,32 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                {codes.sql_case("weight_type_code", codes.WEIGHT_TYPE_NAMES, "不明")} AS weight_type,
                CASE WHEN ran AND style_code IN {keys.sql_list(codes.STYLE_NAMES)} THEN CAST(style_code AS INTEGER) END AS style_no
         FROM joined
+    ), previous AS (
+        -- 前走 = 同じ馬が1つ前に「出走した」レース。出走取消・発走除外・競走除外（ran が偽）のレースは走っていないので飛ばす。
+        -- 出走した行だけ値の組を作り、IGNORE NULLS で取消・除外の行（組が NULL）を飛ばす。組の中の値が NULL でも組は NULL にならない
+        SELECT *,
+               lag(CASE WHEN ran THEN struct_pack(race_day := CAST(race_date AS DATE), finish := finish, popularity := popularity, style := style, last3f := last3f, time_diff := time_diff, corner4 := corner4, field_size := field_size, distance_m := distance_m, surface := surface, venue := venue, class_order := class_order, jockey_code := jockey_code) END IGNORE NULLS)
+                   OVER (PARTITION BY horse_id ORDER BY race_date, race_id) AS prev_run
+        FROM typed
     ), enriched AS (
-        -- 前走（lag）と「今回より前」の累積（ROWS ... 1 PRECEDING）。当日の結果は入らない
+        -- 前走（previous の prev_run）と「今回より前」の累積（ROWS ... 1 PRECEDING）。当日の結果は入らない
         SELECT *,
                CASE WHEN last3f IS NOT NULL AND ran THEN
                     rank() OVER (PARTITION BY race_id, (last3f IS NOT NULL AND ran) ORDER BY last3f)
                END AS last3f_rank,
-               lag(finish) OVER horse AS prev_finish,
-               lag(popularity) OVER horse AS prev_popularity,
-               date_diff('day', lag(CAST(race_date AS DATE)) OVER horse, CAST(race_date AS DATE)) AS interval_days,
-               lag(style) OVER horse AS prev_style,
-               lag(last3f) OVER horse AS prev_last3f,
-               lag(time_diff) OVER horse AS prev_time_diff,
-               lag(corner4) OVER horse AS prev_corner4,
-               lag(field_size) OVER horse AS prev_field_size,
-               lag(distance_m) OVER horse AS prev_distance_m,
-               lag(surface) OVER horse AS prev_surface,
-               lag(venue) OVER horse AS prev_venue,
-               lag(class_order) OVER horse AS prev_class_order,
-               lag(jockey_code) OVER horse AS prev_jockey_code,
+               struct_extract(prev_run, 'finish') AS prev_finish,
+               struct_extract(prev_run, 'popularity') AS prev_popularity,
+               date_diff('day', struct_extract(prev_run, 'race_day'), CAST(race_date AS DATE)) AS interval_days,
+               struct_extract(prev_run, 'style') AS prev_style,
+               struct_extract(prev_run, 'last3f') AS prev_last3f,
+               struct_extract(prev_run, 'time_diff') AS prev_time_diff,
+               struct_extract(prev_run, 'corner4') AS prev_corner4,
+               struct_extract(prev_run, 'field_size') AS prev_field_size,
+               struct_extract(prev_run, 'distance_m') AS prev_distance_m,
+               struct_extract(prev_run, 'surface') AS prev_surface,
+               struct_extract(prev_run, 'venue') AS prev_venue,
+               struct_extract(prev_run, 'class_order') AS prev_class_order,
+               struct_extract(prev_run, 'jockey_code') AS prev_jockey_code,
                coalesce(sum(CASE WHEN ran THEN 1 ELSE 0 END) OVER horse_before, 0) AS runs_before,
                coalesce(sum(CASE WHEN finish = 1 THEN 1 ELSE 0 END) OVER horse_before, 0) AS wins_before,
                coalesce(sum(CASE WHEN ran AND style_code = '1' THEN 1 ELSE 0 END) OVER horse_before, 0) AS lead_runs_before,
@@ -390,9 +398,8 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                      AND max(CASE WHEN ran AND first_corner_rank = 1 THEN horse_no END) OVER race = leader_text_no
                     THEN leader_text_no END AS first_corner_leader_no,
                coalesce(sum(CASE WHEN finish <= 3 THEN 1 ELSE 0 END) OVER course_before, 0) AS course_places_before
-        FROM typed
-        WINDOW horse AS (PARTITION BY horse_id ORDER BY race_date, race_id),
-               horse_before AS (PARTITION BY horse_id ORDER BY race_date, race_id
+        FROM previous
+        WINDOW horse_before AS (PARTITION BY horse_id ORDER BY race_date, race_id
                                 ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
                course_before AS (PARTITION BY horse_id, venue_code, track_code, distance_m ORDER BY race_date, race_id
                                  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
