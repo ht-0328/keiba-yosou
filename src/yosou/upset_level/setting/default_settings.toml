@@ -10,7 +10,7 @@ min_category_count = 2000     # 学習データでの出走がこれより少な
 learning_rate = 0.05
 n_estimators = 2000           # 反復の上限（多クラス分類は1回の反復でクラスの数だけ木を作る）
 num_leaves = 31
-min_child_samples = 100       # 2026-09-30 に検証データで 30・50・200 と比べ、一貫して良い値が無かったので 100 のまま（設計書 15 の 18）
+min_child_samples = 100       # 検証データで 30・50・200 と比べ、一貫して良い値が無かったので 100 のまま（設計書 15 の 18）
 subsample = 0.8
 subsample_freq = 1
 colsample_bytree = 0.8
@@ -22,6 +22,6 @@ early_stopping_rounds = 100
 [catboost.params]             # CatBoostClassifier の引数。書いたものがそのまま渡る
 learning_rate = 0.05
 iterations = 2000             # 木の数の上限
-depth = 6                     # 2026-09-30 に検証データで 4・5・8 と比べ、6 のまま（設計書 15 の 18）
+depth = 6                     # 検証データで 4・5・8 と比べ、6 のまま（設計書 15 の 18）
 l2_leaf_reg = 3
 random_seed = 42

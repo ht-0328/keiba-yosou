@@ -18,7 +18,7 @@ from yosou.shared.setting import HyperparameterSettings
 from yosou.shared.workflow import TrainingWorkflow
 
 from ..dataset import BET_CHOICES, BetType, UpsetLevel, race_dataset_builder
-from ..evaluation import FavoriteOddsBaseline, UpsetThresholdSummary, UserRuleBaseline
+from ..evaluation import ClassShareBaseline, FavoriteOddsBaseline, UpsetThresholdSummary, UserRuleBaseline
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..workflow import TIMINGS, model_repositories
 from .upset_comparison_tables import UpsetComparisonTables
@@ -79,8 +79,8 @@ class TrainCommand:
             for timing in TIMINGS
         }
         return UpsetComparisonTables(
-            bet, report.evaluations, UserRuleBaseline().evaluate(valid), thresholds,
-            FavoriteOddsBaseline(settings).evaluate(report.split),
+            bet, report.evaluations, ClassShareBaseline().evaluate(report.split, TIMINGS),
+            UserRuleBaseline().evaluate(valid), thresholds, FavoriteOddsBaseline(settings).evaluate(report.split),
         ).tables()
 
     def _bets(self, args: argparse.Namespace) -> list[BetType]:

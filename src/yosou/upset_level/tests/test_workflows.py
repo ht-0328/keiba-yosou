@@ -22,10 +22,19 @@ from yosou.shared.tests import synthetic_season as season
 
 from ..command import CommandLine
 from ..dataset import BetType, UpsetLevel, race_dataset_builder
-from ..evaluation import BASELINE_TIMING, THRESHOLDS, FavoriteOddsBaseline, UpsetThresholdSummary, UserRuleBaseline
+from ..evaluation import (
+    BASELINE_TIMING,
+    CLASS_SHARES,
+    MOST_FREQUENT,
+    THRESHOLDS,
+    ClassShareBaseline,
+    FavoriteOddsBaseline,
+    UpsetThresholdSummary,
+    UserRuleBaseline,
+)
 from ..feature import FAVORITE_ODDS
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import BET, PREDICTION_COLUMNS, TOP_LEVEL, UPSET_OR_MORE, PredictionWorkflow, model_repositories
+from ..workflow import BET, PREDICTION_COLUMNS, TIMINGS, TOP_LEVEL, UPSET_OR_MORE, PredictionWorkflow, model_repositories
 from .conftest import TRAINED_BETS
 from .test_dataset_builder import CARD_ODDS
 
@@ -87,6 +96,21 @@ def test_favorite_odds_baseline_uses_lightgbm_only_when_the_odds_never_change(
     settings = HyperparameterSettings.load(fast_settings_path, defaults=DEFAULT_SETTINGS_PATH)
     evaluations = FavoriteOddsBaseline(settings).evaluate(reports[BetType.TRIFECTA].split)
     assert [e.model for e in evaluations] == [LightGbmMulticlassModel.name, ENSEMBLE_NAME]
+
+
+def test_class_share_baseline_uses_the_training_shares_for_every_timing(
+        trained: tuple[Path, dict[BetType, TrainingReport]]):
+    _, reports = trained
+    split = reports[BetType.TRIFECTA].split
+    evaluations = ClassShareBaseline().evaluate(split, TIMINGS)
+    assert [(e.timing, e.model) for e in evaluations] == [
+        (timing, name) for timing in TIMINGS for name in (MOST_FREQUENT, CLASS_SHARES)]
+    most_frequent, class_shares = evaluations[0], evaluations[1]
+    majority = split.train.label.astype(int).value_counts().idxmax()
+    assert most_frequent.accuracy == pytest.approx((split.valid.label == majority).mean())
+    assert np.isnan(most_frequent.log_loss) and all(np.isnan(auc) for auc in most_frequent.cumulative_auc)
+    assert class_shares.accuracy == most_frequent.accuracy and np.isfinite(class_shares.log_loss)
+    assert all(np.isnan(auc) or auc == pytest.approx(0.5) for auc in class_shares.cumulative_auc)
 
 
 def test_threshold_summary_counts_races_at_or_above_each_threshold(
@@ -177,6 +201,7 @@ def test_command_trains_one_bet_and_writes_the_report(season_db: Path, fast_sett
     assert "利用者の規則" in text and "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     assert "3連単: 「荒れるレースだけ買う」使い方の線引き" in text and "3連単: 1番人気のオッズだけの予想と比べたとき" in text
     assert "| 当日 | 1番人気のオッズだけ（平均） |" in text
+    assert "3連単: クラスの割合だけの基準" in text and "| 木曜 | 常に最多クラス |" in text
     assert (tmp_path / "models" / "trifecta" / "thursday" / SETTINGS_FILE).exists()
     assert not (tmp_path / "models" / "win").exists()
 

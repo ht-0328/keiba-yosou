@@ -21,11 +21,17 @@ _ODDS_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.DAY_BEFORE, Pred
 #: 比べの表で、この予想の行と基準の行に付ける名前。
 _THIS_MODEL = "この予想（平均）"
 _ODDS_ONLY = "1番人気のオッズだけ（平均）"
+#: 基準と比べる表の列。
+_SCORE_COLUMNS: tuple[str, ...] = (
+    "時点", "予想", "ログ損失", "正解率", "マクロF1", "クラスのずれの平均",
+    "AUC（中荒れ以上）", "AUC（大荒れ以上）", "AUC（超荒れ）",
+)
 
 
 class UpsetComparisonTables:
-    """1つの券種の、検証データでの基準との比べと使い方の線引きを、3つの表にする（設計書 16 の 3）。
+    """1つの券種の、検証データでの基準との比べと使い方の線引きを、4つの表にする（設計書 16 の 3）。
 
+    - クラスの割合だけの2つの基準（常に最多クラス・クラスの割合をそのまま確率にする）と、この予想の比べ（時点ごと）。
     - 利用者の規則を基準にしたときの当たり具合。
     - 「荒れるレースだけ買う」使い方の線引き（中荒れ以上の確率のしきい値ごとの、レース数と実際に中荒れ以上だった割合）。
     - 1番人気のオッズだけで学習した基準と、この予想の比べ（前日・当日）。
@@ -33,16 +39,18 @@ class UpsetComparisonTables:
     値を計算するのは ``evaluation/`` のクラスで、ここでは表の形にするだけ。
     """
 
-    def __init__(self, bet: BetType, evaluations: Sequence[ClassEvaluation], user_rule: UserRuleResult,
-                 thresholds: Mapping[PredictionTiming, pd.DataFrame], odds_only: Sequence[ClassEvaluation]) -> None:
+    def __init__(self, bet: BetType, evaluations: Sequence[ClassEvaluation], class_shares: Sequence[ClassEvaluation],
+                 user_rule: UserRuleResult, thresholds: Mapping[PredictionTiming, pd.DataFrame],
+                 odds_only: Sequence[ClassEvaluation]) -> None:
         self._bet = bet
         self._evaluations = tuple(evaluations)
+        self._class_shares = tuple(class_shares)
         self._user_rule = user_rule
         self._thresholds = dict(thresholds)
         self._odds_only = tuple(odds_only)
 
     def tables(self) -> list[Table]:
-        return [self._user_rule_table(), self._threshold_table(), self._odds_only_table()]
+        return [self._class_share_table(), self._user_rule_table(), self._threshold_table(), self._odds_only_table()]
 
     def _user_rule_table(self) -> Table:
         """利用者の規則を基準にしたときの、検証データでの当たり具合。"""
@@ -69,6 +77,21 @@ class UpsetComparisonTables:
                  "しきい値 0 の行は全レース（しきい値を使わないとき）。線は設計書に書かず、この表から選ぶ。",
         )
 
+    def _class_share_table(self) -> Table:
+        """時点ごとの、この予想の平均と、クラスの割合だけから作る2つの基準の当たり具合。"""
+        this_model = {e.timing: e for e in self._evaluations if e.model == ENSEMBLE_NAME}
+        rows: list[list[object]] = []
+        for timing, evaluation in this_model.items():
+            rows.append(self._score_row(timing, _THIS_MODEL, evaluation))
+            rows += [self._score_row(timing, e.model, e) for e in self._class_shares if e.timing == timing]
+        return Table(
+            list(_SCORE_COLUMNS), rows,
+            title=f"{self._bet.label}: クラスの割合だけの基準（常に最多クラス・クラスの割合をそのまま確率にする）と比べたとき",
+            note="2つの基準は、学習データの4クラスの割合だけから作り、特徴量を使わないので時点によらない。"
+                 "常に最多クラスは正解率の下限（確率ではないのでログ損失と AUC は空欄）。"
+                 "クラスの割合をそのまま確率にする基準はログ損失の下限（どのレースも同じ確率なので AUC は 0.5）。検証データで測る。",
+        )
+
     def _odds_only_table(self) -> Table:
         """前日・当日の、この予想の平均と、1番人気のオッズだけの基準の平均の当たり具合。"""
         this_model = {e.timing: e for e in self._evaluations if e.model == ENSEMBLE_NAME}
@@ -78,9 +101,7 @@ class UpsetComparisonTables:
             rows += [self._score_row(timing, _THIS_MODEL, this_model[timing]),
                      self._score_row(timing, _ODDS_ONLY, odds_only)]
         return Table(
-            ["時点", "予想", "ログ損失", "正解率", "マクロF1", "クラスのずれの平均",
-             "AUC（中荒れ以上）", "AUC（大荒れ以上）", "AUC（超荒れ）"],
-            rows,
+            list(_SCORE_COLUMNS), rows,
             title=f"{self._bet.label}: 1番人気のオッズだけの予想と比べたとき",
             note="基準は、特徴量を1番人気のオッズだけにして、同じ設定・同じ期間で学習した LightGBM と CatBoost の平均。"
                  "前日と当日は同じ列なので、基準の値は同じ。木曜はオッズを使わないので比べない。検証データで測る。",
