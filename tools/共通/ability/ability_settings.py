@@ -6,6 +6,9 @@ from dataclasses import dataclass
 
 #: 適性の種類。
 DISTANCE, COURSE, GOING = "距離", "コース", "馬場"
+#: 初めての条件の種類（``FirstConditions``）。血統で補う単位。
+FIRST_DISTANCE, FIRST_VENUE, FIRST_SURFACE, FIRST_GOING = "初めての距離帯", "初めての競馬場", "初めての芝ダ", "初めての馬場の組"
+FIRST_KINDS: tuple[str, ...] = (FIRST_DISTANCE, FIRST_VENUE, FIRST_SURFACE, FIRST_GOING)
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,12 @@ class AbilitySettings:
     - other_going: 今回と馬場の組（良・稍重 か、重・不良）が違う走の重みの倍率。
     - other_surface: 今回と芝ダが違う走の重みの倍率。
     - aptitudes: 能力指数に入れる適性（``DISTANCE`` ``COURSE`` ``GOING``）。入れない適性は、重みの倍率を 1 にする。
+
+    血統で補う（初めての条件の適性。``PedigreeAptitude``）:
+
+    - pedigree: 使う親の列（``"sire"`` 父・``"damsire"`` 母の父）。空なら補わない。
+    - pedigree_prior: 産駒の走が少ない親の値を 0 に寄せる強さ（走の数に足す数）。
+    - pedigree_kinds: 血統で補う初めての条件（``FIRST_KINDS`` のどれか）。既定は、比べて効いた芝ダだけ。
     """
 
     track_variant: bool = True
@@ -46,3 +55,6 @@ class AbilitySettings:
     other_going: float = 0.8
     other_surface: float = 0.4
     aptitudes: tuple[str, ...] = (DISTANCE, COURSE, GOING)
+    pedigree: tuple[str, ...] = ("sire", "damsire")
+    pedigree_prior: float = 20.0
+    pedigree_kinds: tuple[str, ...] = (FIRST_SURFACE,)

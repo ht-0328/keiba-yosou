@@ -4,9 +4,10 @@ import time
 
 import pandas as pd
 
-from yosou.custom_binary import workflow
-from yosou.custom_binary.dataset import select_training_data
+from yosou.custom_binary.dataset import TrainingDataSelector
+from yosou.custom_binary.evaluation import ModelReport
 from yosou.custom_binary.feature.registry import FeatureRegistry
+from yosou.custom_binary.workflow import EnsembleFitter
 
 from .feature_table import FeatureTable
 from .model_config import ModelConfig
@@ -25,11 +26,13 @@ class ModelTrial:
     def run(self, config: ModelConfig) -> dict:
         started = time.time()
         settings = config.settings(self._registry, self._periods)
-        data = select_training_data(self._table.rows, self._table.frame, settings, self._registry.catalog(settings.selected))
-        ensemble, train, valid = workflow.fit(data, settings)
+        data = TrainingDataSelector().select(
+            self._table.rows, self._table.frame, settings, self._registry.catalog(settings.selected),
+        )
+        ensemble, train, valid = EnsembleFitter().fit(data, settings)
         test = data.between(self._periods.test_from, None)
-        confirm = workflow.report(ensemble, valid, config.target, train)
-        final = workflow.report(ensemble, test, config.target, train)
+        confirm = ModelReport().of(ensemble, valid, config.target, train)
+        final = ModelReport().of(ensemble, test, config.target, train)
         chosen = choose(confirm["paybacks"], config.bet, config.value_lines_only)
         tested = next(row for row in final["paybacks"] if row["買い方"] == chosen["買い方"]) if chosen else None
         return {

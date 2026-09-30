@@ -7,7 +7,7 @@ import pandas as pd
 from yosou.shared.feature import EntryRecords, PredictionTiming
 from yosou.shared.feature.value_types import typed_features
 
-from .builtin import GroupColumn
+from .group_column import GroupColumn
 from .registry import FeatureRegistry
 
 

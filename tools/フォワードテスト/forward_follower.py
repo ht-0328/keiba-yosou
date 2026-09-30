@@ -32,12 +32,12 @@ class ForwardFollower:
     DB を開けない（jvdata-store が書き込み中）ときは、少し待ってやり直す。
     """
 
-    def __init__(self, predictor, ledger: Ledger, open_db: Callable[[], Any], line: float, *,
+    def __init__(self, predictor, ledger: Ledger, open_db: Callable[[], Any], *,
                  minutes_before: int = 10, clock: Clock | None = None, log: Callable[[str], None] = print) -> None:
         self._predictor = predictor
         self._ledger = ledger
         self._open_db = open_db
-        self._recorder = ForwardRecorder(predictor, ledger, line)
+        self._recorder = ForwardRecorder(predictor, ledger)
         self._minutes_before = minutes_before
         self._clock = clock or Clock()
         self._log = log
