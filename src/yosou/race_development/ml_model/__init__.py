@@ -6,13 +6,15 @@
 | ``LightGbmWithinRaceModel``・``CatBoostWithinRaceModel`` | 上のクラスで、中のモデルを LightGBM・CatBoost にしたもの |
 | ``RaceSoftmax`` | raw スコアを温度で割り、レースごとに合計 1 の確率にする |
 | ``TemperatureFitter`` | 温度の候補から、レースごとのログ損失がいちばん小さいものを選ぶ |
-| ``ValidationHalves`` | 検証データを、開催日で前半（早期終了）と後半（温度・λ）に分ける |
+| ``ValidationHalves`` | 検証データを、開催日で前半（早期終了）と後半（温度・λ・幅の倍率）に分ける |
 | ``RegressionModel`` | 回帰の2つのモデルに共通の決まり（インターフェース） |
 | ``LightGbmRegressionModel``・``CatBoostRegressionModel`` | ④ 4コーナーの位置・⑤ 上がりの速さの回帰 |
 | ``RegressionEnsemble`` | 2つの回帰の値を平均する |
 | ``QuantileModel`` | 分位点回帰の2つのモデルに共通の決まり（インターフェース） |
 | ``LightGbmQuantileModel``・``CatBoostQuantileModel`` | ③ 前半タイム・⑥ 後半タイムの基準との差の分位点回帰（10%・50%・90%） |
 | ``QuantileEnsemble`` | 2つの分位点の値を平均し、小さい順に並べ直す |
+| ``IntervalWidth`` | 分位点の 80% の幅を広げる（狭める）倍率（下と上）。モデルのファイルの隣に書く |
+| ``IntervalWidthFitter`` | 倍率の候補から、検証データで下と上に 10% ずつ外れるものを選ぶ |
 | ``LightGbmRegressor``・``CatBoostRegressor`` | 回帰と分位点回帰の中身（ライブラリの回帰のモデル1つとエンコーダー） |
 | ``OrderProbability`` | 1着の確率から、3連単の並びの確率と、各馬の 2着以内・3着以内の確率を出す（Harville の式） |
 | ``OrderLambdaFitter`` | 2着・3着の割り当てのならしの指数 λ を、検証データで決める |
@@ -24,6 +26,8 @@ from .catboost_regression_model import CatBoostRegressionModel
 from .catboost_regressor import CatBoostRegressor
 from .catboost_within_race_model import CatBoostWithinRaceModel
 from .finish_forecaster import LAMBDA_FILE, TOP2, TOP3, WIN, FinishForecaster
+from .interval_width import IntervalWidth
+from .interval_width_fitter import IntervalWidthFitter
 from .lightgbm_quantile_model import QUANTILES, LightGbmQuantileModel
 from .lightgbm_regression_model import LightGbmRegressionModel
 from .lightgbm_regressor import LightGbmRegressor
@@ -44,5 +48,5 @@ __all__ = [
     "ValidationHalves", "RegressionModel", "LightGbmRegressionModel", "CatBoostRegressionModel", "RegressionEnsemble",
     "QuantileModel", "LightGbmQuantileModel", "CatBoostQuantileModel", "QuantileEnsemble", "QUANTILES",
     "LightGbmRegressor", "CatBoostRegressor", "OrderProbability", "OrderLambdaFitter", "FinishForecaster",
-    "LAMBDA_FILE", "WIN", "TOP2", "TOP3",
+    "LAMBDA_FILE", "WIN", "TOP2", "TOP3", "IntervalWidth", "IntervalWidthFitter",
 ]

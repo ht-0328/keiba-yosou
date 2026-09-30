@@ -12,6 +12,9 @@
 | ``LATE_RACE_CATALOG`` | ⑥ 後半のペース | 51（③ の全部・U・1レースごとの S） |
 | ``FINISH_CATALOG`` | ⑦ 着順 | 143（④⑤ の全部・T） |
 | ``FINISH_PLAIN_CATALOG`` | ⑦ の比べる基準（前半・後半の予想を入れない。V は入れる） | 127（⑦ から S・T を除く） |
+| ``FINISH_NO_EARLY_CATALOG`` | ⑦ から S を外したもの（年ごとの確かめで、S が効いているかを見る） | 134（⑦ から S を除く） |
+| ``FINISH_NO_LATE_CATALOG`` | ⑦ から T を外したもの（T が効いているかを見る） | 136（⑦ から T を除く） |
+| ``FINISH_WITH_ODDS_CATALOG`` | ⑦ に W（オッズ）を足したもの（年ごとの確かめで別に比べるだけ） | 145（⑦ と W） |
 
 V（既存の予想から見た傾向）は、どの予想にも入れる（利用者の決定。設計書 15 の 22）。
 """
@@ -31,6 +34,7 @@ from yosou.shared.feature import (
 )
 
 from .group_forecast import UPSET_BETS
+from .odds_comparison_features import ODDS_POPULARITY, ODDS_WIN_RATE
 from .tendency_features import (
     FAVORITE_OUT,
     FAVORITE_OUT_MAX,
@@ -48,6 +52,8 @@ _N = FeatureKind.NUMERIC
 _C = FeatureKind.CATEGORICAL
 #: 前日から分かる（馬番・馬場状態）。
 _DAY_BEFORE = PredictionTiming.DAY_BEFORE
+#: 当日に分かる（確定オッズ。W だけ）。
+_RACE_DAY = PredictionTiming.RACE_DAY
 
 #: K. 序盤の位置取りの履歴（15個）。
 K_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "K", _N) for name in (
@@ -114,6 +120,11 @@ V_HORSE_FEATURES: tuple[Feature, ...] = (
     Feature(LONGSHOT_TOP3, "V", _N, _DAY_BEFORE),
     *V_RACE_FEATURES,
 )
+#: W. オッズ（2個）。着順の予想の比べるためだけに使い、予測のコマンドでは使わない（設計書 15 の 16・16 の 3）。
+W_FEATURES: tuple[Feature, ...] = (
+    Feature(ODDS_WIN_RATE, "W", _N, _RACE_DAY),
+    Feature(ODDS_POPULARITY, "W", _N, _RACE_DAY),
+)
 #: R. レースの条件（11個。荒れ具合の予想の A と同じ。共通の ``RaceConditionSummary`` が作る）。
 R_FEATURES: tuple[Feature, ...] = (
     Feature("競馬場", "R", _C),
@@ -159,3 +170,6 @@ LATE_HORSE_CATALOG = FeatureCatalog(HORSE_CATALOG.features + V_HORSE_FEATURES + 
 LATE_RACE_CATALOG = FeatureCatalog(RACE_CATALOG.features + V_RACE_FEATURES + S_RACE_FEATURES)
 FINISH_CATALOG = FeatureCatalog(LATE_HORSE_CATALOG.features + T_FEATURES)
 FINISH_PLAIN_CATALOG = FeatureCatalog(HORSE_CATALOG.features + V_HORSE_FEATURES)
+FINISH_NO_EARLY_CATALOG = FeatureCatalog(HORSE_CATALOG.features + V_HORSE_FEATURES + T_FEATURES)
+FINISH_NO_LATE_CATALOG = FeatureCatalog(LATE_HORSE_CATALOG.features)
+FINISH_WITH_ODDS_CATALOG = FeatureCatalog(FINISH_CATALOG.features + W_FEATURES)

@@ -14,6 +14,7 @@
 | ``ExpectedValueTicketRule`` | 券種ごとに、当たる確率 × 確定オッズ が線（既定 1.0）以上の買い目を全部作る |
 | ``TicketSettler`` | 買い目を払戻と照らし合わせて、払戻と当たったかを付ける。不成立・特払の券種は見送り（図5） |
 | ``ReturnSummary`` | 精算した買い目を、買い方 × 券種 × 年（と合計）ごとにまとめ、的中率・回収率を出す |
+| ``ValueLineChoice`` | 期待値の線と券種の配分を、確かめる年より前の年の回収率だけで選び、その年に当てはめた回収率を出す |
 
 表の列の名前は ``column_names.py``。買い方の名前は ``MODEL_MARK_RULE``・``POPULARITY_MARK_RULE``（印どおり）と、
 ``ExpectedValueTicketRule`` の ``name``（既定「期待値 1.0 以上（モデル）」）。
@@ -29,9 +30,10 @@ from .return_summary import TOTAL_YEAR, ReturnSummary
 from .ticket import Ticket
 from .ticket_probability import TicketProbability
 from .ticket_settler import TicketSettler
+from .value_line_choice import ValueLineChoice
 
 __all__ = [
     "Ticket", "TicketProbability", "Mark", "MarkAssigner", "PopularityMarkAssigner", "MarkTicketRule",
-    "ExpectedValueTicketRule", "TicketSettler", "ReturnSummary",
+    "ExpectedValueTicketRule", "TicketSettler", "ReturnSummary", "ValueLineChoice",
     "MODEL_MARK_RULE", "POPULARITY_MARK_RULE", "TOTAL_YEAR", "column_names",
 ]

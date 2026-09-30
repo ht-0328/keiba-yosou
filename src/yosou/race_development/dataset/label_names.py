@@ -24,6 +24,11 @@ EARLY_POSITION = "序盤の位置"
 FINISH = "確定着順"
 FIRST_HALF_TIME = "前半タイム"
 SECOND_HALF_TIME = "後半タイム"
+#: 評価用の列（1レースごと。正解を作らなかったレースの確かめに使う。設計書 16 の 4）。
+TRACK_CODE = "トラックコード"
+FIRST_CORNER_NO = "最初のコーナーの番号"
+CORNER_LAPS_OVER_ONE = "コーナーを5回以上通るか"
+FIRST_CORNER_LEADER_NO = "最初のコーナーで先頭の馬番"
 
 #: 3区分のクラスの並び（②③）。
 THREE_CLASSES: tuple[int, ...] = (0, 1, 2)

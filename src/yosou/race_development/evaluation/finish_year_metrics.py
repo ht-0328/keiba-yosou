@@ -5,16 +5,29 @@ from __future__ import annotations
 import pandas as pd
 
 from ..dataset import label_names as names
-from ..feature import PLAIN_WIN_PROBABILITY, WIN_PROBABILITY
+from ..feature import (
+    NO_EARLY_WIN_PROBABILITY,
+    NO_LATE_WIN_PROBABILITY,
+    ODDS_WIN_PROBABILITY,
+    PLAIN_WIN_PROBABILITY,
+    WIN_PROBABILITY,
+)
 from .race_metrics import RaceMetrics
 
 #: 入力の列（1行 = 1頭）。
 YEAR, WIN_ODDS, POPULARITY = "年", "win_odds", "popularity"
+#: 比べるためだけの予想の列 → 表の見出し（S・T を1つずつ外したもの。オッズを足したものは参考）。列が無ければ欠損値にする。
+COMPARISONS: dict[str, str] = {
+    NO_EARLY_WIN_PROBABILITY: "同（S を外したモデル）",
+    NO_LATE_WIN_PROBABILITY: "同（T を外したモデル）",
+    ODDS_WIN_PROBABILITY: "同（参考: オッズを足したモデル）",
+}
 
 
 class FinishYearMetrics:
-    """⑦ の年ごとの当たり具合（設計書 16 の 7 の表3）。1着のレースごとのログ損失を、前半・後半を入れないモデル・全馬に同じ確率・
-    単勝オッズ（参考）と並べ、◎（1着の確率が 1位の馬）の勝率・3着以内率と、1番人気の勝率（参考）を出す。
+    """⑦ の年ごとの当たり具合（設計書 16 の 7 の表3）。1着のレースごとのログ損失を、前半・後半を入れないモデル・S を外したモデル・
+    T を外したモデル・全馬に同じ確率・単勝オッズ（参考）・オッズを足したモデル（参考）と並べ、◎（1着の確率が 1位の馬）の勝率・
+    3着以内率と、1番人気の勝率（参考）を出す。
 
     ``horses`` は1行 = 1頭（列 ``年``・``race_id``・``1着``・``確定着順``・``p_win``・``p_win_plain``・``win_odds``・``popularity``）。
     ログ損失は、1着が1頭に決まるレースだけで測る。
@@ -43,9 +56,16 @@ class FinishYearMetrics:
             "着順のモデルの学習データの行数": training_rows,
             "1着のログ損失（モデル）": metrics.race_log_loss(labeled[WIN_PROBABILITY], labeled[names.WINNER]),
             "同（前半・後半を入れないモデル）": metrics.race_log_loss(labeled[PLAIN_WIN_PROBABILITY], labeled[names.WINNER]),
+            **{title: self._optional_loss(labeled, column) for column, title in COMPARISONS.items()},
             "同（全馬に同じ確率）": metrics.race_log_loss(1.0 / field, labeled[names.WINNER]),
             "同（参考: 単勝オッズ）": metrics.race_log_loss(market, labeled[names.WINNER]),
             "◎の勝率": float(finish[first_best].eq(1).mean()),
             "◎の3着以内率": float(finish[first_best].le(3).mean()),
             "1番人気の勝率（参考）": float(finish[horses[POPULARITY].eq(1)].eq(1).mean()),
         }
+
+    def _optional_loss(self, labeled: pd.DataFrame, column: str) -> float:
+        """比べるためだけの予想のログ損失。その予想の予測が無ければ（前日の時点のオッズを足したモデルなど）欠損値。"""
+        if column not in labeled.columns or labeled[column].isna().all():
+            return float("nan")
+        return self._metrics.race_log_loss(labeled[column], labeled[names.WINNER])

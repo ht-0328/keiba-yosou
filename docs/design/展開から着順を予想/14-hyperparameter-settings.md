@@ -39,9 +39,11 @@
 | 前半タイムの基準の件数の下限・標準偏差の下限 | 30 レース・0.1秒 | `PaceBaseline`（[10-target.md の 5.](10-target.md#5-前半タイムの基準の作り方)） |
 | ペースの区分の線引き | z = ±0.5 | `RaceLabeler` |
 | 温度の候補 | 0.50〜2.00 の 0.01 刻み | `TemperatureFitter` |
+| 前半・後半タイムの 80% の幅の倍率の候補 | 0.50〜3.00 の 0.01 刻み（下と上で別に選ぶ） | `IntervalWidthFitter`（[16-evaluation.md の 2.](16-evaluation.md#2-評価指標)） |
 | 2着・3着の割り当てのならしの指数 λ の候補 | 0.50〜1.00 の 0.05 刻み | `OrderLambdaFitter`（[10-target.md の 10.](10-target.md#10-着順の目的変数と確率の出し方)） |
 | 後半タイムの基準の件数の下限・標準偏差の下限 | 30 レース・0.1秒（前半と同じ） | `PaceBaseline` |
 | 期待値で買う線 | 1.0 | `ExpectedValueTicketRule`（[16-evaluation.md の 8.](16-evaluation.md#8-券種ごとの買い方)）。設定ファイルには書かない。変えるときは、変えたことを結果に書く |
+| 年ごとの確かめで試す期待値の線・選べる候補の点数の下限 | 1.0・1.2・1.5・2.0・3.0、前の年までに 100点 | `ValueLineChoice`（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率) の表5） |
 
 ## 文書情報
 

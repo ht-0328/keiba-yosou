@@ -34,9 +34,9 @@ CatBoost の引数名で書く。ここの値は設定ファイルの初期値�
 | ① 先頭 | `CatBoostClassifier`（`CatBoostWithinRaceModel` の中の `CatBoostModel`） | `Logloss` | 検証データの前半 | 1頭ずつ「先頭になるか」を学ぶ。レースの中でそろえるのは、そのあと（[05-sequence.md の図3](05-sequence.md#図3-先頭の確率をレースの中でそろえる)） |
 | ② 序盤の位置 | `CatBoostClassifier` | `MultiClass` | 検証データ | 先団・中団・後方の3つの確率を返す。クラスの数は `y` から決まる |
 | ③ ペースの区分 | `CatBoostClassifier` | `MultiClass` | 検証データ | ハイ・平均・スローの3つの確率を返す |
-| ③ 前半タイム | `CatBoostRegressor` を1つ | `MultiQuantile:alpha=0.1,0.5,0.9` | 検証データ | 1つのモデルで 10%・50%・90% の分位点を返す（`predict()` が 行数 × 3） |
+| ③ 前半タイム | `CatBoostRegressor` を1つ | `MultiQuantile:alpha=0.1,0.5,0.9` | 検証データの前半 | 1つのモデルで 10%・50%・90% の分位点を返す（`predict()` が 行数 × 3）。80% の幅の倍率は検証データの後半で決める |
 | ④ 4コーナーの位置・⑤ 上がりの速さ | `CatBoostRegressor`（`CatBoostRegressionModel`） | `RMSE` | 検証データ | 0〜1 の値を、二乗誤差で当てる（[03-library-basics.md の 4.](03-library-basics.md#4-4コーナーの位置と上がりの速さの回帰)） |
-| ⑥ 後半タイム | `CatBoostRegressor` を1つ | `MultiQuantile:alpha=0.1,0.5,0.9` | 検証データ | ③と同じ |
+| ⑥ 後半タイム | `CatBoostRegressor` を1つ | `MultiQuantile:alpha=0.1,0.5,0.9` | 検証データの前半 | ③と同じ |
 | ⑦ 1着 | `CatBoostClassifier`（`CatBoostWithinRaceModel` の中の `CatBoostModel`） | `Logloss` | 検証データの前半 | ①と同じ。温度は検証データの後半で決める |
 
 - 1 と 0 の数・クラスの数の偏りを直す設定（`auto_class_weights`）は使わない（[10-target.md の 6.](10-target.md#6-クラスと-10-の数の偏り)）。

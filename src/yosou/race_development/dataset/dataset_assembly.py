@@ -44,6 +44,8 @@ _RACE_EVALUATION_COLUMNS: dict[str, str] = {
     FIRST_HALF_BASELINE: FIRST_HALF_BASELINE, FIRST_HALF_BASELINE + STAGE: FIRST_HALF_BASELINE + STAGE,
     SECOND_HALF_BASELINE: SECOND_HALF_BASELINE, SECOND_HALF_BASELINE + STAGE: SECOND_HALF_BASELINE + STAGE,
     MEASURED_METERS: MEASURED_METERS,
+    names.TRACK_CODE: "track_code", names.FIRST_CORNER_NO: "first_corner_no",
+    names.CORNER_LAPS_OVER_ONE: "corner_laps_over_one", names.FIRST_CORNER_LEADER_NO: "first_corner_leader_no",
 }
 #: 1レースごとの予測に要る情報と、取り込み方の案内（設計書 06 の図2）。
 _RACE_GUIDANCE: dict[str, str] = {

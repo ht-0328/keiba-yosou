@@ -10,26 +10,35 @@ from pathlib import Path
 from 共通 import render
 from 共通.render import Table
 
+from yosou.shared.feature import PredictionTiming
+
 from ..setting import BACKTEST_SETTINGS_PATH
-from ..workflow import BacktestWorkflow
+from ..workflow import DEFAULT_TIMING, BacktestWorkflow
 from .backtest_tables import BacktestTables
 from .yosou_name import PROJECT_ROOT, YOSOU_NAME
 
-#: 確かめる年の既定（設計書 15 の 18）。
-DEFAULT_YEARS = "2021-2026"
-#: 結果の表のファイルの名前（``reports/展開から着順を予想/backtest/`` の下）。
+#: 確かめる年の既定（設計書 15 の 18・25）。
+DEFAULT_YEARS = "2018-2026"
+#: 結果の表のファイルの名前（``reports/展開から着順を予想/backtest/`` の下）。当日は ``results``、ほかの時点は後ろに時点の名前を付ける。
 RESULT_NAME = "results"
+#: 時点の書き方の案内。
+_TIMING_CHOICES = " / ".join(f"{timing.label}（{timing.value}）" for timing in PredictionTiming)
 
 
 class BacktestCommand:
-    """``backtest``: 各年を、その前の年までのデータだけで学習し直して当日の時点で予測し、券種ごと・年ごとの的中率と回収率を出す（設計書 16 の 7）。"""
+    """``backtest``: 各年を、その前の年までのデータだけで学習し直して予測し、券種ごと・年ごとの的中率と回収率を出す（設計書 16 の 7）。
+
+    予測する時点は ``--timing``（既定は当日）。
+    """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
             "backtest", help="年ごとに学習し直して過去のレースを予測し、券種ごと・年ごとの的中率と回収率を出す", allow_abbrev=False,
         )
         parser.add_argument("--years", default=DEFAULT_YEARS,
-                            help=f"確かめる年（例: 2021-2026 か 2024,2025。既定: {DEFAULT_YEARS}）")
+                            help=f"確かめる年（例: 2018-2026 か 2024,2025。既定: {DEFAULT_YEARS}）")
+        parser.add_argument("--timing", default=DEFAULT_TIMING.label,
+                            help=f"予測する時点: {_TIMING_CHOICES}（既定: {DEFAULT_TIMING.label}）")
         parser.add_argument("--config", type=Path, default=BACKTEST_SETTINGS_PATH,
                             help="ハイパーパラメータの設定ファイル（TOML。既定は setting/backtest_settings.toml。速さのために学習率を上げたもの）")
         parser.add_argument("--root", type=Path, default=PROJECT_ROOT / "reports" / YOSOU_NAME,
@@ -42,16 +51,20 @@ class BacktestCommand:
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:
-        """結果の表は、``<root>/backtest/results.md`` にも書く。"""
-        workflow = BacktestWorkflow(args.root, args.db, self._progress, args.reuse_datasets)
+        """結果の表は、``<root>/backtest/results.md``（当日。ほかの時点は ``results_<時点>.md``）にも書く。"""
+        timing = PredictionTiming.parse(args.timing)
+        workflow = BacktestWorkflow(args.root, args.db, self._progress, args.reuse_datasets, timing)
         report = workflow.run(self._years(args.years), args.config)
         tables = BacktestTables(report).tables()
-        path = workflow.save_text(RESULT_NAME, render.render(tables, render.DEFAULT_FORMAT) + "\n")
+        path = workflow.save_text(self._result_name(timing), render.render(tables, render.DEFAULT_FORMAT) + "\n")
         self._progress(f"結果の表を書いた: {path}")
         return tables
 
+    def _result_name(self, timing: PredictionTiming) -> str:
+        return RESULT_NAME if timing is DEFAULT_TIMING else f"{RESULT_NAME}_{timing.value}"
+
     def _years(self, text: str) -> list[int]:
-        """``2021-2026`` か ``2024,2025`` の書き方から年の並びを作る。"""
+        """``2018-2026`` か ``2024,2025`` の書き方から年の並びを作る。"""
         if "-" in text:
             first, last = (int(part) for part in text.split("-", 1))
             return list(range(first, last + 1))
