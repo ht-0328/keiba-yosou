@@ -13,7 +13,7 @@ from .. import facts
 COLUMNS: tuple[str, ...] = (
     "race_id", "venue_code", "venue", "race_no", "track_code", "surface", "course", "distance_m", "condition",
     "class_name", "class_order", "field_size", "horse_id", "horse_no", "horse_name", "age", "sex", "carried",
-    "finish", "finish_time", "style", "first3f", "last3f_race",
+    "finish", "finish_time", "style", "first3f", "last3f_race", "sire", "damsire",
 )
 
 

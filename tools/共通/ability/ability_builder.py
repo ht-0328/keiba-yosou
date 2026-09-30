@@ -8,8 +8,10 @@ import pandas as pd
 
 from .ability_index import AbilityIndex
 from .ability_settings import AbilitySettings
+from .first_conditions import FirstConditions
 from .pace_adjustment import PaceAdjustment
 from .pace_balance import PACE, PaceBalance
+from .pedigree_aptitude import PedigreeAptitude
 from .race_table import RaceTable
 from .speed_figure import SpeedFigure
 from .speed_standard import SpeedStandard
@@ -34,14 +36,18 @@ class AbilityBuilder:
     2. ``until`` までのレースで、ペースの基準を作り、全部のレースにペースを付ける。
     3. 斤量補正だけのスピード指数を作り、``until`` までの走でペース補正の大きさを測って、指数を作り直す。
     4. 能力指数を作る。
+    5. 設定で親（``pedigree``）を選んでいれば、初めての条件の適性を血統で補う（``PedigreeAptitude``）。
+
+    ``race_table`` は、レースの表の作り方を変えて比べるとき（研究）に渡す。
     """
 
-    def __init__(self, settings: AbilitySettings, until: pd.Timestamp) -> None:
+    def __init__(self, settings: AbilitySettings, until: pd.Timestamp, race_table: RaceTable | None = None) -> None:
         self._settings = settings
         self._until = until
+        self._race_table = race_table or RaceTable()
 
     def build(self, runs: pd.DataFrame) -> AbilityResult:
-        races = RaceTable().build(runs)
+        races = self._race_table.build(runs)
         races = SpeedStandard().fit(races, self._until).apply(races)
         fitted = pd.to_datetime(races["race_date"]) <= self._until
         races = races.assign(**{PACE: PaceBalance().fit(races[fitted]).band(races)})
@@ -49,7 +55,13 @@ class AbilityBuilder:
         joined.index = runs.index
         offsets = self._pace_offsets(joined)
         figured = self._figure(offsets if self._settings.pace else None).build(joined)
-        return AbilityResult(AbilityIndex(self._settings).build(figured), races, offsets)
+        return AbilityResult(self._pedigree(AbilityIndex(self._settings).build(figured)), races, offsets)
+
+    def _pedigree(self, runs: pd.DataFrame) -> pd.DataFrame:
+        if not self._settings.pedigree:
+            return runs
+        flagged = FirstConditions(self._settings).build(runs)
+        return PedigreeAptitude(self._settings).fit(flagged).fill(flagged)
 
     def _pace_offsets(self, runs: pd.DataFrame) -> pd.Series:
         if not self._settings.pace:
