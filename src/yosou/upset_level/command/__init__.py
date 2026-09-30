@@ -5,6 +5,7 @@
 | ``CommandLine`` | 入口。引数を読み、元DB を開いて、サブコマンドを実行し、結果の表を出す |
 | ``TrainCommand`` | ``train``: 学習データを1回作り、券種ごとに学習する。``--bet`` で券種を絞れる |
 | ``PredictCommand`` | ``predict``: 1レースの、券種ごとの荒れ具合を予測する。``--odds`` で全頭のオッズを渡す |
+| ``UpsetComparisonTables`` | ``train`` の報告のうち、この予想だけの表（利用者の規則・しきい値ごとの線引き・1番人気のオッズだけの基準との比べ）を作る |
 
 予想に依らない部品（共通の引数 ``CommonArguments``、結果の表 ``ClassTrainingReportTables``・``RacePredictionTable``）は
 ``yosou.shared.command``。この予想の名前（モデルの置き場所に使う）は ``yosou_name.py``。

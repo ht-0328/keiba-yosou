@@ -10,19 +10,23 @@ from 共通 import db
 from 共通.render import Table
 
 from yosou.shared.command import ClassTrainingReportTables, CommonArguments
-from yosou.shared.dataset import DEFAULT_TEST_FIRST_DAY, DEFAULT_VALID_FIRST_DAY, TrainingData, TrainingPeriod
-from yosou.shared.evaluation import ClassModelEvaluator
-from yosou.shared.ml_model import CLASS_MEMBER_TYPES
+from yosou.shared.dataset import DEFAULT_TEST_FIRST_DAY, DEFAULT_VALID_FIRST_DAY, TrainingPeriod
+from yosou.shared.evaluation import ClassModelEvaluator, TrainingReport
+from yosou.shared.ml_model import CLASS_MEMBER_TYPES, EnsembleModel
+from yosou.shared.repository import ModelRepository
+from yosou.shared.setting import HyperparameterSettings
 from yosou.shared.workflow import TrainingWorkflow
 
 from ..dataset import BET_CHOICES, BetType, UpsetLevel, race_dataset_builder
-from ..evaluation import UserRuleBaseline, UserRuleResult
+from ..evaluation import FavoriteOddsBaseline, UpsetThresholdSummary, UserRuleBaseline
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..workflow import TIMINGS, model_repositories
+from .upset_comparison_tables import UpsetComparisonTables
 from .yosou_name import YOSOU_NAME
 
-#: 学習データの始まりの既定（設計書 08 の 4）。DB にある全部（2016年をウォームアップにして 2017年から）。
-DEFAULT_TRAIN_FIRST_DAY = date(2017, 1, 1)
+#: 学習データの始まりの既定（設計書 08 の 4・15 の 5）。DB にある全部（2011年をウォームアップにして 2012年から）。
+#: 2017年からと同じ検証データで比べ、2012年からのほうが当たったので、2026-09-30 に延ばした。
+DEFAULT_TRAIN_FIRST_DAY = date(2012, 1, 1)
 
 
 class TrainCommand:
@@ -53,6 +57,7 @@ class TrainCommand:
             builder = race_dataset_builder(con)
             training_data = builder.build_training_data(period)
         repositories = model_repositories(args.models)
+        settings = HyperparameterSettings.load(args.config, defaults=DEFAULT_SETTINGS_PATH)
         tables: list[Table] = []
         for bet in self._bets(args):
             workflow = TrainingWorkflow(
@@ -62,29 +67,27 @@ class TrainCommand:
             labeled = training_data.with_label(bet.column_name)
             report = workflow.train(labeled, args.config)
             tables += ClassTrainingReportTables(report, UpsetLevel.labels(), bet.label).tables()
-            tables.append(self._user_rule_table(bet, UserRuleBaseline().evaluate(report.split.valid)))
+            tables += self._comparison_tables(bet, report, repositories[bet], settings)
         return tables
+
+    def _comparison_tables(self, bet: BetType, report: TrainingReport, repository: ModelRepository,
+                           settings: HyperparameterSettings) -> list[Table]:
+        """検証データでの、基準との比べと使い方の線引きの表（設計書 16 の 3）。"""
+        valid = report.split.valid
+        thresholds = {
+            timing: UpsetThresholdSummary().summarize(EnsembleModel(repository.load(timing)), valid.for_timing(timing))
+            for timing in TIMINGS
+        }
+        return UpsetComparisonTables(
+            bet, report.evaluations, UserRuleBaseline().evaluate(valid), thresholds,
+            FavoriteOddsBaseline(settings).evaluate(report.split),
+        ).tables()
 
     def _bets(self, args: argparse.Namespace) -> list[BetType]:
         """``--bet`` で渡された券種。渡されなければ4つ全部。"""
         if not args.bet:
             return list(BetType)
         return [BetType.parse(text) for text in args.bet]
-
-    def _user_rule_table(self, bet: BetType, result: UserRuleResult) -> Table:
-        """利用者の規則を基準にしたときの、検証データでの当たり具合（設計書 16 の 3）。"""
-        return Table(
-            ["レース数", "規則に当てはまる数", "当てはまったうち中荒れ以上の割合", "中荒れ以上のうち当てはまった割合", "中荒れ以上の割合"],
-            [[result.rows, result.hits, self._rounded(result.precision), self._rounded(result.recall),
-              self._rounded(result.base_rate)]],
-            title=f"{bet.label}: 利用者の規則（1番人気 4.0倍以上かつ 2〜5番人気 10倍未満）を基準にしたとき",
-            note="規則に当てはまるレースを「中荒れ以上」と予想したとみなした値。検証データで測る。",
-        )
-
-    def _rounded(self, value: float) -> float | None:
-        if value != value:  # NaN
-            return None
-        return round(value, 3)
 
     def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
         """学習データの期間の区切り（設計書 08 の 4）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""
