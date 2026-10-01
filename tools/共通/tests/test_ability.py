@@ -15,15 +15,23 @@ from 共通.ability import (
     GOING,
     FIELD_LEVEL,
     FIGURE,
+    FIRST_DISTANCE,
+    FIRST_GOING,
+    FIRST_KINDS,
+    FIRST_SURFACE,
+    FIRST_VENUE,
     HIGH,
     MEDIAN_LOG_TIME,
     PACE,
+    PEDIGREE,
     SLOW,
     TRACK_VARIANT,
     AbilityIndex,
     AbilitySettings,
+    FirstConditions,
     PaceAdjustment,
     PaceBalance,
+    PedigreeAptitude,
     RaceTable,
     SpeedFigure,
     SpeedStandard,
@@ -131,3 +139,44 @@ def test_距離の近い走ほど重く見る() -> None:
     index = AbilityIndex(settings).build(_history())
     far = np.exp(-400 / 800)
     assert index[ABILITY].iloc[3] == pytest.approx((50 + 80 * far + 90) / (2 + far))
+
+
+def _first_history() -> pd.DataFrame:
+    """1頭の馬の、古い順の4走。芝1600m 良 を2回 → 芝1600m 重 → ダート2400m（別の競馬場）。"""
+    return pd.DataFrame({
+        "race_id": ["R1", "R2", "R3", "R4"], "horse_id": "H1",
+        "race_date": pd.to_datetime(["2025-01-05", "2025-02-05", "2025-03-05", "2025-04-05"]),
+        "distance_m": [1600, 1600, 1600, 2400], "surface": ["芝", "芝", "芝", "ダート"], "venue_code": ["05", "05", "05", "06"],
+        "condition": ["良", "良", "重", "良"], FIGURE: [80.0, 82.0, 81.0, np.nan],
+    })
+
+
+def test_初めての条件は近走に同じ条件の走が無いこと() -> None:
+    flags = FirstConditions(AbilitySettings(pedigree_kinds=FIRST_KINDS)).build(_first_history())
+    assert not flags.loc[0, list(FIRST_KINDS)].any()                       # 近走の無い走は、どれも初めてにしない
+    assert flags.loc[2, FIRST_GOING] and not flags.loc[2, FIRST_SURFACE]    # 芝の良しか走っていない馬の、芝の重
+    assert flags.loc[3, [FIRST_SURFACE, FIRST_DISTANCE, FIRST_VENUE]].all()
+    assert not flags.loc[3, FIRST_GOING]                                    # 初めての芝ダは、馬場の組には数えない
+
+
+def _offspring() -> pd.DataFrame:
+    """父 S の産駒2頭の初めてのダート（残り +6・+2）と、ほかの父の産駒の初めてのダート（残り −2）、今回の1行。"""
+    rows = [("A", "S", "2025-01-05", 86.0), ("B", "S", "2025-02-05", 82.0), ("C", "T", "2025-01-05", 78.0),
+            ("D", "S", "2025-03-05", np.nan), ("E", "S", "2025-02-05", np.nan)]
+    frame = pd.DataFrame(rows, columns=["horse_id", "sire", "race_date", FIGURE])
+    return frame.assign(race_date=pd.to_datetime(frame["race_date"]), damsire=None, surface="ダート", distance_m=1800,
+                        venue_code="05", condition="良", **{ABILITY: 80.0, BASE: 80.0, FIRST_SURFACE: True,
+                        FIRST_DISTANCE: False, FIRST_VENUE: False, FIRST_GOING: False},
+                        **{name: 0.0 for name in APTITUDE_COLUMNS.values()})
+
+
+def test_血統の補いは開催日より前の産駒の走だけから作る() -> None:
+    settings = AbilitySettings(pedigree=("sire",), pedigree_prior=2.0)
+    runs = _offspring()
+    filled = PedigreeAptitude(settings).fit(runs).fill(runs)
+    mean = (6 + 2 - 2) / 3
+    assert filled.loc[3, PEDIGREE] == pytest.approx((6 + 2 - 2 * mean) / (2 + 2.0))
+    assert filled.loc[3, ABILITY] == pytest.approx(80.0 + filled.loc[3, PEDIGREE])
+    assert filled.loc[3, APTITUDE_COLUMNS[GOING]] == pytest.approx(filled.loc[3, PEDIGREE])
+    # 2025-02-05 の行は、同じ日の B の走を使わず、1月の A の走（+6、全部の平均 (6 − 2) ÷ 2 = 2）だけから作る
+    assert filled.loc[4, PEDIGREE] == pytest.approx((6 - 2) / (1 + 2.0))

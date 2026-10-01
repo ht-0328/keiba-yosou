@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,9 +15,9 @@ from yosou.shared.betting import TicketType
 from ..scores.conservative_rate import ConservativeRate
 from .betting_plan import BettingPlan
 from .candidate_columns import RACE, RETURN, SET_VALUE, STAKE, TICKET
+from .race_selection_rule import RaceSelectionRule
+from .selection_rules import CURRENT_RULE
 
-#: 1開催日に勝負する上位のレース数の候補（None は全部）。
-PER_DAY_CANDIDATES: tuple[int | None, ...] = (3, 5, 10, None)
 #: 券種全体の期待値の線の候補。
 SET_LINE_CANDIDATES: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3, 1.5)
 
@@ -43,29 +43,42 @@ class BettingPlanChooser:
 
     1. 券種ごとに、券種全体の期待値の線の候補のうち、**当たりが ``min_hits`` 回以上**あるものの中から、
        **回収率の控えめな見積もり**（``ConservativeRate``。金額で）がいちばん高い線を選ぶ。回収率が 100% 以上なら、その券種を買う。
-    2. 1開催日のレース数の候補ごとに、選んだ線で買った全体の控えめな見積もりを比べ、いちばん高いものを選ぶ
+    2. 勝負するレースの選び方の決まり（``RaceSelectionRule``）の、1開催日のレース数の候補 × 堅さの帯の候補ごとに、
+       選んだ線で買った全体の控えめな見積もりを比べ、いちばん高いものを選ぶ
        （買う券種が1つも無ければ、全券種を買ったときで比べる）。
     """
 
-    def __init__(self, min_hits: int = 30, per_day: Sequence[int | None] = PER_DAY_CANDIDATES,
+    def __init__(self, min_hits: int = 30, rule: RaceSelectionRule = CURRENT_RULE,
                  lines: Sequence[float] = SET_LINE_CANDIDATES) -> None:
         self._min_hits = min_hits
-        self._per_day = tuple(per_day)
+        self._rule = rule
         self._lines = tuple(lines)
         self._conservative = ConservativeRate()
 
     def choose(self, tickets: pd.DataFrame, races: pd.DataFrame) -> tuple[BettingPlan, list[TicketChoice]]:
         """（選んだ買い方, 券種ごとの選び方）。"""
+        lines, adopted, choices = self.choose_lines(tickets, races)
+        return self.choose_selection(self._rule, lines, adopted, tickets, races), choices
+
+    def choose_lines(self, tickets: pd.DataFrame,
+                     races: pd.DataFrame) -> tuple[dict[str, float], frozenset[str], list[TicketChoice]]:
+        """（券種 → 線, 買う券種, 券種ごとの選び方）。勝負するレースの選び方には依らない。"""
         dated = tickets.merge(races[[RACE, RACE_DATE]], on=RACE, how="left")
         choices = [self._ticket(ticket.label, dated[dated[TICKET] == ticket.label]) for ticket in TicketType]
         found = [choice for choice in choices if not np.isnan(choice.line)]
         lines = {choice.ticket: choice.line for choice in found}
         adopted = frozenset(choice.ticket for choice in found if choice.adopted)
-        plans = [BettingPlan(per_day, lines, adopted) for per_day in self._per_day]
-        best = max(plans, key=lambda plan: self._score(plan, tickets, races))
-        return best, choices
+        return lines, adopted, choices
 
-    def _score(self, plan: BettingPlan, tickets: pd.DataFrame, races: pd.DataFrame) -> float:
+    def choose_selection(self, rule: RaceSelectionRule, lines: Mapping[str, float], adopted: frozenset[str],
+                         tickets: pd.DataFrame, races: pd.DataFrame) -> BettingPlan:
+        """決まり ``rule`` の候補の中から、検証期間の控えめな見積もりがいちばん高い勝負するレースの選び方。"""
+        plans = [BettingPlan(per_day, dict(lines), adopted, band, rule.excluded_first, rule.graded_in_cap)
+                 for per_day in rule.per_day for band in rule.bands]
+        return max(plans, key=lambda plan: self.score(plan, tickets, races))
+
+    def score(self, plan: BettingPlan, tickets: pd.DataFrame, races: pd.DataFrame) -> float:
+        """その買い方で検証期間に買ったときの、回収率の控えめな見積もり（買うものが無ければ −∞）。"""
         chosen = plan if plan.adopted else plan.with_all_tickets()
         bought = chosen.apply(tickets, races).merge(races[[RACE, RACE_DATE]], on=RACE, how="left")
         if bought.empty:

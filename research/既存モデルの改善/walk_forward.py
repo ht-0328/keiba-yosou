@@ -5,6 +5,7 @@
     uv run python research/既存モデルの改善/walk_forward.py --model form_aptitude_top3 --windows 2025年後半  # 1つの区切りだけ試す
     uv run python research/既存モデルの改善/walk_forward.py --model upset_level                        # 荒れ具合（現行の作り方・券種ごと）
     uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3 --variants improved --timing 木曜  # 時点を替える
+    uv run python research/既存モデルの改善/walk_forward.py --model stakes_tendency_top3              # 重賞（1年ずつの7つの区切り）
 
 出るもの: reports/既存モデルの改善/predictions/<予想の名前>/<作り方>.pkl（予測の表）と <作り方>-log.csv（木の数・秒）。
 学習データは build_tables.py で保存した表を読む（元DB は開かない）。ハイパーパラメータは予想の初期値のまま。
@@ -35,7 +36,7 @@ from 既存モデルの改善.analysis.walk_forward import (  # noqa: E402
     WalkForwardRunner,
     WindowTrainer,
 )
-from 既存モデルの改善.analysis.windows import WINDOWS, window_named  # noqa: E402
+from 既存モデルの改善.analysis.windows import window_named, windows_of  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_TABLES = _REPO_ROOT / "reports" / "既存モデルの改善" / "tables"
@@ -51,7 +52,8 @@ def main(args) -> None:
     spec = spec_named(args.model)
     data = TableStore(args.tables).read(spec.name, spec.catalog)
     settings = HyperparameterSettings.load(None, defaults=_default_settings_path(spec.name))
-    windows = [window_named(name) for name in args.windows] if args.windows else list(WINDOWS)
+    known = windows_of(spec.name)
+    windows = [window_named(name, known) for name in args.windows] if args.windows else list(known)
     if spec.name == _UPSET:
         _run_upset(data, settings, windows, args)
         return
@@ -100,9 +102,9 @@ def _default_settings_path(model: str) -> Path:
 
 def _parser():
     parser = cli.build_parser(__doc__, limit=None)
-    parser.add_argument("--model", required=True, help="予想の名前（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level）")
+    parser.add_argument("--model", required=True, help="予想の名前（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level / stakes_tendency_top3）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="回す作り方（省略すると全部）")
-    parser.add_argument("--windows", nargs="*", default=None, metavar="区切り", help="回す区切り（例 2025年後半。省略すると7つ全部）")
+    parser.add_argument("--windows", nargs="*", default=None, metavar="区切り", help="回す区切り（例 2025年後半。重賞は 2025年。省略すると7つ全部）")
     parser.add_argument("--timing", type=PredictionTiming.parse, default=None, metavar="時点",
                         help="予測する時点（木曜・前日・当日）。省略すると作り方の時点（当日）。付けると、その時点で使えない列を外し、"
                              "予測を <作り方>-<時点>.pkl（例 improved-thursday.pkl）に保存する")
