@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 import duckdb
 import pandas as pd
@@ -49,12 +50,21 @@ class PredictCommand:
     def run(self, args: argparse.Namespace) -> list[Table]:
         with db.open_db(args.db) as con:
             race_id = self._race_id(args, con)
-            workflow = PredictionWorkflow(
-                dataset_builder(con), SegmentedPrediction(ModelSegments(), args.models),
-                OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
-            )
-            prediction = workflow.run(race_id, args.timing, self._given_odds(args))
-        return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
+            return [self.predict_table(con, race_id, args.timing, args.models, self._given_odds(args))]
+
+    def predict_table(self, con: duckdb.DuckDBPyConnection, race_id: str, timing: PredictionTiming,
+                      models: Path, given: OddsInput | None = None) -> Table:
+        """開いてある元DB で1レース（重賞）を予測し、確率の高い順の表にする。
+
+        ほかの道具（``tools/当日の予想``）も、同じ予測をこのメソッドで出す。重賞でなければ ``ValueError``、
+        学習済みのモデルが無ければ ``FileNotFoundError``。
+        """
+        workflow = PredictionWorkflow(
+            dataset_builder(con), SegmentedPrediction(ModelSegments(), models),
+            OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(models)),
+        )
+        prediction = workflow.run(race_id, timing, given)
+        return PredictionTable(prediction, timing, PROBABILITY, self._extra_columns(prediction)).table()
 
     def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
         """``--odds`` で渡されたオッズ。渡されなければ None。"""
@@ -67,9 +77,9 @@ class PredictCommand:
         （見込みの倍率を保存してあれば）を出し、木曜（オッズを使わない）は出さない。"""
         return [column for column in (WIN_ODDS, TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE) if column in prediction.columns]
 
-    def _place_price(self, args: argparse.Namespace) -> PlacePriceEstimator | None:
+    def _place_price(self, models: Path) -> PlacePriceEstimator | None:
         """学習のときに保存した複勝の見込みの倍率。無ければ None で、期待値は出さない。"""
-        state = PlacePriceRepository(args.models).load()
+        state = PlacePriceRepository(models).load()
         return PlacePriceEstimator.from_state(state) if state is not None else None
 
     def _race_id(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> str:
