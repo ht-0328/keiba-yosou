@@ -8,6 +8,8 @@
 | ``HistoryRecordsLoader`` | 学習用に、ある日以降の全部の出走の記録を集める |
 | ``RaceRecordsLoader`` | 予測用に、1レースの出走馬の記録を集める（速報を反映し、渡された人気・オッズを当てる） |
 | ``EntryRecordsLoader`` | リポジトリを順に呼んで、対象の出走の記録を集める |
+| ``AbilitySourcesLoader`` | 馬の力の材料（まとまり M）の元の記録を集める。近走と適性の予想の木曜・前日のモデルが使う |
+| ``PoolProbabilityLoader`` | 券種ごとのオッズから見た馬ごとの確率を、6つの券種ぶん1つの表にする。近走と適性の予想の当日版（まとまり N）と custom_binary が使う |
 | ``AnnouncedWeightApplier`` | 速報の馬体重を、出走の行に反映する |
 | ``AnnouncedOddsApplier`` | 予測に使う単勝オッズ（手で渡したものか、締め切り前のもの）を、出走の行に反映する |
 | ``ScratchApplier`` | 速報の出走取消・競走除外を、出走の行に反映する |
@@ -50,6 +52,7 @@ from .column_names import (
     VENUE,
     WINNER_POPULARITY,
 )
+from .ability_sources_loader import HISTORY_FIRST_DAY, AbilitySourcesLoader
 from .baseline_logit import BaselineLogit
 from .dataset_builder import DatasetBuilder
 from .field_odds_check import FieldOddsCheck
@@ -59,6 +62,7 @@ from .history_records_loader import HistoryRecordsLoader
 from .odds_input import OddsInput
 from .odds_resolver import OddsResolver
 from .period_splitter import PeriodSplitter
+from .pool_probability_loader import POOL_KEY, PoolProbabilityLoader
 from .popularity_applier import PopularityApplier
 from .popularity_input import PopularityInput
 from .prediction_data import PredictionData
@@ -85,7 +89,8 @@ from .training_period import (
 __all__ = [
     "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData",
     "TrainingPeriod", "PeriodSplitter", "SplitData",
-    "HistoryRecordsLoader", "RaceRecordsLoader", "SampleSelector", "TargetLabeler", "RaceTargetLabeler",
+    "HistoryRecordsLoader", "RaceRecordsLoader", "AbilitySourcesLoader", "HISTORY_FIRST_DAY",
+    "PoolProbabilityLoader", "POOL_KEY", "SampleSelector", "TargetLabeler", "RaceTargetLabeler",
     "Top3TargetBuilder", "TOP3", "WIN", "PLACE_HIT", "RaceResultSummary", "RaceResultSource",
     "TargetBaseline", "BaselineLogit", "Top3Baseline",
     "PopularityInput", "PopularityApplier", "OddsInput", "OddsResolver",

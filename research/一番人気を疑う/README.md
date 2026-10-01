@@ -34,16 +34,18 @@
 | `run_experiments.py` | 入口②。作り方ごとに7つの区切りで学習し、予測を保存する |
 | `summarize.py` | 入口③。保存した予測から、◎と1番人気を比べた表を書く |
 | `pre_deadline_check.py` | 入口④。券種のオッズの材料が、締め切り前のオッズでも効くかを確かめる |
+| `port_check.py` | 入口⑤。良かった2つの直し方を予想「近走と適性から3着以内を予想」に移したあと、7つの区切りで今の予想と比べる |
 | `analysis/experiments.py` | 試した作り方の一覧 |
 | `analysis/source/` | 既存の研究が保存した学習データの表を読む部品 |
 | `analysis/feature/` | 材料を足す部品（レース内の比較・セリの価格・締め切り前のオッズ） |
 | `analysis/repository/` | 元DB から読む部品 |
 | `analysis/model/` | 7つの区切りで学習して予測する部品 |
 | `analysis/evaluation/` | ◎と1番人気を比べる部品 |
+| `analysis/port/` | 予想に移したあとの確かめの部品（表・比べる作り方・採否の決め方） |
 | `docs/` | 進め方と結果 |
 | `prompts/` | 結果の表の見方 |
 | `tests/` | 架空の値で部品を確かめるテスト |
-| `reports/一番人気を疑う/`（Git 対象外） | 予測と、結果の表 |
+| `reports/一番人気を疑う/`（Git 対象外） | 予測と、結果の表。移したあとの確かめは `移したあとの確かめ/` |
 
 ## 読む順
 
@@ -60,5 +62,8 @@ uv run python research/一番人気を疑う/extract_sales.py        # セリの
 uv run python research/一番人気を疑う/run_experiments.py      # 作り方ごとに学習して予測を保存する（全部で数時間。済んだものは飛ばす）
 uv run python research/一番人気を疑う/summarize.py           # 結果の表を書く
 uv run python research/一番人気を疑う/pre_deadline_check.py  # 締め切り前のオッズで確かめる（十数分）
+uv run python research/一番人気を疑う/port_check.py tables   # 予想に移したあとの学習データの表を作る（数十分）
+uv run python research/一番人気を疑う/port_check.py run      # 時点ごとに今の予想と移した作り方を7つの区切りで学習する（数時間）
+uv run python research/一番人気を疑う/port_check.py summary  # 時点ごとの採否と、◎と1番人気の表を書く
 uv run python -m pytest -q research/一番人気を疑う          # 部品のテスト（架空の値だけ）
 ```
