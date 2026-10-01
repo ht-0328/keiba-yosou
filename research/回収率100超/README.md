@@ -82,7 +82,6 @@ uv run python research/回収率100超/check_pre_deadline.py # 締め切り前�
 uv run python -m pytest -q research                      # 部品のテスト（架空の値だけ）
 ```
 
-中間データ（parquet）と表の書き出しに、pyarrow と tabulate が要る。pyproject には入っていないので、
-入っていない環境では `uv run --with pyarrow --with tabulate python ...` のように足して動かす。
+中間データ（parquet）と表の書き出しに使う pyarrow と tabulate は、pyproject に入っている（`uv sync` で入る）。
 
 `extract.py` は元DB を読む間だけ開く。`backtest.py` は元DB に触らない。

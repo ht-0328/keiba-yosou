@@ -1,7 +1,7 @@
 """作り方ごとに7つの区切りで学習し、予測を保存する（研究「一番人気を疑う」の入口②）。
 
-    uv run --with pyarrow python research/一番人気を疑う/run_experiments.py                       # 全部（済んだものは飛ばす）
-    uv run --with pyarrow python research/一番人気を疑う/run_experiments.py --names 21_木曜_研究の材料  # 1つだけ
+    uv run python research/一番人気を疑う/run_experiments.py                       # 全部（済んだものは飛ばす）
+    uv run python research/一番人気を疑う/run_experiments.py --names 21_木曜_研究の材料  # 1つだけ
 
 先に、研究「既存モデルの改善」の ``build_tables.py``（今の予想の材料の表）と、研究「馬の力と展開でオッズに勝つ」の
 ``extract.py``・``extract_extra.py``・``experiment.py --rebuild``（197個の材料の表）と、この研究の ``extract_sales.py`` を回しておく。
