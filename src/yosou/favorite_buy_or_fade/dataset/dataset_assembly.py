@@ -22,6 +22,7 @@ from yosou.shared.feature.group import (
 from ..feature import CATALOG
 from .favorite_only_selector import FavoriteOnlySelector
 from .finish_group_labeler import FinishGroupLabeler
+from .pre_deadline_favorites import PreDeadlineFavorites
 
 #: ``FeatureBuilder`` に渡すまとまり。手本の A〜I に、人気の履歴（J）と単勝オッズから見た評価（K）を足す。
 #: 前走の人気は、手本のまとまり D にある。
@@ -32,13 +33,14 @@ _FEATURE_GROUPS = (
 )
 
 
-def dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
+def dataset_builder(con: duckdb.DuckDBPyConnection, pre_deadline: PreDeadlineFavorites | None = None) -> DatasetBuilder:
     """元DB への接続から、この予想の学習データ・予測用データを作るクラスを組み立てる。
 
     この予想の決めごとは3つ: 1番人気の行だけを入れる（``FavoriteOnlySelector``）、勝利・馬券内・馬券外の
     3つの列を付ける（``FinishGroupLabeler``）、特徴量は手本の A〜I に J・K を足す（``CATALOG``）。
+    ``pre_deadline`` を渡すと、締め切り前のオッズで1番人気だった馬の行も入れる（評価で比べるため）。
     """
     return DatasetBuilder(
         HistoryRecordsLoader(con), RaceRecordsLoader(con),
-        FavoriteOnlySelector(), FinishGroupLabeler(), FeatureBuilder(CATALOG, _FEATURE_GROUPS),
+        FavoriteOnlySelector(pre_deadline), FinishGroupLabeler(), FeatureBuilder(CATALOG, _FEATURE_GROUPS),
     )

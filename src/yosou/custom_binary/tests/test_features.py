@@ -8,9 +8,9 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.feature_kind import FeatureKind
 
 from ..feature.builder import SelectedFeatureBuilder
-from ..feature.builtin import GROUPS
+from ..feature.default_registry import DefaultRegistry
+from ..feature.group_column import GROUPS
 from ..feature.registry import FeatureRegistry
-from ..feature.registrations import default_registry
 
 
 @dataclass
@@ -76,7 +76,7 @@ def test_legacy_group_is_cached_only_within_one_build(monkeypatch):
         return pd.DataFrame({"馬齢": [3, 4], "斤量": [55, 56]}, index=records.entries.index)
 
     monkeypatch.setattr(GROUPS["B"], "build", build)
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     builder = SelectedFeatureBuilder(registry, ("斤量", "馬齢"), PredictionTiming.THURSDAY)
     records = SimpleNamespace(entries=pd.DataFrame(index=[4, 7]))
     assert list(builder.build(records).columns) == ["斤量", "馬齢"]

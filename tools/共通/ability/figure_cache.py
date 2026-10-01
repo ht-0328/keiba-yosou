@@ -11,16 +11,18 @@ import pandas as pd
 
 from .. import keys
 from .ability_builder import AbilityBuilder
+from .ability_index import ABILITY
 from .ability_settings import AbilitySettings
+from .pedigree_aptitude import PEDIGREE
 from .run_source import RunSource
 from .speed_figure import FIGURE
 
 #: とっておく場所（Git 対象外）。
 DEFAULT_FOLDER = Path(__file__).resolve().parents[3] / "reports" / "能力指数" / "cache"
-#: とっておく列（能力指数を作るのと、表に出すのに要る列）。
+#: とっておく列（能力指数を作るのと、表に出すのに要る列）。血統で補うときは、補う前の能力指数を求めるのに要る列も足す。
 KEPT: tuple[str, ...] = (
     "race_id", "race_date", "horse_id", "horse_no", "venue", "venue_code", "surface", "distance_m", "condition",
-    "class_name", "finish", FIGURE,
+    "class_name", "finish", "sire", "damsire", FIGURE,
 )
 #: 読む最初の日（DB にある最初の年）。
 _FIRST_DAY = date(2011, 1, 1)
@@ -32,7 +34,8 @@ class FigureCache:
     DB のファイル・中央の確定成績の最後の開催日・作り方の設定が、とっておいたときと同じなら、ファイルを読むだけ（数秒）。
     違えば（新しい週の成績が入った・設定を変えた）、全部作り直してとっておく（1〜2分）。
     1度読んだものは覚えておき、同じ ``FigureCache`` で次に呼ばれたときは読み直さない（検索画面で続けて開くとき）。
-    基準タイムとペース補正は、DB にある全部の確定成績で求める。
+    基準タイムとペース補正は、DB にある全部の確定成績で求める。血統で補う設定なら、能力指数・血統で補った分・
+    初めての条件の列もとっておく（``RaceAbility`` が、産駒の走から血統の値を作るのに使う）。
     """
 
     def __init__(self, settings: AbilitySettings, folder: Path = DEFAULT_FOLDER) -> None:
@@ -49,10 +52,15 @@ class FigureCache:
             frame = self._read()
         else:
             runs = RunSource(con).read(_FIRST_DAY)
-            frame = AbilityBuilder(self._settings, pd.Timestamp(latest)).build(runs).runs[list(KEPT)]
+            frame = AbilityBuilder(self._settings, pd.Timestamp(latest)).build(runs).runs[self._columns()]
             self._write(frame, stamp)
         self._memo = (stamp, frame)
         return frame
+
+    def _columns(self) -> list[str]:
+        if not self._settings.pedigree:
+            return list(KEPT)
+        return [*KEPT, ABILITY, PEDIGREE, *self._settings.pedigree_kinds]
 
     def _db_file(self, con: duckdb.DuckDBPyConnection) -> str:
         rows = con.execute("SELECT file FROM pragma_database_list WHERE name = current_database()").fetchall()

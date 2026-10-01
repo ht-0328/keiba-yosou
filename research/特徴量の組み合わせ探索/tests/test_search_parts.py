@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from yosou.custom_binary.feature.registrations import default_registry
+from yosou.custom_binary.feature.default_registry import DefaultRegistry
 from yosou.shared.feature.feature_kind import FeatureKind
 
 from 特徴量の組み合わせ探索.analysis.condition_bins import ConditionBins
@@ -74,7 +74,7 @@ def test_periods_are_ordered():
 
 @pytest.mark.parametrize("group", ["form", "pool"])
 def test_every_model_config_is_a_valid_custom_binary_setting(group):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     configs = model_configs(group)
     assert len({config.name for config in configs}) == len(configs)
     for config in configs:

@@ -20,10 +20,11 @@ LightGBM と CatBoost は、1つのグループだけのデータでは学習で
 | ``dataset/`` | 1番人気の行の選び方・グループの列と、共通の ``DatasetBuilder`` の組み立て |
 | ``feature/`` | この予想の特徴量の一覧（``CATALOG``） |
 | ``setting/`` | 方針の初期値と、それを読むクラス |
-| ``repository/`` | 学習したモデルの一式の読み書き |
+| ``repository/`` | 学習したモデルの一式の読み書きと、評価で使う締め切り前の1番人気の読み込み |
 | ``tests/`` | この予想のテスト |
 
-決まり: 1ファイルに1クラス。1クラスに1つの仕事。SQL は ``yosou.shared.repository`` だけ。
+決まり: 1ファイルに1クラス。1クラスに1つの仕事。SQL は ``yosou.shared.repository`` と、この予想だけが使う
+``repository/``（1つの SQL につき1つのリポジトリ）だけ。
 参照の向きは上から下へ一方向（``command`` → ``workflow`` → ``evaluation``・``decision`` → ``similarity`` → ``unit``・``dataset`` → ``feature``）。
 ``yosou.shared`` は参照してよいが、``yosou.shared`` からここを参照しない。ほかの予想のパッケージも参照しない。
 """

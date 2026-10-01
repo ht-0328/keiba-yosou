@@ -13,18 +13,27 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.feature_kind import FeatureKind
 from yosou.shared.tests import synthetic_season as season
 
-from ..command import CommandLine
-from ..dataset import CustomDataset, popularity_mask, targets
-from ..evaluation import evaluate, scores
-from ..feature.registrations import default_registry
+from ..command import CommandLine, PredictionTable
+from ..dataset import BinaryTargetLabeler, CustomDataset, PopularityFilter
+from ..evaluation import ProbabilityScores
+from ..feature.default_registry import DefaultRegistry
 from ..feature.registry import FeatureRegistry
-from ..model_store import ModelStore
-from ..settings import ModelSettings, PopularityRange
-from .. import workflow
+from ..setting import ModelSettings, PopularityRange
+from ..store import ModelStore
+from ..workflow import LoadedModel, PredictionWorkflow, TestEvaluationWorkflow, TrainingWorkflow
+from ..workflow import training_workflow
 
 
 FEATURES = ("競馬場", "芝ダ", "距離", "馬齢", "斤量", "前走の着順", "前走からの日数", "近5走の平均着順", "推定脚質", "騎手")
 POPS = [f"{horse}:{rank}" for rank, horse in enumerate([3, 5, 1, 2, 4, 6, 7], 1)]
+
+
+def predict(race_id, models, database, registry, pops=None, odds=None):
+    """コマンドの predict と同じ手順で1レースを予想し、結果の表を返す。"""
+    model = LoadedModel.load(models, registry)
+    with db.open_db(database) as con:
+        result = PredictionWorkflow(con, registry).run(race_id, model, pops, odds)
+    return PredictionTable(model.settings).table(result)
 
 
 @pytest.fixture
@@ -43,13 +52,13 @@ def settings(tmp_path, season_period):
     }
     (tmp_path / "model.yml").write_text(yaml.safe_dump(config, allow_unicode=True), encoding="utf-8")
     (tmp_path / "features.txt").write_text("\n".join(FEATURES), encoding="utf-8")
-    return ModelSettings.load(tmp_path / "model.yml", default_registry())
+    return ModelSettings.load(tmp_path / "model.yml", DefaultRegistry().build())
 
 
 @pytest.mark.parametrize("target,timing", [("馬券内", PredictionTiming.RACE_DAY), ("馬券外", PredictionTiming.DAY_BEFORE), ("勝利", PredictionTiming.THURSDAY)])
 def test_real_models_roundtrip_ten_columns_and_evaluation(season_db, settings, tmp_path, target, timing):
     settings = replace(settings, target=target, timing=timing)
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()
     assert tuple(data.features.columns) == FEATURES
@@ -57,13 +66,13 @@ def test_real_models_roundtrip_ten_columns_and_evaluation(season_db, settings, t
     assert data.evaluation[POPULARITY].between(2, 6).all()
     assert data.ids[RACE_DATE].max() < pd.Timestamp("2025-01-01")  # 未確定の出馬表は学習しない
     store = ModelStore(tmp_path / "models")
-    workflow.fit_and_save(data, settings, registry, store)
+    TrainingWorkflow(registry).fit_and_save(data, settings, store)
     (tmp_path / "features.txt").unlink()
     (tmp_path / "model.yml").unlink()
     loaded, ensemble = store.load(registry)
     assert loaded.as_dict() == settings.as_dict()
     test = data.between(settings.period.test_first_day, None)
-    assert len(evaluate(ensemble, test)) > 3
+    assert len(ProbabilityScores().evaluate(ensemble, test)) > 3
     assert np.isfinite(ensemble.predict_proba(test)).all()
     if timing is PredictionTiming.THURSDAY:
         race_id = season.ENTRY_LIST_RACE_ID
@@ -72,19 +81,19 @@ def test_real_models_roundtrip_ten_columns_and_evaluation(season_db, settings, t
         pops = [f"{name}:{rank}" for rank, name in enumerate(names, 1)]
     else:
         race_id, pops = season.CARD_RACE_ID, POPS
-    result = workflow.predict(race_id, store.root, season_db, registry, pops)
+    result = predict(race_id, store.root, season_db, registry, pops)
     assert len(result) == 5
     column = result.columns.index(f"{target}の確率")
     probabilities = [row[column] for row in result.rows]
     assert probabilities == sorted(probabilities, reverse=True)
     assert all(0 <= probability <= 1 for probability in probabilities)
-    workflow.test_evaluation(store.root, season_db, registry)
+    TestEvaluationWorkflow(registry, season_db).run(store.root)
     assert (store.root / "test_evaluation.json").exists()
     manifest = json.loads((store.root / "model.json").read_text(encoding="utf-8"))
     assert len(manifest["settings"]["features"]) == 10
     assert manifest["code_version"]["python_source_sha256"]
     with pytest.raises(ValueError, match="既に存在"):
-        workflow.fit_and_save(data, settings, registry, store)
+        TrainingWorkflow(registry).fit_and_save(data, settings, store)
 
 
 def test_custom_feature_registration_is_sufficient_for_train_and_predict(season_db, settings, tmp_path):
@@ -98,23 +107,23 @@ def test_custom_feature_registration_is_sufficient_for_train_and_predict(season_
         def compute(self, records, dependencies):
             return dependencies["前走の着順"] ** 2
 
-    registry = FeatureRegistry([*default_registry().definitions.values(), PreviousFinishSquare()])
+    registry = FeatureRegistry([*DefaultRegistry().build().definitions.values(), PreviousFinishSquare()])
     settings = replace(settings, selected=("馬齢", "前走着順の二乗"))
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()
     assert list(data.features.columns) == ["馬齢", "前走着順の二乗"]
     store = ModelStore(tmp_path / "extension")
-    workflow.fit_and_save(data, settings, registry, store)
-    assert len(workflow.predict(season.CARD_RACE_ID, store.root, season_db, registry, POPS)) == 5
+    TrainingWorkflow(registry).fit_and_save(data, settings, store)
+    assert len(predict(season.CARD_RACE_ID, store.root, season_db, registry, POPS)) == 5
     changed = PreviousFinishSquare()
     changed.kind = FeatureKind.CATEGORICAL
-    changed_registry = FeatureRegistry([*default_registry().definitions.values(), changed])
+    changed_registry = FeatureRegistry([*DefaultRegistry().build().definitions.values(), changed])
     with pytest.raises(ValueError, match="現在の実装と違います"):
         store.load(changed_registry)
 
 
 def test_comparison_features_use_entire_field_and_training_dates(season_db, settings):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     selected = ("斤量とレースの平均との差",)
     all_settings = replace(settings, selected=selected, popularity=PopularityRange())
     with db.open_db(season_db) as con:
@@ -132,13 +141,13 @@ def test_all_builtin_features_match_existing_builder(season_db, settings):
     from yosou.longshots_in_top3.dataset.dataset_assembly import _FEATURE_GROUPS
     from yosou.shared.feature.group import PeopleMarketFeatures
     from ..feature.builder import SelectedFeatureBuilder
-    from ..feature.builtin import builtin_features
+    from ..feature.builtin_features import BuiltinFeatures
 
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     # 市場に対する成績（L）は、この予想の選べる特徴量に無い（読む記録も違う）ので、旧方式のまとまりから外す。
     groups = tuple(group for group in _FEATURE_GROUPS if not isinstance(group, PeopleMarketFeatures))
     # 旧方式にある特徴量（既存のまとまり）だけを比べる。追加した特徴量（券種オッズなど）は旧方式に無い。
-    selected = tuple(feature.name for feature in builtin_features())
+    selected = tuple(feature.name for feature in BuiltinFeatures().all())
     with db.open_db(season_db) as con:
         records = HistoryRecordsLoader(con).load(settings.period.warmup_first_day)
     # 1レースの全頭で旧方式と一致することを確認する。
@@ -152,34 +161,34 @@ def test_all_builtin_features_match_existing_builder(season_db, settings):
 @pytest.mark.parametrize("bounds,expected", [(PopularityRange(), [0, 1, 2, 3]), (PopularityRange(2, 3), [1, 2]), (PopularityRange(3), [2, 3]), (PopularityRange(maximum=2), [0, 1]), (PopularityRange(8), [])])
 def test_popularity_boundaries(bounds, expected):
     rows = pd.DataFrame({"popularity": [1, 2, 3, 4]})
-    assert rows[popularity_mask(rows, bounds)].index.tolist() == expected
+    assert rows[PopularityFilter().mask(rows, bounds)].index.tolist() == expected
 
 
 def test_missing_popularity_rejected_only_when_needed():
     rows = pd.DataFrame({"popularity": [1, None]})
-    assert popularity_mask(rows, PopularityRange()).all()
+    assert PopularityFilter().mask(rows, PopularityRange()).all()
     with pytest.raises(ValueError, match="人気が不明"):
-        popularity_mask(rows, PopularityRange(1, 3))
+        PopularityFilter().mask(rows, PopularityRange(1, 3))
 
 
 def test_labels_for_ties_dnf_and_disqualification():
     rows = pd.DataFrame({"finish": [1, 1, 2, 3, 3, 4, None, None]})
-    assert targets(rows, "馬券内")["馬券内"].tolist() == [1, 1, 1, 1, 1, 0, 0, 0]
-    assert targets(rows, "馬券外")["馬券外"].tolist() == [0, 0, 0, 0, 0, 1, 1, 1]
-    assert targets(rows, "勝利")["勝利"].tolist() == [1, 1, 0, 0, 0, 0, 0, 0]
+    assert BinaryTargetLabeler().labels(rows, "馬券内")["馬券内"].tolist() == [1, 1, 1, 1, 1, 0, 0, 0]
+    assert BinaryTargetLabeler().labels(rows, "馬券外")["馬券外"].tolist() == [0, 0, 0, 0, 0, 1, 1, 1]
+    assert BinaryTargetLabeler().labels(rows, "勝利")["勝利"].tolist() == [1, 1, 0, 0, 0, 0, 0, 0]
 
 
 def test_empty_and_one_class_scores():
-    assert scores(pd.Series([], dtype=int), np.array([]))["件数"] == 0
-    result = scores(pd.Series([0, 0]), np.array([0.2, 0.3]))
+    assert ProbabilityScores().scores(pd.Series([], dtype=int), np.array([]))["件数"] == 0
+    result = ProbabilityScores().scores(pd.Series([0, 0]), np.array([0.2, 0.3]))
     assert result["AUC"] is None and "1クラス" in result["注記"]
 
 
 def test_missing_announcements_and_no_candidates(season_db, settings):
     with db.open_db(season_db) as con:
-        dataset = CustomDataset(con, replace(settings, popularity=PopularityRange(20)), default_registry())
+        dataset = CustomDataset(con, replace(settings, popularity=PopularityRange(20)), DefaultRegistry().build())
         assert len(dataset.prediction(season.CARD_RACE_ID, {int(pair.split(":")[0]): int(pair.split(":")[1]) for pair in POPS})) == 0
-        weighted = CustomDataset(con, replace(settings, selected=("馬体重",), popularity=PopularityRange()), default_registry())
+        weighted = CustomDataset(con, replace(settings, selected=("馬体重",), popularity=PopularityRange()), DefaultRegistry().build())
         with pytest.raises(ValueError, match="未取得"):
             weighted.prediction(season.ENTRY_LIST_RACE_ID)
         with pytest.raises(ValueError, match="障害"):
@@ -187,20 +196,20 @@ def test_missing_announcements_and_no_candidates(season_db, settings):
 
 
 def test_empty_and_one_class_training_fail_before_save(season_db, settings, tmp_path):
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     with db.open_db(season_db) as con:
         data = CustomDataset(con, settings, registry).training()
     store = ModelStore(tmp_path / "not_saved")
     empty = data.where(pd.Series(False, index=data.ids.index))
     with pytest.raises(ValueError, match="空"):
-        workflow.fit_and_save(empty, settings, registry, store)
+        TrainingWorkflow(registry).fit_and_save(empty, settings, store)
     with pytest.raises(ValueError, match="1クラス"):
-        workflow.fit_and_save(data.where(data.label.eq(0)), settings, registry, store)
+        TrainingWorkflow(registry).fit_and_save(data.where(data.label.eq(0)), settings, store)
     assert not store.root.exists()
 
 
 def test_cli_train_predict_evaluate_json(season_db, settings, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(workflow, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(training_workflow, "MODELS_ROOT", tmp_path / "reports" / "特徴量と条件を選んで予想")
     models = tmp_path / "reports" / "特徴量と条件を選んで予想" / settings.name
     for args in [
         ["train", "--config", str(tmp_path / "model.yml")],

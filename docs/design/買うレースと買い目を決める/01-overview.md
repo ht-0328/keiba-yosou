@@ -5,7 +5,7 @@
 
 この文書は、利用者の要件定義（6つのモジュールと購入ポリシー）に対する **Phase 1: 判定のロジックと計算式の提案** である。コードはまだ書かない。
 
-- 状態: 提案（2026-09-27）。決めてほしいことは [09-decisions.md](09-decisions.md) に集めた。
+- 状態: 提案（2026-09-27）。決めてもらったことは [09-decisions.md](09-decisions.md) に集めた（2026-09-30 に10個すべて決定）。
 - 用語の意味: [02-glossary.md](02-glossary.md) を参照。
 - 例の値: すべて架空。JV-Data の実際の値（馬名・オッズ・回収率の実測値）は載せていない。実測は Git の対象外の `reports/` を参照する。
 
@@ -125,11 +125,11 @@ Phase 2 以降で新しい予想モデル（例: トラックバイアスの補�
 | [06-realtime-adjustment.md](06-realtime-adjustment.md) | モジュール4: トラックバイアス・馬体重・パドック | 提案 |
 | [07-expected-value.md](07-expected-value.md) | モジュール5: 確率の作り方、期待値の式、危険な人気馬と穴馬、印 | 提案 |
 | [08-bankroll-and-review.md](08-bankroll-and-review.md) | モジュール6: 予算の式、回顧データの形 | 提案 |
-| [09-decisions.md](09-decisions.md) | 決めてほしいこと | 確認待ち |
+| [09-decisions.md](09-decisions.md) | 決めたこと | 決定 |
 
 ## 次の進め方
 
-1. [09-decisions.md](09-decisions.md) の決めてほしいことを決める（Phase 1 の承認）。
+1. [09-decisions.md](09-decisions.md) の決めてほしいことを決める（Phase 1 の承認）。2026-09-30 に10個すべて決まった。
 2. Phase 2: データの項目・取り方・DB・技術を決める。データの元は jvdata-store の DuckDB（`../jvdata-store/jvdata.duckdb`）で、締め切り前の全券種のオッズ（`0B30`）もすでに取る対象に入っている。
 3. Phase 3: モジュールごとに作る。
 

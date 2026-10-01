@@ -16,7 +16,7 @@ sys.path[:0] = [str(ROOT / "research"), str(ROOT / "tools"), str(ROOT / "src")]
 
 from 共通 import db  # noqa: E402
 
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
 
 from 特徴量の組み合わせ探索.analysis.feature_table import FeatureTable  # noqa: E402
 from 特徴量の組み合わせ探索.analysis.search_periods import SearchPeriods  # noqa: E402
@@ -31,7 +31,7 @@ def main() -> None:
     args = parser.parse_args()
     started = time.time()
     with db.open_db(args.db) as con:
-        table = FeatureTable.build(con, default_registry(), SearchPeriods())
+        table = FeatureTable.build(con, DefaultRegistry().build(), SearchPeriods())
     table.save(args.cache)
     print(f"{len(table.rows)}行 × {table.frame.shape[1]}特徴量を {args.cache} に保存（{time.time() - started:.0f}秒）")
 

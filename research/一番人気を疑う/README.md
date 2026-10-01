@@ -56,9 +56,9 @@
 （`extract.py`・`extract_extra.py`・`experiment.py --rebuild`）が先に要る。
 
 ```bash
-uv run --with pyarrow python research/一番人気を疑う/extract_sales.py        # セリの取引価格を中間データにする（数秒）
-uv run --with pyarrow python research/一番人気を疑う/run_experiments.py      # 作り方ごとに学習して予測を保存する（全部で数時間。済んだものは飛ばす）
-uv run --with pyarrow --with tabulate python research/一番人気を疑う/summarize.py           # 結果の表を書く
-uv run --with pyarrow --with tabulate python research/一番人気を疑う/pre_deadline_check.py  # 締め切り前のオッズで確かめる（十数分）
-uv run --with pyarrow python -m pytest -q research/一番人気を疑う          # 部品のテスト（架空の値だけ）
+uv run python research/一番人気を疑う/extract_sales.py        # セリの取引価格を中間データにする（数秒）
+uv run python research/一番人気を疑う/run_experiments.py      # 作り方ごとに学習して予測を保存する（全部で数時間。済んだものは飛ばす）
+uv run python research/一番人気を疑う/summarize.py           # 結果の表を書く
+uv run python research/一番人気を疑う/pre_deadline_check.py  # 締め切り前のオッズで確かめる（十数分）
+uv run python -m pytest -q research/一番人気を疑う          # 部品のテスト（架空の値だけ）
 ```

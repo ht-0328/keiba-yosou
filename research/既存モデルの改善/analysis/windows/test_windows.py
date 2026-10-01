@@ -22,10 +22,10 @@ WINDOWS: tuple[TestWindow, ...] = (
 )
 
 
-def window_named(name: str) -> TestWindow:
-    """名前から区切りを引く。知らなければ ``ValueError``。"""
-    for window in WINDOWS:
+def window_named(name: str, windows: tuple[TestWindow, ...] = WINDOWS) -> TestWindow:
+    """名前から区切りを引く（``windows`` の中から。既定は半年の7つ）。知らなければ ``ValueError``。"""
+    for window in windows:
         if window.name == name:
             return window
-    names = " / ".join(window.name for window in WINDOWS)
+    names = " / ".join(window.name for window in windows)
     raise ValueError(f"知らない区切りです: {name}（{names}）")
