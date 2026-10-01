@@ -66,25 +66,33 @@ sequenceDiagram
     participant Y as YearlyEvaluation
     participant T as SimilarityTraining
     participant J as FavoriteJudgement
+    participant P as PreDeadlineFavoriteRepository
     participant E as EvaluationTables
-    U->>C: evaluate（--config、--rows-out、--out、省略可）
-    C->>R: read（元DB への接続）
+    U->>C: evaluate（--config、--favorite-odds、--minutes、--rows-out、--out、省略可）
+    opt --favorite-odds 締め切り前
+        C->>P: read（元DB への接続）
+        P-->>C: レースごとの締め切り前の1番人気（発走の --minutes 分前までの断面）
+    end
+    C->>R: read（元DB への接続、締め切り前の1番人気）
     R-->>C: 学習データ（学習の最初の年から元DB の最後まで。ここで元DB を閉じる）
     C->>Y: run（学習データ）
     loop 評価する年ごと
         Y->>Y: 学習の最初の年からその前年までと、その年に分ける
-        Y->>T: train（その前年までの行）
+        Y->>T: train（その前年までの、確定の1番人気の行）
         T-->>Y: その年の評価に使うモデルの一式（図1と同じ作り方）
-        Y->>J: judge（その年の1番人気の特徴量）
+        Y->>J: judge（その年の1番人気の特徴量。1番人気の選び方ごと）
         J-->>Y: 1番人気ごとの単位・3つの点数・判定
     end
-    Y-->>C: 判定した1番人気の表（年・単位・点数・判定・グループ・払戻）
+    Y-->>C: 判定した1番人気の表（年・選び方・単位・点数・判定・グループ・払戻）
     C->>E: tables（判定した1番人気の表）
-    E-->>C: 年ごと・判定ごと・単位ごとの表
+    E-->>C: 年ごとの表と、方針を決める年・確かめる年ごとの判定ごと・単位ごとの表
+    opt --favorite-odds 締め切り前
+        C->>C: PickComparison で、確定オッズと締め切り前のオッズの1番人気の違いの表を作る
+    end
     C-->>U: 表（--rows-out を渡せば、1頭ずつの表を CSV でも書く）
 ```
 
-**説明。** 評価する年のデータは、その年の学習に入らない。単位の決め方も、評価の年ごとに、その年の学習データの頭数で決め直す。表の見方は [16-evaluation.md](16-evaluation.md#3-表の見方) を参照。1頭ずつの表は JV-Data から作ったものなので、`reports/` の下に置く。
+**説明。** 評価する年のデータは、その年の学習に入らない。学習はいつも確定の1番人気で行い、締め切り前の1番人気は判定するときだけに使う（[16-evaluation.md の「7.」](16-evaluation.md#7-締め切り前のオッズで1番人気を選んだとき)）。単位の決め方も、評価の年ごとに、その年の学習データの頭数で決め直す。表の見方は [16-evaluation.md](16-evaluation.md#3-表の見方) を参照。1頭ずつの表は JV-Data から作ったものなので、`reports/` の下に置く。
 
 ## 図3. 予測
 
@@ -131,4 +139,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-25 |
-| 更新 | 2026-09-25: k近傍法の設計に作り直した。同日、実装したクラスとコマンドに合わせて書き直した（評価を1年ごとの評価にした） |
+| 更新 | 2026-09-25: k近傍法の設計に作り直した。同日、実装したクラスとコマンドに合わせて書き直した（評価を1年ごとの評価にした）<br>2026-09-30: 図2に、方針を決める年と確かめる年の表と、締め切り前の1番人気で評価する流れを足した |

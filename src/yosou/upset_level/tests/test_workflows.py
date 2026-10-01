@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import duckdb
@@ -10,18 +11,30 @@ import pytest
 
 from 共通 import db
 
-from yosou.shared.dataset import OddsInput, OddsResolver
+from yosou.shared.dataset import OddsInput, OddsResolver, SplitData, TrainingData
 from yosou.shared.evaluation import ENSEMBLE_NAME, ClassEvaluation, TrainingReport
 from yosou.shared.feature import PredictionTiming
-from yosou.shared.ml_model import CLASS_MEMBER_TYPES
+from yosou.shared.ml_model import CLASS_MEMBER_TYPES, EnsembleModel, LightGbmMulticlassModel
 from yosou.shared.repository import AnnouncedOddsRepository
 from yosou.shared.repository.model_repository import SETTINGS_FILE
+from yosou.shared.setting import HyperparameterSettings
 from yosou.shared.tests import synthetic_season as season
 
 from ..command import CommandLine
 from ..dataset import BetType, UpsetLevel, race_dataset_builder
-from ..evaluation import UserRuleBaseline
-from ..workflow import BET, PREDICTION_COLUMNS, TOP_LEVEL, UPSET_OR_MORE, PredictionWorkflow, model_repositories
+from ..evaluation import (
+    BASELINE_TIMING,
+    CLASS_SHARES,
+    MOST_FREQUENT,
+    THRESHOLDS,
+    ClassShareBaseline,
+    FavoriteOddsBaseline,
+    UpsetThresholdSummary,
+    UserRuleBaseline,
+)
+from ..feature import FAVORITE_ODDS
+from ..setting import DEFAULT_SETTINGS_PATH
+from ..workflow import BET, PREDICTION_COLUMNS, TIMINGS, TOP_LEVEL, UPSET_OR_MORE, PredictionWorkflow, model_repositories
 from .conftest import TRAINED_BETS
 from .test_dataset_builder import CARD_ODDS
 
@@ -57,6 +70,60 @@ def test_user_rule_baseline_measures_precision_and_recall(training_data):
     result = UserRuleBaseline().evaluate(training_data.with_label(BetType.TRIFECTA.column_name))
     assert result.rows > 0 and 0 <= result.hits <= result.rows and 0 <= result.base_rate <= 1
     assert np.isnan(result.precision) or 0 <= result.precision <= 1
+
+
+def _with_varied_favorite_odds(data: TrainingData) -> TrainingData:
+    """1番人気のオッズを、行ごとに違う値にした学習データ（合成DB では、どのレースも同じ値のため）。"""
+    varied = 1.5 + np.arange(len(data)) % 7
+    return replace(data, features=data.features.assign(**{FAVORITE_ODDS: varied}))
+
+
+def test_favorite_odds_baseline_learns_from_the_favorite_odds_only(
+        trained: tuple[Path, dict[BetType, TrainingReport]], fast_settings_path: Path):
+    _, reports = trained
+    split = reports[BetType.TRIFECTA].split
+    varied = SplitData(*(_with_varied_favorite_odds(part) for part in (split.train, split.valid, split.test)))
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=DEFAULT_SETTINGS_PATH)
+    evaluations = FavoriteOddsBaseline(settings).evaluate(varied)
+    assert [e.model for e in evaluations] == [*(t.name for t in CLASS_MEMBER_TYPES), ENSEMBLE_NAME]
+    assert all(e.timing == BASELINE_TIMING and e.rows == len(split.valid) for e in evaluations)
+    assert all(np.isfinite(e.log_loss) and len(e.cumulative_auc) == 3 for e in evaluations)
+
+
+def test_favorite_odds_baseline_uses_lightgbm_only_when_the_odds_never_change(
+        trained: tuple[Path, dict[BetType, TrainingReport]], fast_settings_path: Path):
+    _, reports = trained
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=DEFAULT_SETTINGS_PATH)
+    evaluations = FavoriteOddsBaseline(settings).evaluate(reports[BetType.TRIFECTA].split)
+    assert [e.model for e in evaluations] == [LightGbmMulticlassModel.name, ENSEMBLE_NAME]
+
+
+def test_class_share_baseline_uses_the_training_shares_for_every_timing(
+        trained: tuple[Path, dict[BetType, TrainingReport]]):
+    _, reports = trained
+    split = reports[BetType.TRIFECTA].split
+    evaluations = ClassShareBaseline().evaluate(split, TIMINGS)
+    assert [(e.timing, e.model) for e in evaluations] == [
+        (timing, name) for timing in TIMINGS for name in (MOST_FREQUENT, CLASS_SHARES)]
+    most_frequent, class_shares = evaluations[0], evaluations[1]
+    majority = split.train.label.astype(int).value_counts().idxmax()
+    assert most_frequent.accuracy == pytest.approx((split.valid.label == majority).mean())
+    assert np.isnan(most_frequent.log_loss) and all(np.isnan(auc) for auc in most_frequent.cumulative_auc)
+    assert class_shares.accuracy == most_frequent.accuracy and np.isfinite(class_shares.log_loss)
+    assert all(np.isnan(auc) or auc == pytest.approx(0.5) for auc in class_shares.cumulative_auc)
+
+
+def test_threshold_summary_counts_races_at_or_above_each_threshold(
+        trained: tuple[Path, dict[BetType, TrainingReport]]):
+    models, reports = trained
+    valid = reports[BetType.TRIFECTA].split.valid.for_timing(PredictionTiming.RACE_DAY)
+    ensemble = EnsembleModel(model_repositories(models)[BetType.TRIFECTA].load(PredictionTiming.RACE_DAY))
+    summary = UpsetThresholdSummary().summarize(ensemble, valid)
+    assert summary.iloc[:, 0].tolist() == list(THRESHOLDS)
+    races = summary.iloc[:, 1].tolist()
+    assert races[0] == len(valid) and races == sorted(races, reverse=True)
+    upset_share = (valid.label >= UpsetLevel.MID.value).mean()
+    assert summary.iloc[0, 2] == pytest.approx(upset_share) and summary.iloc[0, 3] == pytest.approx(1.0)
 
 
 def _workflow(con: duckdb.DuckDBPyConnection, models: Path) -> PredictionWorkflow:
@@ -132,6 +199,9 @@ def test_command_trains_one_bet_and_writes_the_report(season_db: Path, fast_sett
     text = out.read_text(encoding="utf-8")
     assert code == 0 and "3連単: 検証データでの当たり具合" in text and "混同行列" in text
     assert "利用者の規則" in text and "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
+    assert "3連単: 「荒れるレースだけ買う」使い方の線引き" in text and "3連単: 1番人気のオッズだけの予想と比べたとき" in text
+    assert "| 当日 | 1番人気のオッズだけ（平均） |" in text
+    assert "3連単: クラスの割合だけの基準" in text and "| 木曜 | 常に最多クラス |" in text
     assert (tmp_path / "models" / "trifecta" / "thursday" / SETTINGS_FILE).exists()
     assert not (tmp_path / "models" / "win").exists()
 

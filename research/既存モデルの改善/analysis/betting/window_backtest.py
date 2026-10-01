@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -26,6 +26,8 @@ from .race_columns import UPSET
 from .race_table_builder import RaceTableBuilder
 from .probability_calibrator import ProbabilityCalibrator
 from .race_candidate_pricer import RaceCandidatePricer
+from .race_selection_rule import RaceSelectionRule
+from .selection_rule_comparison import SelectionRuleComparison
 from .ticket_set_builder import TicketSetBuilder
 from .race_upset_probability import RaceUpsetProbability
 from .window_result import WindowResult
@@ -50,13 +52,15 @@ class WindowBacktest:
     6. 期待値の低い買い目を切り、点数を絞り、賭け金・券種全体の期待値・合成オッズ・払戻を付ける（``TicketSetBuilder``）。
     7. 検証期間（1つ前の区切りの検証の半年と、この区切りの検証の半年 = 1年）で、券種ごとの線と1開催日のレース数を決める。
     8. テスト期間で、決めたとおりに買う。テスト期間の結果は、どの手順にも使わない。
+    9. ``rules`` を渡すと、同じ券種の線で、勝負するレースの選び方の決まりごとにも買って比べる（``SelectionRuleComparison``）。
     """
 
     def __init__(self, horse_builder: HorseTableBuilder, probability_builder: RaceProbabilityBuilder,
-                 chooser: BettingPlanChooser) -> None:
+                 chooser: BettingPlanChooser, rules: Sequence[RaceSelectionRule] = ()) -> None:
         self._horse_builder = horse_builder
         self._probability_builder = probability_builder
         self._chooser = chooser
+        self._comparison = SelectionRuleComparison(chooser, rules)
 
     def run(self, window: TestWindow, tables: Mapping[TicketType, CombinationTable], payouts: pd.DataFrame,
             prices: Mapping[TicketType, PlacePriceEstimator], graded: Collection[str],
@@ -87,15 +91,19 @@ class WindowBacktest:
         history = self._joined(previous.valid_tickets if previous else None, valid_tickets)
         history_races = self._joined(previous.valid_races if previous else None, valid_races)
         plan, choices = self._chooser.choose(history, history_races)
+        selections, selection_bought = self._comparison.run(window, plan.set_lines, plan.adopted, history, history_races,
+                                                            test_tickets, test_races)
         return WindowResult(
             bought=plan.apply(test_tickets, test_races).assign(**{WINDOW: window.name}),
             reference=plan.with_all_tickets().apply(test_tickets, test_races).assign(**{WINDOW: window.name}),
             choices=[self._record(window, choice) for choice in choices],
             fit={WINDOW: window.name, **fit.summary(), "1開催日のレース数": plan.races_per_day or "全部",
+                 "勝負するレースの選び方": plan.describe(),
                  "消の線（1番人気の危険度）": exclude_line, "荒れそうの線": upset_line,
                  "検証期間": "1年" if previous is not None else "半年"},
             candidates=test_candidates.assign(**{WINDOW: window.name}), races=test_races.assign(**{WINDOW: window.name}),
             valid_candidates=valid_candidates, valid_tickets=valid_tickets, valid_races=valid_races,
+            selections=selections, selection_bought=selection_bought,
         )
 
     def _record(self, window: TestWindow, choice: TicketChoice) -> dict[str, object]:
