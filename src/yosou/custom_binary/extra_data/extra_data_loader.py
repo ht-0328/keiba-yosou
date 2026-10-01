@@ -10,6 +10,8 @@ SOURCES = {PoolProbabilitySource.name: PoolProbabilitySource()}
 
 
 class ExtraDataLoader:
+    """選んだ特徴量が使う追加の元データを読み、レースID・馬番で出走の行に列を足す。"""
+
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         self._con = con
 
@@ -35,10 +37,3 @@ class ExtraDataLoader:
         aligned = values.reindex(keys)
         aligned.index = entries.index
         return entries.assign(**{column: aligned[column].astype("float64") for column in columns})
-
-
-def race_relation(race_id: str) -> str:
-    """予想する1レースだけの関係。"""
-    if not race_id.isdigit():
-        raise ValueError(f"レースIDは数字だけで指定してください: {race_id}")
-    return f"(SELECT '{race_id}' AS race_id)"

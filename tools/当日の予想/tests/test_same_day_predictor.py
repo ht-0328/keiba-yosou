@@ -6,8 +6,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from 合成DB import synth  # noqa: E402
-from yosou.custom_binary import workflow  # noqa: E402
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
 from yosou.shared.tests import synthetic_season as season  # noqa: E402
 
 import same_day_predictor  # noqa: E402
@@ -52,15 +51,19 @@ def _models(folder: Path, *, buys_without_weight: bool) -> list[SameDayModel]:
     ]
 
 
+def _models_root(folder: Path) -> Path:
+    """テストのモデルの置き場所（本物の reports/ には書かない）。"""
+    return folder / "reports" / "特徴量と条件を選んで予想"
+
+
 @pytest.fixture
-def models(tmp_path, monkeypatch) -> list[SameDayModel]:
-    monkeypatch.setattr(workflow, "PROJECT_ROOT", tmp_path)
+def models(tmp_path) -> list[SameDayModel]:
     return _models(tmp_path, buys_without_weight=True)
 
 
 @pytest.fixture
 def predictor(models, season_db, tmp_path) -> SameDayPredictor:
-    result = SameDayPredictor(models, default_registry(), season_db, line=0.0)
+    result = SameDayPredictor(models, DefaultRegistry().build(), season_db, line=0.0, models_root=_models_root(tmp_path))
     logs: list[str] = []
     result.ensure_models(log=logs.append)
     assert len(logs) == 2 and all((tmp_path / "reports" / "特徴量と条件を選んで予想" / name / "model.json").is_file()
@@ -89,14 +92,15 @@ def test_models_are_trained_only_once(predictor):
 
 def test_each_model_has_its_own_line_and_the_given_line_replaces_it(season_db, tmp_path):
     models = _models(tmp_path, buys_without_weight=False)
-    assert SameDayPredictor(models, default_registry(), season_db).line_of("馬体重あり") == 1.2
-    replaced = SameDayPredictor(models, default_registry(), season_db, line=1.5)
+    assert SameDayPredictor(models, DefaultRegistry().build(), season_db).line_of("馬体重あり") == 1.2
+    replaced = SameDayPredictor(models, DefaultRegistry().build(), season_db, line=1.5)
     assert replaced.line_of("馬体重なし") == 1.5 and not replaced.buys_with("馬体重なし")
 
 
 def test_a_model_that_does_not_buy_marks_reference_and_lists_no_buys(predictor, season_db, tmp_path):
     """買わないモデル（馬体重なし）では、線に届いた馬の印を「参考」にし、買いの一覧に入れない。"""
-    reference = SameDayPredictor(_models(tmp_path, buys_without_weight=False), default_registry(), season_db, line=0.0)
+    reference = SameDayPredictor(_models(tmp_path, buys_without_weight=False), DefaultRegistry().build(), season_db,
+                                 line=0.0, models_root=_models_root(tmp_path))
     tables = reference.run(CARD_DAY, "00:00")
     assert tables[0].rows == [] and "馬体重なし は参考" in tables[0].title
     races = [table for table in tables[1:] if "（馬体重なし・参考: 買わない）" in table.title]
@@ -116,8 +120,8 @@ def test_stakes_table_follows_the_stakes_race_and_leaves_buys_alone(predictor, m
     （学習済みのモデルでの予測は test_stakes_predictor.py）。
     """
     plain = predictor.run(STAKES_DAY, "00:00")
-    predictor_with_stakes = SameDayPredictor(models, default_registry(), season_db, 0.0,
-                                             StakesPredictor(tmp_path / "no_models"))
+    predictor_with_stakes = SameDayPredictor(models, DefaultRegistry().build(), season_db, 0.0,
+                                             StakesPredictor(tmp_path / "no_models"), models_root=_models_root(tmp_path))
     tables = predictor_with_stakes.run(STAKES_DAY, "00:00")
     stakes = [index for index, table in enumerate(tables) if "重賞の予想" in table.title]
     assert len(stakes) == 1

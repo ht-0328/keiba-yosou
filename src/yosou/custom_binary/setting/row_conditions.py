@@ -6,7 +6,7 @@ import pandas as pd
 
 from yosou.shared.feature import PredictionTiming
 
-from .feature.registry import FeatureRegistry
+from ..feature.registry import FeatureRegistry
 from .row_condition import RowCondition
 
 

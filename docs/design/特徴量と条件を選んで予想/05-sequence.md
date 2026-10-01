@@ -13,7 +13,8 @@
 ```mermaid
 sequenceDiagram
     actor U as 利用者
-    participant W as workflow.train
+    participant C as TrainCommand
+    participant W as TrainingWorkflow
     participant S as ModelSettings
     participant R as FeatureRegistry
     participant MS as ModelStore
@@ -22,8 +23,11 @@ sequenceDiagram
     participant X as ExtraDataLoader
     participant DB as 元DB
     participant B as SelectedFeatureBuilder
+    participant F as EnsembleFitter
     participant M as LightGbmModel・CatBoostModel
-    U->>W: train（設定ファイルのパス）
+    participant RP as ModelReport
+    U->>C: train --config（設定ファイルのパス）
+    C->>W: run（設定ファイルのパス）
     W->>S: load（設定ファイルのパス、登録）
     S->>R: read_selection（特徴量テキスト、時点）
     R-->>S: 選んだ特徴量（行番号付きで誤りを検出）
@@ -40,19 +44,23 @@ sequenceDiagram
     end
     D->>B: build（記録）
     B-->>D: 選んだ特徴量と条件の列（全頭で計算）
-    D->>D: 人気範囲と条件で絞り、目的変数を付ける（06-flowchart.md の図1）
+    D->>D: 人気範囲と条件で絞り、目的変数を付ける（TrainingDataSelector。06-flowchart.md の図1）
     D-->>W: 学習データ（1行 = 対象の馬1頭）
     W->>W: 元DB を閉じる
-    W->>W: 学習・検証・テストに時期で分ける（16-evaluation.md）
-    W->>M: fit（学習データ、検証データ）
-    M-->>W: 学習した2つのモデル
-    W->>W: 検証データで当たり具合と回収率を出す
-    W->>MS: save（設定、登録、2つのモデル、検証の結果）
+    W->>F: fit（学習データ、設定）
+    F->>F: 学習・検証・テストに時期で分ける（16-evaluation.md）
+    F->>M: fit（学習データ、検証データ）
+    M-->>F: 学習した2つのモデル
+    F-->>W: 2つのモデルの平均、学習データ、検証データ
+    W->>RP: of（モデル、検証データ、目的、学習データ）
+    RP-->>W: 検証データでの当たり具合と回収率
+    W->>MS: save（設定、登録、2つのモデル、検証の結果、複勝の想定払戻倍率）
     MS-->>W: 保存した（model.json を最後に書く）
-    W-->>U: 学習の結果（設定の要約、検証の成績、検証の回収率）
+    W-->>C: 学習の結果（TrainedModel）
+    C-->>U: 表（設定の要約、検証の成績、検証の回収率）
 ```
 
-**説明。** 利用者が `train --config <設定ファイル>` を実行する。設定を読むときに、特徴量テキストの名前が登録されているか・設定の時点に合うか・重なっていないかを、行番号付きで確かめる。同じ名前の保存先があれば、元DB を開く前に止める。
+**説明。** 利用者が `train --config <設定ファイル>` を実行すると、`TrainCommand` が `TrainingWorkflow` を呼ぶ。`TrainingWorkflow` はほかのクラスを順に呼ぶだけで、学ぶのは `EnsembleFitter`、評価をまとめるのは `ModelReport`、結果を表にするのは `TrainCommand`（`TrainingTables`）である。設定を読むときに、特徴量テキストの名前が登録されているか・設定の時点に合うか・重なっていないかを、行番号付きで確かめる。同じ名前の保存先があれば、元DB を開く前に止める。
 
 `CustomDataset.training()` は、**全頭で特徴量を作ってから絞る。** 人気範囲や条件で先に絞ると、同じレースの馬との比較（まとまり G）や、オッズの基準・券種オッズの確率（同じレースの全頭のオッズから作る）が変わってしまうためである（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)）。
 
@@ -67,8 +75,9 @@ sequenceDiagram
     actor U as 利用者
     participant JS as jvdata-store
     participant DB as 元DB
-    participant W as workflow.predict
+    participant C as PredictCommand
     participant MS as ModelStore
+    participant W as PredictionWorkflow
     participant OR as OddsResolver
     participant PA as PopularityApplier
     participant D as CustomDataset
@@ -76,11 +85,13 @@ sequenceDiagram
     participant X as ExtraDataLoader
     participant B as SelectedFeatureBuilder
     participant E as EnsembleModel
+    participant PV as PredictionValues
     U->>JS: jvstore sync・realtime（出馬表・馬場・馬体重・全券種のオッズ）
     JS->>DB: 書き込む
-    U->>W: predict（レースID、モデルのフォルダ、--pops、--odds）
-    W->>MS: load（登録）
-    MS-->>W: 保存した設定と、2つのモデル（特徴量の形が今のコードと違えば止める）
+    U->>C: predict（レースID、モデルのフォルダ、--pops、--odds）
+    C->>MS: load（登録）（LoadedModel.load から）
+    MS-->>C: 保存した設定と、2つのモデル（特徴量の形が今のコードと違えば止める）と、複勝の想定払戻倍率
+    C->>W: run（レースID、読んだモデル、--pops、--odds）
     W->>OR: resolve（レースID、--odds）
     OR-->>W: 単勝オッズ（渡された値か、元DB の締め切り前のオッズ）
     W->>PA: resolve（レースID、--pops、オッズ）
@@ -94,18 +105,20 @@ sequenceDiagram
         X->>DB: SQL（6券種ぶん）
         X-->>D: 券種オッズの列を足した出走の行
     end
-    D->>D: 人気範囲で絞る。対象がいれば、要る情報がそろっているかを確かめる
+    D->>D: 人気範囲で絞る。対象がいれば、要る情報がそろっているかを確かめる（AnnouncementCheck）
     D->>B: build（記録）
     B-->>D: 選んだ特徴量と条件の列（全頭で計算）
     D->>D: 条件で絞り、オッズの基準を付ける
     D-->>W: 予測用データ（1行 = 対象の馬1頭）
     W->>E: predict_proba（予測用データ）
     E-->>W: 2つのモデルの確率の平均
-    W->>W: 今のオッズと想定払戻倍率から期待値を出す（16-evaluation.md）
-    W-->>U: 対象の馬ごとの確率と期待値（確率の高い順）。対象がいなければ「対象なし」
+    W->>PV: of（確率、目的、今のオッズ、想定払戻倍率）
+    PV-->>W: 期待値とその材料（16-evaluation.md）
+    W-->>C: 対象の馬ごとの確率と期待値（確率の高い順）
+    C-->>U: 表（PredictionTable）。対象がいなければ「対象なし」
 ```
 
-**説明。** 予測は、保存した `model.json` の設定だけを使う。学習のあとに設定ファイルや特徴量テキストを書き換えても、予測は変わらない。登録された特徴量の型・時点・依存項目が、保存したときと違えば、学習し直すよう案内して止める。
+**説明。** `PredictCommand` がモデルを読み、元DB を開いて `PredictionWorkflow` を呼ぶ。道具 `tools/当日の予想/` は、元DB とモデルを1回だけ開いて、同じ `PredictionWorkflow` を何レースも続けて呼ぶ。予測は、保存した `model.json` の設定だけを使う。学習のあとに設定ファイルや特徴量テキストを書き換えても、予測は変わらない。登録された特徴量の型・時点・依存項目が、保存したときと違えば、学習し直すよう案内して止める。
 
 人気とオッズの決め方は、ほかの予想と同じ共通の部品である（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気とオッズの与え方)）。
 
@@ -113,14 +126,13 @@ sequenceDiagram
 
 ## テスト期間の評価
 
-`evaluate --models <モデルのフォルダ>` は、保存した設定で図1 の `CustomDataset.training()` までを行い、テスト期間の行だけで当たり具合と回収率を出して、モデルのフォルダに `test_evaluation.json` を書く（[16-evaluation.md](16-evaluation.md)）。複勝の想定払戻倍率は、学習期間の払戻から求める。
+`evaluate --models <モデルのフォルダ>` は、`EvaluateCommand` が `TestEvaluationWorkflow` を呼ぶ。保存した設定で図1 の `CustomDataset.training()` までを行い、テスト期間の行だけで当たり具合と回収率を出して、モデルのフォルダに `test_evaluation.json` を書く（[16-evaluation.md](16-evaluation.md)）。複勝の想定払戻倍率は、学習期間の払戻から求める。
 
 ## 今は無く、これから作るところ
 
 | 図の中の部分 | 今の状態 |
 |---|---|
 | 締め切り前の券種オッズ | 作った。jvdata-store の `jvstore realtime`（`realtime_today.bat`）が、レースごとに全賭式のオッズ（`0B30`）を取る |
-| 流れを進めるクラス | 今は `workflow.py` の関数。クラスにするかは [04-classes.md](04-classes.md#4-手本の決まりと違うところ) を参照 |
 | 買い目を決めて出す | 予測は確率と期待値を出すところまで。当日のレースをまとめて予想して「買い」（複勝・期待値の線以上）を出すのは、道具 `tools/当日の予想/`（[15-decisions.md](15-decisions.md#8-回収率を評価に入れるか)） |
 
 ## 文書情報
@@ -128,3 +140,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-26 |
+| 更新日 | 2026-09-30（流れを進めるクラス `TrainingWorkflow`・`PredictionWorkflow`・`TestEvaluationWorkflow` に合わせて図を直した） |

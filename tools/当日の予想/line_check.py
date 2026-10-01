@@ -25,24 +25,25 @@ sys.path[:0] = [str(HERE.parents[0]), str(HERE)]
 from 共通 import cli, db, render  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
-from yosou.custom_binary import workflow  # noqa: E402
 from yosou.custom_binary.dataset import CustomDataset  # noqa: E402
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
+from yosou.custom_binary.store import PROJECT_ROOT  # noqa: E402
+from yosou.custom_binary.workflow import LoadedModel  # noqa: E402
 from yosou.shared.dataset.column_names import RACE_DATE  # noqa: E402
 
 from line_backtest import LineBacktest  # noqa: E402
 from line_selection import CANDIDATE_LINES, LOWER_BOUND_FLOOR, MIN_BETS, LineSelection  # noqa: E402
 from predict_today import MODELS  # noqa: E402
 
-SAVED = workflow.PROJECT_ROOT / "reports" / "当日の予想" / "線の確かめ.md"
+SAVED = PROJECT_ROOT / "reports" / "当日の予想" / "線の確かめ.md"
 LINE_COLUMNS = ["線", "選ぶ_点数", "選ぶ_複勝回収率", "選ぶ_下限", "確かめる_点数", "確かめる_複勝回収率", "確かめる_下限"]
 
 
 def main(args) -> None:
-    registry = default_registry()
+    registry = DefaultRegistry().build()
     decisions, tables = [], []
     for model in MODELS:
-        loaded = workflow.LoadedModel.load(model.folder(registry), registry)
+        loaded = LoadedModel.load(model.folder(registry), registry)
         period = loaded.settings.period
         with db.open_db(args.db) as con:
             data = CustomDataset(con, loaded.settings, registry).training()

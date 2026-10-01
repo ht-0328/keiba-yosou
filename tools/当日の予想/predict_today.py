@@ -29,8 +29,8 @@ sys.path[:0] = [str(HERE.parents[0]), str(HERE)]
 
 from 共通 import cli, render  # noqa: E402
 
-from yosou.custom_binary import workflow  # noqa: E402
-from yosou.custom_binary.feature.registrations import default_registry  # noqa: E402
+from yosou.custom_binary.feature.default_registry import DefaultRegistry  # noqa: E402
+from yosou.custom_binary.store import PROJECT_ROOT  # noqa: E402
 from yosou.stakes_tendency_top3.command import YOSOU_NAME as STAKES_YOSOU_NAME  # noqa: E402
 
 from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
@@ -49,18 +49,18 @@ MODELS = [
     SameDayModel("馬体重なし", HERE / "settings" / "馬体重なし.yml", line=DEFAULT_LINE, buys=False),
 ]
 #: 重賞の予想（重賞の傾向と近走から3着以内を予想）の学習済みモデルの既定の置き場所。
-STAKES_MODELS = workflow.PROJECT_ROOT / "reports" / STAKES_YOSOU_NAME / "models"
+STAKES_MODELS = PROJECT_ROOT / "reports" / STAKES_YOSOU_NAME / "models"
 
 
 def main(args) -> None:
     day = args.date or date.today().isoformat()
     after = args.after or datetime.now().strftime("%H:%M")
     stakes = None if args.no_stakes else StakesPredictor(args.stakes_models)
-    predictor = SameDayPredictor(MODELS, default_registry(), args.db, args.line, stakes)
+    predictor = SameDayPredictor(MODELS, DefaultRegistry().build(), args.db, args.line, stakes)
     predictor.ensure_models()
     tables = predictor.run(day, after)
     cli.emit(tables, args)
-    saved = workflow.PROJECT_ROOT / "reports" / "当日の予想" / f"{day}_{after.replace(':', '')}.md"
+    saved = PROJECT_ROOT / "reports" / "当日の予想" / f"{day}_{after.replace(':', '')}.md"
     saved.parent.mkdir(parents=True, exist_ok=True)
     render.write(render.render(tables, "markdown"), saved, fmt="markdown")
     print(f"\n保存先: {saved}")

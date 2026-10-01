@@ -13,17 +13,23 @@ _STAGES = ("1", "2", "3", "4", "5")
 _FINAL_STAGES = ("4", "5")
 
 
-def pool_odds_rows(con: duckdb.DuckDBPyConnection, spec: PoolSpec, scope_relation: str) -> str:
-    """``WITH`` の中身。``odds``（race_id・combo・inverse）と ``totals``（race_id・total）を作る。
+class PoolOddsRowsSql:
+    """2つの券種オッズのリポジトリに共通の、SQL の ``WITH`` の中身を作る（SQL を流すのは各リポジトリ）。"""
 
-    ``scope_relation`` は ``race_id`` の列を持つ関係。表が無い DB では空になる。
-    """
-    child_columns = (*keys.RACE_KEY, _ANNOUNCED, spec.combo, "オッズ", "最低オッズ", "最高オッズ")
-    header = facts.optional_relation(con, spec.header, _HEADER_COLUMNS)
-    child = facts.optional_relation(con, spec.table, child_columns)
-    join = " AND ".join(f"{keys.col(name, 'o')} = {keys.col(name, 'h')}" for name in (*keys.RACE_KEY, _ANNOUNCED))
-    is_final = f"{keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)}"
-    return f"""
+    def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
+        self._con = con
+
+    def with_clause(self, spec: PoolSpec, scope_relation: str) -> str:
+        """``WITH`` の中身。``odds``（race_id・combo・inverse）と ``totals``（race_id・total）を作る。
+
+        ``scope_relation`` は ``race_id`` の列を持つ関係。表が無い DB では空になる。
+        """
+        child_columns = (*keys.RACE_KEY, _ANNOUNCED, spec.combo, "オッズ", "最低オッズ", "最高オッズ")
+        header = facts.optional_relation(self._con, spec.header, _HEADER_COLUMNS)
+        child = facts.optional_relation(self._con, spec.table, child_columns)
+        join = " AND ".join(f"{keys.col(name, 'o')} = {keys.col(name, 'h')}" for name in (*keys.RACE_KEY, _ANNOUNCED))
+        is_final = f"{keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)}"
+        return f"""
         wanted AS (
             SELECT DISTINCT race_id FROM {scope_relation}
         ), latest AS (
