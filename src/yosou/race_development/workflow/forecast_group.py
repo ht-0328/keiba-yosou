@@ -40,10 +40,10 @@ _KINDS: dict[ForecastGroup, tuple[DevelopmentModelKind, ...]] = {
     ForecastGroup.TENDENCY: (),
     ForecastGroup.EARLY: (_Kind.LEADER, _Kind.POSITION, _Kind.PACE_CLASS, _Kind.PACE_TIME),
     ForecastGroup.LATE: (_Kind.CORNER4, _Kind.CLOSING, _Kind.LATE_PACE_TIME),
-    ForecastGroup.FINISH: (_Kind.FINISH, _Kind.FINISH_PLAIN),
+    ForecastGroup.FINISH: (_Kind.FINISH, _Kind.FINISH_PLAIN, _Kind.FINISH_NO_EARLY, _Kind.FINISH_NO_LATE, _Kind.FINISH_WITH_ODDS),
 }
 _FIRST_TRAIN_YEARS: dict[ForecastGroup, int] = {
-    ForecastGroup.TENDENCY: 2017, ForecastGroup.EARLY: 2018, ForecastGroup.LATE: 2019, ForecastGroup.FINISH: 2020,
+    ForecastGroup.TENDENCY: 2014, ForecastGroup.EARLY: 2015, ForecastGroup.LATE: 2016, ForecastGroup.FINISH: 2017,
 }
 _LABELS: dict[ForecastGroup, str] = {
     ForecastGroup.TENDENCY: "傾向", ForecastGroup.EARLY: "前半", ForecastGroup.LATE: "後半", ForecastGroup.FINISH: "着順",

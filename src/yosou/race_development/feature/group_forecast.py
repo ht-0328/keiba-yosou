@@ -21,6 +21,9 @@ CORNER4_PREDICTION, CLOSING_PREDICTION = "corner4_pred", "closing_pred"
 SECOND_HALF_QUANTILES: tuple[str, str, str] = ("second_q10", "second_q50", "second_q90")
 #: 1頭ごとの予測の列（着順の組）。1着の確率（⑦）と、比べる基準（前半・後半を入れないモデル）の1着の確率。
 WIN_PROBABILITY, PLAIN_WIN_PROBABILITY = "p_win", "p_win_plain"
+#: 1頭ごとの予測の列（着順の組。年ごとの確かめで比べるためだけ）。⑦ から S を外したもの・T を外したもの・オッズを足したもの。
+NO_EARLY_WIN_PROBABILITY, NO_LATE_WIN_PROBABILITY = "p_win_no_early", "p_win_no_late"
+ODDS_WIN_PROBABILITY = "p_win_with_odds"
 #: 1頭ごとの予測の列（傾向の組）。既存の予想の 3着以内（全頭）・人気馬の4着以下（人気馬だけ）・穴馬の3着以内（穴馬だけ）の確率。
 TOP3_PROBABILITY, FAVORITE_OUT_PROBABILITY, LONGSHOT_TOP3_PROBABILITY = "p_top3", "p_favorite_out", "p_longshot_top3"
 #: 荒れ具合を出す券種（鍵 → 名前）。鍵は既存の予想「荒れ具合」の券種の鍵と同じ。

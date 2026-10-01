@@ -24,7 +24,7 @@
 """
 
 from .backtest_report import BacktestReport
-from .backtest_workflow import TIMING, BacktestWorkflow
+from .backtest_workflow import DEFAULT_TIMING, BacktestWorkflow
 from .dataset_loader import DatasetLoader
 from .development_forecast import DevelopmentForecast
 from .development_model_kind import DevelopmentModelKind, KindSpec
@@ -47,7 +47,7 @@ from .year_market import YearMarket
 __all__ = [
     "DevelopmentModelKind", "KindSpec", "ModelFamily", "ForecastGroup", "WalkForwardSchedule", "YearPeriod",
     "KindDatasets", "KindTrainer", "KindForecaster", "GroupFitter", "WalkForwardPredictor", "RaceBetting",
-    "YearBetting", "YearMarket", "BacktestWorkflow", "BacktestReport", "ORDER_LAMBDA", "TIMING",
+    "YearBetting", "YearMarket", "BacktestWorkflow", "BacktestReport", "ORDER_LAMBDA", "DEFAULT_TIMING",
     "KindStacker", "DatasetLoader", "KindModelStore", "DevelopmentTrainingWorkflow", "SavedModel",
     "DevelopmentPredictionWorkflow", "DevelopmentForecast",
 ]

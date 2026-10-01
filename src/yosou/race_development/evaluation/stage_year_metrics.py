@@ -132,4 +132,5 @@ class StageYearMetrics:
             (kind, "MAE（秒）", year, float(np.abs(middle - actual).mean())),
             (kind, "MAE（基準: 基準のタイムだけ）", year, float(np.abs(actual).mean())),
             (kind, "80% の幅に入った割合", year, float(inside.mean()) if predicted.any() else float("nan")),
+            (kind, "80% の幅の平均（秒）", year, float(np.nanmean(high - low)) if predicted.any() else float("nan")),
         ]

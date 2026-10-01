@@ -45,16 +45,24 @@ class GroupFitter:
 
     def fit_predict(self, group: ForecastGroup, period: YearPeriod, datasets: KindDatasets, priors: PriorForecasts,
                     timing: PredictionTiming, settings: HyperparameterSettings, sink: ModelSink | None = None,
-                    tendency_sink: TendencySink | None = None) -> GroupForecast:
-        """予測する年（``period.predict_first_day`` から）の、組の全部の予想の予測。"""
+                    tendency_sink: TendencySink | None = None, prediction_only: bool = False) -> GroupForecast:
+        """予測する年（``period.predict_first_day`` から）の、組の全部の予想の予測。
+
+        ``prediction_only`` を真にすると、予測に使う予想だけを学習する（比べるためだけの予想を飛ばす。学習（train）の着順の組）。
+        その時点より後から学習する予想（``KindSpec.known_from``）も飛ばす。
+        """
         if group is ForecastGroup.TENDENCY:
             return self._tendency.fit_predict(period, datasets.tendency, timing, settings, tendency_sink)
         horse_parts: list[pd.DataFrame] = []
         race_parts: list[pd.DataFrame] = []
-        for kind in group.kinds:
+        for kind in (kind for kind in group.kinds if self._fits(kind, timing, prediction_only)):
             predicted = self._fit_predict_kind(kind, period, datasets, priors, timing, settings, sink)
             (race_parts if kind.spec.per_race else horse_parts).append(predicted)
         return GroupForecast.joined(horse_parts, race_parts)
+
+    def _fits(self, kind: DevelopmentModelKind, timing: PredictionTiming, prediction_only: bool) -> bool:
+        """その予想を学習するか。"""
+        return timing.is_at_or_after(kind.spec.known_from) and (kind.spec.for_prediction or not prediction_only)
 
     def _fit_predict_kind(self, kind: DevelopmentModelKind, period: YearPeriod, datasets: KindDatasets,
                           priors: PriorForecasts, timing: PredictionTiming, settings: HyperparameterSettings,

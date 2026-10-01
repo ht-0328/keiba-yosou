@@ -22,10 +22,13 @@
 | ⑥ 後半のペース | 1レース | 1レースごとの学習データの全部（R・P・Q・U）と、1レースごとの V・S | 後半タイムの基準との差（秒） | `LightGbmQuantileModel`・`CatBoostQuantileModel` | `QUANTILE` |
 | ⑦ 着順 | 1頭 | ④と同じに T を足したもの | 1着（1/0） | `LightGbmWithinRaceModel`・`CatBoostWithinRaceModel`。2つの平均から、`OrderLambdaFitter` で λ を決める | `WITHIN_RACE` |
 | ⑦ の比べる基準 | 1頭 | 1頭ごとの学習データの全部と V（S・T を入れない） | 1着（1/0） | ⑦と同じ | `WITHIN_RACE` |
+| ⑦ から S を外したもの・T を外したもの（年ごとの確かめだけ） | 1頭 | ⑦ から S（前半の予想の結果）か T（後半の予想の結果）を外したもの | 1着（1/0） | ⑦と同じ | `WITHIN_RACE` |
+| ⑦ にオッズを足したもの（年ごとの確かめだけ・当日だけ） | 1頭 | ⑦ に W（確定の単勝オッズから見た勝率と人気）を足したもの | 1着（1/0） | ⑦と同じ | `WITHIN_RACE` |
 
 - **展開の予想の学習データは2つだけ作る。** 1頭ごとの表（特徴量 111個）と、1レースごとの表（34個）である。傾向の組の学習データは、既存の4つの予想の `dataset_builder` で、それぞれ1回ずつ作る。元DB を読むのは、この6回だけである（`DatasetLoader`。作ったものは残し、元DB が変わっていなければ次からは読むだけ）。
 - **予想ごとの学習データは、列を選び直して作る。** `KindStacker` が、予想ごとの特徴量の一覧（`DevelopmentModelKind` が持つ）に列を合わせ、どの予想にも V の列を、後半と着順の予想には S・T の列を足す。目的変数は、共通の `TrainingData.with_label()` で持ち替える（その列が欠損値の行は、そのとき除かれる）。
 - **4種類のモデルを、同じ手順で学習・予測する。** 学習は `KindTrainer`（種類ごとに LightGBM と CatBoost のクラスを選ぶ）、予測は `KindForecaster`（種類ごとに、2つのモデルの値の平均のしかたを選ぶ）が行う。共通の `TrainingWorkflow` は使わない。後半と着順の学習データには、年ごとに学習し直した前の組の予測が要り、共通の `TrainingWorkflow` の「1つの期間で学習して保存する」手順に合わないためである。
+- **比べるためだけの予想は、保存も予測もしない。** ⑦ の比べる基準・S を外したもの・T を外したもの・オッズを足したものは、`KindSpec.for_prediction` が偽で、年ごとの確かめでだけ学習する。着順の組の予想は、どれも S・T のそろった同じ行で学習する（比べる相手と行がずれないように）。
 - **①⑦はモデルを包む。** 二値分類の学習は共通の `LightGbmModel`・`CatBoostModel` がそのまま行い、包んだクラスが、検証データの後半で温度を決めて、予測のときにレースの中で合計 1 にそろえる（[03-library-basics.md](03-library-basics.md#2-先頭の確率をレースの中で合計-1-にそろえる)）。包んだクラスも `ProbabilityModel` の決まりを守るので、共通の `EnsembleModel`・`ModelRepository` がそのまま使える。
 
 ## 2. 共通の部品に足すもの・変えるもの
@@ -82,22 +85,22 @@
 | `DevelopmentTrainingWorkflow` | 学習の流れ。時点ごとに、傾向・前半・後半の組の「学習に使っていない予測」（前の年まで）と、指定の年のモデルを学習して保存する（傾向の組は `TendencyModelStore` に）。着順の組は、指定の年のモデルだけを学習する | `run(年, 時点の並び, 設定ファイルのパス)` → 保存したモデルの並び（`SavedModel`） |
 | `DevelopmentPredictionWorkflow` | 予測の流れ。単勝オッズと人気を決め（`OddsResolver`・`PopularityApplier`）、1頭ごと・1レースと既存の予想ごとの予測用データを作り、傾向 → 前半 → 後半 → 着順の順に、その時点のモデルで予測して、前の組の予測を次の組の特徴量に足す。印と印どおりの買い目まで出し、`PredictionArchiveRepository` に残す | `run(レースID, 時点, 渡されたオッズ=省略可)` → `DevelopmentForecast` |
 | `BacktestWorkflow` | 年ごとの確かめの流れ（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率)）。学習データを作り、4つの組の予測を年ごとに作り、年ごとに印と買い目を作って精算し、表にする | `run(年の並び, 設定ファイルのパス)` → `BacktestReport` |
-| `DatasetLoader` | 1頭ごと・1レースごとと、既存の4つの予想の学習データを作る（2017年1月から。ウォームアップは 2016年）。作ったものは `DatasetRepository` に残し、元DB が変わっていなければ読むだけ | `load(最後の年)` → `KindDatasets` |
-| `DevelopmentModelKind`・`KindSpec` | 7つの予想と比べる基準（列挙）と、その決めごと（目的変数の列・1行が1レースか・モデルの種類・特徴量の一覧・予測の列・クラスの並び）。値はモデルを保存するフォルダの名前（`leader`・`position`・`pace_class`・`pace_time`・`corner4`・`closing`・`late_pace_time`・`finish`・`finish_plain`） | `spec`・`folder`・`parse(書き方)` |
+| `DatasetLoader` | 1頭ごと・1レースごとと、既存の4つの予想の学習データを作る（2014年1月から。ウォームアップは 2013年）。作ったものは `DatasetRepository` に残し、元DB が変わっていなければ読むだけ | `load(最後の年)` → `KindDatasets` |
+| `DevelopmentModelKind`・`KindSpec` | 7つの予想と比べるためだけの予想（列挙）と、その決めごと（目的変数の列・1行が1レースか・モデルの種類・特徴量の一覧・予測の列・クラスの並び・予測に使うか・どの時点から学習するか）。値はモデルを保存するフォルダの名前（`leader`・`position`・`pace_class`・`pace_time`・`corner4`・`closing`・`late_pace_time`・`finish`。比べるためだけの `finish_plain`・`finish_no_early`・`finish_no_late`・`finish_with_odds` は保存しない） | `spec`・`folder`・`parse(書き方)` |
 | `ModelFamily` | モデルの種類（`WITHIN_RACE`・`MULTICLASS`・`QUANTILE`・`REGRESSION`） | ― |
-| `ForecastGroup` | 4つの組（傾向・前半・後半・着順）と、組ごとの予想の並び（傾向の組は無し）、年ごとに学習し直すときの学習データの最初の年（2017・2018・2019・2020年） | `kinds`・`first_train_year`・`label` |
+| `ForecastGroup` | 4つの組（傾向・前半・後半・着順）と、組ごとの予想の並び（傾向の組は無し）、年ごとに学習し直すときの学習データの最初の年（2014・2015・2016・2017年） | `kinds`・`first_train_year`・`label` |
 | `WalkForwardSchedule`・`YearPeriod` | 予測する年ごとの、学習・検証・予測の期間（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率)） | `periods(組, 年)`・`first_year(組)` |
 | `KindStacker` | 1頭ごと（1レースごと）のデータを、予想の特徴量の一覧に合わせ、V・S・T の列を足す。学習データでは、V の 3着以内・荒れ具合と S・T がそろわない行を外す（人気馬・穴馬の確率は欠損値のまま残す）。学習データにも予測用データにも使う | `apply(予想, データ, 前の組の予測の束)` |
 | `KindDatasets` | 1頭ごと・1レースごとの学習データと、既存の予想の学習データ（`TendencyDatasets`）を持ち、予想ごとの学習データを `KindStacker` で作る | `of(予想, 前の組の予測の束)`・`labeled(予想, データ)`・`tendency` |
 | `KindTrainer` | 1つの予想の、LightGBM と CatBoost のモデルを学習する（モデルの種類ごとにクラスを選ぶ） | `fit(予想, 学習データ, 検証データ, 設定)` |
 | `KindForecaster` | 1つの予想の2つのモデルで予測し、予測の列の表にする | `predict(予想, 2つのモデル, データ)` |
-| `GroupFitter` | 1つの組の予想を、決めた期間で学習し、予測する年のサンプルを予測する。⑦ は検証データの後半で λ も決める。傾向の組は `TendencyFitter` に任せる。学習（train）は、受け取り口（`sink`・`tendency_sink`）を渡して、学習したモデルを受け取る | `fit_predict(組, 期間, 学習データ, 前の組の予測の束, 時点, 設定, sink=省略可, tendency_sink=省略可)` → `GroupForecast` |
-| `WalkForwardPredictor` | 前の組の「学習に使っていない予測」を、年ごとに `GroupFitter` で作る。作った予測は、作った条件（設定・学習データの範囲・前の組の予測）と一緒に `OutOfSampleRepository` に残し、同じ条件なら読むだけにする | `predict(組, 年の並び, 学習データ, 前の組の予測の束, 時点, 設定)` |
+| `GroupFitter` | 1つの組の予想を、決めた期間で学習し、予測する年のサンプルを予測する。⑦ は検証データの後半で λ も決める。傾向の組は `TendencyFitter` に任せる。学習（train）は、受け取り口（`sink`・`tendency_sink`）を渡して、学習したモデルを受け取る。`prediction_only` で、予測に使う予想だけを学習する | `fit_predict(組, 期間, 学習データ, 前の組の予測の束, 時点, 設定, sink=省略可, tendency_sink=省略可, prediction_only=省略可)` → `GroupForecast` |
+| `WalkForwardPredictor` | 前の組の「学習に使っていない予測」を、年ごとに `GroupFitter` で作る。作った予測は、作った条件（設定・学習データの範囲・前の組の予測・組の予想と特徴量の一覧・作り方の版）と一緒に `OutOfSampleRepository` に残し、同じ条件なら読むだけにする | `predict(組, 年の並び, 学習データ, 前の組の予測の束, 時点, 設定)` |
 | `KindModelStore` | 予想ごと・時点ごとの学習済みモデル（⑦ は λ も）を、共通の `ModelRepository` で読み書きする | `save(予想, 時点, 2つのモデル, 設定, λ)`・`load(予想, 時点)`・`load_lambda(時点)` |
 | `RaceBetting` | 1レースの1着の確率から3連単の確率の表を作り、印（モデルと人気順）と、3つの買い方の買い目を作る | `tickets(レースID, 1レースの表, λ, 確定オッズ)` |
 | `YearBetting` | 1年ぶんのレースの買い目を `RaceBetting` で作り、`TicketSettler` で精算する | `settle(年, 1年ぶんの表, 確定オッズ, 払戻, フラグ)` |
 | `YearMarket` | 1年ぶんの、7券種の確定オッズと払戻の明細と払戻のフラグを読む（3連単のオッズは1年で千万行を超えるので、1年ずつ読む） | `read(接続, 年)` |
-| `BacktestFrames` | 学習データと予測から、買い目を作る1年ぶんの表と、当たり具合を測る表を作る | `betting(年, 前半の予測, 着順の予測)`・`horses(…)`・`races(…)` |
+| `BacktestFrames` | 学習データと予測から、買い目を作る1年ぶんの表と、当たり具合を測る表と、正解を作らなかったレースを数える表を作る | `betting(年, 前半の予測, 着順の予測, 1着の確率の列=省略可)`・`horses(…)`・`races(…)`・`unlabeled()` |
 | `DevelopmentForecast`・`BacktestReport`・`SavedModel` | 1レースの予測、年ごとの確かめの結果、保存したモデルの入れ物 | ― |
 
 ### tendency/ — 傾向の組（既存の4つの予想）
@@ -141,6 +144,7 @@
 | `LateMaterialFeatures` | U（7個） | 後半タイムの基準と、N を集約したものをレースに1つ付ける |
 | `EarlyForecastFeatures` | S（1頭ごと 9個・1レースごと 6個） | 前半の予想の結果から、S の列を作る |
 | `LateForecastFeatures` | T（7個） | 後半の予想の結果から、T の列を作る |
+| `OddsComparisonFeatures` | W（2個） | 評価用の列の確定の単勝オッズから見た勝率と人気を、特徴量の列にする（⑦ にオッズを足したものだけ。予測では使わない） |
 | `TendencyFeatures` | V（1頭ごと 16個・1レースごと 11個） | 傾向の組（既存の予想）の結果から、V の列を作る |
 | `StackedColumns` | ― | 特徴量の表を予想ごとの一覧の列に合わせ、V・S・T の列を足す。学習データでは、呼ぶ側が渡した「前の組の予測がそろっている行」だけを残す |
 | `PriorForecasts` | ― | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
@@ -171,11 +175,12 @@
 |---|---|
 | `WithinRaceModel` | 共通の二値のモデル1つを包む（①と⑦）。`fit` では、検証データを前半と後半に分け、前半で早期終了しながら中のモデルを学習し、後半で温度を決める。`predict_proba` では、raw スコアを温度で割ってレースごとに合計 1 にする。温度は、モデルのファイルの隣の小さな JSON に書く |
 | `LightGbmWithinRaceModel`・`CatBoostWithinRaceModel` | 上のクラスで、中のモデルを `LightGbmModel`・`CatBoostModel` にしたもの |
-| `RaceSoftmax`・`TemperatureFitter`・`ValidationHalves` | レースごとのソフトマックス、温度の候補（0.50〜2.00）から選ぶ、検証データを開催日で前半と後半に分ける |
+| `RaceSoftmax`・`TemperatureFitter`・`ValidationHalves` | レースごとのソフトマックス、温度の候補（0.50〜2.00）から選ぶ、検証データを開催日で前半と後半に分ける（①⑦ の温度・⑦ の λ・③⑥ の幅の倍率） |
 | `RegressionModel`・`QuantileModel` | 回帰と分位点回帰のモデルに共通の決まり（`predict`・`predict_quantiles`） |
 | `LightGbmRegressor`・`CatBoostRegressor` | 回帰と分位点回帰の中身。ライブラリの回帰のモデル1つと、共通のエンコーダー |
 | `LightGbmRegressionModel`・`CatBoostRegressionModel` | ④⑤の回帰（`regression`・`RMSE`） |
-| `LightGbmQuantileModel`・`CatBoostQuantileModel` | ③⑥の分位点回帰（LightGBM は 10%・50%・90% の3つのモデル、CatBoost は `MultiQuantile` の1つのモデル） |
+| `LightGbmQuantileModel`・`CatBoostQuantileModel` | ③⑥の分位点回帰（LightGBM は 10%・50%・90% の3つのモデル、CatBoost は `MultiQuantile` の1つのモデル）。`fit` では、検証データの前半で早期終了し、後半で 80% の幅の倍率を決める。倍率は、モデルのファイルの隣の小さな JSON に書く |
+| `IntervalWidth`・`IntervalWidthFitter` | 真ん中の値から 10%・90% の値までの距離に掛ける倍率（下と上）と、その倍率を候補（0.50〜3.00）から、検証データで下と上に 10% ずつ外れるように選ぶ（[16-evaluation.md の 2.](16-evaluation.md#2-評価指標)） |
 | `RegressionEnsemble`・`QuantileEnsemble` | 2つのモデルの値を平均する（分位点は並べ直す） |
 | `OrderProbability` | 1着の確率と λ から、3連単の全部の並びの確率と、各馬の 2着以内・3着以内の確率を出す（Harville の式） |
 | `OrderLambdaFitter` | λ の候補（0.50〜1.00）から、実際の 2着・3着の馬に付けた条件付きの確率がいちばん高くなるものを選ぶ |
@@ -188,8 +193,9 @@
 | `RaceMetrics` | レースの中で見る指標（レースごとのログ損失・確率1位の的中・レース内の順位相関・多クラスのログ損失）を、まとめて計算する |
 | `StageYearMetrics` | ①〜⑥ の、年ごとの当たり具合と簡単な基準（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率) の表4） |
 | `StageBaselines` | ①〜③ のモデルによらない基準（先頭率をそろえただけ・推定脚質・前年までの割合・前走の区分や逃げそうな馬の数からの割合。[16-evaluation.md の 3.](16-evaluation.md#3-比べる基準)） |
-| `FinishYearMetrics` | ⑦ の、年ごとの当たり具合（表3） |
+| `FinishYearMetrics` | ⑦ の、年ごとの当たり具合（表3。比べる基準・S を外したもの・T を外したもの・オッズを足したものと並べる） |
 | `PlaceCalibration` | 3着以内の確率の、帯ごとの実際の割合 |
+| `UnlabeledRaceTable` | 正解を作らなかったレースの数と割合を、理由ごと（直線・コーナーを5回以上通る・通過順位の記録なし・先頭が決まらない・タイムの記録なし・基準なし）に、頭数・競馬場・ペースの区分・年の切り口で出す（[16-evaluation.md の 4.](16-evaluation.md#4-正解を作らなかったレースの確かめ) の表6） |
 
 ### betting/ — 印・買い目・精算
 
@@ -204,6 +210,7 @@
 | `ExpectedValueTicketRule` | この予想 | 券種ごとに、当たる確率 × 確定オッズ が 1.0 以上の買い目を作る（複勝・ワイドは最低オッズ） | `tickets(当たる確率の表, 確定オッズの表, 券種)` |
 | `TicketSettler` | この予想 | 買い目を払戻の表と照らし合わせて、払戻と当たったかを付ける（[06-flowchart.md の図5](06-flowchart.md#図5-買い目の精算)） | `settle(買い目の表, 払戻, フラグ)` |
 | `ReturnSummary` | この予想 | 精算した買い目を、買い方 × 券種 × 年（と合計）ごとにまとめ、的中率・回収率・最大の払戻を除いた回収率を出す | `table(精算した買い目)` |
+| `ValueLineChoice` | この予想 | 期待値の線（1.0・1.2・1.5・2.0・3.0）と券種の配分を、確かめる年より前の年の回収率だけで選び、その年に当てはめた回収率を出す（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率) の表5） | `candidates(精算した買い目)`・`line_totals(…)`・`chosen_lines(…)`・`allocation(…)` |
 
 研究 `馬券の買い方の検証` にも、印と買い目を作るクラスと精算のクラスがある。そちらは研究の買い方（危険な人気馬を消すなど）に合わせた作りなので、この予想では `TicketType` と読み込みのリポジトリだけを共通にし、買い目と精算はこの予想の決まりで作った。
 
@@ -214,8 +221,8 @@
 | `CommandLine` | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
 | `TrainCommand` | `train`: 時点ごとに、既存の4つの予想と7つの予想のモデルを学習して保存する。`--year`（既定は今年）・`--timings`（既定は3つ全部） | `add_parser(subparsers)`・`run(引数)` |
 | `PredictCommand` | `predict`: 1レースの展開と着順を予測し、印と印どおりの買い目を出す。`--odds` で単勝オッズを渡せる | `add_parser(subparsers)`・`run(引数)` |
-| `BacktestCommand` | `backtest`: 年ごとの確かめ。`--years`（既定 2021-2026）・`--config`（既定は速さのための `setting/backtest_settings.toml`） | `add_parser(subparsers)`・`run(引数)` |
-| `BacktestTables` | 年ごとの確かめの結果を、表1〜4 と確率の当てはまりの表と条件の表にする | `tables()` |
+| `BacktestCommand` | `backtest`: 年ごとの確かめ。`--years`（既定 2018-2026）・`--timing`（既定は当日）・`--config`（既定は速さのための `setting/backtest_settings.toml`） | `add_parser(subparsers)`・`run(引数)` |
+| `BacktestTables` | 年ごとの確かめの結果を、表1〜6 と確率の当てはまりの表と条件の表にする | `tables()` |
 
 ### repository/ — ファイルの読み書き
 

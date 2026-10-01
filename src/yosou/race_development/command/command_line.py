@@ -29,13 +29,14 @@ USAGE = """既存の予想から見たレースの傾向に合う展開（前半
 
     uv run python -m yosou.race_development predict 2026100404050311 --timing 前日
 
-年ごとの確かめ（2021〜2026年の各年を、その前の年までのデータだけで学習し直して、当日の時点で予測する）:
+年ごとの確かめ（2018〜2026年の各年を、その前の年までのデータだけで学習し直して、当日の時点で予測する。--timing で前日・木曜も）:
 
     uv run python -m yosou.race_development backtest
     uv run python -m yosou.race_development backtest --years 2024-2026
+    uv run python -m yosou.race_development backtest --timing 前日
 
 途中の結果（学習データ・年ごとの予測・精算の表）は reports/展開から着順を予想/ に残し、止まったら続きから再開する。
-結果の表は reports/展開から着順を予想/backtest/results.md にも書く。設計書は docs/design/展開から着順を予想/。
+結果の表は reports/展開から着順を予想/backtest/results.md（前日は results_day_before.md）にも書く。設計書は docs/design/展開から着順を予想/。
 """
 
 

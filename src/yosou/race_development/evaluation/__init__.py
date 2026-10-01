@@ -7,6 +7,7 @@
 | ``StageBaselines`` | ①〜③ のモデルによらない基準（割合は、その年より前の年で数える） |
 | ``FinishYearMetrics`` | ⑦ の、年ごとの当たり具合（年ごとの確かめの表3） |
 | ``PlaceCalibration`` | 3着以内の確率の、帯ごとの実際の割合 |
+| ``UnlabeledRaceTable`` | 正解を作らなかったレースの数と割合を、理由ごと・条件ごとに数える |
 
 券種ごとの的中率と回収率（表1・表2）は、``betting/`` の ``ReturnSummary`` が出す。
 """
@@ -16,8 +17,9 @@ from .place_calibration import TOP3_PROBABILITY, PlaceCalibration
 from .race_metrics import RaceMetrics
 from .stage_baselines import StageBaselines
 from .stage_year_metrics import KIND, METRIC, RECENT_CLOSING, RECENT_CORNER4, VALUE, YEAR, StageYearMetrics
+from .unlabeled_race_table import UnlabeledRaceTable
 
 __all__ = [
-    "RaceMetrics", "StageYearMetrics", "StageBaselines", "FinishYearMetrics", "PlaceCalibration",
+    "RaceMetrics", "StageYearMetrics", "StageBaselines", "FinishYearMetrics", "PlaceCalibration", "UnlabeledRaceTable",
     "YEAR", "KIND", "METRIC", "VALUE", "RECENT_CORNER4", "RECENT_CLOSING", "TOP3_PROBABILITY",
 ]

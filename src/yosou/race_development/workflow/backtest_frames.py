@@ -5,11 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from yosou.shared.dataset import HORSE_ID, HORSE_NO, RACE_DATE, RACE_ID
+from yosou.shared.dataset import HORSE_ID, HORSE_NO, RACE_DATE, RACE_ID, VENUE
+from yosou.shared.feature import FIELD_SIZE
 from yosou.shared.dataset.column_names import FINISH, POPULARITY, WIN_ODDS
 
 from ..betting import column_names as bet
+from ..dataset import label_names as names
 from ..evaluation import RECENT_CLOSING, RECENT_CORNER4, TOP3_PROBABILITY, YEAR
+from ..evaluation import unlabeled_race_table as unlabeled
 from ..evaluation.stage_baselines import LEAD_CANDIDATES, LEAD_RATE, PREVIOUS_POSITION, STYLE
 from ..feature import LEADER_PROBABILITY, WIN_PROBABILITY, GroupForecast
 from ..ml_model import OrderProbability
@@ -22,20 +25,23 @@ class BacktestFrames:
 
     - ``betting``: 買い目を作る1年ぶんの表（1行 = 1頭。``YearBetting`` の列）。
     - ``horses``・``races``: 当たり具合を測る表（1行 = 1頭・1レース。目的変数と予測と近走の特徴量）。
+    - ``unlabeled``: 正解を作らなかったレースを数える表（1行 = 1レース。``UnlabeledRaceTable`` の列）。
     """
 
     def __init__(self, datasets: KindDatasets) -> None:
         self._datasets = datasets
         self._order = OrderProbability()
 
-    def betting(self, year: int, early: GroupForecast, finish: GroupForecast) -> pd.DataFrame:
+    def betting(self, year: int, early: GroupForecast, finish: GroupForecast,
+                win_column: str = WIN_PROBABILITY) -> pd.DataFrame:
+        """``win_column`` は、印と買い目に使う1着の確率の列（既定は ⑦。オッズを足したモデルと比べるときに変える）。"""
         horses = self._year_rows(self._datasets.horses.ids, year)
         evaluation = self._datasets.horses.evaluation.loc[horses.index]
         predicted = finish.horse_rows(horses)
         table = pd.DataFrame({
             bet.RACE_ID: horses[RACE_ID].astype(str),
             bet.HORSE_NO: pd.to_numeric(horses[HORSE_NO], errors="coerce"),
-            bet.WIN_PROBABILITY: predicted[WIN_PROBABILITY],
+            bet.WIN_PROBABILITY: predicted[win_column],
             bet.WIN_ODDS: evaluation[WIN_ODDS],
             bet.LEADER_PROBABILITY: early.horse_rows(horses)[LEADER_PROBABILITY],
             ORDER_LAMBDA: predicted[ORDER_LAMBDA],
@@ -66,6 +72,26 @@ class BacktestFrames:
         ], axis=1)
         frame[YEAR] = pd.to_datetime(ids[RACE_DATE]).dt.year.astype(str)
         return frame.reset_index(drop=True)
+
+    def unlabeled(self) -> pd.DataFrame:
+        """学習データの全部のレースの、正解を作らなかった理由を数えるための列。"""
+        data = self._datasets.races
+        evaluation = data.evaluation
+        return pd.DataFrame({
+            "race_id": data.ids[RACE_ID].astype(str),
+            unlabeled.YEAR: pd.to_datetime(data.ids[RACE_DATE]).dt.year.astype(str),
+            unlabeled.VENUE: data.ids[VENUE].astype(str),
+            unlabeled.FIELD_SIZE: data.features[FIELD_SIZE],
+            unlabeled.PACE_NAME: data.targets[names.PACE_CLASS].map(dict(enumerate(names.PACE_CLASS_NAMES))),
+            names.TRACK_CODE: evaluation[names.TRACK_CODE],
+            names.FIRST_CORNER_NO: evaluation[names.FIRST_CORNER_NO],
+            names.CORNER_LAPS_OVER_ONE: evaluation[names.CORNER_LAPS_OVER_ONE],
+            names.FIRST_CORNER_LEADER_NO: evaluation[names.FIRST_CORNER_LEADER_NO],
+            names.FIRST_HALF_TIME: evaluation[names.FIRST_HALF_TIME],
+            names.SECOND_HALF_TIME: evaluation[names.SECOND_HALF_TIME],
+            unlabeled.FIRST_STAGE: evaluation[unlabeled.FIRST_STAGE],
+            unlabeled.SECOND_STAGE: evaluation[unlabeled.SECOND_STAGE],
+        })
 
     def _year_rows(self, ids: pd.DataFrame, year: int) -> pd.DataFrame:
         return ids[pd.to_datetime(ids[RACE_DATE]).dt.year == year]

@@ -14,6 +14,7 @@
 | ``TendencyFeatures`` | V. 既存の予想から見た傾向（1頭ごと 16個・1レースごと 11個） |
 | ``EarlyForecastFeatures`` | S. 前半の予想の結果（1頭ごと 9個・1レースごと 6個） |
 | ``LateForecastFeatures`` | T. 後半の予想の結果（7個） |
+| ``OddsComparisonFeatures`` | W. オッズ（2個。着順の予想の比べるためだけ。予測では使わない） |
 | ``GroupForecast`` | 1つの組（傾向・前半・後半・着順）の予測の入れ物と、その列の名前 |
 | ``PriorForecasts`` | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
 | ``StackedColumns`` | 特徴量を予想ごとの一覧に合わせ、前の組の予測の列（V・S・T）を足す |
@@ -34,7 +35,10 @@ from .feature_catalog import (
     EARLY_HORSE_CATALOG,
     EARLY_RACE_CATALOG,
     FINISH_CATALOG,
+    FINISH_NO_EARLY_CATALOG,
+    FINISH_NO_LATE_CATALOG,
     FINISH_PLAIN_CATALOG,
+    FINISH_WITH_ODDS_CATALOG,
     HORSE_CATALOG,
     LATE_HORSE_CATALOG,
     LATE_RACE_CATALOG,
@@ -56,6 +60,9 @@ from .group_forecast import (
     HIGH_PROBABILITY,
     LEADER_PROBABILITY,
     MIDDLE_PROBABILITY,
+    NO_EARLY_WIN_PROBABILITY,
+    NO_LATE_WIN_PROBABILITY,
+    ODDS_WIN_PROBABILITY,
     PLAIN_WIN_PROBABILITY,
     SECOND_HALF_QUANTILES,
     SLOW_PROBABILITY,
@@ -64,6 +71,7 @@ from .group_forecast import (
 )
 from .late_forecast_features import LateForecastFeatures
 from .late_material_features import LateMaterialFeatures
+from .odds_comparison_features import OddsComparisonFeatures
 from .pace_baseline_features import PaceBaselineFeatures
 from .pace_material_features import PaceMaterialFeatures
 from .prior_forecasts import PriorForecasts
@@ -73,13 +81,16 @@ from .tendency_features import REQUIRED_HORSE_FEATURES, REQUIRED_RACE_FEATURES, 
 __all__ = [
     "EarlyHistoryFeatures", "EarlyFieldComparisonFeatures", "CourseShapeFeatures", "ClosingHistoryFeatures",
     "ClosingFieldComparisonFeatures", "PaceMaterialFeatures", "PaceBaselineFeatures", "LateMaterialFeatures",
-    "EarlyForecastFeatures", "LateForecastFeatures", "GroupForecast", "StackedColumns", "PriorForecasts",
+    "EarlyForecastFeatures", "LateForecastFeatures", "OddsComparisonFeatures", "GroupForecast", "StackedColumns",
+    "PriorForecasts",
     "TendencyFeatures", "REQUIRED_HORSE_FEATURES", "REQUIRED_RACE_FEATURES",
     "TOP3_PROBABILITY", "FAVORITE_OUT_PROBABILITY", "LONGSHOT_TOP3_PROBABILITY", "UPSET_BETS", "calm_probability",
     "big_upset_probability",
     "HORSE_CATALOG", "RACE_CATALOG", "EARLY_HORSE_CATALOG", "EARLY_RACE_CATALOG", "LATE_HORSE_CATALOG",
-    "LATE_RACE_CATALOG", "FINISH_CATALOG", "FINISH_PLAIN_CATALOG",
+    "LATE_RACE_CATALOG", "FINISH_CATALOG", "FINISH_PLAIN_CATALOG", "FINISH_NO_EARLY_CATALOG", "FINISH_NO_LATE_CATALOG",
+    "FINISH_WITH_ODDS_CATALOG",
     "LEADER_PROBABILITY", "FRONT_PROBABILITY", "MIDDLE_PROBABILITY", "BACK_PROBABILITY",
     "SLOW_PROBABILITY", "EVEN_PROBABILITY", "HIGH_PROBABILITY", "FIRST_HALF_QUANTILES",
     "CORNER4_PREDICTION", "CLOSING_PREDICTION", "SECOND_HALF_QUANTILES", "WIN_PROBABILITY", "PLAIN_WIN_PROBABILITY",
+    "NO_EARLY_WIN_PROBABILITY", "NO_LATE_WIN_PROBABILITY", "ODDS_WIN_PROBABILITY",
 ]
