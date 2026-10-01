@@ -21,17 +21,17 @@ from yosou.shared.feature.group import (
 )
 from yosou.shared.repository import MarketRunRepository
 
-from ..feature import CATALOG
+from ..feature import CATALOG, PlaceOddsFeatures
 from .column_names import LONGSHOT_ZONE
 from .longshot_rule import LongshotRule
 from .longshot_selector import LongshotSelector
 
 #: ``FeatureBuilder`` に渡すまとまり（G 以外）。共通の A〜F・H・I に、共通の J（人気の履歴）と K（単勝オッズ）と
-#: L（騎手・調教師・血統の市場に対する成績）を足す。
+#: L（騎手・調教師・血統の市場に対する成績）と、この予想だけの M（複勝オッズ）を足す。
 _FEATURE_GROUPS = (
     RaceConditionFeatures(), HorseFeatures(), PeopleFeatures(), PreviousRunFeatures(),
     RecentFormFeatures(), AptitudeFeatures(), PedigreeFeatures(), WorkoutFeatures(),
-    PopularityHistoryFeatures(), OddsFeatures(), PeopleMarketFeatures(),
+    PopularityHistoryFeatures(), OddsFeatures(), PeopleMarketFeatures(), PlaceOddsFeatures(),
 )
 #: 出走の行から、学習データの評価用の列と予測の結果に残す列（穴馬の区分。設計書 08 の 2）。
 _EXTRA_COLUMNS = EntryColumns({LONGSHOT_ZONE: LONGSHOT_ZONE})
@@ -46,7 +46,7 @@ def dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
     """元DB への接続から、この予想の学習データ・予測用データを作るクラスを組み立てる。
 
     この予想の決めごとは3つ: 穴馬の行だけを入れ、区分の列を足す（``LongshotSelector``）、3着以内なら 1
-    （共通の ``Top3TargetBuilder``）、特徴量に まとまり J・K・L を足す（``CATALOG`` と ``_FEATURE_GROUPS``。
+    （共通の ``Top3TargetBuilder``）、特徴量に まとまり J・K・L・M を足す（``CATALOG`` と ``_FEATURE_GROUPS``。
     L の材料の過去の全出走は ``MarketRunRepository`` で読む）。
     ほかの予想は、同じ ``DatasetBuilder`` に別のクラスを渡す（設計書 04）。
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from 共通.render import Table
 
 from ..dataset import TrainingData
-from ..dataset.column_names import PLACE_ODDS_LOW, PLACE_PAYOUT
+from ..dataset.column_names import PLACE_ODDS_HIGH, PLACE_ODDS_LOW, PLACE_PAYOUT
 from ..place_value import PlacePriceEstimator
 from ..repository import PlacePriceRepository
 
@@ -17,12 +17,20 @@ class PlacePriceStep:
     モデルの置き場所に保存する。予測のときに、複勝を買う期待値を出すのに使う（既存モデルの修正計画の 1・2）。
 
     検証データ・テストデータの払戻は使わない。保存した倍率の表を返す。
+    ``use_spread`` を真にすると、複勝オッズの幅（最高 ÷ 最低）での直しの倍率も決めて保存する（穴馬の予想が使う。
+    穴馬の設計書 15 の 18）。既定は今までどおり最低オッズの帯だけ。
     """
 
+    def __init__(self, use_spread: bool = False) -> None:
+        self._use_spread = use_spread
+
     def run(self, train: TrainingData, models_root: Path) -> Table:
-        estimator = PlacePriceEstimator().fit(train.evaluation[PLACE_ODDS_LOW], train.evaluation[PLACE_PAYOUT])
+        highest = train.evaluation[PLACE_ODDS_HIGH] if self._use_spread else None
+        estimator = PlacePriceEstimator().fit(train.evaluation[PLACE_ODDS_LOW], train.evaluation[PLACE_PAYOUT], highest)
         path = PlacePriceRepository(models_root).save(estimator.state())
         rows = [[band, factor] for band, factor in estimator.multipliers().items()]
+        rows += [[f"幅 {band}", factor] for band, factor in estimator.spread_multipliers().items()]
         return Table(["複勝の最低オッズの帯", "払戻 ÷ 最低オッズ の平均"], rows,
                      title="複勝の見込みの倍率（学習データの期間の、当たった複勝から決めた値）",
-                     note=f"保存した場所: {path}。複勝の期待値 = 複勝的中の確率 × 最低オッズ × この倍率。")
+                     note=f"保存した場所: {path}。複勝の期待値 = 複勝的中の確率 × 最低オッズ × この倍率"
+                          "（「幅」の行があるときは、最高 ÷ 最低 のオッズの幅の帯の倍率も掛ける）。")

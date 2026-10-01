@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from yosou.favorites_out_of_top3.dataset import FAVORITE_BAND
 from yosou.longshots_in_top3.dataset import LONGSHOT_ZONE
-from yosou.shared.feature import BASE_FEATURES, ODDS_FEATURES, POPULARITY_FEATURES
+from yosou.longshots_in_top3.feature import PLACE_ODDS_FEATURES
+from yosou.shared.feature import BASE_FEATURES, ODDS_FEATURES, PEOPLE_MARKET_FEATURES, POPULARITY_FEATURES
 from yosou.stakes_tendency_top3.feature import K_FEATURES as STAKES_TENDENCY_FEATURES
 
 from ..experiments import CONDITION_COLUMNS, EXPERIMENT_GROUPS
@@ -20,6 +21,10 @@ _TOP3_RATE = "オッズから見た3着以内率"
 #: 人気を使う予想の、人気と人気の履歴（4個）と、直した後に足した単勝オッズから見た評価（3個）。
 _POPULARITY = tuple(feature.name for feature in POPULARITY_FEATURES)
 _ODDS = tuple(feature.name for feature in ODDS_FEATURES)
+#: 2026-09-30 に足した、騎手・調教師・血統の市場に対する成績（まとまり L の4個）と、
+#: 2026-10-01 に穴馬の予想で試した、複勝オッズから見た評価（まとまり M の4個）。
+_PEOPLE_MARKET = tuple(feature.name for feature in PEOPLE_MARKET_FEATURES)
+_PLACE_ODDS = tuple(feature.name for feature in PLACE_ODDS_FEATURES)
 #: オッズだけの基準に使う列（オッズから出した値と頭数だけ。馬の情報は入れない）。
 _ODDS_ONLY_FORM = ("単勝オッズ", "人気順位", "オッズから見た勝率", _TOP3_RATE, "出走頭数")
 _ODDS_ONLY_POPULARITY = ("人気順位", *_ODDS, "出走頭数")
@@ -45,6 +50,12 @@ VARIANTS: tuple[ModelVariant, ...] = (
     ModelVariant(_LONGSHOTS, "odds_only", "オッズだけ", _ODDS_ONLY_POPULARITY, uses_baseline=True),
     ModelVariant(_LONGSHOTS, "odds_baseline", "基準＋補正（分けない）", _BASE + _POPULARITY + _ODDS, uses_baseline=True),
     ModelVariant(_LONGSHOTS, "improved", "変更版（基準＋補正・中穴と大穴に分ける）", _BASE + _POPULARITY + _ODDS,
+                 uses_baseline=True, segment_column=LONGSHOT_ZONE),
+    # 穴馬の今の本番の作り方（変更版 ＋ L）と、それに複勝オッズ（M）を足した作り方（穴馬の設計書 15 の 16）
+    ModelVariant(_LONGSHOTS, "people_market", "変更版 ＋ 市場に対する成績（今の本番）", _BASE + _POPULARITY + _ODDS + _PEOPLE_MARKET,
+                 uses_baseline=True, segment_column=LONGSHOT_ZONE),
+    ModelVariant(_LONGSHOTS, "place_odds", "変更版 ＋ 市場に対する成績 ＋ 複勝オッズ",
+                 _BASE + _POPULARITY + _ODDS + _PEOPLE_MARKET + _PLACE_ODDS,
                  uses_baseline=True, segment_column=LONGSHOT_ZONE),
     # 人気馬の4着以下
     ModelVariant(_FAVORITES, "current", "現行", _BASE + _POPULARITY, uses_baseline=False),

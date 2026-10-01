@@ -2,11 +2,11 @@
 
 **この文書で示すこと:** 学習と予測のとき、利用者・jvdata-store・元DB と、[04-classes.md](04-classes.md) のクラスが、どの順に、どのメソッドを呼ぶか。
 
-**結論: 流れは「学習」と「予測」の2つに分かれる。** 学習は `TrainCommand` から始まり、共通の `SegmentedTraining` が区分（中穴・大穴）ごとに `TrainingWorkflow` を回して、3つの時点（木曜・前日・当日）ごとに LightGBM と CatBoost を学習させて保存する。最後に `PlacePriceStep` が、複勝の見込みの倍率を保存する。予測は `PredictionWorkflow` が進め、**オッズと全頭の人気を決めて出走の行に当ててから**、穴馬の行だけの予測用データを作り、その馬の区分のモデル2つの予測確率を平均し、前日・当日は複勝の期待値を足し、最後に区分（`--zone`）が指定されていればその行だけに絞る。
+**結論: 流れは「学習」と「予測」の2つに分かれる。** 学習は `TrainCommand` から始まり、共通の `SegmentedTraining` が区分（中穴・大穴）ごとに `TrainingWorkflow` を回して、3つの時点（木曜・前日・当日）ごとに LightGBM と CatBoost を学習させて保存する。そのあと `PlacePriceStep` が複勝の見込みの倍率を、最後に `BuyLineStep` が「買い」の線を保存する。予測は `PredictionWorkflow` が進め、**オッズと全頭の人気を決めて出走の行に当ててから**、穴馬の行だけの予測用データを作り、その馬の区分のモデル2つの予測確率を平均し、前日・当日は複勝の期待値と「買い」の印を足し、最後に区分（`--zone`）が指定されていればその行だけに絞る。
 
 2026-09-24 の直し（オッズから作った基準を出発点にする・中穴と大穴で別のモデル・複勝の期待値。[15-decisions.md の 12](15-decisions.md#12-既存モデルの修正計画での直し)）を、2026-09-28 に図に入れた。図は `src/yosou/longshots_in_top3/` と `src/yosou/shared/` のコードで確かめた呼び出しの順である。
 
-- 図に出てくるものと、図の読み方（凡例）は [手本の 05 の「図に出てくるもの」](../近走と適性から3着以内を予想/05-sequence.md#図に出てくるもの) と [「図の読み方」](../近走と適性から3着以内を予想/05-sequence.md#図の読み方) を参照。この予想で増えるのは、利用者が渡す人気と区分、区分ごとに学習と予測を分ける `SegmentedTraining`・`SegmentedPrediction`、基準を作る `Top3Baseline`、複勝の期待値を出す `PlacePriceStep`・`PlacePriceRepository`・`PlaceValueColumns`、`LongshotZoneFilter` である。
+- 図に出てくるものと、図の読み方（凡例）は [手本の 05 の「図に出てくるもの」](../近走と適性から3着以内を予想/05-sequence.md#図に出てくるもの) と [「図の読み方」](../近走と適性から3着以内を予想/05-sequence.md#図の読み方) を参照。この予想で増えるのは、利用者が渡す人気と区分、区分ごとに学習と予測を分ける `SegmentedTraining`・`SegmentedPrediction`、基準を作る `Top3Baseline`、複勝の期待値を出す `PlacePriceStep`・`PlacePriceRepository`・`PlaceValueColumns`、「買い」の線を決めて付ける `BuyLineStep`・`BuyLineRepository`・`BuyJudge`（2026-10-01）、`LongshotZoneFilter` である。
 - public メソッドの中の判断（if 文による分かれ道）は [06-flowchart.md](06-flowchart.md) を参照。2種類の図の使い分けは [01-overview.md](01-overview.md#図の使い分け) を参照。
 - **リポジトリとのやりとりは、手本とまったく同じである。** 学習データを集める流れは [手本の 05 の図3](../近走と適性から3着以内を予想/05-sequence.md#図3-記録を集めるリポジトリとのやりとり)、1レースの記録を集めて速報を反映する流れは [手本の 05 の図4](../近走と適性から3着以内を予想/05-sequence.md#図4-1レースの記録を集める速報の反映) を参照。この文書では描き直さない。手本と同じく、まとまり L の材料を読む `MarketRunRepository` も呼ぶ（2026-09-30 から）。
 
@@ -26,6 +26,7 @@ sequenceDiagram
     participant W as TrainingWorkflow
     participant MR as ModelRepository
     participant PP as PlacePriceStep
+    participant BL as BuyLineStep
     U->>C: train（--config、期間の引数）
     C->>ST: read_training_data()
     ST->>D: build_training_data（期間）
@@ -36,7 +37,7 @@ sequenceDiagram
     LS->>LS: 入れる行を選び、「穴馬か」「穴馬の区分」を足す（06-flowchart.md の図1）
     LS-->>D: サンプルの候補（レースの全出走馬）
     D->>F: build（記録、当日）
-    F-->>D: 特徴量 82個（レース内順位は、レースの全出走馬から計算）
+    F-->>D: 特徴量 86個（レース内順位は、レースの全出走馬から計算）
     D->>LS: keep_samples（サンプルの候補）
     LS-->>D: 穴馬の行だけ
     D->>T: build（穴馬の行）
@@ -60,18 +61,24 @@ sequenceDiagram
     end
     ST-->>C: 区分ごとの学習の結果
     C->>PP: run（学習データの期間の行、モデルの置き場所）
-    PP->>PP: 当たった複勝の払戻から、最低オッズの帯ごとの見込みの倍率を決める
+    PP->>PP: 当たった複勝の払戻から、最低オッズの帯ごとと、オッズの幅（最高 ÷ 最低）の帯ごとの見込みの倍率を決める
     PP-->>C: 保存した（models/place_price.json）と、倍率の表
-    C-->>U: 区分ごとの学習の結果と、複勝の見込みの倍率
+    C->>BL: run（学習データ、期間、モデルの置き場所）
+    BL->>BL: 保存したモデルで検証データを予測し、複勝の期待値を出す（CalibrationCheck の検証の行）
+    BL->>BL: 時点（前日・当日）× 区分ごとに、線の候補の成績から線を選ぶ（BuyLineChooser。16-evaluation.md の 3）
+    BL-->>C: 保存した（models/buy_lines.json）と、線の候補ごとの成績・選んだ線の表
+    C-->>U: 区分ごとの学習の結果と、複勝の見込みの倍率と、「買い」の線
 ```
 
 **説明。** 利用者が `train` を実行すると、`TrainCommand` は元DB を開き、`SegmentedTraining.read_training_data()` で学習データを1回だけ作る。作り終えたら元DB を閉じ、学習のあいだはロックを持たない。
 
 危険な人気馬の予想と同じく、**穴馬に絞るのは、特徴量を作ったあとになる。** `LongshotSelector.training_samples()` は、障害・取消・期間でふるったうえで「穴馬か」「穴馬の区分」の列を足すだけで、行は減らさない。レース内順位（まとまり G）を、そのレースの全出走馬から計算するためである（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)）。特徴量ができたあと、`keep_samples()` が穴馬の行だけを残し、共通の `Top3TargetBuilder` が目的変数を付ける。「穴馬の区分」の列は、学習データの評価用の列に残り、学習データを区分に分けるのに使うが、特徴量としてはモデルに渡さない（[08-training-data.md](08-training-data.md#2-列の種類)）。**基準（共通の `Top3Baseline`）は、穴馬に絞る前のレースの全頭で作ってから、穴馬の行だけにする。** オッズから見た3着以内率は、同じレースのほかの馬のオッズも使って出すためである。
 
-学習は `SegmentedTraining` が区分ごとに行を分け、共通の `TrainingWorkflow` を区分の数だけ回す。`TrainingWorkflow` の中は手本の図1 と同じである。前日・当日のモデルは基準を出発点にして上げ下げだけを学び（LightGBM の `init_score`、CatBoost の `baseline`）、木曜のモデルはオッズが無いので基準なしで学ぶ。木曜・前日のモデルには、82個のうちその時点で使う列だけを渡す（[07-prediction-timing.md](07-prediction-timing.md#時点ごとに使う特徴量)）。モデルは 2つの区分 × 3つの時点 × 2つで、12個になる。
+学習は `SegmentedTraining` が区分ごとに行を分け、共通の `TrainingWorkflow` を区分の数だけ回す。`TrainingWorkflow` の中は手本の図1 と同じである。前日・当日のモデルは基準を出発点にして上げ下げだけを学び（LightGBM の `init_score`、CatBoost の `baseline`）、木曜のモデルはオッズが無いので基準なしで学ぶ。木曜・前日のモデルには、86個のうちその時点で使う列だけを渡す（[07-prediction-timing.md](07-prediction-timing.md#時点ごとに使う特徴量)）。モデルは 2つの区分 × 3つの時点 × 2つで、12個になる。
 
-最後に `PlacePriceStep` が、学習データの期間（検証データの始まりより前）の複勝の払戻から見込みの倍率を決めて保存する。検証データとテストデータの払戻は使わない。
+そのあと `PlacePriceStep` が、学習データの期間（検証データの始まりより前）の複勝の払戻から見込みの倍率を決めて保存する。検証データとテストデータの払戻は使わない。
+
+最後に `BuyLineStep` が、保存したモデルと見込みの倍率で検証データの複勝の期待値を出し、時点 × 区分ごとに「買い」の線を選んで保存する（2026-10-01。決まりは [16-evaluation.md の 3](16-evaluation.md#3-買いの線引き)）。テストデータは使わない。木曜は期待値が無いので線を持たない。
 
 ## 図2. 予測
 
@@ -91,6 +98,7 @@ sequenceDiagram
     participant SP as SegmentedPrediction
     participant E as EnsembleModel
     participant PV as PlaceValueColumns
+    participant BJ as BuyJudge
     participant ZF as LongshotZoneFilter
     U->>JS: jvstore sync（出走馬名表・出馬表・出走別着度数・調教）
     JS->>DB: 書き込む
@@ -98,8 +106,9 @@ sequenceDiagram
         U->>JS: jvstore realtime（開催日）
         JS->>DB: 馬場状態・出馬表の変更・締め切り前のオッズ（当日は馬体重も）を書き込む
     end
-    U->>PC: predict（レースID、--timing、--pops、--odds、--zone）
+    U->>PC: predict（レースID、--timing、--pops、--odds、--zone、--min-value）
     PC->>PC: 学習のときに保存した複勝の見込みの倍率を読む（PlacePriceRepository。無ければ期待値を出さない）
+    PC->>PC: 「買い」の線を決める（--min-value があればその線、無ければ BuyLineRepository の保存した線）
     PC->>W: run（レースID、時点、渡された人気、区分、渡されたオッズ）
     W->>OR: resolve（レースID、渡されたオッズ）
     opt オッズを渡さなかったとき
@@ -124,22 +133,25 @@ sequenceDiagram
     SP-->>W: モデルごとの確率と平均（穴馬の行の並び）
     W->>PV: of（平均の確率、予測用データ）
     PV-->>W: 前日・当日はオッズから見た3着以内率・複勝的中の確率・複勝の期待値（木曜は無し）
+    W->>BJ: judge（複勝の期待値、区分）
+    BJ-->>W: その区分の線と、線以上なら「買い」（線の無い時点・区分と、期待値の無い馬は印なし）
     W->>ZF: apply（予測の結果、区分）
     ZF-->>W: 区分の行だけ（指定が無ければそのまま）
     W-->>PC: 穴馬ごとの結果
-    PC-->>U: 穴馬ごとの「3着以内に入る確率」（高い順。人気順位・区分・期待値の列付き）
+    PC-->>U: 穴馬ごとの「3着以内に入る確率」（高い順。人気順位・区分・期待値・買いの線・買いの列付き）
 ```
 
-**説明。** 利用者は、まず jvdata-store の `jvstore sync` で出走馬名表（木曜）・出馬表（前日から）・出走別着度数・調教を取り込む。前日・当日は `jvstore realtime --date <開催日>` で速報（馬場状態、締め切り前の単勝オッズ、当日は馬体重も）も取り込む。次に `predict` を実行する。
+**説明。** 利用者は、まず jvdata-store の `jvstore sync` で出走馬名表（木曜）・出馬表（前日から）・出走別着度数・調教を取り込む。前日・当日は `jvstore realtime --date <開催日>` で速報（馬場状態、締め切り前の単勝・複勝オッズ、当日は馬体重も）も取り込む。次に `predict` を実行する。
 
 `PredictionWorkflow` は、**先にオッズを決め、次に人気を決める。** オッズは `--odds` → 元DB の締め切り前のオッズ → 無し、の順（手本と同じ `OddsResolver`）。人気は `--pops` → そのオッズの小さい順 → 無し、の順（`PopularityApplier`）。無しのときは、元DB の出走の行に入っている値（終わったレースの確定オッズ・確定単勝人気）がそのまま使われる。木曜は馬番も締め切り前のオッズも無いので、利用者が `--pops 馬名:人気` で渡すしかない（[07-prediction-timing.md](07-prediction-timing.md#予測のときの人気の与え方)）。
 
-`DatasetBuilder.build_prediction_data()` の中は、学習と同じ順である。`RaceRecordsLoader` が記録を集めて速報と人気・オッズを当て（木曜は馬名で当てる）、`LongshotSelector.prediction_runners()` が全頭の人気がそろっているかを確かめて「穴馬か」「穴馬の区分」を足し、`FeatureBuilder` がその時点の特徴量を作り、`keep_samples()` が穴馬の行だけを残す。`RequiredInfoCheck` が、その時点で要る情報（前日以降は馬番・馬場状態・単勝オッズ、当日は馬体重も）がそろっているかを確かめ、前日・当日は `Top3Baseline` がレースの全頭のオッズから基準を作る。予測用データも学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 4）。
+`DatasetBuilder.build_prediction_data()` の中は、学習と同じ順である。`RaceRecordsLoader` が記録を集めて速報と人気・オッズを当て（木曜は馬名で当てる）、`LongshotSelector.prediction_runners()` が全頭の人気がそろっているかを確かめて「穴馬か」「穴馬の区分」を足し、`FeatureBuilder` がその時点の特徴量を作り、`keep_samples()` が穴馬の行だけを残す。`RequiredInfoCheck` が、その時点で要る情報（前日以降は馬番・馬場状態・単勝オッズ・複勝オッズ、当日は馬体重も）がそろっているかを確かめ、前日・当日は `Top3Baseline` がレースの全頭のオッズから基準を作る。予測用データも学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 4）。
 
-この予想で違うのは、次の3つである。
+この予想で違うのは、次の4つである。
 
 - **`LongshotSelector.prediction_runners()` は、全頭の人気がそろっているかを確かめる。** 穴馬は出走馬の大半なので、人気の分からない馬を黙って落とすと、出力から穴馬が欠ける。人気の分からない馬が1頭でもいれば、止めて、足りない馬の人気を渡すよう案内する（判断は [06-flowchart.md](06-flowchart.md#図2-予測用データに人気を当てる)）。
 - **`PlaceValueColumns` が、平均の確率から複勝の期待値を出す。** 3着以内の確率を複勝が当たる確率に直し（7頭以下は2着まで）、学習のときに保存した見込みの倍率を掛ける。オッズの無い木曜は、この列を出さない（[15-decisions.md の 12](15-decisions.md#12-既存モデルの修正計画での直し)）。
+- **`BuyJudge` が「買い」の印を付ける（2026-10-01）。** その馬の区分の線（学習のときに検証期間で決めたものか、`--min-value`）以上の複勝の期待値の穴馬に「買い」を付ける。線の決め方は [16-evaluation.md の 3](16-evaluation.md#3-買いの線引き)。
 - **最後に、`LongshotZoneFilter` が区分で絞る。** 予測は中穴・大穴それぞれのモデルで行い、`--zone` が指定されていれば、その区分の行だけを残して返す。指定が無ければ、穴馬すべてをそのまま返す。
 
 ## 今は無く、これから作るところ
@@ -153,7 +165,7 @@ sequenceDiagram
 | 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 決めた（[16-evaluation.md](16-evaluation.md)）。人気の基準との比べ方と、同じ人気の中での AUC を出す。2026-09-24 に区分（中穴・大穴）ごとに学習するようにしてからは、学習の報告も区分ごとに出る |
 | 確率のずれ（較正）の確かめ | 作った（`calibration` コマンド。2026-09-28）。流れは学習の図1の「検証データで当たり具合を確かめる」と同じで、保存したモデルを読んで検証・テストの期間を予測する。較正は足さないと決めた（[15-decisions.md の 15](15-decisions.md#15-確率を較正するか)）ので、図1・図2 は変わらない |
 | アンサンブルの平均のしかた | 決めた。手本と同じく、重みを付けない単純な平均（[15-decisions.md の 13](15-decisions.md#13-アンサンブルの平均のしかた)） |
-| 予測確率から「買い」と判定する線引き | 決めない。確率をそのまま高い順に出す（[15-decisions.md](15-decisions.md#11-買いと判定する線引きを設計書に入れるか)） |
+| 「買い」と判定する線引き | 作った（2026-10-01）。複勝の期待値の線を学習のときに検証期間で決めて保存し、予測の表に「買い」を付ける。`--min-value` で置き換えられる（[15-decisions.md の 17](15-decisions.md#17-買いの線の決め方)）。はじめは「決めない。確率をそのまま高い順に出す」だった |
 
 ## 文書情報
 
@@ -163,3 +175,5 @@ sequenceDiagram
 | 更新 | 2026-09-28: 「今は無く、これから作るところ」の評価指標と平均のしかたを、今の状態に直した |
 | 更新 | 2026-09-28: 図1・図2 を、2026-09-24 の直し（基準・中穴と大穴ごとのモデル・複勝の期待値）を入れた今のコードの呼び出しの順に描き直した |
 | 更新 | 2026-09-30: まとまり L（騎手・調教師・血統の市場に対する成績）の4個を足し、図1と説明の特徴量の数を 82個にそろえた。リポジトリのやりとりに `MarketRunRepository` も入ることを書いた |
+| 更新 | 2026-10-01: 図1 に「買い」の線を決める `BuyLineStep` を、図2 に「買い」を付ける `BuyJudge` と `--min-value` を足した。まとまり M（複勝オッズ）を足し、特徴量の数を 86個にした |
+| 更新 | 2026-10-01: 図1 の見込みの倍率を、オッズの幅でも決めることを書いた（15-decisions.md の 18） |
