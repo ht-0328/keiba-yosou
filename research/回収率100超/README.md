@@ -49,6 +49,7 @@
 | `extract_tickets.py` | 入口④。元DB から、券種ごとの買い目のオッズと払戻を中間データにする |
 | `backtest_tickets.py` | 入口⑤。複勝以外の券種（単勝・ワイド・馬連・馬単・3連複・3連単）を期待値で買って確かめる（[docs/05-券種ごとの検証.md](docs/05-券種ごとの検証.md)） |
 | `check_pre_deadline.py` | 入口⑥。締め切り前のオッズ（時系列オッズ）で買っていたら回収率がどうなったかを、過去1年のレースで確かめる（[docs/04-買い方.md](docs/04-買い方.md) の 6-1） |
+| `compare_probability_sources.py` | 入口⑦。複勝の買い方はそのままに、確率の出どころを予想「近走と適性から3着以内を予想」の当日のモデル（その年より前だけで学習し直す）に替えて、元より良いかを確かめる（[docs/04-買い方.md](docs/04-買い方.md) の 8） |
 | `analysis/repository/` | 元DB から読む部品。1つのクラスが1つの SQL を持つ |
 | `analysis/cache_loader.py` | 中間データを1つの表にまとめる |
 | `analysis/market/` | オッズから確率を作る部品（条件付きロジット・Harville/Stern） |
@@ -57,6 +58,7 @@
 | `analysis/ticket/` | 買い目を選ぶ部品（想定払戻倍率・期待値・確率のそろえ直し） |
 | `analysis/tickets/` | 複勝以外の券種の部品（買い目の確率・オッズの帯ごとの較正・印・線の決め方） |
 | `analysis/backtest/` | 検証の部品（ウォークフォワード・回収率・信頼区間） |
+| `analysis/probability_source/` | 確率の出どころを替えて比べる部品（当日のモデルの学習し直し・突き合わせ・採用の基準） |
 | `analysis/bet_rule.py` | 採用した買い方（どの期待値から買うか） |
 | `tests/` | 架空の値で部品を確かめるテスト |
 | `reports/回収率100超/`（Git 対象外） | 実測の数値。JV-Data 由来の値はここにだけ置く |
@@ -79,9 +81,12 @@ uv run python research/回収率100超/backtest.py           # 学習と検証�
 uv run python research/回収率100超/extract_tickets.py    # 券種ごとの買い目のオッズと払戻を読み出す（十数分）
 uv run python research/回収率100超/backtest_tickets.py   # 複勝以外の券種の検証（学習に数時間。2回目からは予測を使い回す）
 uv run python research/回収率100超/check_pre_deadline.py # 締め切り前のオッズでの確認（先に backtest.py と、jvdata-store で時系列オッズの取り込み）
+uv run python research/回収率100超/compare_probability_sources.py          # 確率の出どころを当日のモデルに替えて比べる（学習し直しに 30〜60分。先に backtest.py と research/一番人気を疑う/port_check.py tables）
+uv run python research/回収率100超/compare_probability_sources.py --reuse  # 残した新しい予測から表だけを書き直す
 uv run python -m pytest -q research                      # 部品のテスト（架空の値だけ）
 ```
 
 中間データ（parquet）と表の書き出しに使う pyarrow と tabulate は、pyproject に入っている（`uv sync` で入る）。
 
-`extract.py` は元DB を読む間だけ開く。`backtest.py` は元DB に触らない。
+`extract.py` は元DB を読む間だけ開く。`backtest.py` と `compare_probability_sources.py` は元DB に触らない。
+`compare_probability_sources.py` の学習は、同じマシンのほかの学習とぶつからないように1つずつ走らせ、Windows では P コア（論理 CPU 0〜11）に絞る（`--threads` で学習のスレッド数。既定 6）。

@@ -30,12 +30,12 @@ from 回収率100超.analysis.backtest import (  # noqa: E402
     EARLY_YEARS,
     LATE_YEARS,
     MIN_YEARLY_BETS,
+    LineStudyTable,
     OperationSummary,
-    Payback,
-    PaybackInterval,
     PlaceLineChoice,
     PlaceLineStudy,
     WalkForwardYears,
+    YearlyPaybackTable,
 )
 from 回収率100超.analysis.bet_rule import PLACE_RULE  # noqa: E402
 from 回収率100超.analysis.cache_loader import CacheLoader  # noqa: E402
@@ -148,27 +148,18 @@ def _write_report(bought: pd.DataFrame, study: PlaceLineStudy, path: Path) -> No
 
 
 def _yearly_table(bought: pd.DataFrame) -> str:
-    interval = PaybackInterval()
-    rows = [_row(int(year), group, interval) for year, group in bought.groupby("year")]
-    rows.append(_row("合計", bought, interval))
-    return pd.DataFrame(rows).to_markdown(index=False)
+    return YearlyPaybackTable().build(bought).to_markdown(index=False)
 
 
 def _line_section(study: PlaceLineStudy) -> list[str]:
     """線ごとの前半・後半の成績と、決まりで選んだ線。"""
-    rows = [{"線": result.line, "前半の回収率": round(result.early.rate, 1),
-             "前半の1年あたりの買い目": round(result.early_yearly_bets),
-             "決まりを満たす": "○" if result.qualifies else "",
-             "後半の買い目": result.late.bets, "後半の回収率": round(result.late.rate, 1),
-             "後半の90%の下限": round(result.late.low, 1), "後半の90%の上限": round(result.late.high, 1)}
-            for result in study.lines]
     chosen = "なし" if study.chosen is None else f"{study.chosen.line:.2f}"
     agreement = "一致している" if study.chosen and study.chosen.line == PLACE_RULE.lower else "食い違っている"
     return [f"## 2. 線の選び方（前半 {EARLY_YEARS[0]}〜{EARLY_YEARS[1]}年で選び、後半 {LATE_YEARS[0]}〜{LATE_YEARS[1]}年で確かめる）",
             "",
             f"決まり: 前半で回収率が 100% を超え、前半の1年あたりの買い目が {MIN_YEARLY_BETS} 点以上残る線のうち、"
             "前半の回収率がいちばん高い線。後半の結果は選ぶのに使わない。", "",
-            pd.DataFrame(rows).to_markdown(index=False), "",
+            LineStudyTable().build(study).to_markdown(index=False), "",
             f"決まりで選んだ線: **{chosen}**（採用している線 {PLACE_RULE.lower:.2f} と{agreement}）", ""]
 
 
@@ -183,14 +174,6 @@ def _operation_section(bought: pd.DataFrame) -> list[str]:
             f"- 最大の連敗: {totals.longest_losing_streak} 回",
             f"- 最大の落ち込み（それまでの最高の損益からの下がり幅）: {totals.max_drawdown:,.0f} 円",
             f"- 1レースで買う最大の点数: {totals.max_bets_per_race} 点", ""]
-
-
-def _row(label: object, group: pd.DataFrame, interval: PaybackInterval) -> dict[str, object]:
-    payback = Payback(group["place_payout"])
-    low, high = interval.of(group["day"], group["place_payout"])
-    return {"年": label, "買い目": payback.bet_count, "的中率": round(payback.hit_rate, 3),
-            "回収率": round(payback.rate, 1), "90%の下限": round(low, 1),
-            "90%の上限": round(high, 1)}
 
 
 if __name__ == "__main__":
