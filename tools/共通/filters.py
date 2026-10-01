@@ -111,7 +111,7 @@ FILTER_FIELDS: tuple[FilterField, ...] = (
     FilterField("sex", "性別", "select", "牡 / 牝 / セン", "牝", tuple(codes.SEX_NAMES.values())),
     FilterField("age", "馬齢", "range", "馬齢", "3"),
     FilterField("field", "出走頭数", "range", "出走頭数", "16-18"),
-    FilterField("jockey", "騎手", "text", "騎手名（略称、部分一致）", "ルメール"),
+    FilterField("jockey", "騎手", "text", "騎手名（略称、部分一致）", "略称の一部"),
     FilterField("trainer", "調教師", "text", "調教師名（略称、部分一致）", "友道"),
     FilterField("from", "開始日", "date", "この日を含む（YYYY-MM-DD）", "2024-01-01"),
     FilterField("to", "終了日", "date", "この日を含む（YYYY-MM-DD）", "2024-12-31"),

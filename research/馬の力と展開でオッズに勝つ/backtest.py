@@ -1,6 +1,6 @@
 """オッズを使わないモデルの確率で、全券種を期待値で買って確かめる（研究「馬の力と展開でオッズに勝つ」の入口④）。
 
-    uv run --with pyarrow --with tabulate python research/馬の力と展開でオッズに勝つ/backtest.py --predictions 全年
+    uv run python research/馬の力と展開でオッズに勝つ/backtest.py --predictions 全年
 
 ``experiment.py --also-placed --years 2018 … 2026`` の予測（``実験/<名前>_予測.parquet``）を使う。
 オッズは、期待値の値段と精算にだけ使い、確率には入れない。組み合わせの券種の確率は、モデルの1着の確率から

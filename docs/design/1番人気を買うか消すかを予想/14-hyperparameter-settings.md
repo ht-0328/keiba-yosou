@@ -66,6 +66,8 @@ place_only_place = 300
 train_first_year = 2017
 first_year = 2019
 last_year = 2026
+# 方針を決めるのに見てよい年の最後。first_year からこの年までが「方針を決める年」、その次の年から last_year までが「確かめる年」。
+tune_last_year = 2023
 ```
 
 | 表 | 何を決めるか | 書いてある文書 |
@@ -76,7 +78,7 @@ last_year = 2026
 | `[similarity]` | 似た馬を何頭探すか（`k`） | [12-neighbor-distance.md の「5.」](12-neighbor-distance.md#5-k近傍で似た馬を探す) |
 | `[decision]` | 判定の線（`fade_margin`・`win_margin`） | [13-closeness-score.md の「4.」](13-closeness-score.md#4-判定) |
 | `[stake]` | 判定ごとの掛け金（円） | [16-evaluation.md の「4.」](16-evaluation.md#4-買い方と掛け金) |
-| `[evaluation]` | 学習の最初の年（`train_first_year`）と、評価する年の範囲（`first_year`〜`last_year`） | [16-evaluation.md の「1.」](16-evaluation.md#1-1年ごとの評価ウォークフォワード) |
+| `[evaluation]` | 学習の最初の年（`train_first_year`）と、評価する年の範囲（`first_year`〜`last_year`）と、方針を決める年の最後（`tune_last_year`） | [16-evaluation.md の「1.」](16-evaluation.md#1-1年ごとの評価ウォークフォワード)・[「6.」](16-evaluation.md#6-方針を決める年と確かめる年) |
 
 ## 方針の変え方
 
@@ -115,4 +117,4 @@ uv run python -m yosou.favorite_buy_or_fade train --config reports/1番人気を
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-25 |
-| 更新 | 2026-09-25: LightGBM・CatBoost のハイパーパラメータから、k近傍法の設定に作り直した。同日、実装の設定ファイル（`default_settings.toml`）に合わせて書き直した |
+| 更新 | 2026-09-25: LightGBM・CatBoost のハイパーパラメータから、k近傍法の設定に作り直した。同日、実装の設定ファイル（`default_settings.toml`）に合わせて書き直した<br>2026-09-30: `[evaluation]` に `tune_last_year`（方針を決める年の最後）を足した |

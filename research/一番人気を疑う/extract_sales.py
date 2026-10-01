@@ -1,6 +1,6 @@
 """セリの取引価格を元DB から読んで、中間データにする（研究「一番人気を疑う」の入口①）。
 
-    uv run --with pyarrow python research/一番人気を疑う/extract_sales.py
+    uv run python research/一番人気を疑う/extract_sales.py
 
 出力は ``reports/一番人気を疑う/cache/sales.parquet``（Git 対象外）。元DB は読むだけ。
 """

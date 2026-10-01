@@ -12,9 +12,10 @@ from yosou.shared.feature import PredictionTiming
 
 from ..dataset import IN_THE_MONEY, OUT_OF_THE_MONEY, WIN
 from ..decision import DECISION, FADE, PLACE_ONLY, WIN_AND_PLACE, BuyDecision
-from ..evaluation import DecisionSummary, StakePlan
+from ..evaluation import DecisionSummary, EvaluationPeriods, EvaluationTables, StakePlan
 from ..setting import BuyOrFadeSettings
-from ..similarity import SCORE_COLUMNS
+from ..similarity import SCORE_COLUMNS, UNIT
+from ..workflow import YEAR
 
 
 def _scores(win: list[float], in_the_money: list[float], out: list[float]) -> pd.DataFrame:
@@ -50,6 +51,18 @@ def test_settings_reject_unknown_names_and_thursday(tmp_path: Path):
     thursday.write_text('[features]\ntiming = "木曜"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="前日 か 当日"):
         BuyOrFadeSettings.load(thursday)
+    late = tmp_path / "late.toml"
+    late.write_text("[evaluation]\ntune_last_year = 2030\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="tune_last_year"):
+        BuyOrFadeSettings.load(late)
+
+
+def test_tune_last_year_splits_the_years_and_old_models_still_load():
+    defaults = BuyOrFadeSettings.load()
+    assert defaults.first_year <= defaults.tune_last_year < defaults.last_year
+    # tune_last_year を足す前に保存した一式は、全部の年を方針を決める年とみなして読める
+    saved = {name: value for name, value in defaults.to_dict().items() if name != "tune_last_year"}
+    assert BuyOrFadeSettings.from_dict(saved).tune_last_year == defaults.last_year
 
 
 def test_stake_plan_and_summary():
@@ -66,3 +79,22 @@ def test_stake_plan_and_summary():
     assert summary["消した数"] == 1 and summary["消した馬の馬券外率"] == "0.0%"
     assert summary["単勝も買った馬の勝率"] == "50.0%" and summary["全体の勝率"] == "50.0%"
     assert summary["買い分けの投資"] == "900円" and summary["買い分けの回収率"] == "92.2%"
+
+
+def test_tables_separate_the_tuning_years_from_the_checking_years():
+    plan = StakePlan(win_and_place_win=100, win_and_place_place=200, place_only_place=300)
+    rows = pd.DataFrame({
+        YEAR: [2022, 2023, 2024, 2024], UNIT: ["芝1600m"] * 4,
+        DECISION: [FADE, WIN_AND_PLACE, PLACE_ONLY, WIN_AND_PLACE],
+        WIN: [0, 1, 0, 1], IN_THE_MONEY: [0, 1, 1, 1], OUT_OF_THE_MONEY: [1, 0, 0, 0],
+        WIN_PAYOUT: [0, 200, 0, 300], PLACE_PAYOUT: [0, 120, 130, 140],
+    })
+    tables = EvaluationTables(plan, YEAR, EvaluationPeriods(2023, YEAR)).tables(rows)
+    by_year = tables[0]
+    assert [row[0] for row in by_year.rows] == [
+        "2022", "2023", "2024", "方針を決める年（2022〜2023年）", "確かめる年（2024〜2024年）", "全体"]
+    assert by_year.rows[3][1] == 2 and by_year.rows[4][1] == 2
+    # 判定ごと・単位ごとの表は、方針を決める年と確かめる年で別になる
+    assert [table.title for table in tables[1:]] == [
+        "判定ごとの成績（方針を決める年（2022〜2023年））", "判定ごとの成績（確かめる年（2024〜2024年））",
+        "単位ごとの結果（方針を決める年（2022〜2023年））", "単位ごとの結果（確かめる年（2024〜2024年））"]

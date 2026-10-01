@@ -45,3 +45,7 @@ class PastRuns:
         past = pd.Series(lags.ravel()).map(_GOING).fillna("").to_numpy().reshape(lags.shape)
         now = condition.map(_GOING).fillna("?").to_numpy()[:, None]
         return past == now
+
+    def distance_band(self, edges: tuple[int, ...]) -> np.ndarray:
+        """前の走の距離を、``edges`` で区切った距離帯の番号にする。例: edges (1401, 1801) なら 1600m は 1。"""
+        return np.digitize(self._lags["distance_m"].astype(float), edges)

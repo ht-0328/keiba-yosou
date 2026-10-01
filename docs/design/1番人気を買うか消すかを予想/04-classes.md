@@ -35,7 +35,7 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 ├── dataset/                        1番人気の行の選び方・グループの列と、共通の DatasetBuilder の組み立て
 ├── feature/                        この予想の特徴量の一覧（CATALOG）
 ├── setting/                        方針の初期値のファイルと、それを読むクラス
-├── repository/                     学習したモデルの一式の読み書き
+├── repository/                     学習したモデルの一式の読み書きと、評価で使う締め切り前の1番人気の読み込み
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
@@ -53,9 +53,11 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 
 | 名前 | 仕事 | 主な public メソッド |
 |---|---|---|
-| `FavoriteOnlySelector` | 確定単勝人気が 1 の行だけを残す。特徴量はレースの全頭で作ってから絞る（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)）。共通の `SampleSelector` を守る | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` |
+| `FavoriteOnlySelector` | 確定単勝人気が 1 の行だけを残す。締め切り前の1番人気（`PreDeadlineFavorites`）を渡すと、その馬の行も残す。特徴量はレースの全頭で作ってから絞る（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)）。共通の `SampleSelector` を守る | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` |
 | `FinishGroupLabeler` | グループの列（勝利・馬券内・馬券外。どれも 1/0）を付ける。競走中止・失格は馬券外（[10-target.md](10-target.md#グループの分け方)）。共通の `TargetLabeler` を守る | `build(サンプルの行)`、`label_name` |
-| `dataset_builder()` | 上の2つと特徴量の一覧を渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`） | `dataset_builder(接続)` |
+| `dataset_builder()` | 上の2つと特徴量の一覧を渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`） | `dataset_builder(接続, 締め切り前の1番人気=省略可)` |
+| `PreDeadlineFavorites` | 締め切り前のオッズで1番人気だった馬（レースID と馬番）の一覧（[16-evaluation.md の「7.」](16-evaluation.md#7-締め切り前のオッズで1番人気を選んだとき)） | `contains(レースID, 馬番)` |
+| `FavoritePicks` | 学習データのうち、学習に使う行（いつも確定の1番人気）と、評価で判定する行（1番人気の選び方ごと）を選ぶ | `training_rows(学習データ)`、`judged_rows(学習データ)`、`main` |
 | `column_names.py` の `GROUPS` | 3つのグループの名前（勝利・馬券内・馬券外） | ―（値） |
 
 ### feature/ — 特徴量の一覧
@@ -94,13 +96,16 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 | `StakePlan` | 判定ごとの単勝・複勝の掛け金（円）。投資と払戻を出す（[16-evaluation.md](16-evaluation.md#4-買い方と掛け金)） | `of(方針)`、`invested(判定)`、`returned(判定, 払戻)` |
 | `DecisionSummary` | 判定した1番人気の束を、まとめの1行（消した馬の馬券外率・単勝も買った馬の勝率・回収率など）にする | `summarize(行)` |
 | `KindSummary` | 判定ごとの成績の1行（勝率・複勝率・馬券外率・単勝回収率・複勝回収率） | `summarize(判定, 行)` |
-| `EvaluationTables` | 年ごと・判定ごと・単位ごとの表を作る（[16-evaluation.md](16-evaluation.md#2-出す表)） | `tables(行)`、`by_year`・`by_kind`・`by_unit` |
+| `EvaluationPeriods` | 評価の年を、方針を決める年と確かめる年に分ける（[16-evaluation.md の「6.」](16-evaluation.md#6-方針を決める年と確かめる年)） | `split(行)` |
+| `EvaluationTables` | 年ごと・判定ごと・単位ごとの表を作る。判定ごと・単位ごとの表は、方針を決める年と確かめる年で分ける（[16-evaluation.md](16-evaluation.md#2-出す表)） | `tables(行)`、`by_year`・`by_kind`・`by_unit` |
+| `PickComparison` | 確定オッズと締め切り前のオッズで選んだ1番人気の、判定と回収率の違いの表を作る（[16-evaluation.md の「7.」](16-evaluation.md#7-締め切り前のオッズで1番人気を選んだとき)） | `tables(行)` |
 
-### repository/ — モデルの保存
+### repository/ — モデルの保存と、締め切り前の1番人気
 
 | 名前 | 読む・書くもの | 主な public メソッド |
 |---|---|---|
 | `SimilarityModelRepository` | 学習したモデルの一式（pickle）と、学習に使った方針（`settings.json`）。置き場所は `reports/1番人気を買うか消すかを予想/models/`（[12-neighbor-distance.md の「6.」](12-neighbor-distance.md#6-保存)） | `save(一式)`、`load()` |
+| `PreDeadlineFavoriteRepository` | 元DB の時系列オッズから、レースごとに発走の N分前までの締め切り前の断面（データ区分 1・2）を選び、単勝オッズがいちばん低かった馬を読む（SQL 1つ）。共通の `AnnouncedOddsRepository` は1レースずつで、締め切りの時点の断面も含み、何分前かで区切らないので使わない | `read()` |
 
 ### setting/ — 方針
 
@@ -113,10 +118,10 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `TrainingDataReader` | 方針の「学習の最初の年」の1月1日から、元DB の最後の開催日までの1番人気の学習データを読む（その前の年はウォームアップ） | `read(接続)` | `dataset_builder()`、共通の `TrainingPeriod` |
+| `TrainingDataReader` | 方針の「学習の最初の年」の1月1日から、元DB の最後の開催日までの1番人気の学習データを読む（その前の年はウォームアップ）。締め切り前の1番人気を渡すと、その馬の行も入れる | `read(接続)` | `dataset_builder()`、共通の `TrainingPeriod` |
 | `SimilarityTraining` | 学習の流れ。方針の時点の列にする → 単位を決める → 単位ごとに3つのモデルを作る | `train(学習データ)` | `CourseUnitMap`・`FeatureMatrix`・`UnitSimilarity`・`SimilarityModelSet` |
 | `FavoriteJudgement` | 学習した一式で、1番人気ごとの単位・3つの点数・判定を出す（評価と予測で同じもの） | `judge(特徴量)` | `SimilarityModelSet`・`BuyDecision` |
-| `YearlyEvaluation` | 1年ごとの評価。評価する年ごとに、学習の最初の年からその前年までで学習し直し、その年の1番人気を判定する | `run(学習データ)` | `SimilarityTraining`・`FavoriteJudgement` |
+| `YearlyEvaluation` | 1年ごとの評価。評価する年ごとに、学習の最初の年からその前年までの確定の1番人気で学習し直し、その年の1番人気を、選び方ごとに判定する | `run(学習データ)` | `FavoritePicks`・`SimilarityTraining`・`FavoriteJudgement` |
 | `PredictionWorkflow` | 予測の流れ。オッズと人気を決め、学習した方針の時点で予測用データを作り、1番人気を判定する | `run(レースID, 渡された人気=省略可, 渡されたオッズ=省略可)` | 共通の `OddsResolver`・`PopularityApplier`・`DatasetBuilder`、`FavoriteJudgement` |
 
 ### command/ — コマンド
@@ -135,4 +140,4 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-25 |
-| 更新 | 2026-09-25: k近傍法の設計に作り直した。同日、実装したクラスとフォルダに合わせて書き直した |
+| 更新 | 2026-09-25: k近傍法の設計に作り直した。同日、実装したクラスとフォルダに合わせて書き直した<br>2026-09-30: 方針を決める年と確かめる年を分けるクラス（`EvaluationPeriods`）と、締め切り前の1番人気で評価するクラス（`PreDeadlineFavoriteRepository`・`PreDeadlineFavorites`・`FavoritePicks`・`PickComparison`）を足した |
