@@ -13,7 +13,7 @@
 | 項目 | 手本 | この予想 |
 |---|---|---|
 | 初期値の設定ファイルの置き場所 | `src/yosou/form_aptitude_top3/setting/default_settings.toml` | `src/yosou/longshots_in_top3/setting/default_settings.toml` |
-| 同じ設定で学習するモデルの数 | 3つの時点（木曜・前日・当日） | 手本と同じ3つの時点（[07-prediction-timing.md](07-prediction-timing.md)） |
+| 同じ設定で学習するモデルの数 | 3つの時点（木曜・前日・当日） × 2つのモデル = 6個 | 2つの区分（中穴・大穴）× 手本と同じ3つの時点 × 2つのモデル = 12個（2026-09-24 に中穴と大穴を分けてから。[15-decisions.md の 3](15-decisions.md#3-区分ごとに別のモデルにするか)）。どの区分・時点も同じ設定で学習する |
 | 設定ファイルを読むクラス | 共通の `src/yosou/shared/setting/` | 同じ（[04-classes.md](04-classes.md#1-共通の部品とこの予想だけの部品の分け方)） |
 | `min_category_count` の初期値 | 2000 | 2000 のまま（[12-lightgbm.md](12-lightgbm.md#行数について)） |
 
@@ -27,3 +27,4 @@
 |---|---|
 | 作成日 | 2026-09-23 |
 | 確かめた版 | 手本と同じ（Python 3.12、lightgbm 4.7.0、catboost 1.2.10）。この予想で設定ファイルの形を変えていないので、確かめ直していない |
+| 更新 | 2026-10-01: 同じ設定で学習するモデルの数を、中穴と大穴で分けたあとの 12個に直した |
