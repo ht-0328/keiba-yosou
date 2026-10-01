@@ -73,12 +73,19 @@ def test_結果がまだのレースは精算しない(tmp_path) -> None:
 class FakePredictor:
     """2レース（10:00・10:30 発走）を返し、どのレースでも馬番3 の期待値を 1.5 にする予想。"""
 
-    def __init__(self, fake_time: "FakeTime") -> None:
+    def __init__(self, fake_time: "FakeTime", label: str = "馬体重あり") -> None:
         self.predicted: list[tuple[str, datetime]] = []
+        self.label = label
         self._time = fake_time
 
     def load_models(self) -> list:
         return []
+
+    def line_of(self, label: str) -> float:
+        return 1.2
+
+    def buys_with(self, label: str) -> bool:
+        return label == "馬体重あり"
 
     def races(self, con, day: str, after: str) -> list[dict]:
         return [{"rid": "R1", "発走": "10:00", "場": "東京", "R": 1, "レース名": ""},
@@ -86,7 +93,7 @@ class FakePredictor:
 
     def predict(self, con, race_id: str, loaded: list) -> tuple[str, Table]:
         self.predicted.append((race_id, self._time.current))
-        return "馬体重あり", Table(["馬番", "馬名", "使用した人気", "期待値"], [[3, "馬3", 5, 1.5], [4, "馬4", 6, 0.9]])
+        return self.label, Table(["馬番", "馬名", "使用した人気", "期待値"], [[3, "馬3", 5, 1.5], [4, "馬4", 6, 0.9]])
 
 
 class FakeTime:
@@ -109,10 +116,10 @@ def _empty_db():
         con.close()
 
 
-def _follow(tmp_path, start: datetime) -> tuple[FakePredictor, Ledger, FakeTime]:
+def _follow(tmp_path, start: datetime, label: str = "馬体重あり") -> tuple[FakePredictor, Ledger, FakeTime]:
     fake = FakeTime(start)
-    predictor, ledger = FakePredictor(fake), Ledger(tmp_path)
-    ForwardFollower(predictor, ledger, _empty_db, line=1.2, clock=fake.clock(), log=lambda _: None).run("2024-04-06")
+    predictor, ledger = FakePredictor(fake, label), Ledger(tmp_path)
+    ForwardFollower(predictor, ledger, _empty_db, clock=fake.clock(), log=lambda _: None).run("2024-04-06")
     return predictor, ledger, fake
 
 
@@ -122,6 +129,12 @@ def test_各レースを発走の10分前に1回だけ予想して記録する(t
     for (race_id, at), post in zip(predictor.predicted, (datetime(2024, 4, 6, 10, 0), datetime(2024, 4, 6, 10, 30))):
         assert post - timedelta(minutes=10) <= at < post, race_id
     assert ledger.buys()["馬番"].tolist() == ["3", "3"], "期待値が線以上の馬だけを買い目にする"
+
+
+def test_買わないモデルの予想では買い目を記録しない(tmp_path) -> None:
+    _, ledger, _ = _follow(tmp_path, datetime(2024, 4, 6, 8, 0), label="馬体重なし")
+    assert ledger.buys().empty, "当日の予想で「参考」のモデル（馬体重なし）は買わない"
+    assert ledger.races()["モデル"].tolist() == ["馬体重なし", "馬体重なし"]
 
 
 def test_発走を過ぎたレースと記録済みのレースは予想しない(tmp_path) -> None:

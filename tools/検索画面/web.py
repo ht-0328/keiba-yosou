@@ -1,4 +1,4 @@
-"""検索画面（ブラウザ）を起動する。DB・テーブル・出馬表・レース・馬・出走・事象・成績・回収率探索・SQL のタブがある（一覧は tools/README.md）。
+"""検索画面（ブラウザ）を起動する。DB・テーブル・出馬表・傾向スコア・能力指数・重賞攻略・レース・馬・出走・事象・成績・回収率探索・SQL のタブがある（一覧は tools/README.md）。
 
     uv run python tools/検索画面/web.py --open              # 起動してブラウザで開く
     uv run python tools/検索画面/web.py --port 9000 --idle 300

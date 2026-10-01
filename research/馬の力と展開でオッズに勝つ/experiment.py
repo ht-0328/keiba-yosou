@@ -1,6 +1,6 @@
 """オッズを使わない勝率のモデルを作り、年ごとに市場（単勝オッズ）と当たり具合を比べる（入口②）。
 
-    uv run --with pyarrow --with tabulate python research/馬の力と展開でオッズに勝つ/experiment.py --name 基本
+    uv run python research/馬の力と展開でオッズに勝つ/experiment.py --name 基本
 
 学習用の表は初回に作って ``cache/dataset.parquet`` に保存し、2回目からは使い回す（``--rebuild`` で作り直す）。
 評価はウォークフォワード: その年の2年前までで学習し、前の年で木の本数を決め、その年を予測する。

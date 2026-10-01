@@ -1,6 +1,6 @@
 """調教・馬主・生産者・母（兄弟）の中間データを作る（研究「馬の力と展開でオッズに勝つ」の入口③）。
 
-    uv run --with pyarrow python research/馬の力と展開でオッズに勝つ/extract_extra.py
+    uv run python research/馬の力と展開でオッズに勝つ/extract_extra.py
 
 - workouts.parquet: 出走ごとに、レースの前日までの 14日・30日の調教（坂路・ウッド）をまとめた値
 - connections.parquet: 出走ごとの馬主コード、馬ごとの生産者コードと母の繁殖登録番号
