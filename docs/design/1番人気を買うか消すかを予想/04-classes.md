@@ -64,7 +64,7 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 
 | 名前 | 中身 |
 |---|---|
-| `CATALOG` | この予想の特徴量 78個の一覧。共通の `BASE_FEATURES`（A〜I）＋ `POPULARITY_FEATURES`（J）＋ `ODDS_FEATURES`（K）で、`favorites_out_of_top3` と同じ（[09-features.md](09-features.md)） |
+| `CATALOG` | この予想の特徴量 78個の一覧。共通の `BASE_FEATURES`（A〜I）＋ `POPULARITY_FEATURES`（J）＋ `ODDS_FEATURES`（K）で、`favorites_out_of_top3` の一覧から L（`PEOPLE_MARKET_FEATURES`。2026-09-30 にそちらに足した）を除いたもの（[09-features.md](09-features.md)） |
 
 ### unit/ — 単位を決める
 
@@ -141,3 +141,4 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 |---|---|
 | 作成日 | 2026-09-25 |
 | 更新 | 2026-09-25: k近傍法の設計に作り直した。同日、実装したクラスとフォルダに合わせて書き直した<br>2026-09-30: 方針を決める年と確かめる年を分けるクラス（`EvaluationPeriods`）と、締め切り前の1番人気で評価するクラス（`PreDeadlineFavoriteRepository`・`PreDeadlineFavorites`・`FavoritePicks`・`PickComparison`）を足した |
+| 更新 | 2026-09-30: 「人気馬が4着以下になるかを予想」が、まとまり L（騎手・調教師・血統の市場に対する成績）を足して 82個になったので、「同じ 78個」と書いていたところを、L を除いた一覧だと直した（この予想の 78個は変わらない） |

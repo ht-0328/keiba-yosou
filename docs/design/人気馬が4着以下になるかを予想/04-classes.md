@@ -13,15 +13,17 @@
 
 **2026-09-24 の追記。** 既存モデルの修正計画での直し（[15-decisions.md の 11](15-decisions.md#11-既存モデルの修正計画での直し)）で、この予想だけのクラスに、人気帯（`FavoriteBand`）・基準（`OutOfTop3Baseline`）・危険の判定（`danger/` の `DangerThreshold`・`DangerJudge`、`DangerThresholdStep`、`DangerThresholdRepository`）・人気帯での分け方（`SEGMENTS`）が増えた。共通の部品には、基準の決まり（`TargetBaseline`）、まとまり K（`OddsFeatures`）、区分ごとに学習・予測する `SegmentedTraining`・`SegmentedPrediction` が増えた。下の表は、2026-09-28 にコードで確かめて、それらを書き足したものである。
 
+**2026-09-30 の追記。** 手本と同じまとまり L（騎手・調教師・血統の市場に対する成績。共通の `PeopleMarketFeatures`）を足した。材料の過去の全出走は、共通の `MarketRunRepository` で読む（ローダーに `market_runs=` で渡す）。クラスの仕事は [手本の 04 の「クラスの一覧」](../近走と適性から3着以内を予想/04-classes.md#クラスの一覧) を参照。
+
 ## 1. 共通の部品と、この予想だけの部品の分け方
 
 手本の予想（`src/yosou/form_aptitude_top3/`）には、この予想でもそのまま要るクラスが多い。同じクラスを2つのパッケージに複製すると、片方だけ直したときに食い違う。そこで、**共通のクラスを `src/yosou/shared/` に移し、両方の予想から使う。** これが、この予想を作るときの最初の作業になる（[15-decisions.md](15-decisions.md#8-共通部分の置き方)）。
 
 | まとまり | 共通にするか | 中身 |
 |---|---|---|
-| `repository/`（データの読み書き） | 共通 | 出走の行・出走別着度数・過去走・調教・速報・締め切り前のオッズを読むクラス。読む SQL は予想で変わらない |
+| `repository/`（データの読み書き） | 共通 | 出走の行・出走別着度数・過去走・調教・速報・締め切り前のオッズを読むクラス。2026-09-30 からは、まとまり L の材料の過去の全出走を読む `MarketRunRepository` も共通。読む SQL は予想で変わらない |
 | `dataset/`（学習データ・予測用データを作る） | 大半を共通 | `DatasetBuilder`・記録を集めるクラス・`TrainingPeriod`・`PeriodSplitter`・速報を反映するクラス。2026-09-24 からは、目的変数の基準の決まり `TargetBaseline` と、その値 `BaselineLogit` も共通 |
-| `feature/`（特徴量を作る） | 大半を共通 | `FeatureBuilder`・まとまり A〜I の9クラス・過去の記録から数える部品・`PredictionTiming`。2026-09-24 からは、単勝オッズから見た評価（まとまり K）の `OddsFeatures` と、オッズから見た勝率・3着以内率（Harville の式）を出す `feature/odds/` も共通 |
+| `feature/`（特徴量を作る） | 大半を共通 | `FeatureBuilder`・まとまり A〜I の9クラス・過去の記録から数える部品・`PredictionTiming`。2026-09-24 からは、単勝オッズから見た評価（まとまり K）の `OddsFeatures` と、オッズから見た勝率・3着以内率（Harville の式）を出す `feature/odds/` も共通。2026-09-30 からは、騎手・調教師・血統の市場に対する成績（まとまり L）の `PeopleMarketFeatures` と、それを数える `MarketExcessRate` も共通 |
 | `ml_model/`（機械学習のモデル） | 共通 | `LightGbmModel`・`CatBoostModel`・エンコーダー・`EnsembleModel`。基準を使って学んだかを覚えておく `BaselineCheck` も共通 |
 | `setting/`（設定ファイルを読む） | 共通 | 設定ファイルを読む5クラス。初期値のファイルだけは予想ごとに持つ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `evaluation/`（当たり具合を測る） | 共通 | 評価指標を計算するクラス。指標は [穴馬の 16](../穴馬が3着以内に入るかを予想/16-evaluation.md#2-評価指標) で決めた（どの予想でも同じ） |
@@ -34,7 +36,7 @@
 |---|---|---|
 | `SampleSelector` | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `FavoriteSelector` |
 | `TargetLabeler` | `build(サンプルの行)`、`label_name` | `OutOfTop3TargetBuilder` |
-| `FeatureGroup` | `build(記録)` | `PopularityHistoryFeatures`、共通の `OddsFeatures`（まとまり K） |
+| `FeatureGroup` | `build(記録)` | `PopularityHistoryFeatures`、共通の `OddsFeatures`（まとまり K）、共通の `PeopleMarketFeatures`（まとまり L。2026-09-30） |
 | `TargetBaseline` | `known_from`（基準が分かる最初の時点）、`build(レースの全頭の行)` | `OutOfTop3Baseline`（2026-09-24） |
 | `ProbabilityModel` | `fit`・`predict_proba`・`save`・`load` | 共通の `LightGbmModel`・`CatBoostModel` をそのまま使う |
 
@@ -59,7 +61,7 @@
 src/yosou/shared/                   両方の予想から使う部品
 ├── repository/                     データの読み書き。1 SQL につき 1 リポジトリ
 ├── dataset/                        学習データ・予測用データを作る
-├── feature/                        特徴量を作る（まとまり A〜I と、過去の記録から数える部品）
+├── feature/                        特徴量を作る（まとまり A〜L と、過去の記録から数える部品）
 ├── ml_model/                       LightGBM・CatBoost・エンコーダー・2つの平均
 ├── setting/                        設定ファイルを読む
 ├── evaluation/                     当たり具合を測る
@@ -74,7 +76,7 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 ├── dataset/                        人気馬の行を選ぶ・人気帯・目的変数を付ける・基準を作る（人気を決める部品は 2026-09-23 に shared へ）
 ├── danger/                         危険度の線を決める・危険を判定する（2026-09-24）
 ├── repository/                     危険度の線のファイルを読み書きする（2026-09-24。元DB を読む SQL は持たない）
-├── feature/                        この予想の特徴量の一覧（まとまり J・K を作る部品は shared にある）
+├── feature/                        この予想の特徴量の一覧（まとまり J・K・L を作る部品は shared にある）
 ├── setting/                        ハイパーパラメータの初期値のファイル
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
@@ -111,9 +113,9 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 |---|---|---|---|
 | `PopularityHistoryFeatures`（共通） | まとまり J の4個を作る（[09-features.md](09-features.md#j-人気と人気の履歴4個)）。`FeatureGroup` を守る | `build(記録)` | `PopularityRunSummary`、共通の `AsOfLookup` |
 | `PopularityRunSummary`（共通） | 過去走を、馬ごとの「その走までの近5走の人気のまとめ」にする（`feature/history/`） | `build(過去走)` | ― |
-| `CATALOG`（`feature/__init__.py`） | この予想の特徴量の一覧。A〜I（共通の `BASE_FEATURES`）に、J（共通の `POPULARITY_FEATURES`）と K（共通の `ODDS_FEATURES`。2026-09-24）を足したもの | ―（値） | 共通の `FeatureCatalog` |
+| `CATALOG`（`feature/__init__.py`） | この予想の特徴量の一覧。A〜I（共通の `BASE_FEATURES`）に、J（共通の `POPULARITY_FEATURES`）と K（共通の `ODDS_FEATURES`。2026-09-24）と L（共通の `PEOPLE_MARKET_FEATURES`。2026-09-30）を足したもの | ―（値） | 共通の `FeatureCatalog` |
 
-`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに `PopularityHistoryFeatures` と `OddsFeatures`（まとまり K）を足したまとまりの並びを渡す（`dataset/dataset_assembly.py`）。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。2026-09-24 からは `CATALOG` も `BASE_FEATURES + POPULARITY_FEATURES + ODDS_FEATURES` で、当日は 78個である（K の3個は前日から使う。[15-decisions.md の 4](15-decisions.md#4-単勝オッズを特徴量に入れるか)）。
+`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに `PopularityHistoryFeatures` と `OddsFeatures`（まとまり K）と `PeopleMarketFeatures`（まとまり L）を足したまとまりの並びを渡す（`dataset/dataset_assembly.py`。ローダーには L の材料を読む `MarketRunRepository(接続, PEOPLE_WINDOW_DAYS)` を渡す）。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。`CATALOG` は、2026-09-24 に K を、2026-09-30 に L を足して `BASE_FEATURES + POPULARITY_FEATURES + ODDS_FEATURES + PEOPLE_MARKET_FEATURES` になり、当日は 82個である（K の3個は前日から使う。[15-decisions.md の 4](15-decisions.md#4-単勝オッズを特徴量に入れるか)）。
 
 ### danger/ — 危険度の線を決める・危険を判定する（2026-09-24）
 
@@ -183,3 +185,4 @@ src/yosou/favorites_out_of_top3/    人気馬が4着以下になるかを予想�
 | 作成日 | 2026-09-22 |
 | 更新 | 2026-09-28: 「4. コマンドの引数」を足した |
 | 更新 | 2026-09-28: 2026-09-24 の直し（基準・人気帯ごとのモデル・危険の判定）で増えたクラスとフォルダ（`FavoriteBand`・`OutOfTop3Baseline`・`danger/`・`repository/`・`SEGMENTS`・`DangerThresholdStep`、共通の `SegmentedTraining` など）を書き足した |
+| 更新 | 2026-09-30: まとまり L（騎手・調教師・血統の市場に対する成績）の4個を足したのに合わせて、共通の `PeopleMarketFeatures`・`MarketExcessRate`・`MarketRunRepository` を書き足し、`CATALOG` の中身と特徴量の数を 82個にそろえた |

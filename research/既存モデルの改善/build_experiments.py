@@ -3,7 +3,7 @@
     uv run python research/既存モデルの改善/build_experiments.py
 
 先に build_tables.py で全頭の学習データの表を作っておく。元DB から 2016年からの全出走と、券種ごとの確定オッズを読み、
-能力指数・当日の馬場傾向・近走の市場に対する成績・騎手と血統の市場に対する成績・券種ごとの支持を作って、
+能力指数・当日の馬場傾向・近走の市場に対する成績・父の父の産駒の成績・券種ごとの支持を作って、
 全頭の学習データに足した表を reports/既存モデルの改善/tables/form_experiments/ に保存する。
 そのあと walk_forward.py --model form_experiments で、1つずつ足した作り方を回す。
 """
@@ -27,6 +27,8 @@ from 既存モデルの改善.analysis.repository import (  # noqa: E402
     RunnerHistoryRepository,
 )
 from 既存モデルの改善.analysis.tables import TableStore, spec_named  # noqa: E402
+from yosou.shared.feature import PEOPLE_WINDOW_DAYS  # noqa: E402
+from yosou.shared.repository import FactTableRepository, PedigreeDayRepository, TargetScope  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_TABLES = _REPO_ROOT / "reports" / "既存モデルの改善" / "tables"
@@ -42,8 +44,9 @@ def main(args) -> None:
     with db.open_db(args.db) as con:
         history = RunnerHistoryRepository(con).read(_FIRST_DAY)
         supports = [_support(con, spec) for spec in POOL_SPECS]
+        grandsire_days = _grandsire_days(con)
     print("材料を作っています …", file=sys.stderr, flush=True)
-    data = ExperimentTableBuilder().build(form, history, supports)
+    data = ExperimentTableBuilder().build(form, history, supports, grandsire_days)
     folder = store.write(spec_named("form_experiments").name, data)
     rows = [[name, float(data.features[name].notna().mean())] for name in data.features.columns[len(form.features.columns):]]
     cli.emit(Table(["足した材料", "値のある行の割合"], rows, title=f"実験の表（{len(data)}行）", note=str(folder)), args)
@@ -53,6 +56,13 @@ def _support(con, spec):
     print(f"  {spec.column} …", file=sys.stderr, flush=True)
     repository = FirstHorsePoolSupportRepository(con, spec) if spec.first_only else ComboPoolSupportRepository(con, spec)
     return repository.read(_FIRST_DAY)
+
+
+def _grandsire_days(con):
+    """父の父ごと・開催日ごと・芝ダごとの産駒の成績（父・母の父と同じリポジトリを、父の父の列で使う）。"""
+    print("  父の父の産駒の成績 …", file=sys.stderr, flush=True)
+    FactTableRepository(con).ensure()
+    return PedigreeDayRepository(con, "grandsire", PEOPLE_WINDOW_DAYS).read(TargetScope.since(_FIRST_DAY))
 
 
 def _parser():
