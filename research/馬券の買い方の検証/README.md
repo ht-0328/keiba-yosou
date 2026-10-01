@@ -9,6 +9,10 @@
 
 **状態。** 2回目の検証まで終わった（2026-09-23）。どちらの回も、確認期間で 100% を超える戦略は無かった。結論と次にやることは [docs/04-results.md](docs/04-results.md)。
 
+**3回目（2026-10-02 に計画を承認）。** 新しくなった予想モデルで、買い方「期待値の高い穴馬の複勝を 1日3レースまで」を、区切りごとに学習し直した
+7つの区切りの予測でやり直す。期間・採否・戦略の軸は、探索の前に [docs/05-round3-protocol.md](docs/05-round3-protocol.md) に固定した。
+入口は `backtest_round3.py`、部品は `analysis/value_betting/`。
+
 ## フォルダ
 
 | 場所 | 中身 |
@@ -16,7 +20,7 @@
 | `predict_all.py` | 入口①: 4モデルの当日時点の予測を期間ぶん一括で出し、`reports/馬券の買い方の検証/predictions/` に CSV で残す |
 | `backtest.py` | 入口②: 予測・確定オッズ・払戻から精算表を作り（`--settle-only`）、探索（既定）と確認（`--confirm`）をする |
 | `analysis/` | 部品。フォルダごとの仕事は `analysis/__init__.py` の表、クラスごとの仕事は各フォルダの `__init__.py` |
-| `docs/` | [01 設計](docs/01-design.md)・[02 買い方の一覧](docs/02-ticket-plans.md)・[03 事前に固定した決まり](docs/03-protocol.md)・[04 結果](docs/04-results.md) |
+| `docs/` | [01 設計](docs/01-design.md)・[02 買い方の一覧](docs/02-ticket-plans.md)・[03 事前に固定した決まり](docs/03-protocol.md)・[04 結果](docs/04-results.md)・[05 3回目の決まり](docs/05-round3-protocol.md) |
 | `tests/` | 合成データだけのテスト（`uv run python -m pytest -q research`） |
 
 出力（JV-Data 由来の数値）はすべて `reports/馬券の買い方の検証/`（Git 対象外）に置く。この README と `docs/` には数値を書かない。
