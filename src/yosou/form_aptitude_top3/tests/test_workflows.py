@@ -102,9 +102,9 @@ def test_race_day_prediction_shows_the_market_top3_rate_and_the_place_value(seas
     with db.open_db(season_db) as con:
         prediction = _workflow(con, models, estimator).run(
             season.CARD_RACE_ID, PredictionTiming.RACE_DAY, OddsInput.of(CARD_ODDS_TEXTS))
-    # オッズから見た3着以内率はレースで合計 3。合成DB には複勝オッズが無いので、期待値は欠損値のまま列だけ出る
+    # オッズから見た3着以内率はレースで合計 3。合成DB の 1R には締め切り前の複勝オッズがあるので、出走する全頭に期待値が出る
     assert prediction[TOP3_RATE].sum() == pytest.approx(3.0)
-    assert {PLACE_PROBABILITY, PLACE_VALUE} <= set(prediction.columns) and prediction[PLACE_VALUE].isna().all()
+    assert {PLACE_PROBABILITY, PLACE_VALUE} <= set(prediction.columns) and prediction[PLACE_VALUE].notna().all()
 
 
 def _run_command(argv: list[str]) -> int:

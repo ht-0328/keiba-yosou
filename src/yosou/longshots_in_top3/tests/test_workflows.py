@@ -117,10 +117,10 @@ def test_prediction_of_a_card_needs_the_popularity_of_every_runner(longshot_db: 
     assert prediction[LONGSHOT_ZONE].tolist() == [MID, MID, MID, BIG]
 
 
-def test_prediction_stops_when_the_place_odds_are_not_in_the_db(season_db: Path, trained):
+def test_prediction_stops_when_the_place_odds_are_not_in_the_db(no_place_odds_db: Path, trained):
     models, _ = trained
     given = PopularityInput.of(GIVEN_POPULARITY)
-    with db.open_db(season_db) as con:
+    with db.open_db(no_place_odds_db) as con:
         # 複勝オッズの無い DB では、前日・当日の特徴量 M を作れないので、取り込み方を案内して止まる
         with pytest.raises(ValueError, match="複勝オッズ"):
             _workflow(con, models).run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given, given_odds=GIVEN_ODDS)
