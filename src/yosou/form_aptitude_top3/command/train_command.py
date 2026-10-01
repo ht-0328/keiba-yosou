@@ -22,7 +22,7 @@ from yosou.shared.ml_model import MEMBER_TYPES
 from yosou.shared.repository import ModelRepository
 from yosou.shared.workflow import TrainingWorkflow
 
-from ..dataset import ABILITY_TRAIN_FIRST_DAY, PoolFreeData, ability_dataset_builder, pool_dataset_builder
+from ..dataset import ABILITY_TRAIN_FIRST_DAY, PoolFreeData, ability_dataset_builder, race_day_dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS, POOL_FREE_FOLDER
 from .figure_cache_argument import FigureCacheArgument
@@ -33,7 +33,7 @@ class TrainCommand:
     """``train``: 時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。
 
     時点によって材料が違う（設計書 07）。木曜・前日は馬の力の材料（2012年からの学習データ）、当日は今の材料に
-    券種ごとのオッズから見た支持を足したもので学ぶ。当日は、券種のオッズが無いレースのために、支持を使わないモデルも
+    券種ごとのオッズから見た支持と馬の力の材料を足したもので学ぶ。当日は、券種のオッズが無いレースのために、支持を使わないモデルも
     学んで ``<置き場所>/券種オッズなし/`` に保存する。
     学習のあとに、複勝の見込みの倍率（今の材料の学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
     """
@@ -59,7 +59,8 @@ class TrainCommand:
         ability_period = TrainingPeriod.starting(args.ability_train_from, args.valid_from, args.test_from)
         repository = ModelRepository(args.models, MEMBER_TYPES)
         with db.open_db(args.db) as con:
-            form = TrainingWorkflow(pool_dataset_builder(con), form_period, repository, FORM_TIMINGS, DEFAULT_SETTINGS_PATH)
+            form = TrainingWorkflow(race_day_dataset_builder(con, args.figure_cache), form_period, repository, FORM_TIMINGS,
+                                    DEFAULT_SETTINGS_PATH)
             ability = TrainingWorkflow(ability_dataset_builder(con, args.figure_cache), ability_period, repository, ABILITY_TIMINGS,
                                        DEFAULT_SETTINGS_PATH)
             form_data = form.read_training_data()

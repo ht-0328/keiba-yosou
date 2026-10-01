@@ -9,6 +9,8 @@ from 既存モデルの改善.analysis.variants import ModelVariant
 from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG
 from yosou.shared.feature import PredictionTiming
 
+from .port_tables import ADDED_ABILITY_FEATURES
+
 _THURSDAY, _DAY_BEFORE, _RACE_DAY = PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE, PredictionTiming.RACE_DAY
 
 
@@ -26,6 +28,8 @@ PORT_VARIANTS: tuple[ModelVariant, ...] = (
              ABILITY_CATALOG.columns_for(_DAY_BEFORE), _DAY_BEFORE),
     _variant("form_pool", "current-race_day", "今の予想（当日）", CATALOG.columns_for(_RACE_DAY), _RACE_DAY),
     _variant("form_pool", "pool-race_day", "今の予想 ＋ 券種の支持（当日）", POOL_CATALOG.columns_for(_RACE_DAY), _RACE_DAY),
+    _variant("form_pool_ability", "pool-ability-race_day", "今の予想 ＋ 券種の支持 ＋ 馬の力の材料（当日）",
+             POOL_CATALOG.columns_for(_RACE_DAY) + tuple(feature.name for feature in ADDED_ABILITY_FEATURES), _RACE_DAY),
 )
 
 
@@ -51,4 +55,6 @@ PORT_COMPARISONS: tuple[PortComparisonSpec, ...] = (
     PortComparisonSpec(_THURSDAY, variant_keyed("current-thursday"), variant_keyed("ability-thursday")),
     PortComparisonSpec(_DAY_BEFORE, variant_keyed("current-day_before"), variant_keyed("ability-day_before")),
     PortComparisonSpec(_RACE_DAY, variant_keyed("current-race_day"), variant_keyed("pool-race_day")),
+    # 当日のモデル（N あり）に、馬の力の材料も足すか（PR #52 の残課題）
+    PortComparisonSpec(_RACE_DAY, variant_keyed("pool-race_day"), variant_keyed("pool-ability-race_day")),
 )
