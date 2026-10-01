@@ -279,4 +279,6 @@ def test_command_trains_and_writes_the_report(longshot_db: Path, fast_settings_p
         assert (tmp_path / "models" / "mid" / timing.value / SETTINGS_FILE).exists()
     # 複勝の見込みの倍率と「買い」の線も、モデルと一緒に保存する
     assert "複勝の見込みの倍率" in text and (tmp_path / "models" / PLACE_PRICE_FILE).exists()
+    # 穴馬の予想は、見込みの倍率をオッズの幅（最高 ÷ 最低）でも直す（設計書 15 の 18）
+    assert "| 幅 " in text and "spread_factors" in PlacePriceRepository(tmp_path / "models").load()
     assert "「買い」の線の候補ごとの成績" in text and (tmp_path / "models" / BUY_LINES_FILE).exists()

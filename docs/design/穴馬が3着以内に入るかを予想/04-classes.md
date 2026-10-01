@@ -13,7 +13,7 @@
 
 **2026-09-30 の追記。** 手本と同じまとまり L（騎手・調教師・血統の市場に対する成績。共通の `PeopleMarketFeatures`）を足した。材料の過去の全出走は、共通の `MarketRunRepository` で読む（ローダーに `market_runs=` で渡す）。クラスの仕事は [手本の 04 の「クラスの一覧」](../近走と適性から3着以内を予想/04-classes.md#クラスの一覧) を参照。
 
-**2026-10-01 の追記。** この予想だけのまとまり M（複勝オッズから見た評価。`feature/` の `PlaceOddsFeatures`・`PlaceMarketRate`。[15-decisions.md の 16](15-decisions.md#16-複勝オッズを特徴量に入れるか)）と、「買い」の判定（`buy_line/`・`repository/`・`command/` の `BuyLineStep`・`BuyLineReportTable`。[15-decisions.md の 17](15-decisions.md#17-買いの線の決め方)）を足した。共通の部品は2か所だけ変えた。`CalibrationCheck` の材料の表に開催日の列を足し（開催日を単位にした回収率の幅を出すため）、`RequiredInfoCheck` の案内に「複勝の最低オッズ」を足した（その列を持たない予想は素通りする）。
+**2026-10-01 の追記。** この予想だけのまとまり M（複勝オッズから見た評価。`feature/` の `PlaceOddsFeatures`・`PlaceMarketRate`。[15-decisions.md の 16](15-decisions.md#16-複勝オッズを特徴量に入れるか)）と、「買い」の判定（`buy_line/`・`repository/`・`command/` の `BuyLineStep`・`BuyLineReportTable`。[15-decisions.md の 17](15-decisions.md#17-買いの線の決め方)）を足した。共通の部品は次だけ変えた。`CalibrationCheck` の材料の表に開催日の列を足し（開催日を単位にした回収率の幅を出すため）、`RequiredInfoCheck` の案内に「複勝の最低オッズ」を足した（その列を持たない予想は素通りする）。見込みの倍率の偏りを直すため、`PlacePriceEstimator` に、最高オッズを渡したときだけ複勝オッズの幅でも直す働きを足し、`PlaceExpectedValue` が最高オッズの列を渡し、`PlacePriceStep(use_spread=True)` でそれを学べるようにした（前の版で保存した倍率と、`use_spread` を付けないほかの予想は、今までと同じ見積もり。[15-decisions.md の 18](15-decisions.md#18-見込みの倍率を複勝オッズの幅でも直すか)）。
 
 ## 1. 共通の部品と、この予想だけの部品の分け方
 
@@ -156,7 +156,7 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 | クラス | 置き場所 | 仕事 | 主な public メソッド |
 |---|---|---|---|
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | この予想 | `train`: 学習する。期間の引数（`PeriodArguments`）から `TrainingPeriod` を作り、共通の `SegmentedTraining` で区分ごとに学習し、共通の `PlacePriceStep` で複勝の見込みの倍率を保存し、最後に `BuyLineStep` で「買い」の線を保存する | `add_parser(subparsers)`、`run(引数)` |
+| `TrainCommand` | この予想 | `train`: 学習する。期間の引数（`PeriodArguments`）から `TrainingPeriod` を作り、共通の `SegmentedTraining` で区分ごとに学習し、共通の `PlacePriceStep(use_spread=True)` で複勝の見込みの倍率（オッズの幅でも直す）を保存し、最後に `BuyLineStep` で「買い」の線を保存する | `add_parser(subparsers)`、`run(引数)` |
 | `PredictCommand` | この予想 | `predict`: 1レースの穴馬を予測する。`--pops` で全頭の人気を受け取って `PopularityInput` にし、`--odds` を `OddsInput`、`--zone` を `LongshotZone` にする。保存した複勝の見込みの倍率を読んで `PlaceValueColumns` を作り、保存した線（`BuyLineRepository`）か `--min-value` の線で時点ごとの `BuyJudge` を作る | `add_parser(subparsers)`、`run(引数)` |
 | `CalibrationCommand` | この予想 | `calibration`: 保存したモデルで、学習に使っていない検証・テストの期間の穴馬を3つの時点で予測し、確率のずれと複勝の期待値の当たり具合を表にする（[16-evaluation.md の 5](16-evaluation.md#5-確率のずれの確かめ方)）。保存した「買い」の線で買ったときの成績の表（`BuyLineReportTable`）も出す | `add_parser(subparsers)`、`run(引数)` |
 | `BuyLineStep` | この予想 | 学習のあとに、保存したモデルで検証期間を予測して複勝の期待値を出し（共通の `CalibrationCheck` の検証の行だけを使う）、時点 × 区分ごとに `BuyLineChooser` で線を選んで `BuyLineRepository` に保存する。線の候補ごとの成績の表と、選んだ線の表を返す | `run(学習データ, 期間, モデルの置き場所)` |

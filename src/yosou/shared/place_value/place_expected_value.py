@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..dataset.column_names import FIELD_SIZE, PLACE_ODDS_LOW
+from ..dataset.column_names import FIELD_SIZE, PLACE_ODDS_HIGH, PLACE_ODDS_LOW
 from ..feature.odds import TOP2_RATE, TOP3_RATE
 from .place_hit_probability import PlaceHitProbability
 from .place_price_estimator import PlacePriceEstimator
@@ -31,8 +31,10 @@ class PlaceExpectedValue:
         """列は ``PLACE_PROBABILITY``・``PLACE_PRICE``・``PLACE_VALUE``。行の並びと index は ``table`` と同じ。
 
         ``table`` は、複勝オッズ（最低）・確定の出走頭数・オッズから見た2着以内率・3着以内率の列を持つ表。
+        複勝オッズ（最高）の列もあれば、見込みの倍率をオッズの幅でも直す（幅の倍率を学んだ ``PlacePriceEstimator`` のときだけ）。
         """
         probability = self._probability.of(top3, table[FIELD_SIZE], table[TOP2_RATE], table[TOP3_RATE])
-        price = self._estimator.estimate(table[PLACE_ODDS_LOW])
+        highest = table[PLACE_ODDS_HIGH] if PLACE_ODDS_HIGH in table.columns else None
+        price = self._estimator.estimate(table[PLACE_ODDS_LOW], highest)
         return pd.DataFrame({PLACE_PROBABILITY: probability, PLACE_PRICE: price, PLACE_VALUE: probability * price},
                             index=table.index)
