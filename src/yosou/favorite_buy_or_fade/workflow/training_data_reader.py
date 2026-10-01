@@ -8,7 +8,7 @@ import duckdb
 
 from yosou.shared.dataset import TrainingData, TrainingPeriod
 
-from ..dataset import dataset_builder
+from ..dataset import PreDeadlineFavorites, dataset_builder
 from ..setting import BuyOrFadeSettings
 
 #: 検証データ・テストデータの区切り。この予想は時期で学習と評価を分ける（``YearlyEvaluation``）ので、
@@ -22,13 +22,17 @@ class TrainingDataReader:
 
     その前の年はウォームアップ（過去走の特徴量の計算にだけ使う）。特徴量は当日の時点の全部で、
     時点ごとの列は ``TrainingData.for_timing`` で選ぶ。
+
+    ``pre_deadline`` を渡すと、締め切り前のオッズで1番人気だった馬の行も入れる（評価で、確定の1番人気と比べるため）。
+    確定の1番人気でない行が混ざるので、学習には ``FavoritePicks`` で確定の1番人気だけを選んで使う。
     """
 
-    def __init__(self, settings: BuyOrFadeSettings) -> None:
+    def __init__(self, settings: BuyOrFadeSettings, pre_deadline: PreDeadlineFavorites | None = None) -> None:
         self._settings = settings
+        self._pre_deadline = pre_deadline
 
     def read(self, con: duckdb.DuckDBPyConnection) -> TrainingData:
         period = TrainingPeriod.starting(
             date(self._settings.train_first_year, 1, 1), _UNUSED_VALID_FIRST_DAY, _UNUSED_TEST_FIRST_DAY,
         )
-        return dataset_builder(con).build_training_data(period)
+        return dataset_builder(con, self._pre_deadline).build_training_data(period)

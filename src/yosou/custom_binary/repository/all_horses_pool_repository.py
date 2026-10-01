@@ -3,7 +3,7 @@
 import duckdb
 import pandas as pd
 
-from .pool_odds_rows import pool_odds_rows
+from .pool_odds_rows_sql import PoolOddsRowsSql
 from .pool_spec import PoolSpec
 
 
@@ -19,7 +19,7 @@ class AllHorsesPoolRepository:
     def read(self, spec: PoolSpec, scope_relation: str) -> pd.DataFrame:
         """1行 = 1頭。列は ``race_id``・``horse_no``・``spec.column``。"""
         sql = f"""
-        WITH {pool_odds_rows(self._con, spec, scope_relation)}, split AS (
+        WITH {PoolOddsRowsSql(self._con).with_clause(spec, scope_relation)}, split AS (
             SELECT odds.race_id,
                    TRY_CAST(substr(odds.combo, (place.i - 1) * 2 + 1, 2) AS INTEGER) AS horse_no, odds.inverse
             FROM odds CROSS JOIN (SELECT unnest(range(1, {spec.horses} + 1)) AS i) AS place

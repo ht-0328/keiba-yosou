@@ -18,13 +18,19 @@ from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceE
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
 from yosou.shared.workflow import SegmentedPrediction
 
+from ..buy_line import BUY_LINE, IS_BUY, BuyJudge
 from ..dataset import LONGSHOT_ZONE, ZONE_CHOICES, LongshotZone, LongshotZoneFilter, dataset_builder
-from ..workflow import PROBABILITY, SEGMENTS, TIMING_CHOICES, PredictionWorkflow
+from ..repository import BuyLineRepository
+from ..workflow import PROBABILITY, SEGMENTS, TIMING_CHOICES, TIMINGS, PredictionWorkflow
 from .yosou_name import YOSOU_NAME
 
 
 class PredictCommand:
-    """``predict``: 1レースの穴馬ごとの「3着以内に入る確率」を出す。``--zone`` で中穴か大穴に絞れる。"""
+    """``predict``: 1レースの穴馬ごとの「3着以内に入る確率」を出す。``--zone`` で中穴か大穴に絞れる。
+
+    前日・当日は、複勝の期待値が「買い」の線以上の穴馬に「買い」を付ける。線は学習のときに保存したもの
+    （``BuyLineRepository``）で、``--min-value`` を渡すと、時点・区分によらずその線に置き換える（設計書 16 の 3）。
+    """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -53,6 +59,11 @@ class PredictCommand:
             "--zone", choices=[zone.label for zone in LongshotZone], default=None,
             help=f"出す穴馬を絞る区分: {ZONE_CHOICES}（省略すると穴馬すべて）",
         )
+        parser.add_argument(
+            "--min-value", type=float, default=None, metavar="期待値",
+            help="複勝の期待値がこの値以上の穴馬に「買い」を付ける（例: --min-value 1.2）。省略すると、学習のときに"
+                 "検証期間で決めた時点・区分ごとの線を使う。前日・当日だけ（木曜は期待値を出さない）",
+        )
         CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
@@ -63,12 +74,14 @@ class PredictCommand:
             workflow = PredictionWorkflow(
                 dataset_builder(con), SegmentedPrediction(SEGMENTS, args.models),
                 PopularityApplier(odds_repository), OddsResolver(odds_repository), LongshotZoneFilter(),
-                PlaceValueColumns(self._place_price(args)),
+                PlaceValueColumns(self._place_price(args)), self._judges(args),
             )
             prediction = workflow.run(race_id, args.timing, self._given_popularity(args), self._zone(args),
                                       self._given_odds(args))
         extra = [POPULARITY_RANK, LONGSHOT_ZONE, *(column for column in (TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE)
                                                    if column in prediction.columns)]
+        if PLACE_VALUE in prediction.columns:
+            extra += [BUY_LINE, IS_BUY]
         table = PredictionTable(prediction, args.timing, PROBABILITY, extra)
         return [table.table()]
 
@@ -88,6 +101,13 @@ class PredictCommand:
         """学習のときに保存した複勝の見込みの倍率。無ければ None で、期待値は出さない。"""
         state = PlacePriceRepository(args.models).load()
         return PlacePriceEstimator.from_state(state) if state is not None else None
+
+    def _judges(self, args: argparse.Namespace) -> dict[PredictionTiming, BuyJudge]:
+        """時点 → 「買い」の判定。``--min-value`` があれば全部の時点・区分でその線、無ければ学習のときに保存した線。"""
+        if args.min_value is not None:
+            lines = {zone.label: args.min_value for zone in LongshotZone}
+            return {timing: BuyJudge(lines) for timing in TIMINGS}
+        return {timing: BuyJudge(lines) for timing, lines in BuyLineRepository(args.models).load().items()}
 
     def _zone(self, args: argparse.Namespace) -> LongshotZone | None:
         """``--zone`` で渡された区分。渡されなければ None（穴馬すべて）。"""

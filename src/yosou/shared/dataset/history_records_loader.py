@@ -7,22 +7,29 @@ from datetime import date
 import duckdb
 
 from ..feature import EntryRecords
-from ..repository import FactTableRepository, RaceEarlyRecordRepository, StakesTendencyRepository, TargetScope
+from ..repository import (
+    FactTableRepository,
+    MarketRunRepository,
+    RaceEarlyRecordRepository,
+    StakesTendencyRepository,
+    TargetScope,
+)
 from .entry_records_loader import EntryRecordsLoader
 
 
 class HistoryRecordsLoader:
     """開催日が ``first_day`` 以降の、中央の確定成績の出走の記録を集める（学習データ用）。
 
-    ``race_history``・``stakes_tendency`` は ``EntryRecordsLoader`` にそのまま渡す
-    （レースごとの序盤と後半の記録・重賞のレースごとの傾向。省略すると読まない）。
+    ``race_history``・``stakes_tendency``・``market_runs`` は ``EntryRecordsLoader`` にそのまま渡す
+    （レースごとの序盤と後半の記録・重賞のレースごとの傾向・過去の全出走のオッズと着順。省略すると読まない）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
                  race_history: RaceEarlyRecordRepository | None = None,
-                 stakes_tendency: StakesTendencyRepository | None = None) -> None:
+                 stakes_tendency: StakesTendencyRepository | None = None,
+                 market_runs: MarketRunRepository | None = None) -> None:
         self._fact_table = FactTableRepository(con)
-        self._records_loader = EntryRecordsLoader(con, race_history, stakes_tendency)
+        self._records_loader = EntryRecordsLoader(con, race_history, stakes_tendency, market_runs)
 
     def load(self, first_day: date) -> EntryRecords:
         self._fact_table.ensure()

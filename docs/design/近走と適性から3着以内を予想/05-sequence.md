@@ -60,7 +60,7 @@ sequenceDiagram
     RS->>RS: 入れる行を選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
-    F-->>D: 特徴量 75個
+    F-->>D: 特徴量 79個
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数
     D-->>W: 学習データ
@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 75個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 79個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
 
 ## 図2. 予測
 
@@ -145,6 +145,7 @@ sequenceDiagram
     participant R4b as WorkoutCoverageRepository
     participant R5 as PeopleDayRepository（騎手）
     participant R6 as PeopleDayRepository（調教師）
+    participant R7 as MarketRunRepository
     participant DB as 元DB
     L->>R1: read（対象）
     R1->>DB: SQL（出走の行）
@@ -175,9 +176,13 @@ sequenceDiagram
     R6->>DB: SQL（調教師の日ごとの成績）
     DB-->>R6: 行
     R6-->>L: 調教師の成績
+    L->>R7: read（対象）
+    R7->>DB: SQL（期間の平地の全出走の単勝オッズと着順）
+    DB-->>R7: 行
+    R7-->>L: 過去の全出走のオッズと着順
 ```
 
-**説明。** 学習のときは、`HistoryRecordsLoader` が、`FactTableRepository.ensure()` で事実表を用意してから、この流れを呼ぶ。
+**説明。** 学習のときは、`HistoryRecordsLoader` が、`FactTableRepository.ensure()` で事実表を用意してから、この流れを呼ぶ。`MarketRunRepository` は、まとまり L（騎手・調教師・血統の市場に対する成績。[09-features.md の L](09-features.md#l-騎手調教師血統の市場に対する成績4個)）の材料を読む。ローダーが作られるときに渡されたときだけ呼び、この予想は渡す。オッズから見た3着以内率はレースの全頭のオッズから出すので、対象の出走だけでなく、対象の開催日の前 365日の全レースを読む。
 
 ## 図4. 1レースの記録を集める（速報の反映）
 
@@ -242,3 +247,4 @@ sequenceDiagram
 | 更新 | 2026-09-23: 図2・図4 に、予測に使うオッズを決めて反映する段を足した |
 | 更新 | 2026-09-28: 「まだ決まっていないところ」を、16-evaluation.md と 15-decisions.md の 8〜10 で決めた状態に直した |
 | 更新 | 2026-09-28: 図1の特徴量の数を 75個にそろえた |
+| 更新 | 2026-09-30: まとまり L（騎手・調教師・血統の市場に対する成績）の4個を足し、図1と説明の特徴量の数を 79個にそろえた。図3に、L の材料を読む `MarketRunRepository` を足した |

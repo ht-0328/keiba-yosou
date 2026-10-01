@@ -19,6 +19,7 @@ from ..repository import (
     CareerCountRepository,
     EntryRepository,
     FactTableRepository,
+    MarketRunRepository,
     PastRunRepository,
     PeopleDayRepository,
     RaceEntryTableRepository,
@@ -98,6 +99,20 @@ def test_people_days_cover_the_window_before_the_first_race(season_con):
     assert jockey_days["race_date"].max() < pd.Timestamp("2024-12-28")
     assert trainer_days["places"].le(trainer_days["starts"]).all()
     assert jockey_days["person_code"].nunique() == 12 and trainer_days["person_code"].nunique() == 7
+
+
+def test_market_runs_are_flat_runners_in_the_window_before_the_last_race(season_con):
+    scope = TargetScope.since(date(2024, 6, 1))
+    runs = MarketRunRepository(season_con, window_days=365).read(scope)
+    assert runs["race_date"].min() >= pd.Timestamp("2023-06-02")
+    assert runs["race_date"].max() < pd.Timestamp("2024-12-28")
+    assert runs["race_date"].is_monotonic_increasing
+    assert {"race_id", "win_odds", "finish", "jockey_code", "trainer_code", "sire", "damsire"} <= set(runs.columns)
+    # 人に関わるレースだけでなく、期間の全レースを読む（オッズから見た3着以内率を、レースの全頭で出すため）
+    everyone = EntryRepository(season_con).read(TargetScope.since(date(2023, 1, 1)))
+    in_window = everyone[everyone["ran"].eq(True) & everyone["race_date"].lt(pd.Timestamp("2024-12-28"))
+                        & everyone["race_date"].ge(pd.Timestamp("2023-06-02")) & everyone["surface"].ne("障害")]
+    assert len(runs) == len(in_window)
 
 
 def test_announced_going_is_the_last_report_for_the_track(season_con):

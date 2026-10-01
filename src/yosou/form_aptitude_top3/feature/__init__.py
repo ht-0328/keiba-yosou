@@ -2,12 +2,12 @@
 
 特徴量を作るクラス（``FeatureBuilder``・まとまり A〜J）は ``yosou.shared.feature``。まとまり J（市場の評価）を作る
 ``MarketFeatures`` も、荒れ具合の予想と共通なので ``yosou.shared.feature.group`` に移した。
-ここには、A〜I に J を足した一覧を置く。
+ここには、A〜I に J と L（騎手・調教師・血統の市場に対する成績。``PeopleMarketFeatures``）を足した一覧を置く。
 
 | 名前 | 中身 |
 |---|---|
 | ``J_FEATURES`` | まとまり J の4個の一覧（共通の ``MARKET_FEATURES`` と同じもの） |
-| ``CATALOG`` | この予想の特徴量の一覧（``BASE_FEATURES`` + ``J_FEATURES``。当日は 75個） |
+| ``CATALOG`` | この予想の特徴量の一覧（``BASE_FEATURES`` + ``J_FEATURES`` + ``PEOPLE_MARKET_FEATURES``。当日は 79個） |
 | ``WIN_ODDS`` | 特徴量「単勝オッズ」の名前。予測の結果の表にも出すので、外にも見せる |
 """
 

@@ -8,14 +8,15 @@ from itertools import product
 import numpy as np
 import pandas as pd
 
-from ..dataset import SplitData, TrainingData
+from ..dataset import RACE_DATE, SplitData, TrainingData
 from ..dataset.column_names import PLACE_PAYOUT, POPULARITY
 from ..feature import PredictionTiming
 from ..place_value import PLACE_PROBABILITY, PLACE_VALUE, PlaceExpectedValue
 from .model_segments import ModelSegments
 from .segmented_holdout_prediction import SegmentedHoldoutPrediction
 
-#: 材料の表の列の名前（``POPULARITY``・``PLACE_PAYOUT``・``PLACE_PROBABILITY``・``PLACE_VALUE`` はそのままの名前で入る）。
+#: 材料の表の列の名前（``RACE_DATE``・``POPULARITY``・``PLACE_PAYOUT``・``PLACE_PROBABILITY``・``PLACE_VALUE`` は
+#: そのままの名前で入る）。
 TIMING, PART, SEGMENT, LABEL, PROBABILITY = "時点", "期間", "区分", "正解", "確率"
 #: 期間の名前（学習の報告の「検証」「テスト」と同じ）。
 PART_VALID, PART_TEST = "検証", "テスト"
@@ -25,8 +26,8 @@ class CalibrationCheck:
     """保存したモデルで、学習に使っていない期間（検証・テスト）の馬を時点ごとに予測し、確率のずれを測る材料の表を作る
     （穴馬の設計書 16 の 5）。流れを進めるだけで、ずれの計算は ``ProbabilityBands``・``ValueBands`` が行う。
 
-    表は 1行 = 1頭 × 1時点。列は 時点・期間・区分・正解（目的変数）・確率（2つのモデルの平均）・確定単勝人気・複勝の払戻と、
-    オッズが分かる時点（前日・当日）なら複勝的中の確率と複勝の期待値。木曜は、予測と同じく期待値を出さない（欠損値）。
+    表は 1行 = 1頭 × 1時点。列は 時点・期間・区分・開催日・正解（目的変数）・確率（2つのモデルの平均）・確定単勝人気・
+    複勝の払戻と、オッズが分かる時点（前日・当日）なら複勝的中の確率と複勝の期待値。木曜は、予測と同じく期待値を出さない（欠損値）。
     ``place_value`` が None（見込みの倍率を保存していない）なら、どの時点も期待値を出さない。
     """
 
@@ -46,7 +47,7 @@ class CalibrationCheck:
         probability = self._predictor.predict(data, timing)
         frame = pd.DataFrame({
             TIMING: timing.label, PART: part, SEGMENT: self._segments.labels_of(data.evaluation),
-            LABEL: data.label, PROBABILITY: probability,
+            RACE_DATE: data.ids[RACE_DATE], LABEL: data.label, PROBABILITY: probability,
             POPULARITY: data.evaluation[POPULARITY], PLACE_PAYOUT: data.evaluation[PLACE_PAYOUT],
         }, index=data.ids.index)
         joined = pd.concat([frame, self._values(probability, data, timing)], axis=1)

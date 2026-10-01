@@ -23,6 +23,9 @@ class EntryRecords:
       前3ハロン・後3ハロンなど）。展開から着順を予想する予想だけが読む。ほかの予想では空の表。
     - ``stakes_tendency``: 対象のうち重賞のレースごとの傾向（それより前の開催の数え上げと基準。1行 = 1レース）。
       重賞の傾向と近走から3着以内を予想する予想だけが読む。ほかの予想では空の表。
+    - ``market_runs``: 対象の開催日の前 365日の、平地の全出走（1行 = 1頭。単勝オッズ・着順・騎手・調教師・父・母父）。
+      騎手・調教師・血統の市場に対する成績（まとまり L）を数える予想（全頭の3着以内・穴馬・人気馬）だけが読む。
+      ほかの予想では空の表。
     """
 
     entries: pd.DataFrame
@@ -35,6 +38,7 @@ class EntryRecords:
     damsire_days: pd.DataFrame
     race_history: pd.DataFrame = field(default_factory=pd.DataFrame)
     stakes_tendency: pd.DataFrame = field(default_factory=pd.DataFrame)
+    market_runs: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def with_entries(self, entries: pd.DataFrame) -> EntryRecords:
         """出走の行だけを差し替えた記録。入れる行を選んだあとや、速報を反映したあとに使う。"""

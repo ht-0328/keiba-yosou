@@ -14,7 +14,9 @@ from yosou.shared.repository import PlacePriceRepository
 from yosou.shared.workflow import CalibrationCheck, SegmentedHoldoutPrediction
 
 from ..dataset import dataset_builder
+from ..repository import BuyLineRepository
 from ..workflow import SEGMENTS, TIMINGS
+from .buy_line_report_table import BuyLineReportTable
 from .period_arguments import PeriodArguments
 from .yosou_name import YOSOU_NAME
 
@@ -22,7 +24,7 @@ from .yosou_name import YOSOU_NAME
 class CalibrationCommand:
     """``calibration``: 保存したモデルが出す「3着以内に入る確率」が、実際に3着以内に入った割合と合っているか（確率のずれ）と、
     その確率から出した複勝の期待値が、実際の回収率と合っているかを、学習に使っていない期間（検証・テスト）で測る
-    （設計書 16 の 5）。
+    （設計書 16 の 5）。保存した「買い」の線で買ったときの成績（テスト期間が確かめる期間）も出す（設計書 16 の 3）。
 
     学習のときと同じ期間の区切りを渡す（省略すると既定の区切り）。元DB を開くのは学習データを読む段だけ。
     """
@@ -44,9 +46,14 @@ class CalibrationCommand:
         with db.open_db(args.db) as con:
             training_data = dataset_builder(con).build_training_data(period)
         split = PeriodSplitter(period).split(training_data)
-        check = CalibrationCheck(SEGMENTS, SegmentedHoldoutPrediction(SEGMENTS, args.models),
-                                 self._place_value(args), TIMINGS)
-        return CalibrationReportTables(check.run(split)).tables()
+        place_value = self._place_value(args)
+        check = CalibrationCheck(SEGMENTS, SegmentedHoldoutPrediction(SEGMENTS, args.models), place_value, TIMINGS)
+        frame = check.run(split)
+        tables = CalibrationReportTables(frame).tables()
+        if place_value is None:
+            return tables
+        lines = BuyLineRepository(args.models).load()
+        return [*tables, BuyLineReportTable(frame, lines, SEGMENTS.labels()).table()]
 
     def _place_value(self, args: argparse.Namespace) -> PlaceExpectedValue | None:
         """学習のときに保存した複勝の見込みの倍率。無ければ None で、期待値は測らない。"""

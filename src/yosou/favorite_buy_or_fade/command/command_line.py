@@ -22,10 +22,12 @@ USAGE = """1番人気を「消す」「単勝と複勝を買う」「複勝だ�
 方針（単位のまとめ方・特徴量の時点・k・判定の線・掛け金・評価の年）は setting/default_settings.toml。
 変えるときは、変えたい項目だけを書いた TOML を --config で渡して、train か evaluate を実行し直す。
 
-1年ごとの評価（評価の年ごとに、その前年までで学習し直す）:
+1年ごとの評価（評価の年ごとに、その前年までで学習し直す）。表は「方針を決める年」と「確かめる年」に分かれる。
+方針を比べるときは、方針を決める年の行だけを見る。締め切り前のオッズで1番人気を選ぶなら --favorite-odds 締め切り前:
 
     uv run python -m yosou.favorite_buy_or_fade evaluate --out reports/1番人気を買うか消すかを予想/evaluation.md
     uv run python -m yosou.favorite_buy_or_fade evaluate --config my_settings.toml
+    uv run python -m yosou.favorite_buy_or_fade evaluate --favorite-odds 締め切り前 --minutes 10
 
 本番用の学習（reports/1番人気を買うか消すかを予想/models/ に保存する）と、1レースの判定:
 

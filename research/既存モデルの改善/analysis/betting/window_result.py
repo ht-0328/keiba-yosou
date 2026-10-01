@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -19,6 +19,8 @@ class WindowResult:
       （確率のずれの表に使う）。
     - ``valid_candidates``・``valid_tickets``・``valid_races``: この区切りの検証の半年の、補正する前の候補・買い目の組・レース単位の表。
       次の区切りの検証期間（1年）の前半に使う。
+    - ``selections``・``selection_bought``: 勝負するレースの選び方の決まりごとの記録と、テスト期間に買った買い目
+      （``SelectionRuleComparison`` の結果。決まりを渡さなければ空）。
     """
 
     bought: pd.DataFrame
@@ -30,3 +32,5 @@ class WindowResult:
     valid_candidates: pd.DataFrame
     valid_tickets: pd.DataFrame
     valid_races: pd.DataFrame
+    selections: list[dict[str, object]] = field(default_factory=list)
+    selection_bought: pd.DataFrame = field(default_factory=pd.DataFrame)
