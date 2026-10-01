@@ -148,7 +148,7 @@ sequenceDiagram
 | この予想のパッケージ（`RunnerSelector`・`StakesTendencyFeatures`・`PredictionWorkflow`・コマンド） | 作った（`src/yosou/stakes_tendency_top3/`。[04-classes.md](04-classes.md#4-この予想だけのクラスの一覧)） |
 | `evaluate` コマンド | 作った（同上。[16-evaluation.md の 4](16-evaluation.md#4-evaluate-コマンド学習に使っていない期間での確かめ)） |
 | 学習済みモデル（`reports/重賞の傾向と近走から3着以内を予想/models/`） | 実DB で学習して保存済み（2026-09-29）。学習し直すときは `train` を実行する |
-| 7つの半年の区切りでの確かめ（ウォークフォワード）の重賞版 | 無い。残っている課題（[15-decisions.md の 8](15-decisions.md#8-当たり具合の確かめ方)） |
+| 7つの区切りでの確かめ（ウォークフォワード）の重賞版 | 作った（1年ずつの7つの区切り。`research/既存モデルの改善/`。結果は [15-decisions.md の 8](15-decisions.md#8-当たり具合の確かめ方)） |
 
 ## 文書情報
 
