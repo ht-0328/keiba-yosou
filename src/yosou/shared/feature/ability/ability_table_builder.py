@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .ability_columns import RECORD_GROUPS, ability_columns
+from .ability_run_focus import AbilityRunFocus
 from .ability_sources import AbilitySources
 from .cumulative_record_rates import CumulativeRecordRates
 from .past_run_history import PastRunHistory
@@ -29,18 +30,22 @@ class AbilityTableBuilder:
 
     研究「馬の力と展開でオッズに勝つ」の学習用の表の作り方（``research/馬の力と展開でオッズに勝つ/analysis/dataset_builder.py``）を、
     まだ走っていないレースにも付けられるように、馬で突き合わせる形にしたもの。どの列も、そのレースより前の記録だけから作る。
+    予測（対象が1レース）では、対象の出走の材料を作るのに要る出走だけに絞って数える（``AbilityRunFocus``。値は変わらない）。
     列は race_id・horse_id と ``ability_columns()``（202個。どれも小数）。
     """
 
     def build(self, sources: AbilitySources) -> pd.DataFrame:
         runs = self._ran(sources.runs)
-        figures = SpeedFigureHistory().build(self._figure_runs(runs, sources.figures))
-        past = PastRunHistory().build(runs, RaceStrength().of(runs, figures), RacePace().of(runs))
+        focus = AbilityRunFocus(runs)
+        figure_runs = focus.figure_runs()
+        figures = SpeedFigureHistory().build(self._figure_runs(figure_runs, sources.figures))
+        strength = RaceStrength().of(figure_runs, figures)
+        past = PastRunHistory().build(focus.target_horse_runs(), strength, RacePace().of(runs))
         table = runs[runs["is_target"]].merge(figures, on=KEY, how="left").merge(past, on=KEY, how="left")
         table = table.merge(sources.workouts, on=KEY, how="left")
         for name, keys in RECORD_GROUPS.items():
-            table = table.merge(CumulativeRecordRates().build(runs, keys, name), on=KEY, how="left")
-        table = table.merge(RecentPeopleRates().build(runs, table), on=KEY, how="left")
+            table = table.merge(CumulativeRecordRates().build(focus.record_runs(name), keys, name), on=KEY, how="left")
+        table = table.merge(RecentPeopleRates().build(focus.people_runs(), table), on=KEY, how="left")
         added = [RaceRelativeColumns().build(table), RaceLevelColumns().build(table),
                  SalePriceColumns().build(table, sources.sales)]
         table = pd.concat([table, *added], axis=1)

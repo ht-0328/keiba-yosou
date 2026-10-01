@@ -31,7 +31,7 @@ from ..dataset import (
     PoolAvailability,
     PoolFreeData,
     ability_dataset_builder,
-    pool_dataset_builder,
+    race_day_dataset_builder,
 )
 from ..feature import WIN_ODDS
 from ..setting import DEFAULT_SETTINGS_PATH
@@ -61,7 +61,7 @@ def test_training_saves_the_settings_it_used(trained: tuple[Path, str]):
 
 def test_training_reports_each_model_group(trained: tuple[Path, str]):
     _, text = trained
-    # 今の材料（当日）・券種オッズなし（当日）・馬の力の材料（木曜・前日）の3つの学習の結果を出す
+    # 当日（今の材料・券種の支持・馬の力の材料）・券種オッズなし（当日）・馬の力の材料（木曜・前日）の3つの学習の結果を出す
     for subject in ("今の材料", "券種オッズなし", "馬の力の材料"):
         assert f"{subject}: 検証データでの当たり具合" in text and f"{subject}: 保存したモデル" in text
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
@@ -69,9 +69,10 @@ def test_training_reports_each_model_group(trained: tuple[Path, str]):
 
 
 def test_form_training_reports_validation_scores(season_db: Path, fast_settings_path: Path,
-                                                 season_period, tmp_path: Path):
+                                                 season_period, tmp_path: Path, figure_cache: Path):
     with db.open_db(season_db) as con:
-        workflow = TrainingWorkflow(pool_dataset_builder(con), season_period, ModelRepository(tmp_path, MEMBER_TYPES),
+        workflow = TrainingWorkflow(race_day_dataset_builder(con, figure_cache), season_period,
+                                    ModelRepository(tmp_path, MEMBER_TYPES),
                                     FORM_TIMINGS, DEFAULT_SETTINGS_PATH)
         report = workflow.run(fast_settings_path)
     assert len(report.evaluations) == len(FORM_TIMINGS) * (len(MEMBER_TYPES) + 1)
@@ -86,11 +87,11 @@ def test_model_repository_reports_missing_models(tmp_path: Path):
         ModelRepository(tmp_path, MEMBER_TYPES).load(PredictionTiming.RACE_DAY)
 
 
-def _workflow(con: duckdb.DuckDBPyConnection, models: Path,
+def _workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
               place_price: PlacePriceEstimator | None = None) -> PredictionWorkflow:
-    """当日の予測の流れ（今の材料。当日に券種のオッズが無ければ、券種の支持を使わないモデルに切り替える）。"""
+    """当日の予測の流れ（今の材料・券種の支持・馬の力の材料。当日に券種のオッズが無ければ、券種の支持を使わないモデルに切り替える）。"""
     return PredictionWorkflow(
-        pool_dataset_builder(con), SegmentedPrediction(ModelSegments(), models),
+        race_day_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
         OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(place_price),
         pool_free=SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER),
     )
@@ -104,10 +105,10 @@ def _thursday_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cach
     )
 
 
-def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path, str]):
+def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
     models, _ = trained
     with db.open_db(season_db) as con:
-        prediction = _workflow(con, models).run(
+        prediction = _workflow(con, models, figure_cache).run(
             season.CARD_RACE_ID, PredictionTiming.RACE_DAY, OddsInput.of(CARD_ODDS_TEXTS))
     assert len(prediction) == 7 and season.SCRATCHED_HORSE_NO not in set(prediction[HORSE_NO])
     member_names = [model_type.name for model_type in MEMBER_TYPES]
@@ -128,24 +129,25 @@ def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[
     assert TOP3_RATE not in prediction.columns and PLACE_VALUE not in prediction.columns
 
 
-def test_race_day_prediction_without_pool_odds_uses_the_pool_free_models(season_db: Path, trained: tuple[Path, str]):
+def test_race_day_prediction_without_pool_odds_uses_the_pool_free_models(season_db: Path, trained: tuple[Path, str],
+                                                                         figure_cache: Path):
     models, _ = trained
     with db.open_db(season_db) as con:
-        prediction = _workflow(con, models).run(
+        prediction = _workflow(con, models, figure_cache).run(
             season.CARD_RACE_ID, PredictionTiming.RACE_DAY, OddsInput.of(CARD_ODDS_TEXTS))
-        data = pool_dataset_builder(con).build_prediction_data(season.CARD_RACE_ID, PredictionTiming.RACE_DAY,
-                                                              odds=CARD_ODDS)
+        data = race_day_dataset_builder(con, figure_cache).build_prediction_data(
+            season.CARD_RACE_ID, PredictionTiming.RACE_DAY, odds=CARD_ODDS)
     # 合成DB には券種のオッズが無いので、券種の支持を外して、券種の支持を使わないモデルで予測する
     assert PoolAvailability().missing(data)
     expected = SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER).predict(PoolFreeData().prediction(data))
     np.testing.assert_allclose(prediction[PROBABILITY].to_numpy(), expected[AVERAGE].to_numpy())
 
 
-def test_race_day_prediction_shows_the_market_top3_rate_and_the_place_value(season_db: Path, trained):
+def test_race_day_prediction_shows_the_market_top3_rate_and_the_place_value(season_db: Path, trained, figure_cache: Path):
     models, _ = trained
     estimator = PlacePriceEstimator().fit(pd.Series([2.0, 3.0]), pd.Series([240.0, 330.0]))
     with db.open_db(season_db) as con:
-        prediction = _workflow(con, models, estimator).run(
+        prediction = _workflow(con, models, figure_cache, estimator).run(
             season.CARD_RACE_ID, PredictionTiming.RACE_DAY, OddsInput.of(CARD_ODDS_TEXTS))
     # オッズから見た3着以内率はレースで合計 3。合成DB の 1R には締め切り前の複勝オッズがあるので、出走する全頭に期待値が出る
     assert prediction[TOP3_RATE].sum() == pytest.approx(3.0)
