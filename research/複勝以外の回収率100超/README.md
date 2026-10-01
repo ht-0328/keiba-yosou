@@ -46,7 +46,7 @@
 リポジトリ直下（`keiba-yosou/`）から実行する。先に研究「回収率100超」の `extract.py`・`extract_tickets.py`・`backtest_tickets.py` を回しておく。
 
 ```bash
-uv run --with pyarrow --with tabulate python research/複勝以外の回収率100超/cases.py      # 事例を集める（数分）
-uv run --with pyarrow --with tabulate python research/複勝以外の回収率100超/backtest.py   # すべての作り方を確かめる
+uv run python research/複勝以外の回収率100超/cases.py      # 事例を集める（数分）
+uv run python research/複勝以外の回収率100超/backtest.py   # すべての作り方を確かめる
 uv run python -m pytest -q research/複勝以外の回収率100超                                  # 部品のテスト（架空の値だけ）
 ```

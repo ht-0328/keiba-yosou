@@ -1,6 +1,6 @@
 """保存した予測から、◎と1番人気を比べた表を書く（研究「一番人気を疑う」の入口③）。
 
-    uv run --with pyarrow --with tabulate python research/一番人気を疑う/summarize.py
+    uv run python research/一番人気を疑う/summarize.py
 
 ``run_experiments.py`` が保存した予測を全部読み、``reports/一番人気を疑う/結果.md``（Git 対象外）に書く。
 条件ごとの表と、◎の確率の帯の表は、``--detail`` で選んだ作り方（既定は今の予想の木曜版と、木曜の197個の材料）について出す。

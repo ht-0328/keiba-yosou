@@ -12,13 +12,14 @@ from yosou.shared.dataset.column_names import POPULARITY
 from yosou.shared.betting import TicketType
 
 from 既存モデルの改善.analysis.betting import (
-    BettingPlan, BettingPlanChooser, ProbabilityCalibrator, RaceCandidatePricer, RaceSelector, StakeAllocator, TicketSetBuilder,
+    ALL_RACES, BettingPlan, BettingPlanChooser, HardnessBand, ProbabilityCalibrator, RaceCandidatePricer, RaceSelectionRule,
+    RaceSelector, StakeAllocator, TicketSetBuilder,
 )
 from 既存モデルの改善.analysis.betting.candidate_columns import (
     COMBO, GROUP, ODDS, PRICE, PROBABILITY, RACE, RETURN, SET_ODDS, SET_STAKE, SET_VALUE, STAKE, TICKET, VALUE,
 )
 from 既存モデルの改善.analysis.betting.payout_table import PAYOUT
-from 既存モデルの改善.analysis.betting.race_columns import FAVORITE_EXCLUDED, GRADED, SCORE
+from 既存モデルの改善.analysis.betting.race_columns import AXIS_PROBABILITY, FAVORITE_EXCLUDED, GRADED, SCORE
 from 既存モデルの改善.analysis.combined.horse_columns import FORM_PROBABILITY, WIN_PROBABILITY
 from 既存モデルの改善.analysis.horse_roles import AXIS, DANGER, EXCLUDED, HONMEI, POPULAR, WIN_VALUE, RoleAssigner
 from 既存モデルの改善.analysis.market import CombinationTable
@@ -122,6 +123,53 @@ def test_race_selector_puts_races_with_excluded_favorites_first():
     races = pd.DataFrame({RACE: ["a", "b", "c"], RACE_DATE: pd.to_datetime(["2025-01-05"] * 3),
                           FAVORITE_EXCLUDED: [False, True, False], SCORE: [1.5, 1.1, 1.3], GRADED: False})
     assert races[RaceSelector(per_day=1).select(races)][RACE].tolist() == ["b"]
+
+
+def test_hardness_band_keeps_races_inside_the_band():
+    probability = pd.Series([0.55, 0.65, 0.85, np.nan])
+    assert HardnessBand(0.6, None).contains(probability).tolist() == [False, True, True, False]
+    assert HardnessBand(None, 0.6).contains(probability).tolist() == [True, False, False, False]
+    assert ALL_RACES.contains(probability).all()
+    assert HardnessBand(0.7, None).label == "軸の確率 0.7 以上" and ALL_RACES.label == "全部のレース"
+
+
+def _day_races() -> pd.DataFrame:
+    """1開催日5レース。e は重賞。a は1番人気を消したレース。軸の確率は a・b が低く（迷う）、c・d・e が高い（堅い）。"""
+    return pd.DataFrame({RACE: list("abcde"), RACE_DATE: pd.to_datetime(["2025-01-05"] * 5),
+                         FAVORITE_EXCLUDED: [True, False, False, False, False], SCORE: [1.1, 1.5, 1.4, 1.2, 1.0],
+                         GRADED: [False, False, False, False, True], AXIS_PROBABILITY: [0.5, 0.55, 0.8, 0.9, 0.4]})
+
+
+def test_race_selector_orders_by_value_and_keeps_graded_races_outside_the_cap():
+    races = _day_races()
+    by_value = RaceSelector(per_day=2, excluded_first=False).select(races)
+    # 期待値の順で b・c。重賞の e は別枠で入る
+    assert races[by_value][RACE].tolist() == ["b", "c", "e"]
+    hard = RaceSelector(per_day=2, band=HardnessBand(0.7, None), excluded_first=False).select(races)
+    # 堅い帯（0.7 以上）の c・d。重賞の e は帯の外でも残る
+    assert races[hard][RACE].tolist() == ["c", "d", "e"]
+
+
+def test_race_selector_can_put_graded_races_inside_the_cap():
+    races = _day_races()
+    inside = RaceSelector(per_day=2, excluded_first=False, graded_in_cap=True).select(races)
+    # 重賞の e を先に入れ、残りの1枠に期待値の高い b。1日の合計は2レースを超えない
+    assert races[inside][RACE].tolist() == ["b", "e"]
+
+
+def test_plan_chooser_picks_the_hardness_band_that_paid_in_the_valid_period():
+    days = pd.to_datetime("2025-01-01") + pd.to_timedelta(np.arange(80) // 4, "D")
+    hard = np.arange(80) % 2 == 0
+    races = pd.DataFrame({RACE: [f"r{index}" for index in range(80)], RACE_DATE: days, GRADED: False,
+                          FAVORITE_EXCLUDED: False, AXIS_PROBABILITY: np.where(hard, 0.85, 0.5)})
+    # 堅いレースは2回に1回 2.5倍で当たり、迷うレースは外れる
+    payout = np.where(hard & (np.arange(80) % 4 == 0), 2500.0, 0.0)
+    tickets = pd.DataFrame({RACE: races[RACE], TICKET: "単勝", COMBO: "01", GROUP: "1頭", SET_VALUE: 1.2,
+                            SET_STAKE: 1000.0, STAKE: 1000.0, RETURN: payout})
+    rule = RaceSelectionRule("t", "試し", (None,), (ALL_RACES, HardnessBand(0.8, None), HardnessBand(None, 0.6)))
+    chooser = BettingPlanChooser(min_hits=1, rule=rule)
+    plan, _ = chooser.choose(tickets, races)
+    assert plan.band == HardnessBand(0.8, None) and plan.describe() == "全レース・軸の確率 0.8 以上・期待値の順"
 
 
 def test_conservative_rate_is_lower_when_few_hits():

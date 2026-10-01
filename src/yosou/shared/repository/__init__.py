@@ -13,6 +13,7 @@
 | ``WorkoutCoverageRepository`` | 調教の記録が DB にある期間（コースごとの最初の調教日） |
 | ``PeopleDayRepository`` | 騎手か調教師の、日ごとの成績 |
 | ``PedigreeDayRepository`` | 父か母父の産駒の、日ごと・芝ダごとの成績 |
+| ``MarketRunRepository`` | 過去の平地の全出走の単勝オッズと着順（騎手・調教師・血統の市場に対する成績の材料）。全頭の3着以内・穴馬・人気馬の予想が使う |
 | ``RaceEarlyRecordRepository`` | レースごとの序盤と後半の記録（最初のコーナー・先頭の馬番・前3ハロン・後3ハロン）。1行 = 1レース。展開から着順を予想する予想が使う |
 | ``StakesTendencyRepository`` | 重賞のレースごとの傾向（それより前の開催の数え上げと基準。``tools/共通/stakes.py`` の SQL）。1行 = 1レース。重賞の傾向と近走から3着以内を予想する予想が使う |
 | ``RacePayoutRepository`` | レースごとの4券種（単勝・馬連・3連複・3連単）の払戻と、成立したか。レース単位の予想が使う |
@@ -40,6 +41,7 @@ from .career_count_repository import CareerCountRepository
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
 from .final_odds_repository import FinalOddsRepository
+from .market_run_repository import MarketRunRepository
 from .model_repository import ModelRepository
 from .past_run_repository import PastRunRepository
 from .payout_flag_repository import REFUNDED, PayoutFlagRepository, void_column
@@ -61,7 +63,7 @@ from .workout_repository import WorkoutRepository
 __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
     "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
-    "PeopleDayRepository", "PedigreeDayRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
+    "PeopleDayRepository", "PedigreeDayRepository", "MarketRunRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "PlaceOddsRepository",
     "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository",
     "RaceDayRange", "FinalOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",

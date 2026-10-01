@@ -27,7 +27,7 @@ sequenceDiagram
     participant MR as ModelRepository
     U->>TC: train（期間、券種、設定ファイルのパス）
     TC->>D: build_training_data（期間）
-    D->>L: load（ウォームアップの始まり。既定は 2016年1月1日）
+    D->>L: load（ウォームアップの始まり。既定は 2011年1月1日）
     L->>L: リポジトリを順に呼んで、1頭ごとの記録を集める（手本の 05 の図3）
     L-->>D: 出走の記録（1行 = 1頭）
     D->>RS: training_samples（出走の行、学習データの始まり）

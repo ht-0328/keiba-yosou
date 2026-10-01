@@ -1,4 +1,4 @@
-"""全頭の3着以内の予想の、比べ方の表。"""
+"""全頭の3着以内の予想の、比べ方の表（重賞の3着以内の予想にも、作り方の鍵と名前を替えて使う）。"""
 
 from __future__ import annotations
 
@@ -31,21 +31,33 @@ class FormComparison:
     全期間を通じた誤差とばらつきも確かめられること。
 
     ``predictions`` は作り方の鍵 → 予測の表、``names`` は作り方の鍵 → 表に出す名前。
+    ``subject``（表の題の頭に付ける予想の名前）・``candidate``（オッズだけと比べる作り方の鍵）・``candidate_label``
+    （その短い呼び名）・``value_keys``（複勝を期待値で買う表を出す作り方の鍵）・``reference``（比べる相手の作り方の鍵。
+    既定はオッズだけ）は、重賞の予想で替える。
+    例: 重賞の予想は ``subject="重賞"``・``candidate="default"``・``candidate_label="既定"``。木曜はオッズが無いので、
+    木曜の既定（``default-thursday``）を当日のオッズだけ（``odds_only``。締め切りの市場の見立て）と比べる。
     """
 
     def __init__(self, data: TrainingData, predictions: Mapping[str, pd.DataFrame], names: Mapping[str, str],
-                 windows: tuple[TestWindow, ...]) -> None:
+                 windows: tuple[TestWindow, ...], subject: str = "全頭", candidate: str = IMPROVED,
+                 candidate_label: str = "変更版", value_keys: tuple[str, ...] = (IMPROVED, CURRENT),
+                 reference: str = ODDS_ONLY) -> None:
         join = PredictionJoin(data)
         self._joined = {key: join.of(frame) for key, frame in predictions.items()}
         self._names = dict(names)
         self._windows = windows
         self._history = pd.concat([data.ids, data.evaluation], axis=1)
         self._format = TableFormatter()
+        self._subject = subject
+        self._candidate = candidate
+        self._candidate_label = candidate_label
+        self._value_keys = tuple(key for key in value_keys if key in self._joined)
+        self._reference = reference
 
     def tables(self) -> list[Table]:
         return [
             self._by_window(), self._pooled(), self._calibration(), self._top_pick(),
-            *self._place_value(IMPROVED), *self._place_value(CURRENT),
+            *(table for key in self._value_keys for table in self._place_value(key)),
         ]
 
     def _test(self, key: str) -> pd.DataFrame:
@@ -54,12 +66,13 @@ class FormComparison:
 
     def _by_window(self) -> Table:
         frame = pd.DataFrame([self._window_row(window) for window in self._windows])
-        improved, odds_only = f"{self._names[IMPROVED]}: ログ損失", f"{self._names[ODDS_ONLY]}: ログ損失"
-        frame["変更版がオッズだけより小さい"] = np.where(frame[improved] < frame[odds_only], "はい", "いいえ")
+        improved, odds_only = f"{self._names[self._candidate]}: ログ損失", f"{self._names[self._reference]}: ログ損失"
+        label, reference = self._candidate_label, self._names[self._reference]
+        frame[f"{label}が{reference}より小さい"] = np.where(frame[improved] < frame[odds_only], "はい", "いいえ")
         count = int((frame[improved] < frame[odds_only]).sum())
         return self._format.table(
-            frame, "全頭: 区切りごとの確率の誤差（テスト期間）",
-            note=f"ログ損失は小さいほど良い。変更版がオッズだけより小さい区切り: {count} / {len(frame)}"
+            frame, f"{self._subject}: 区切りごとの確率の誤差（テスト期間）",
+            note=f"ログ損失は小さいほど良い。{label}が{reference}より小さい区切り: {count} / {len(frame)}"
                  "（計画の採用の基準は 5 / 7 以上）。人気別AUC は同じ単勝人気の馬どうしで比べた AUC（0.5 は見分けられていない）。",
         )
 
@@ -81,10 +94,11 @@ class FormComparison:
         rows = [{"作り方": name, **scores.of(self._test(key)[LABEL], self._test(key)[PREDICTION_COLUMN],
                                                  self._test(key)[POPULARITY])}
                 for key, name in self._names.items()]
-        base = self._test(IMPROVED)
+        base = self._test(self._candidate)
         rows.append({"作り方": "オッズから見た3着以内率（Harville の式・補正なし）",
                      **scores.of(base[LABEL], base[BASE_PROBABILITY], base[POPULARITY])})
-        return self._format.table(pd.DataFrame(rows), "全頭: 7つの区切りのテスト期間を合わせた当たり具合")
+        return self._format.table(pd.DataFrame(rows),
+                                  f"{self._subject}: {len(self._windows)}つの区切りのテスト期間を合わせた当たり具合")
 
     def _calibration(self) -> Table:
         band = PopularityBand()
@@ -95,14 +109,14 @@ class FormComparison:
             frames.append(summary.rename(columns={"予想": f"{name}: 確率の平均"}))
         joined = pd.concat([frames[0][["頭数", "実際"]], *[frame.iloc[:, 2:] for frame in frames]], axis=1)
         joined = joined.reindex([band_name for band_name in BANDS if band_name in joined.index]).reset_index()
-        return self._format.table(joined, "全頭: 人気帯ごとの、3着以内の実際の割合と予想の確率の平均（テスト期間）",
+        return self._format.table(joined, f"{self._subject}: 人気帯ごとの、3着以内の実際の割合と予想の確率の平均（テスト期間）",
                                   note="予想の確率の平均が実際の割合に近いほど、確率がずれていない。")
 
     def _top_pick(self) -> Table:
         rows = [self._top_row(name, self._test(key), PREDICTION_COLUMN) for key, name in self._names.items()]
-        favorite = self._test(IMPROVED).assign(人気の逆=lambda frame: -frame[POPULARITY].fillna(99))
+        favorite = self._test(self._candidate).assign(人気の逆=lambda frame: -frame[POPULARITY].fillna(99))
         rows.append(self._top_row("1番人気（比べる目安）", favorite, "人気の逆"))
-        return self._format.table(pd.DataFrame(rows), "全頭: 各レースで確率がいちばん高い馬（テスト期間）",
+        return self._format.table(pd.DataFrame(rows), f"{self._subject}: 各レースで確率がいちばん高い馬（テスト期間）",
                                   note="回収率は 100円ずつ買ったときの払戻の合計 ÷ 賭け金。")
 
     def _top_row(self, name: str, test: pd.DataFrame, column: str) -> dict[str, object]:
@@ -123,10 +137,10 @@ class FormComparison:
         name = self._names[key]
         by_band = self._value_by_band(everything)
         return [
-            self._format.table(pd.DataFrame(rows), f"全頭（{name}）: 複勝を期待値で買ったとき（テスト期間）",
+            self._format.table(pd.DataFrame(rows), f"{self._subject}（{name}）: 複勝を期待値で買ったとき（テスト期間）",
                                note="期待値 = 複勝的中の確率 × 見込みの払戻の倍率。線は区切りごとに検証期間で決めた。"
                                     "90%の幅は開催日を単位にしたブートストラップ。確定オッズを使うので、実際に買う時点より楽観側。"),
-            self._format.table(by_band, f"全頭（{name}）: 複勝を期待値で買ったときの人気帯ごと（テスト期間の合計）"),
+            self._format.table(by_band, f"{self._subject}（{name}）: 複勝を期待値で買ったときの人気帯ごと（テスト期間の合計）"),
         ]
 
     def _value_row(self, name: str, bought: pd.DataFrame, threshold: float) -> dict[str, object]:

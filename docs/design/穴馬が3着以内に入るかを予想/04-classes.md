@@ -11,6 +11,8 @@
 
 **2026-09-24 の追記。** 既存モデルの修正計画での直し（[15-decisions.md の 12](15-decisions.md#12-既存モデルの修正計画での直し)）で、この予想は、共通の基準（`Top3Baseline`）・まとまり K（`OddsFeatures`）・区分ごとの学習と予測（`SegmentedTraining`・`SegmentedPrediction`）・複勝の期待値（`place_value/`・`PlacePriceStep`）を使うようになり、この予想だけのものとして区分での分け方（`SEGMENTS`）が増えた。下の表は、2026-09-28 にコードで確かめて、それらを書き足したものである。
 
+**2026-09-30 の追記。** 手本と同じまとまり L（騎手・調教師・血統の市場に対する成績。共通の `PeopleMarketFeatures`）を足した。材料の過去の全出走は、共通の `MarketRunRepository` で読む（ローダーに `market_runs=` で渡す）。クラスの仕事は [手本の 04 の「クラスの一覧」](../近走と適性から3着以内を予想/04-classes.md#クラスの一覧) を参照。
+
 ## 1. 共通の部品と、この予想だけの部品の分け方
 
 手本と危険な人気馬の予想に共通の部品は、すでに `src/yosou/shared/` にある（[人気馬の 04 の「1. 共通の部品と、この予想だけの部品の分け方」](../人気馬が4着以下になるかを予想/04-classes.md#1-共通の部品とこの予想だけの部品の分け方)）。この予想は、その2つの予想の中間（人気を使い、3着以内を当てる）なので、両方から部品を借りることになる。**予想のパッケージどうしで import はしない**（片方を直すともう片方が壊れる）。そこで、次を `shared` に移す（[15-decisions.md](15-decisions.md#6-共通部分の置き方)）。これが、この予想を作るときの最初の作業になる。
@@ -27,9 +29,9 @@
 
 | まとまり | 共通にするか | この予想だけのもの |
 |---|---|---|
-| `repository/`（データの読み書き） | 共通（締め切り前のオッズを読むものを含む） | 無し |
+| `repository/`（データの読み書き） | 共通（締め切り前のオッズを読むものと、2026-09-30 からは L の材料を読む `MarketRunRepository` を含む） | 無し |
 | `dataset/`（学習データ・予測用データを作る） | 大半を共通（2026-09-24 からは、基準の決まり `TargetBaseline` と、3着以内の基準 `Top3Baseline`、オッズを決める `OddsResolver`・`OddsInput` も共通） | 穴馬の決まり・区分・行の選択・区分での絞り込み |
-| `feature/`（特徴量を作る） | 共通（まとまり A〜J と、2026-09-24 からは K の `OddsFeatures`） | この予想の特徴量の一覧 `CATALOG` だけ |
+| `feature/`（特徴量を作る） | 共通（まとまり A〜J と、2026-09-24 からは K の `OddsFeatures`、2026-09-30 からは L の `PeopleMarketFeatures`） | この予想の特徴量の一覧 `CATALOG` だけ |
 | `ml_model/`・`setting/`・`evaluation/` | 共通 | 初期値の設定ファイルだけ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `place_value/`（複勝の期待値。2026-09-24） | 共通（手本と同じ `PlaceValueColumns` など） | 無し |
 | `workflow/`（流れを進める） | 学習は共通（2026-09-24 からは、区分ごとに学習・予測する `SegmentedTraining`・`SegmentedPrediction` も共通）、予測は予想ごと | `PredictionWorkflow`、予測を出す時点の並び、区分での分け方 `SEGMENTS` |
@@ -41,7 +43,7 @@
 |---|---|---|
 | `SampleSelector` | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `LongshotSelector` |
 | `TargetLabeler` | `build(サンプルの行)`、`label_name` | 共通の `Top3TargetBuilder` をそのまま使う |
-| `FeatureGroup` | `build(記録)` | 共通の `PopularityHistoryFeatures`（J）と `OddsFeatures`（K。2026-09-24）をそのまま使う。この予想で新しく足すまとまりは無い |
+| `FeatureGroup` | `build(記録)` | 共通の `PopularityHistoryFeatures`（J）と `OddsFeatures`（K。2026-09-24）と `PeopleMarketFeatures`（L。2026-09-30）をそのまま使う。この予想で新しく足すまとまりは無い |
 | `TargetBaseline` | `known_from`（基準が分かる最初の時点）、`build(レースの全頭の行)` | 共通の `Top3Baseline` をそのまま使う（2026-09-24。手本と同じ基準） |
 | `ProbabilityModel` | `fit`・`predict_proba`・`save`・`load` | 共通の `LightGbmModel`・`CatBoostModel` をそのまま使う |
 
@@ -64,7 +66,7 @@
 src/yosou/shared/                   3つの予想から使う部品
 ├── repository/                     データの読み書き。1 SQL につき 1 リポジトリ（締め切り前のオッズを含む）
 ├── dataset/                        学習データ・予測用データを作る（人気を決める部品、3着以内の目的変数と基準、多頭数の線引きを含む）
-├── feature/                        特徴量を作る（まとまり A〜K と、過去の記録から数える部品）
+├── feature/                        特徴量を作る（まとまり A〜L と、過去の記録から数える部品）
 ├── ml_model/                       LightGBM・CatBoost・エンコーダー・2つの平均
 ├── place_value/                    複勝の期待値（2026-09-24）
 ├── setting/                        設定ファイルを読む
@@ -103,7 +105,7 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 | `LongshotSelector` | 学習データ・予測用データに入れる行を選び、「穴馬か」「穴馬の区分」の列を足す。特徴量を作ったあとに、穴馬の行だけを残す（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)）。予測では、人気の分からない馬が1頭でもいれば止める（[06-flowchart.md](06-flowchart.md#図2-予測用データに人気を当てる)） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | `LongshotRule`、共通の `FlatRunnerFilter` |
 | `LongshotZoneFilter` | 予測の結果を、指定された区分の行だけにする。指定が無ければそのまま返す | `apply(予測の結果, 区分)` | ― |
 | `column_names.py` の `IS_LONGSHOT`・`LONGSHOT_ZONE` | 「穴馬か」「穴馬の区分」の列の名前 | ―（値） | ― |
-| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`LongshotSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまり A〜F・H・I と共通の `PopularityHistoryFeatures`・`OddsFeatures`、残す列「穴馬の区分」、基準の作り方 `Top3Baseline`）を渡して、共通の `DatasetBuilder` を組み立てる | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
+| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`LongshotSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまり A〜F・H・I と共通の `PopularityHistoryFeatures`・`OddsFeatures`・`PeopleMarketFeatures`、残す列「穴馬の区分」、基準の作り方 `Top3Baseline`）を渡して、共通の `DatasetBuilder` を組み立てる。ローダーには L の材料を読む `MarketRunRepository(接続, PEOPLE_WINDOW_DAYS)` を渡す | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
 
 決めた「馬番（木曜は馬名）→ 人気」は、`PredictionWorkflow` が共通の `DatasetBuilder.build_prediction_data()` に渡し、出走の行に当てるのは共通の `RaceEntryTableRepository` である（危険な人気馬の予想と同じ。[05-sequence.md](05-sequence.md#図2-予測)）。「穴馬の区分」の列は `LongshotSelector` が足し、特徴量としてはモデルに渡さない。学習データを区分に分けること（2026-09-24 から）と、出力の表と評価に使う（[08-training-data.md](08-training-data.md#2-列の種類)）。
 
@@ -111,9 +113,9 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `CATALOG`（`feature/__init__.py`） | この予想の特徴量の一覧。共通の A〜I（`BASE_FEATURES`）に共通の J（`POPULARITY_FEATURES`）と K（`ODDS_FEATURES`。2026-09-24）を足したもの（当日は 78個。[09-features.md](09-features.md)） | ―（値） | 共通の `FeatureCatalog` |
+| `CATALOG`（`feature/__init__.py`） | この予想の特徴量の一覧。共通の A〜I（`BASE_FEATURES`）に共通の J（`POPULARITY_FEATURES`）と K（`ODDS_FEATURES`。2026-09-24）と L（`PEOPLE_MARKET_FEATURES`。2026-09-30）を足したもの（当日は 82個。[09-features.md](09-features.md)） | ―（値） | 共通の `FeatureCatalog` |
 
-この予想で新しく作るまとまり（`FeatureGroup`）は無い。`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに共通の `PopularityHistoryFeatures` と `OddsFeatures` を足したまとまりの並びを渡す。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。
+この予想で新しく作るまとまり（`FeatureGroup`）は無い。`FeatureBuilder` には、この `CATALOG` と、共通の A〜F・H・I の8つに共通の `PopularityHistoryFeatures`・`OddsFeatures`・`PeopleMarketFeatures` を足したまとまりの並びを渡す。G（`FieldComparisonFeatures`）は `FeatureBuilder` が内部で持つ。
 
 ### workflow/ — 流れを進める
 
@@ -186,3 +188,4 @@ src/yosou/longshots_in_top3/        穴馬が3着以内に入るかを予想す�
 | 更新 | 2026-09-28: 「5. コマンドの引数」を足した |
 | 更新 | 2026-09-28: 2026-09-24 の直し（基準・中穴と大穴ごとのモデル・複勝の期待値）で増えたクラスとフォルダ（`SEGMENTS`、共通の `Top3Baseline`・`OddsFeatures`・`SegmentedTraining`・`SegmentedPrediction`・`place_value/` など）を書き足し、「4.」の区分の行を決め直したあとの形に直した |
 | 更新 | 2026-09-28: 確率のずれを確かめる `calibration` コマンドと、その部品を足した（issue #31） |
+| 更新 | 2026-09-30: まとまり L（騎手・調教師・血統の市場に対する成績）の4個を足したのに合わせて、共通の `PeopleMarketFeatures`・`MarketRunRepository` を書き足し、`CATALOG` の中身と特徴量の数を 82個にそろえた |
