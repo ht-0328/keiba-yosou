@@ -15,7 +15,7 @@ from ..extra_data import ExtraDataLoader, PoolProbabilitySource, RaceRelation
 from ..feature.builder import SelectedFeatureBuilder
 from ..feature.default_registry import DefaultRegistry
 from ..feature.pool_gap import PoolGap
-from ..repository import POOLS
+from yosou.shared.repository import POOLS
 from .test_workflow import POPS, settings  # noqa: F401  （フィクスチャ）
 
 SPECS = {spec.column: spec for spec in POOLS}

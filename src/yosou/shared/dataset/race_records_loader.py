@@ -19,7 +19,9 @@ from ..repository import (
 )
 from .announced_odds_applier import AnnouncedOddsApplier
 from .announced_weight_applier import AnnouncedWeightApplier
+from .ability_sources_loader import AbilitySourcesLoader
 from .entry_records_loader import EntryRecordsLoader
+from .pool_probability_loader import PoolProbabilityLoader
 from .scratch_applier import ScratchApplier
 
 
@@ -28,20 +30,26 @@ class RaceRecordsLoader:
 
     その時点で DB に速報（馬場状態・馬体重・出走取消）があれば、出走の行に反映する。
     予測に使う人気・オッズが渡されれば、それも出走の行に反映する。
-    ``race_history``・``stakes_tendency``・``market_runs`` は ``EntryRecordsLoader`` にそのまま渡す
-    （レースごとの序盤と後半の記録・重賞のレースごとの傾向・過去の全出走のオッズと着順。省略すると読まない）。
+    ``race_history``・``stakes_tendency``・``market_runs``・``ability_sources``・``pool_probabilities`` は
+    ``EntryRecordsLoader`` にそのまま渡す
+    （レースごとの序盤と後半の記録・重賞のレースごとの傾向・過去の全出走のオッズと着順・馬の力の材料の元の記録・
+    券種ごとのオッズから見た確率。省略すると読まない）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
                  race_history: RaceEarlyRecordRepository | None = None,
                  stakes_tendency: StakesTendencyRepository | None = None,
-                 market_runs: MarketRunRepository | None = None) -> None:
+                 market_runs: MarketRunRepository | None = None,
+                 ability_sources: AbilitySourcesLoader | None = None,
+                 pool_probabilities: PoolProbabilityLoader | None = None) -> None:
         self._fact_table = FactTableRepository(con)
         self._race_entry_table = RaceEntryTableRepository(con)
         self._announced_going = AnnouncedGoingRepository(con)
         self._announced_weights = AnnouncedWeightRepository(con)
         self._scratches = ScratchRepository(con)
-        self._records_loader = EntryRecordsLoader(con, race_history, stakes_tendency, market_runs)
+        self._records_loader = EntryRecordsLoader(
+            con, race_history, stakes_tendency, market_runs, ability_sources, pool_probabilities,
+        )
         self._weight_applier = AnnouncedWeightApplier()
         self._scratch_applier = ScratchApplier()
         self._odds_applier = AnnouncedOddsApplier()

@@ -8,7 +8,7 @@ from yosou.shared.feature import EntryRecords, PredictionTiming
 from yosou.shared.feature.feature_kind import FeatureKind
 
 from ..extra_data import PoolProbabilitySource
-from ..repository import PoolSpec
+from yosou.shared.repository import PoolSpec
 
 
 class PoolProbability:

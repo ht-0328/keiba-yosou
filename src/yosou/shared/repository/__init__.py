@@ -13,6 +13,11 @@
 | ``WorkoutCoverageRepository`` | 調教の記録が DB にある期間（コースごとの最初の調教日） |
 | ``PeopleDayRepository`` | 騎手か調教師の、日ごとの成績 |
 | ``PedigreeDayRepository`` | 父か母父の産駒の、日ごと・芝ダごとの成績 |
+| ``AbilityRunRepository`` | 過去の全出走と対象の出走（馬主・生産者・母を付けて）。馬の力の材料（まとまり M）の元 |
+| ``SpeedFigureRepository`` | 過去の全部の走のスピード指数（SQL と計算は道具「能力指数」の ``FigureCache``）。まとまり M の元 |
+| ``WorkoutSummaryRepository`` | 対象の出走ごとの、レースの前の 14日・30日の調教のまとめ。まとまり M の元 |
+| ``SalePriceRepository`` | セリの取引価格（hs）。まとまり M の元 |
+| ``FirstHorsePoolRepository``・``AllHorsesPoolRepository`` | 券種オッズ（確定、無ければ最新の断面）から、馬ごとの確率（1着の馬だけを見る馬単・3連単と、組の全部の馬に配る馬連・ワイド・3連複・複勝）。券種ごとのオッズから見た支持（まとまり N）と custom_binary の元。SQL の共通の前半は ``PoolOddsRowsSql``、券種ごとの決まりは ``PoolSpec``・``POOLS`` |
 | ``MarketRunRepository`` | 過去の平地の全出走の単勝オッズと着順（騎手・調教師・血統の市場に対する成績の材料）。全頭の3着以内・穴馬・人気馬の予想が使う |
 | ``RaceEarlyRecordRepository`` | レースごとの序盤と後半の記録（最初のコーナー・先頭の馬番・前3ハロン・後3ハロン）。1行 = 1レース。展開から着順を予想する予想が使う |
 | ``StakesTendencyRepository`` | 重賞のレースごとの傾向（それより前の開催の数え上げと基準。``tools/共通/stakes.py`` の SQL）。1行 = 1レース。重賞の傾向と近走から3着以内を予想する予想が使う |
@@ -34,6 +39,8 @@
 ``void_column(券種)`` は ``PayoutFlagRepository`` の「その券種が不成立か特払なら True」の列の名前、``REFUNDED`` は返還の有無の列の名前。
 """
 
+from .ability_run_repository import RUN_COLUMNS, AbilityRunRepository
+from .all_horses_pool_repository import AllHorsesPoolRepository
 from .announced_going_repository import AnnouncedGoingRepository
 from .announced_odds_repository import AnnouncedOddsRepository
 from .announced_weight_repository import AnnouncedWeightRepository
@@ -41,6 +48,7 @@ from .career_count_repository import CareerCountRepository
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
 from .final_odds_repository import FinalOddsRepository
+from .first_horse_pool_repository import FirstHorsePoolRepository
 from .market_run_repository import MarketRunRepository
 from .model_repository import ModelRepository
 from .past_run_repository import PastRunRepository
@@ -50,15 +58,19 @@ from .pedigree_day_repository import PedigreeDayRepository
 from .people_day_repository import PeopleDayRepository
 from .place_odds_repository import PlaceOddsRepository
 from .place_price_repository import PlacePriceRepository
+from .pool_spec import POOLS, PoolSpec
 from .race_day_range import RaceDayRange
 from .race_early_record_repository import RaceEarlyRecordRepository
 from .race_entry_table_repository import RaceEntryTableRepository
 from .race_payout_repository import PAYOUT_TABLES, RacePayoutRepository
+from .sale_price_repository import SalePriceRepository
 from .scratch_repository import ScratchRepository
+from .speed_figure_repository import SpeedFigureRepository
 from .stakes_tendency_repository import StakesTendencyRepository
 from .target_scope import TargetScope
 from .workout_coverage_repository import WorkoutCoverageRepository
 from .workout_repository import WorkoutRepository
+from .workout_summary_repository import WorkoutSummaryRepository
 
 __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
@@ -67,4 +79,6 @@ __all__ = [
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "PlaceOddsRepository",
     "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository",
     "RaceDayRange", "FinalOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
+    "AbilityRunRepository", "RUN_COLUMNS", "SpeedFigureRepository", "WorkoutSummaryRepository", "SalePriceRepository",
+    "FirstHorsePoolRepository", "AllHorsesPoolRepository", "POOLS", "PoolSpec",
 ]

@@ -3,23 +3,21 @@
 import duckdb
 import pandas as pd
 
-from ..repository import POOLS, AllHorsesPoolRepository, FirstHorsePoolRepository
+from yosou.shared.dataset import POOL_KEY, PoolProbabilityLoader
+from yosou.shared.repository import POOLS
 
 #: 出走の行と突き合わせる鍵。
-KEY = ["race_id", "horse_no"]
+KEY = POOL_KEY
 
 
 class PoolProbabilitySource:
-    """券種（3連単・馬単・3連複・馬連・ワイド・複勝）ごとに、``POOLS`` の列を1つずつ作る。発売の無い券種の馬は欠損値。"""
+    """券種（3連単・馬単・3連複・馬連・ワイド・複勝）ごとに、``POOLS`` の列を1つずつ作る。発売の無い券種の馬は欠損値。
+
+    読むのは、近走と適性の予想と共通の ``PoolProbabilityLoader``（``yosou.shared.dataset``）。
+    """
 
     name = "券種オッズ"
     columns = tuple(spec.column for spec in POOLS)
 
     def read(self, con: duckdb.DuckDBPyConnection, scope_relation: str) -> pd.DataFrame:
-        first_horse = FirstHorsePoolRepository(con)
-        all_horses = AllHorsesPoolRepository(con)
-        frames = [
-            (first_horse if spec.first_horse_only else all_horses).read(spec, scope_relation).set_index(KEY)
-            for spec in POOLS
-        ]
-        return pd.concat(frames, axis=1).reset_index()
+        return PoolProbabilityLoader(con).read(scope_relation)

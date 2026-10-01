@@ -6,6 +6,8 @@ import duckdb
 import pandas as pd
 
 from ..feature import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS, EntryRecords, WorkoutCoverage
+from .ability_sources_loader import AbilitySourcesLoader
+from .pool_probability_loader import PoolProbabilityLoader
 from ..repository import (
     CareerCountRepository,
     EntryRepository,
@@ -35,12 +37,17 @@ class EntryRecordsLoader:
     ``stakes_tendency`` も同じ形で、重賞のレースごとの傾向を読むリポジトリ（重賞の傾向の予想だけが渡す）。
     ``market_runs`` も同じ形で、過去の全出走の単勝オッズと着順を読むリポジトリ（騎手・調教師・血統の市場に対する成績を
     使う予想だけが渡す）。
+    ``ability_sources`` も同じ形で、馬の力の材料（まとまり M）の元の記録を集める部品（近走と適性の予想の木曜・前日の
+    モデルだけが渡す）。``pool_probabilities`` も同じ形で、券種ごとのオッズから見た馬ごとの確率を読む部品（近走と適性の
+    予想の当日のモデルだけが渡す）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
                  race_history: RaceEarlyRecordRepository | None = None,
                  stakes_tendency: StakesTendencyRepository | None = None,
-                 market_runs: MarketRunRepository | None = None) -> None:
+                 market_runs: MarketRunRepository | None = None,
+                 ability_sources: AbilitySourcesLoader | None = None,
+                 pool_probabilities: PoolProbabilityLoader | None = None) -> None:
         self._entries = EntryRepository(con)
         self._place_odds = PlaceOddsRepository(con)
         self._career_counts = CareerCountRepository(con)
@@ -54,6 +61,8 @@ class EntryRecordsLoader:
         self._race_history = race_history
         self._stakes_tendency = stakes_tendency
         self._market_runs = market_runs
+        self._ability_sources = ability_sources
+        self._pool_probabilities = pool_probabilities
 
     def load(self, scope: TargetScope) -> EntryRecords:
         """``scope`` の出走の記録。"""
@@ -72,6 +81,9 @@ class EntryRecordsLoader:
             race_history=self._race_history.read(scope) if self._race_history is not None else pd.DataFrame(),
             stakes_tendency=self._stakes_tendency.read(scope) if self._stakes_tendency is not None else pd.DataFrame(),
             market_runs=self._market_runs.read(scope) if self._market_runs is not None else pd.DataFrame(),
+            ability_sources=self._ability_sources.load(scope) if self._ability_sources is not None else None,
+            pool_probabilities=(self._pool_probabilities.read(scope.relation)
+                                if self._pool_probabilities is not None else pd.DataFrame()),
         )
 
     def _with_career_counts(self, entries: pd.DataFrame, career_counts: pd.DataFrame) -> pd.DataFrame:

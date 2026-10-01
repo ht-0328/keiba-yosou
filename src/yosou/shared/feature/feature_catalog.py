@@ -1,7 +1,9 @@
 """どの予想でも使う特徴量 71個の一覧（設計書 09-features.md の表の写し）と、人気を使う予想が足す4個・オッズの3個、
-オッズを使う予想が足す4個、騎手・調教師・血統の市場に対する成績の4個、予想ごとの一覧を表す値。
+オッズを使う予想が足す4個、騎手・調教師・血統の市場に対する成績の4個、馬の力の材料の202個、券種ごとのオッズから見た
+支持の6個、予想ごとの一覧を表す値。
 
-特徴量の名前・まとまり（A〜J）・数値かカテゴリか・いつから分かるか（設計書 07）は、ここだけに書く。
+特徴量の名前・まとまり（A〜N）・数値かカテゴリか・いつから分かるか（設計書 07）は、ここだけに書く
+（馬の力の材料は数が多いので、名前の並びは ``ability/ability_columns.py`` に置き、ここで時点を付ける）。
 予想ごとに特徴量を足すときは、``BASE_FEATURES`` に足した一覧で ``FeatureCatalog`` を作る。
 """
 
@@ -12,6 +14,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from ..repository import POOLS
+from .ability import DAY_BEFORE_COLUMNS, RACE_DAY_COLUMNS, ability_columns
 from .feature import Feature
 from .feature_kind import FeatureKind
 from .prediction_timing import PredictionTiming
@@ -143,6 +147,27 @@ PEOPLE_MARKET_FEATURES: tuple[Feature, ...] = (
     Feature("父の産駒の市場に対する超過3着以内率", "L", _N),
     Feature("母の父の産駒の市場に対する超過3着以内率", "L", _N),
 )
+
+
+def _ability_timing(name: str) -> PredictionTiming:
+    """馬の力の材料が分かる最初の時点。枠番・馬番・馬場状態を使うものは前日、馬体重を使うものは当日、ほかは木曜。"""
+    if name in RACE_DAY_COLUMNS:
+        return _RACE_DAY
+    if name in DAY_BEFORE_COLUMNS:
+        return _DAY_BEFORE
+    return PredictionTiming.THURSDAY
+
+
+#: 全頭の3着以内の予想（``form_aptitude_top3``）の木曜（と前日）のモデルが使う、M. 馬の力の材料（202個。どれも数値）。
+#: 研究「馬の力と展開でオッズに勝つ」のオッズを使わない 197個と、研究「一番人気を疑う」で足したセリの価格の5個。
+#: 作るのは ``group/horse_ability_features.py``（部品は ``ability/``）。
+ABILITY_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "M", _N, _ability_timing(name)) for name in ability_columns())
+
+#: 全頭の3着以内の予想の当日のモデルが足す、N. 券種ごとのオッズから見た支持（6個）。
+#: log（券種のオッズから見た確率）− log（単勝オッズから見た確率）。並びは ``POOLS``（3連単・馬単・3連複・馬連・ワイド・複勝）。
+#: 券種のオッズがそろうのは当日。作るのは ``group/pool_support_features.py``。
+POOL_SUPPORT_NAMES: tuple[str, ...] = tuple(f"{spec.name}と単勝の比（log）" for spec in POOLS)
+POOL_SUPPORT_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "N", _N, _RACE_DAY) for name in POOL_SUPPORT_NAMES)
 
 
 @dataclass(frozen=True)

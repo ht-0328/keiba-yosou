@@ -1,4 +1,4 @@
-"""特徴量のまとまり（設計書 09 の A〜L）ごとに1クラス。
+"""特徴量のまとまり（設計書 09 の A〜N）ごとに1クラス。
 
 | クラス | まとまり |
 |---|---|
@@ -15,18 +15,22 @@
 | ``MarketFeatures`` | J. 市場の評価（4個）。オッズを使う予想だけが渡す |
 | ``OddsFeatures`` | K. 単勝オッズから見た評価（3個）。人気を使う予想が、オッズも使うときに渡す |
 | ``PeopleMarketFeatures`` | L. 騎手・調教師・血統の市場に対する成績（4個）。全頭の3着以内・穴馬・人気馬の予想が渡す |
+| ``HorseAbilityFeatures`` | M. 馬の力の材料（202個。部品は ``feature/ability/``）。全頭の3着以内の予想の木曜（と前日）のモデルが渡す |
+| ``PoolSupportFeatures`` | N. 券種ごとのオッズから見た支持（6個）。全頭の3着以内の予想の当日のモデルが渡す |
 
 ``POPULARITY_RANK`` は特徴量「人気順位」、``WIN_ODDS`` は「単勝オッズ」の名前。予測の結果の表にも出すので、外にも見せる。
 """
 
 from .aptitude_features import AptitudeFeatures
 from .field_comparison_features import FieldComparisonFeatures
+from .horse_ability_features import HorseAbilityFeatures
 from .horse_features import HorseFeatures
 from .market_features import MARKET_WIN_RATE, MarketFeatures
 from .odds_features import WIN_ODDS, OddsFeatures
 from .pedigree_features import PedigreeFeatures
 from .people_features import PeopleFeatures
 from .people_market_features import PEOPLE_MARKET_COLUMNS, PeopleMarketFeatures
+from .pool_support_features import PoolSupportFeatures
 from .popularity_history_features import POPULARITY_RANK, PopularityHistoryFeatures
 from .previous_run_features import PreviousRunFeatures
 from .race_condition_features import RaceConditionFeatures
@@ -38,5 +42,5 @@ __all__ = [
     "RecentFormFeatures", "AptitudeFeatures", "FieldComparisonFeatures", "PedigreeFeatures",
     "WorkoutFeatures", "PopularityHistoryFeatures", "POPULARITY_RANK",
     "MarketFeatures", "OddsFeatures", "WIN_ODDS", "MARKET_WIN_RATE",
-    "PeopleMarketFeatures", "PEOPLE_MARKET_COLUMNS",
+    "PeopleMarketFeatures", "PEOPLE_MARKET_COLUMNS", "HorseAbilityFeatures", "PoolSupportFeatures",
 ]

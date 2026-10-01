@@ -1,6 +1,6 @@
 """券種オッズの特徴量の一覧（券種ごとの確率6個と、単勝との差6個）。"""
 
-from ..repository import POOLS
+from yosou.shared.repository import POOLS
 from .pool_gap import PoolGap
 from .pool_probability import PoolProbability
 

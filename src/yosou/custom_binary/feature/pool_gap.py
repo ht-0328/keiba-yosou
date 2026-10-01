@@ -9,7 +9,7 @@ from yosou.shared.feature import EntryRecords, PredictionTiming
 from yosou.shared.feature.feature_kind import FeatureKind
 from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE, WIN_RATE, MarketPlaces
 
-from ..repository import PoolSpec
+from yosou.shared.repository import PoolSpec
 
 #: 比べる単勝オッズ側の確率（Harville の式で勝率から2着以内率・3着以内率を出す）。
 MARKET_COLUMNS = {"勝率": WIN_RATE, "2着以内率": TOP2_RATE, "3着以内率": TOP3_RATE}
