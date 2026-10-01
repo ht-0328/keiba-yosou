@@ -102,7 +102,8 @@ def test_a_model_that_does_not_buy_marks_reference_and_lists_no_buys(predictor, 
     reference = SameDayPredictor(_models(tmp_path, buys_without_weight=False), DefaultRegistry().build(), season_db,
                                  line=0.0, models_root=_models_root(tmp_path))
     tables = reference.run(CARD_DAY, "00:00")
-    assert tables[0].rows == [] and "馬体重なし は参考" in tables[0].title
+    # 買いの一覧には、買うモデル（馬体重あり。速報の馬体重がある 1R を予想できる）の馬だけが入り、買わないモデルの馬は入らない
+    assert "馬体重なし は参考" in tables[0].title and {row[-1] for row in tables[0].rows} == {"馬体重あり"}
     races = [table for table in tables[1:] if "（馬体重なし・参考: 買わない）" in table.title]
     assert races and "買い" not in {row[-1] for row in races[0].rows}
 
