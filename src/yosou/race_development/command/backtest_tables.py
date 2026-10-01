@@ -79,7 +79,7 @@ class BacktestTables:
             table[column] = table[column].map(self._rate)
         loss_columns = [column for column in table.columns if "ログ損失" in column or column.startswith("同（")]
         for column in loss_columns:
-            table[column] = table[column].map(lambda value: round(float(value), 4))
+            table[column] = table[column].map(self._loss)
         return Table(list(table.columns), table.values.tolist(), title="表3. 着順（⑦）の当たり具合（年ごと）",
                      note="ログ損失は小さいほど良い。1着が1頭に決まるレースだけで測る。単勝オッズは参考（オッズはモデルの特徴量に入れていない）。"
                           "S を外したモデル・T を外したモデルは、⑦ から前半の予想の結果（S）・後半の予想の結果（T）を1つずつ外して学習したもの"
@@ -162,3 +162,8 @@ class BacktestTables:
         """0〜1 の割合を「12.3%」の形にする。欠損値は「―」。"""
         number = float(value) if value is not None else float("nan")
         return "―" if pd.isna(number) else f"{number * 100:.1f}%"
+
+    def _loss(self, value: object) -> object:
+        """ログ損失を小数 4桁に丸める。欠損値（前日の時点のオッズを足したモデルなど）は「―」。"""
+        number = float(value) if value is not None else float("nan")
+        return "―" if pd.isna(number) else round(number, 4)
