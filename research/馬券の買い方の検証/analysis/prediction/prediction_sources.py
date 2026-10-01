@@ -9,7 +9,7 @@ from yosou.favorites_out_of_top3.command.yosou_name import YOSOU_NAME as FAVORIT
 from yosou.favorites_out_of_top3.dataset import dataset_builder as favorites_builder
 from yosou.favorites_out_of_top3.workflow import PROBABILITY as FAVORITES_PROBABILITY
 from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME as FORM_FOLDER
-from yosou.form_aptitude_top3.dataset import pool_dataset_builder as form_builder
+from yosou.form_aptitude_top3.dataset import race_day_dataset_builder as form_builder
 from yosou.form_aptitude_top3.workflow import PROBABILITY as FORM_PROBABILITY
 from yosou.longshots_in_top3.command.yosou_name import YOSOU_NAME as LONGSHOTS_FOLDER
 from yosou.longshots_in_top3.dataset import dataset_builder as longshots_builder
