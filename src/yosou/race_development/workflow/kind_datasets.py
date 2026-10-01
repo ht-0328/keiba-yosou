@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pandas as pd
+
 from yosou.shared.dataset import TrainingData
 
 from ..feature import PriorForecasts
@@ -23,6 +25,7 @@ class KindDatasets:
         self._races = races
         self._tendency = tendency
         self._stacker = KindStacker()
+        self._fingerprint: str | None = None
 
     @property
     def horses(self) -> TrainingData:
@@ -36,6 +39,14 @@ class KindDatasets:
     def tendency(self) -> TendencyDatasets:
         return self._tendency
 
+    def fingerprint(self) -> str:
+        """学習データの中身を表す短い文字列。特徴量か目的変数が1つでも変われば変わる（年ごとの予測を作った条件に入れる。
+        元DB の更新日時が変わっても、中身が同じなら前に作った予測を使えるように、中身から作る）。"""
+        if self._fingerprint is None:
+            tables = [self._horses, self._races, *self._tendency.tables.values()]
+            self._fingerprint = "-".join(self._hash(data) for data in tables)
+        return self._fingerprint
+
     def of(self, kind: DevelopmentModelKind, priors: PriorForecasts) -> TrainingData:
         """その予想の特徴量の学習データ（目的変数は持ち替えていない）。"""
         base = self._races if kind.spec.per_race else self._horses
@@ -44,3 +55,8 @@ class KindDatasets:
     def labeled(self, kind: DevelopmentModelKind, data: TrainingData) -> TrainingData:
         """目的変数をその予想の列に持ち替え、目的変数の無い行を外す。"""
         return data.with_label(kind.spec.label, kind.spec.class_labels)
+
+    @staticmethod
+    def _hash(data: TrainingData) -> str:
+        total = sum(int(pd.util.hash_pandas_object(part, index=False).sum()) for part in (data.ids, data.features, data.targets))
+        return f"{total & 0xFFFFFFFFFFFF:012x}"

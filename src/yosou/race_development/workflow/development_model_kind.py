@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from yosou.shared.dataset import BINARY_LABELS
-from yosou.shared.feature import FeatureCatalog
+from yosou.shared.feature import FeatureCatalog, PredictionTiming
 
 from ..dataset import label_names as names
 from ..feature import (
@@ -17,7 +17,10 @@ from ..feature import (
     EARLY_RACE_CATALOG,
     EVEN_PROBABILITY,
     FINISH_CATALOG,
+    FINISH_NO_EARLY_CATALOG,
+    FINISH_NO_LATE_CATALOG,
     FINISH_PLAIN_CATALOG,
+    FINISH_WITH_ODDS_CATALOG,
     FIRST_HALF_QUANTILES,
     FRONT_PROBABILITY,
     HIGH_PROBABILITY,
@@ -25,6 +28,9 @@ from ..feature import (
     LATE_RACE_CATALOG,
     LEADER_PROBABILITY,
     MIDDLE_PROBABILITY,
+    NO_EARLY_WIN_PROBABILITY,
+    NO_LATE_WIN_PROBABILITY,
+    ODDS_WIN_PROBABILITY,
     PLAIN_WIN_PROBABILITY,
     SECOND_HALF_QUANTILES,
     SLOW_PROBABILITY,
@@ -44,6 +50,9 @@ class KindSpec:
     - ``outputs``: 予測の列の名前（後の組の特徴量と、年ごとの確かめの元）。
     - ``class_labels``: 目的変数の値の並び（回帰と分位点回帰は使わないが、二値の並びを置いておく）。
     - ``label_text``: 表に出す名前。
+    - ``for_prediction``: 予測に使うか（学習（train）で保存し、予測（predict）で読むか）。偽なら、年ごとの確かめで
+      比べるためだけに学習する予想。
+    - ``known_from``: この時点から学習する（オッズを足した ⑦ は、確定オッズの分かる当日だけ）。
     """
 
     label: str
@@ -53,10 +62,16 @@ class KindSpec:
     outputs: tuple[str, ...]
     class_labels: tuple[int, ...]
     label_text: str
+    for_prediction: bool = True
+    known_from: PredictionTiming = PredictionTiming.THURSDAY
 
 
 class DevelopmentModelKind(Enum):
-    """7つの予想と、⑦ の比べる基準（前半・後半の予想を入れない着順のモデル）（設計書 04 の「workflow/」）。
+    """7つの予想と、⑦ の比べるためだけの予想（設計書 04 の「workflow/」・16 の 3）。
+
+    比べるためだけの予想は、前半・後半の予想を入れない着順のモデル（``FINISH_PLAIN``）、⑦ から S を外したもの
+    （``FINISH_NO_EARLY``）・T を外したもの（``FINISH_NO_LATE``）、⑦ にオッズを足したもの（``FINISH_WITH_ODDS``）。
+    どれも年ごとの確かめでだけ学習し、保存も予測もしない（``KindSpec.for_prediction`` が偽）。
 
     値は、学習したモデルを保存するフォルダの名前と、``--kind`` の書き方になる。
     """
@@ -70,6 +85,9 @@ class DevelopmentModelKind(Enum):
     LATE_PACE_TIME = "late_pace_time"
     FINISH = "finish"
     FINISH_PLAIN = "finish_plain"
+    FINISH_NO_EARLY = "finish_no_early"
+    FINISH_NO_LATE = "finish_no_late"
+    FINISH_WITH_ODDS = "finish_with_odds"
 
     @property
     def spec(self) -> KindSpec:
@@ -115,5 +133,14 @@ _SPECS: dict[DevelopmentModelKind, KindSpec] = {
         names.WINNER, False, ModelFamily.WITHIN_RACE, FINISH_CATALOG, (WIN_PROBABILITY,), BINARY_LABELS, "⑦ 着順"),
     DevelopmentModelKind.FINISH_PLAIN: KindSpec(
         names.WINNER, False, ModelFamily.WITHIN_RACE, FINISH_PLAIN_CATALOG, (PLAIN_WIN_PROBABILITY,), BINARY_LABELS,
-        "⑦ の比べる基準（前半・後半を入れない）"),
+        "⑦ の比べる基準（前半・後半を入れない）", for_prediction=False),
+    DevelopmentModelKind.FINISH_NO_EARLY: KindSpec(
+        names.WINNER, False, ModelFamily.WITHIN_RACE, FINISH_NO_EARLY_CATALOG, (NO_EARLY_WIN_PROBABILITY,), BINARY_LABELS,
+        "⑦ から S を外したもの", for_prediction=False),
+    DevelopmentModelKind.FINISH_NO_LATE: KindSpec(
+        names.WINNER, False, ModelFamily.WITHIN_RACE, FINISH_NO_LATE_CATALOG, (NO_LATE_WIN_PROBABILITY,), BINARY_LABELS,
+        "⑦ から T を外したもの", for_prediction=False),
+    DevelopmentModelKind.FINISH_WITH_ODDS: KindSpec(
+        names.WINNER, False, ModelFamily.WITHIN_RACE, FINISH_WITH_ODDS_CATALOG, (ODDS_WIN_PROBABILITY,), BINARY_LABELS,
+        "⑦ にオッズを足したもの", for_prediction=False, known_from=PredictionTiming.RACE_DAY),
 }

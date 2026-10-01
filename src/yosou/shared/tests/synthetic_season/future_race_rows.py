@@ -30,6 +30,8 @@ _UNDECIDED_RUNNER = {"後4ハロンタイム": "000", "タイム差": "", "マ�
 _UNDECIDED_NUMBERS = {"枠番": "0", "馬番": "00"}
 #: 確定前のレースは、まだ走っていないので走破タイムが無い。
 _NO_TIME = 0
+#: 1R の締め切り前の複勝オッズの断面（オッズ1 の親と子）。発表月日時分は、馬体重の発表のあと。
+_PLACE_HEADER, _PLACE_TABLE, _PLACE_ANNOUNCED = "o1", "o1__複勝オッズ", "01111040"
 #: 確定前の3レース（rid・条件・データ区分）。rid の末尾2桁がレース番号。
 _FUTURE_RACES: tuple[tuple[str, RacePlan, str], ...] = (
     (CARD_RACE_ID, RacePlan("01", TURF_TRACK, 1600, _NO_TIME), _CARD_STAGE),
@@ -39,7 +41,11 @@ _FUTURE_RACES: tuple[tuple[str, RacePlan, str], ...] = (
 
 
 class FutureRaceRows:
-    """確定前の3レース（結果・オッズ・馬体重は無い）と、1R の速報（馬場状態・馬体重・取消）の行を足す。"""
+    """確定前の3レース（結果・確定オッズ・馬体重は無い）と、1R の速報（馬場状態・馬体重・取消・締め切り前の複勝オッズ）の行を足す。
+
+    締め切り前の単勝オッズは入れない。単勝オッズが DB に無いときに --odds・--pops を案内して止まることを、
+    ほかのテストが確かめているためである（テストは単勝オッズと人気を引数で渡す）。複勝オッズには引数が無いので、DB に入れておく。
+    """
 
     def __init__(self, sample: synth.Sample, careers: CareerCounter, workouts: WorkoutLog) -> None:
         self._sample = sample
@@ -78,7 +84,8 @@ class FutureRaceRows:
         ))
 
     def _add_announcements(self, card_row: dict[str, str]) -> None:
-        """1R の速報。前日の夕方に芝が稍重と発表され、当日の朝に重へ変わった。馬番8 は出走取消。"""
+        """1R の速報。前日の夕方に芝が稍重と発表され、当日の朝に重へ変わった。馬番8 は出走取消。
+        当日の朝の締め切り前の複勝オッズもある（取消の馬番8 は無投票）。"""
         first_report = synth.going_report(card_row, announced="01101700", turf="2", dirt="1")
         changed_report = synth.going_report(
             card_row, announced="01110900", turf=ANNOUNCED_TURF_GOING, dirt="0", change="3",
@@ -91,6 +98,17 @@ class FutureRaceRows:
         self._sample.weights.extend(children)
         self._sample.scratches.append(
             synth.scratch_report(card_row, SCRATCHED_HORSE_NO, announced="01110800"))
+        self._add_place_odds(card_row)
+
+    def _add_place_odds(self, card_row: dict[str, str]) -> None:
+        """1R の締め切り前の複勝オッズ（データ区分 1 の断面）。馬番が大きいほど高い。取消の馬番は無投票（0）。"""
+        header = synth.odds_header(card_row, _PLACE_HEADER, stage="1", announced=_PLACE_ANNOUNCED)
+        self._sample.odds.append((_PLACE_HEADER, header))
+        for number in range(1, FUTURE_FIELD_SIZE + 1):
+            low = 0 if number == SCRATCHED_HORSE_NO else 11 + 6 * number
+            row = synth.range_odds_row(card_row, _PLACE_TABLE, f"{number:02d}", low, 2 * low, seq=number,
+                                       announced=_PLACE_ANNOUNCED)
+            self._sample.odds.append((_PLACE_TABLE, row))
 
     def _announced_weight(self, number: int) -> tuple[str, str, str]:
         """（馬体重, 増減符号, 増減差）。馬番が奇数なら減、偶数なら増。増減差は馬番と同じ kg。"""

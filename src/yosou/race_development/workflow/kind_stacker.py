@@ -13,6 +13,7 @@ from ..feature import (
     REQUIRED_RACE_FEATURES,
     EarlyForecastFeatures,
     LateForecastFeatures,
+    OddsComparisonFeatures,
     PriorForecasts,
     StackedColumns,
     TendencyFeatures,
@@ -22,10 +23,16 @@ from .development_model_kind import DevelopmentModelKind
 _Kind = DevelopmentModelKind
 #: 学習データか予測用データ。
 Data = TypeVar("Data", TrainingData, PredictionData)
+#: 着順の組の予想（⑦ と、比べるためだけの予想）。
+_FINISH_KINDS = frozenset({_Kind.FINISH, _Kind.FINISH_PLAIN, _Kind.FINISH_NO_EARLY, _Kind.FINISH_NO_LATE, _Kind.FINISH_WITH_ODDS})
 #: 前半の予想の結果（S）を足す予想と、後半の予想の結果（T）を足す予想（設計書 09 の S・T）。
 #: 傾向の組の結果（V）は、すべての予想に足す（設計書 09 の V）。
-_USES_EARLY = frozenset({_Kind.CORNER4, _Kind.CLOSING, _Kind.LATE_PACE_TIME, _Kind.FINISH})
-_USES_LATE = frozenset({_Kind.FINISH})
+#: 着順の組は、S・T を使わない比べるための予想にも足す。どの列を使うかは特徴量の一覧が決めるので、足しても使われないが、
+#: S・T のそろった同じ行で学習・評価するため（比べる相手と学習データの行がずれないように）。
+_USES_EARLY = frozenset({_Kind.CORNER4, _Kind.CLOSING, _Kind.LATE_PACE_TIME}) | _FINISH_KINDS
+_USES_LATE = _FINISH_KINDS
+#: オッズ（W）を足す予想（年ごとの確かめで比べるためだけ。設計書 16 の 3）。
+_USES_ODDS = frozenset({_Kind.FINISH_WITH_ODDS})
 
 
 class KindStacker:
@@ -41,6 +48,7 @@ class KindStacker:
         self._tendency_features = TendencyFeatures()
         self._early_features = EarlyForecastFeatures()
         self._late_features = LateForecastFeatures()
+        self._odds_features = OddsComparisonFeatures()
 
     def apply(self, kind: DevelopmentModelKind, base: Data, priors: PriorForecasts) -> Data:
         """V・S・T が要る予想で、前の組の予測が渡されなければ ``ValueError``。"""
@@ -50,7 +58,7 @@ class KindStacker:
         available = tendency[self._required(kind)].notna().all(axis=1)
         for part in parts:
             available &= part.notna().all(axis=1)
-        extra = pd.concat([tendency, *parts], axis=1)
+        extra = pd.concat([tendency, *parts, *self._odds_part(kind, base)], axis=1)
         return self._stacked_columns.apply(base, kind.spec.catalog, extra, available)
 
     def _tendency_part(self, kind: DevelopmentModelKind, base: Data, priors: PriorForecasts) -> pd.DataFrame:
@@ -72,6 +80,14 @@ class KindStacker:
         if kind.spec.per_race:
             return self._early_features.race(base.ids, priors.early)
         return self._early_features.horse(base.ids, priors.early)
+
+    def _odds_part(self, kind: DevelopmentModelKind, base: Data) -> list[pd.DataFrame]:
+        """W の列（オッズを足す予想の学習データだけ）。オッズの欠けた行は欠損値のまま（行は外さない）。"""
+        if kind not in _USES_ODDS:
+            return []
+        if not isinstance(base, TrainingData):
+            raise ValueError(f"{kind.spec.label_text}は、年ごとの確かめで比べるためだけの予想で、予測には使えません。")
+        return [self._odds_features.horse(base.evaluation)]
 
     def _late_part(self, kind: DevelopmentModelKind, base: Data, priors: PriorForecasts) -> pd.DataFrame | None:
         if kind not in _USES_LATE:
