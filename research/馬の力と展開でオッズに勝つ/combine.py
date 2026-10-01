@@ -1,6 +1,6 @@
 """オッズを使わないモデルの勝率と、市場の勝率を組み合わせる（研究「馬の力と展開でオッズに勝つ」の入口⑤）。
 
-    uv run --with pyarrow --with tabulate python research/馬の力と展開でオッズに勝つ/combine.py --predictions 全年
+    uv run python research/馬の力と展開でオッズに勝つ/combine.py --predictions 全年
 
 **これはオッズを使う作り方で、オッズを使わないモデルとは別に扱う。** Benter の方法にならい、
 勝率 ∝ exp(a × log モデルの勝率 + b × log 市場の勝率) の a・b を、レース単位の条件付きロジットで学ぶ。

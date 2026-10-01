@@ -2,7 +2,7 @@
 
     uv run python tools/出走検索/runners.py --venue 東京 --pop 1 --from 2026-01-01 --limit 20
     uv run python tools/出走検索/runners.py --course 芝・左 --distance 1600 --condition 良 --odds 1.0-1.9 --sort odds
-    uv run python tools/出走検索/runners.py --jockey ルメール --class G1 --format csv --out reports/tmp/runners.csv
+    uv run python tools/出走検索/runners.py --jockey <騎手の略称> --class G1 --format csv --out reports/tmp/runners.csv
     uv run python tools/出走検索/runners.py --columns        # 事実表の列の一覧（意味つき）
 
 絞り込みの項目は --help に全部ある。画面の「出走（検索）」と同じ条件・同じ結果。

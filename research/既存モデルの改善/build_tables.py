@@ -1,6 +1,6 @@
-"""4つの予想の学習データを、全期間（2017年1月〜DB の最後）ぶん作って保存する（研究「既存モデルの改善」の入口①）。
+"""5つの予想の学習データを、全期間（2017年1月〜DB の最後。重賞の予想は 2012年1月から）ぶん作って保存する（研究「既存モデルの改善」の入口①）。
 
-    uv run python research/既存モデルの改善/build_tables.py                            # 4つ全部
+    uv run python research/既存モデルの改善/build_tables.py                            # 5つ全部
     uv run python research/既存モデルの改善/build_tables.py --only form_aptitude_top3  # 1つだけ
 
 出るもの: reports/既存モデルの改善/tables/<予想の名前>/（ids・features・targets・evaluation・baseline の pickle と meta.json）。
@@ -37,7 +37,7 @@ def _build(spec: ModelTableSpec, store: TableStore, args) -> list[object]:
     started = time.perf_counter()
     print(f"{spec.label}: 学習データを作っています …", file=sys.stderr, flush=True)
     with db.open_db(args.db) as con:
-        data = spec.builder_factory(con).build_training_data(TABLE_PERIOD)
+        data = spec.builder_factory(con).build_training_data(spec.period or TABLE_PERIOD)
     folder = store.write(spec.name, data)
     seconds = round(time.perf_counter() - started)
     print(f"{spec.label}: {len(data)}行・{seconds}秒", file=sys.stderr, flush=True)
@@ -47,7 +47,7 @@ def _build(spec: ModelTableSpec, store: TableStore, args) -> list[object]:
 def _parser():
     parser = cli.build_parser(__doc__, limit=None)
     parser.add_argument("--only", nargs="*", default=None, metavar="予想の名前",
-                        help="作る予想（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level）")
+                        help="作る予想（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level / stakes_tendency_top3）")
     parser.add_argument("--tables", type=Path, default=_DEFAULT_OUT, help="保存する場所（既定: reports/既存モデルの改善/tables）")
     return parser
 

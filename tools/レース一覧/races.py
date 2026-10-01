@@ -3,7 +3,7 @@
     uv run python tools/レース一覧/races.py --from 2026-09-06 --to 2026-09-07               # その週末の全レース
     uv run python tools/レース一覧/races.py --venue 中山 --surface 芝 --distance 1600 --condition 良 --limit 50
     uv run python tools/レース一覧/races.py --class G1 --from 2025-01-01
-    uv run python tools/レース一覧/races.py --jockey ルメール --pop 1 --from 2026-01-01    # その騎手の馬が1番人気だったレース
+    uv run python tools/レース一覧/races.py --jockey <騎手の略称> --pop 1 --from 2026-01-01    # その騎手の馬が1番人気だったレース
 
 馬の条件（人気・オッズ・騎手・性別 …）を付けると「その馬が出たレース」になる。中央・確定成績だけ。
 """

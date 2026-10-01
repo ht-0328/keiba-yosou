@@ -9,6 +9,7 @@ import pandas as pd
 
 from ..ticket_combos import RACE_BUDGET
 from .candidate_columns import RACE, SET_STAKE, SET_VALUE, TICKET
+from .hardness_band import ALL_RACES, HardnessBand
 from .race_columns import SCORE
 from .race_selector import RaceSelector
 
@@ -20,6 +21,9 @@ class BettingPlan:
     - ``set_lines``: 券種 → 券種全体の期待値の線。これ以上の券種だけを買う候補にする。
     - ``adopted``: テスト期間に買う券種（検証期間の成績で決めた）。
     - ``races_per_day``: 1開催日に勝負する上位のレース数（重賞は別枠）。None なら全部。
+    - ``band``: 勝負の候補にするレースの堅さの帯（軸の3着以内の確率。重賞は帯の外でも候補に残す）。
+    - ``excluded_first``: 1番人気を消したレースを先に並べるか（False なら券種全体の期待値の順だけ）。
+    - ``graded_in_cap``: 重賞も上位のレース数の枠に入れるか（False なら重賞は別枠）。
 
     1レースでは、全部の券種を買わない。線を超えた券種を、券種全体の期待値の高い順に、1レースの予算（5,000円）に
     入るところまで買う（券種で期待値を積む）。例: 3連単 1.35・馬連 1.20・単勝 0.95 で、単勝の線が 1.0 なら、
@@ -29,13 +33,17 @@ class BettingPlan:
     races_per_day: int | None
     set_lines: Mapping[str, float] = field(default_factory=dict)
     adopted: frozenset[str] = frozenset()
+    band: HardnessBand = ALL_RACES
+    excluded_first: bool = True
+    graded_in_cap: bool = False
 
     def apply(self, tickets: pd.DataFrame, races: pd.DataFrame) -> pd.DataFrame:
         """買う買い目。"""
         sets = self._stacked_sets(tickets)
         scores = sets.groupby(RACE)[SET_VALUE].max().rename(SCORE)
         candidates = races.merge(scores, left_on=RACE, right_index=True, how="inner")
-        chosen = candidates[RaceSelector(self.races_per_day).select(candidates)][RACE]
+        selector = RaceSelector(self.races_per_day, self.band, self.excluded_first, self.graded_in_cap)
+        chosen = candidates[selector.select(candidates)][RACE]
         keys = sets[sets[RACE].isin(set(chosen))][[RACE, TICKET]]
         return tickets.merge(keys, on=[RACE, TICKET], how="inner").reset_index(drop=True)
 
@@ -52,5 +60,8 @@ class BettingPlan:
         return replace(self, adopted=frozenset(self.set_lines))
 
     def describe(self) -> str:
-        per_day = "全レース" if self.races_per_day is None else f"1開催日の上位 {self.races_per_day} レース＋重賞"
-        return f"{per_day}（1番人気を消したレースを先に選ぶ）"
+        """表に出す、勝負するレースの選び方（例 1開催日の上位 3 レース＋重賞・軸の確率 0.7 以上・期待値の順）。"""
+        graded = "（重賞も枠に入れる）" if self.graded_in_cap else "＋重賞"
+        per_day = "全レース" if self.races_per_day is None else f"1開催日の上位 {self.races_per_day} レース{graded}"
+        order = "1番人気を消したレースを先に" if self.excluded_first else "期待値の順"
+        return f"{per_day}・{self.band.label}・{order}"

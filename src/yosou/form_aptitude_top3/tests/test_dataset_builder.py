@@ -71,7 +71,7 @@ def test_training_market_features_come_from_the_final_odds(training_data: Traini
 
 
 @pytest.mark.parametrize(("timing", "columns"), [
-    (PredictionTiming.RACE_DAY, 75), (PredictionTiming.DAY_BEFORE, 73),
+    (PredictionTiming.RACE_DAY, 79), (PredictionTiming.DAY_BEFORE, 77),
 ])
 def test_prediction_data_of_a_card(season_db: Path, timing: PredictionTiming, columns: int):
     data = _prediction(season_db, season.CARD_RACE_ID, timing, CARD_ODDS)

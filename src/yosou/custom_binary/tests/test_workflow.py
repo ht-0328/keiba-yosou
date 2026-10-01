@@ -139,10 +139,13 @@ def test_all_builtin_features_match_existing_builder(season_db, settings):
     from yosou.shared.dataset import HistoryRecordsLoader
     from yosou.shared.feature import FeatureBuilder
     from yosou.longshots_in_top3.dataset.dataset_assembly import _FEATURE_GROUPS
+    from yosou.shared.feature.group import PeopleMarketFeatures
     from ..feature.builder import SelectedFeatureBuilder
     from ..feature.builtin_features import BuiltinFeatures
 
     registry = DefaultRegistry().build()
+    # 市場に対する成績（L）は、この予想の選べる特徴量に無い（読む記録も違う）ので、旧方式のまとまりから外す。
+    groups = tuple(group for group in _FEATURE_GROUPS if not isinstance(group, PeopleMarketFeatures))
     # 旧方式にある特徴量（既存のまとまり）だけを比べる。追加した特徴量（券種オッズなど）は旧方式に無い。
     selected = tuple(feature.name for feature in BuiltinFeatures().all())
     with db.open_db(season_db) as con:
@@ -150,7 +153,7 @@ def test_all_builtin_features_match_existing_builder(season_db, settings):
     # 1レースの全頭で旧方式と一致することを確認する。
     last_race = records.entries["race_id"].iloc[-1]
     records = records.with_entries(records.entries[records.entries["race_id"] == last_race])
-    expected = FeatureBuilder(registry.catalog(selected), _FEATURE_GROUPS).build(records, settings.timing)
+    expected = FeatureBuilder(registry.catalog(selected), groups).build(records, settings.timing)
     actual = SelectedFeatureBuilder(registry, selected, settings.timing).build(records)
     pd.testing.assert_frame_equal(actual, expected)
 

@@ -7,13 +7,14 @@
 | 名前 | 仕事 |
 |---|---|
 | ``ModelTableSpec`` | 1つの予想の、学習データの作り方（``dataset_builder``）と特徴量の一覧 |
-| ``MODEL_TABLES`` | 4つの予想の ``ModelTableSpec`` の並び。``spec_named`` で名前から引く |
+| ``MODEL_TABLES`` | 5つの予想の ``ModelTableSpec`` の並び。``spec_named`` で名前から引く |
 | ``TableStore`` | 学習データ（``TrainingData``）を pickle に書く・読む |
 | ``TABLE_PERIOD`` | 学習データを作る期間（ウォームアップ 2016年・サンプル 2017年から） |
+| ``STAKES_TABLE_PERIOD`` | 重賞の予想の学習データを作る期間（ウォームアップ 2011年・サンプル 2012年から） |
 """
 
 from .model_table_spec import ModelTableSpec
-from .model_tables import MODEL_TABLES, TABLE_PERIOD, spec_named
+from .model_tables import MODEL_TABLES, STAKES_TABLE_PERIOD, TABLE_PERIOD, spec_named
 from .table_store import TableStore
 
-__all__ = ["ModelTableSpec", "MODEL_TABLES", "TABLE_PERIOD", "spec_named", "TableStore"]
+__all__ = ["ModelTableSpec", "MODEL_TABLES", "TABLE_PERIOD", "STAKES_TABLE_PERIOD", "spec_named", "TableStore"]

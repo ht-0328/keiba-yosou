@@ -9,6 +9,8 @@ import pandas as pd
 from yosou.shared.dataset import JUMP, FlatRunnerFilter
 from yosou.shared.feature import as_numbers
 
+from .pre_deadline_favorites import PreDeadlineFavorites
+
 #: この予想が対象にする人気。
 _FAVORITE = 1
 
@@ -18,10 +20,15 @@ class FavoriteOnlySelector:
 
     1番人気でない行も、いったんは残して返す。レース内順位の特徴量（まとまり G）を、そのレースの全出走馬から
     計算するためである。1番人気だけに絞るのは、特徴量を作ったあとの ``keep_samples()`` になる。
+
+    ``pre_deadline`` を渡すと、確定の1番人気に加えて、締め切り前のオッズで1番人気だった馬の行も残す
+    （評価で、締め切り前の1番人気を判定するため。設計書 16 の 7）。学習に使うのは、確定の1番人気の行だけである
+    （``FavoritePicks``）。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, pre_deadline: PreDeadlineFavorites | None = None) -> None:
         self._flat_runners = FlatRunnerFilter()
+        self._pre_deadline = pre_deadline or PreDeadlineFavorites()
 
     def training_samples(self, entries: pd.DataFrame, train_first_day: date) -> pd.DataFrame:
         """学習データのサンプルにする行。``train_first_day`` より前（ウォームアップ期間）の行は入れない。
@@ -42,5 +49,6 @@ class FavoriteOnlySelector:
         return runners
 
     def keep_samples(self, rows: pd.DataFrame) -> pd.DataFrame:
-        """特徴量を作ったあとに残す行。1番人気の行だけ。"""
-        return rows[as_numbers(rows["popularity"]) == _FAVORITE]
+        """特徴量を作ったあとに残す行。1番人気の行と、締め切り前のオッズで1番人気だった馬の行。"""
+        is_favorite = as_numbers(rows["popularity"]) == _FAVORITE
+        return rows[is_favorite | self._pre_deadline.contains(rows["race_id"], rows["horse_no"])]
