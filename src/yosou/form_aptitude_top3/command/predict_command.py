@@ -18,7 +18,7 @@ from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceE
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
 from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
-from ..dataset import OddsInput, OddsResolver, ability_dataset_builder, pool_dataset_builder
+from ..dataset import OddsInput, OddsResolver, ability_dataset_builder, race_day_dataset_builder
 from ..feature import WIN_ODDS
 from ..workflow import ABILITY_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, PredictionWorkflow
 from .figure_cache_argument import FigureCacheArgument
@@ -61,10 +61,10 @@ class PredictCommand:
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
 
     def _dataset_builder(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> DatasetBuilder:
-        """その時点のモデルの材料の組み立て。木曜・前日は馬の力の材料、当日は今の材料と券種の支持。"""
+        """その時点のモデルの材料の組み立て。木曜・前日は馬の力の材料、当日は今の材料と券種の支持と馬の力の材料。"""
         if args.timing in ABILITY_TIMINGS:
             return ability_dataset_builder(con, args.figure_cache)
-        return pool_dataset_builder(con)
+        return race_day_dataset_builder(con, args.figure_cache)
 
     def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
         """``--odds`` で渡されたオッズ。渡されなければ None。"""

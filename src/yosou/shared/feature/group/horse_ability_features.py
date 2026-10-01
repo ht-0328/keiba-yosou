@@ -22,19 +22,23 @@ class HorseAbilityFeatures:
     同じレースの馬との比べ・セリの価格から作る（研究「一番人気を疑う」で、木曜の予想をこの材料で作り直すと、
     ◎の3着以内率が今の木曜版よりはっきり上がった）。元の記録は ``records.ability_sources``（``AbilitySourcesLoader`` が読む）。
     予測のときは、対象のレースの行を、速報（馬体重・取消）を反映した出走の行に合わせてから作る。
+    ``columns`` は出す列（省略すると 202個全部）。ほかのまとまりと一緒に使う予想は、同じ名前の列を除いて渡す。
     """
+
+    def __init__(self, columns: tuple[str, ...] | None = None) -> None:
+        self._columns = list(ability_columns() if columns is None else columns)
 
     def build(self, records: EntryRecords) -> pd.DataFrame:
         entries = records.entries
         if records.ability_sources is None:
-            return pd.DataFrame(float("nan"), index=entries.index, columns=list(ability_columns()))
+            return pd.DataFrame(float("nan"), index=entries.index, columns=self._columns)
         sources = replace(records.ability_sources, runs=self._announced(records.ability_sources.runs, entries))
         table = AbilityTableBuilder().build(sources)
         keys = pd.DataFrame({"race_id": entries["race_id"].astype(str).to_numpy(),
                              "horse_id": entries["horse_id"].astype(str).to_numpy()})
         table = table.assign(race_id=table["race_id"].astype(str), horse_id=table["horse_id"].astype(str))
         aligned = keys.merge(table.drop_duplicates(_KEY), on=_KEY, how="left")
-        return aligned[list(ability_columns())].set_axis(entries.index)
+        return aligned[self._columns].set_axis(entries.index)
 
     def _announced(self, runs: pd.DataFrame, entries: pd.DataFrame) -> pd.DataFrame:
         """対象のレースの行を、出走の行に合わせる。出走の行に無い馬（取消・除外）は出走しなかったことにする。

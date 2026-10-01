@@ -15,7 +15,7 @@ from yosou.shared.feature import ABILITY_FEATURES, POOL_SUPPORT_NAMES, Predictio
 from yosou.shared.tests import synthetic_season as season
 
 from ..dataset import PoolAvailability, PoolFreeData, ability_dataset_builder
-from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG
+from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_CATALOG
 from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS
 
 #: M のうち、どの時点でも分かり、合成のシーズンでも値が入る列（例として確かめる）。
@@ -23,7 +23,7 @@ _FIGURE = "指数_前走"
 
 
 def test_the_catalogs_split_by_timing():
-    # 木曜・前日は馬の力の材料（木曜は M だけ、前日は J も）。当日は今の材料に N を足す
+    # 木曜・前日は馬の力の材料（木曜は M だけ、前日は J も）。当日は今の材料に N と M を足す
     assert ABILITY_TIMINGS == (PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE)
     assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 199 + 4
     assert set(ABILITY_TIMINGS) | set(FORM_TIMINGS) == set(PredictionTiming)
@@ -31,6 +31,8 @@ def test_the_catalogs_split_by_timing():
     assert len(POOL_CATALOG.columns_for(PredictionTiming.RACE_DAY)) == len(CATALOG.columns_for(PredictionTiming.RACE_DAY)) + 6
     assert POOL_CATALOG.columns_for(PredictionTiming.DAY_BEFORE) == CATALOG.columns_for(PredictionTiming.DAY_BEFORE)
     assert all(feature.group == "M" and not feature.is_categorical for feature in ABILITY_FEATURES)
+    # 当日の M は、今の材料と同じ名前の2つ（前走からの日数・芝ダ替わり）を除いた 200個
+    assert len(RACE_DAY_CATALOG.columns_for(PredictionTiming.RACE_DAY)) == 79 + 6 + 200
 
 
 def test_ability_training_data_has_the_ability_features(ability_training_data: TrainingData):
@@ -86,7 +88,7 @@ def test_pool_odds_are_missing_when_any_pool_is_missing_for_every_horse():
 
 def test_pool_free_data_drops_the_pool_columns():
     data = PoolFreeData().prediction(_pool_data([[0.1] * 6, [0.2] * 6]))
-    assert list(data.features.columns) == ["距離"] and data.catalog is CATALOG
+    assert list(data.features.columns) == ["距離"] and data.catalog.names == CATALOG.names
 
 
 @pytest.mark.parametrize("timing", [PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE])
