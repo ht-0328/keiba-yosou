@@ -20,6 +20,10 @@ from .group_fitter import GroupFitter
 from .kind_datasets import KindDatasets
 from .walk_forward_schedule import WalkForwardSchedule
 
+#: 予測の作り方の版。特徴量の一覧や学習データの範囲では表せない作り方（モデルの中の後処理など）を変えたら書き換え、
+#: 前に作った予測を読まずに作り直させる（2026-09-30: 前半・後半タイムの 80% の幅の倍率を足した）。
+FORECAST_METHOD = "2026-09-30"
+
 
 class WalkForwardPredictor:
     """1つの組と1つの時点について、年ごとに「その年より前だけで学習し、その年を予測する」をくり返す（設計書 05 の図5・11 の決まり 11）。
@@ -57,12 +61,14 @@ class WalkForwardPredictor:
 
     def _signature(self, group: ForecastGroup, timing: PredictionTiming, settings: HyperparameterSettings,
                    datasets: KindDatasets, priors: PriorForecasts) -> str:
-        """予測を作った条件を表す文字列。設定・学習データの範囲・前の組の予測のどれかが変われば、違う値になる。"""
+        """予測を作った条件を表す文字列。設定・学習データ（範囲と中身）・前の組の予測・組の予想と特徴量の一覧・作り方の版の
+        どれかが変われば、違う値になる。"""
         days = datasets.horses.ids[RACE_DATE]
         parts = {
-            "group": group.value, "timing": timing.value, "settings": settings.to_dict(),
-            "data": [str(days.min()), str(days.max()), len(datasets.horses), len(datasets.races)],
-            "tendency_data": datasets.tendency.sizes(), "tendency": self._forecast_hash(priors.tendency),
+            "method": FORECAST_METHOD, "group": group.value, "timing": timing.value, "settings": settings.to_dict(),
+            "kinds": [[kind.value, list(kind.spec.catalog.names)] for kind in group.kinds],
+            "data": [str(days.min()), str(days.max()), datasets.fingerprint()],
+            "tendency": self._forecast_hash(priors.tendency),
             "early": self._forecast_hash(priors.early), "late": self._forecast_hash(priors.late),
         }
         return hashlib.sha1(json.dumps(parts, sort_keys=True, default=str).encode("utf-8")).hexdigest()

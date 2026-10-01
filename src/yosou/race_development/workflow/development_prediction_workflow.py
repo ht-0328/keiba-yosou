@@ -52,14 +52,10 @@ from ..ml_model import OrderProbability
 from ..repository import PredictionArchiveRepository
 from ..tendency import TendencyForecaster, TendencyModelStore, TendencySource
 from .development_forecast import DevelopmentForecast
-from .development_model_kind import DevelopmentModelKind
 from .forecast_group import ForecastGroup
 from .kind_forecaster import KindForecaster
 from .kind_model_store import KindModelStore
 from .kind_stacker import KindStacker
-
-#: 予測で使わない予想（⑦ の比べる基準は、年ごとの確かめでだけ使う）。
-_NOT_PREDICTED = frozenset({DevelopmentModelKind.FINISH_PLAIN})
 
 
 class DevelopmentPredictionWorkflow:
@@ -108,7 +104,7 @@ class DevelopmentPredictionWorkflow:
         """1つの組の予想を、その時点のモデルで予測する。"""
         horse_parts = [horses.ids[[RACE_ID, HORSE_ID]]]
         race_parts = [races.ids[[RACE_ID]]]
-        for kind in (kind for kind in group.kinds if kind not in _NOT_PREDICTED):
+        for kind in (kind for kind in group.kinds if kind.spec.for_prediction):
             base = races if kind.spec.per_race else horses
             data = self._stacker.apply(kind, base, priors)
             predicted = self._forecaster.predict(kind, self._store.load(kind, timing), data)

@@ -72,7 +72,8 @@ class DevelopmentTrainingWorkflow:
         priors = priors.with_early(self._group(ForecastGroup.EARLY, year, datasets, priors, timing, settings, sink))
         priors = priors.with_late(self._group(ForecastGroup.LATE, year, datasets, priors, timing, settings, sink))
         finish = ForecastGroup.FINISH  # 着順の組は後の組が無いので、前の年の予測は作らない
-        self._fitter.fit_predict(finish, self._schedule.periods(finish, year), datasets, priors, timing, settings, sink)
+        self._fitter.fit_predict(finish, self._schedule.periods(finish, year), datasets, priors, timing, settings, sink,
+                                 prediction_only=True)
         self._progress(f"{timing.label}のモデルを保存した（{len(saved)}つの予想と、既存の予想）")
         return saved
 
@@ -88,9 +89,9 @@ class DevelopmentTrainingWorkflow:
 
     def _sink(self, timing: PredictionTiming, settings: HyperparameterSettings,
               saved: list[SavedModel]) -> Callable[[DevelopmentModelKind, list[Any], float | None], None]:
-        """学習したモデルを保存し、``saved`` に書き足す関数。比べる基準（前半・後半を入れない着順のモデル）は保存しない。"""
+        """学習したモデルを保存し、``saved`` に書き足す関数。比べるためだけの予想（``KindSpec.for_prediction`` が偽）は保存しない。"""
         def save(kind: DevelopmentModelKind, members: list[Any], order_lambda: float | None) -> None:
-            if kind is DevelopmentModelKind.FINISH_PLAIN:
+            if not kind.spec.for_prediction:
                 return
             folder = self._store.save(kind, timing, members, settings, order_lambda)
             saved.append(SavedModel(kind, timing, folder, tuple(member.tree_count for member in members), order_lambda))

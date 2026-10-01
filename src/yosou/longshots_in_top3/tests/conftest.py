@@ -6,6 +6,7 @@
 | フィクスチャ | 中身 |
 |---|---|
 | ``longshot_db`` | 架空の1シーズンに、全レースの複勝オッズ（まとまり M の材料）を足した合成DB |
+| ``no_place_odds_db`` | 架空の1シーズンから、複勝オッズ（確定前の 1R の締め切り前の断面）を抜いた合成DB |
 | ``training_data`` | この予想の学習データ（穴馬の行・3着以内・特徴量 A〜M・穴馬の区分） |
 | ``trained`` | 学習の流れを1回通した結果（モデルを置いたフォルダと ``TrainingReport``） |
 """
@@ -56,10 +57,15 @@ def _place_odds(race_row: dict[str, str], runner: dict[str, str], seq: int) -> t
 
 
 def with_place_odds(sample: synth.Sample) -> synth.Sample:
-    """``sample`` の全レース（馬番の決まっている馬）に複勝オッズを足した、新しい行の束（``sample`` は変えない）。"""
-    races = {_race_id(row): row for row in sample.ra}
-    numbered = [runner for runner in sample.se if runner["馬番"].strip().isdigit() and int(runner["馬番"]) > 0]
-    headers = [_odds_header(row) for row in sample.ra]
+    """``sample`` の全レース（馬番の決まっている馬）に複勝オッズを足した、新しい行の束（``sample`` は変えない）。
+
+    すでにオッズの断面があるレース（共通の架空のシーズンの、確定前の 1R）は、そのまま使って足さない。
+    """
+    priced = {_race_id(row) for table, row in sample.odds if table == _HEADER}
+    races = {_race_id(row): row for row in sample.ra if _race_id(row) not in priced}
+    numbered = [runner for runner in sample.se if _race_id(runner) in races
+                and runner["馬番"].strip().isdigit() and int(runner["馬番"]) > 0]
+    headers = [_odds_header(row) for row in races.values()]
     rows = [_place_odds(races[_race_id(runner)], runner, seq) for seq, runner in enumerate(numbered, start=1)]
     return replace(sample, odds=[*sample.odds, *headers, *rows])
 
@@ -68,6 +74,12 @@ def with_place_odds(sample: synth.Sample) -> synth.Sample:
 def longshot_db(season_sample: synth.Sample, tmp_path_factory: pytest.TempPathFactory) -> Path:
     """架空の1シーズンに、全レースの複勝オッズを足した合成DB のパス。"""
     return synth.build_db(tmp_path_factory.mktemp("longshot-season") / "season.duckdb", with_place_odds(season_sample))
+
+
+@pytest.fixture(scope="session")
+def no_place_odds_db(season_sample: synth.Sample, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """架空の1シーズンから、オッズの行（確定前の 1R の締め切り前の複勝オッズ）を抜いた合成DB のパス。"""
+    return synth.build_db(tmp_path_factory.mktemp("no-place-odds") / "season.duckdb", replace(season_sample, odds=[]))
 
 
 @pytest.fixture(scope="session")

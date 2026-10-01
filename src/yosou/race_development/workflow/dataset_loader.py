@@ -18,9 +18,16 @@ from ..repository import DatasetRepository
 from ..tendency import TendencyDatasets, TendencySource
 from .kind_datasets import KindDatasets
 
-#: 学習データのウォームアップと始まり（設計書 08 の 5・16 の 7）。
-WARMUP_FIRST_DAY = date(2016, 1, 1)
-TRAIN_FIRST_DAY = date(2017, 1, 1)
+#: 学習データのウォームアップと始まり（設計書 08 の 5・16 の 7）。元DB は 2011年からあり、前半・後半タイムの基準は
+#: ウォームアップの始まりの 1095日前から読むので、2014年からの学習データは、どのレースも3年ぶんの基準で作れる。
+WARMUP_FIRST_DAY = date(2013, 1, 1)
+TRAIN_FIRST_DAY = date(2014, 1, 1)
+#: 元DB のロックを待つ上限（秒）。学習データを作る段と確定オッズを読む段は、ほかの道具が元DB を読み終わるのを待ってから始める
+#: （共通の既定の 15秒では、同じマシンで何本も学習を動かしているときに、待ちきれずに止まるため）。
+DB_LOCK_WAIT_SECONDS = 3600.0
+#: 学習データの作り方の版。元DB の更新日時と期間では表せない作り方（共通の事実表の数え方など）を変えたら書き換え、
+#: 前に作った学習データを読まずに作り直させる（2026-10-01: 共通の事実表の前走を、実際に出走した1つ前のレースにした直しを取り込んだ）。
+DATASET_VERSION = "2026-10-01"
 #: 学習データの名前（ファイル名）→ 元DB への接続から、その学習データを作るクラスを組み立てる関数。
 _BUILDERS: dict[str, Callable[[duckdb.DuckDBPyConnection], object]] = {
     "horses": horse_dataset_builder,
@@ -30,7 +37,7 @@ _BUILDERS: dict[str, Callable[[duckdb.DuckDBPyConnection], object]] = {
 
 
 class DatasetLoader:
-    """2017年1月から ``last_year`` の年末までの学習データを作る（ウォームアップは 2016年）。
+    """2014年1月から ``last_year`` の年末までの学習データを作る（ウォームアップは 2013年）。
 
     作るのは、展開の予想の1頭ごと・1レースごとの学習データと、傾向の組が学ぶ既存の4つの予想の学習データ
     （それぞれの予想の ``dataset_builder`` で作る）。元DB を開くのは、学習データを作るあいだだけ。
@@ -50,7 +57,7 @@ class DatasetLoader:
     def load(self, last_year: int) -> KindDatasets:
         period = TrainingPeriod(WARMUP_FIRST_DAY, TRAIN_FIRST_DAY, date(last_year + 1, 1, 1), date(last_year + 1, 1, 2))
         database = "" if self._reuse_saved else str(db.resolve_db(self._db_path).stat().st_mtime_ns)
-        signature = f"{database}-{period}"
+        signature = f"{database}-{DATASET_VERSION}-{period}"
         saved = {name: self._repository.load(name, signature) for name in _BUILDERS}
         missing = [name for name, data in saved.items() if data is None]
         if missing:
@@ -61,7 +68,7 @@ class DatasetLoader:
     def _build(self, names: list[str], period: TrainingPeriod, signature: str) -> dict[str, TrainingData]:
         """``names`` の学習データを元DB から作り、残す。"""
         started = time.perf_counter()
-        with db.open_db(self._db_path) as con:
+        with db.open_db(self._db_path, lock_timeout=DB_LOCK_WAIT_SECONDS) as con:
             built = {name: _BUILDERS[name](con).build_training_data(period) for name in names}
         for name, data in built.items():
             self._repository.save(name, signature, data)
