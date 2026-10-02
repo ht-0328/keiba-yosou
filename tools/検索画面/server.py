@@ -264,10 +264,10 @@ class Backend:
         """1レースを今のモデルで予想し直して書き、結果を返す（数十秒〜数分かかる）。"""
         # 予想のモデル（LightGBM・CatBoost）の読み込みは重いので、予想するときだけ読む
         from yosou.shared.feature import PredictionTiming
-        from 今週の予想.forecast import DEFAULT_MODELS
+        from 今週の予想.forecast import DEFAULT_FAVORITE_MODELS, DEFAULT_MODELS
         from 今週の予想.race_forecaster import RaceForecaster
         with self.session.use() as con:
-            forecast = RaceForecaster(DEFAULT_MODELS).forecast(con, rid, PredictionTiming.parse(timing) if timing else None)
+            forecast = RaceForecaster(DEFAULT_MODELS, DEFAULT_FAVORITE_MODELS).forecast(con, rid, PredictionTiming.parse(timing) if timing else None)
         self._forecasts.save(forecast)
         return self.forecast({"rid": [rid]})
 

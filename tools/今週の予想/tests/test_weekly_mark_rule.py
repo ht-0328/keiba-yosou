@@ -63,3 +63,36 @@ def test_注は市場より低く見ている馬には付けない() -> None:
     marked = MarkRule().assign(_race(probabilities, odds, market, values))
     assert marked[MARK].tolist()[-1] == OUT_MARK
     assert all(reason for reason in marked["mark_reason"])
+
+
+def _with_danger(table: pd.DataFrame, dangers: dict[int, bool]) -> pd.DataFrame:
+    """人気馬の危険の判定の列を足す（判定の無い馬は欠損値）。"""
+    flags = table["horse_no"].map(dangers)
+    return table.assign(is_danger=flags, out_probability=flags.map({True: 0.5, False: 0.3}),
+                        market_out=flags.map({True: 0.35, False: 0.3}), danger_score=flags.map({True: 0.15, False: 0.0}),
+                        danger_line=flags.map({True: 0.11, False: 0.11}))
+
+
+def test_危険な人気馬は消にして残りの馬に二重丸から付ける() -> None:
+    probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2, 0.1]
+    odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 30.0, 40.0]
+    market = [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.1, 0.05]
+    values = [0.9] * 8
+    race = _with_danger(_race(probabilities, odds, market, values), {1: True, 2: False, 3: False})
+    marked = MarkRule().assign(race).set_index("horse_no")
+    assert marked.loc[1, MARK] == OUT_MARK and "危険な人気馬" in marked.loc[1, "mark_reason"]
+    assert [marked.loc[no, MARK] for no in range(2, 8)] == ["◎", "○", "▲", "△", "△", "△"]
+    assert "全頭ではレース内2位" in marked.loc[2, "mark_reason"]
+    assert marked.loc[8, MARK] in (OUT_MARK, "注")
+
+
+def test_危険な人気馬には星も注も付けない() -> None:
+    # 9頭立て。危険と判定された馬が、印の無い馬の中で上げ下げが最大でも 注 にしない
+    probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1]
+    odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 10.0, 12.0, 15.0]
+    market = [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.25, 0.2, 0.15]
+    values = [0.9] * 9
+    race = _with_danger(_race(probabilities, odds, market, values), {1: True})
+    marked = MarkRule().assign(race)
+    assert marked.set_index("horse_no").loc[1, MARK] == OUT_MARK
+    assert marked[MARK].tolist().count("◎") == 1

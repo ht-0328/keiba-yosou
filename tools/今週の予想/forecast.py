@@ -9,7 +9,8 @@
 
 予想は「近走と適性から3着以内を予想」の学習済みモデル（reports/近走と適性から3着以内を予想/models/）で、
 3着以内に入る確率の高い順に全頭を並べ、設計書「買うレースと買い目を決める」07 の 5 の決め方で印を付ける。
-印の付かなかった馬は「消」。時点（木曜・前日・当日）は、DB に入っている情報（オッズ・馬番・馬体重）から自動で選ぶ。
+前日・当日は、危険な1番人気を「人気馬が4着以下になるかを予想」の学習済みモデルで判定して「消」にし、残りの馬に ◎〜△ を付ける。
+印の付かなかった馬も「消」。時点（木曜・前日・当日）は、DB に入っている情報（オッズ・馬番・馬体重）から自動で選ぶ。
 先に jvdata-store で今週の出馬表（jvstore sync）と速報（jvstore realtime --date <開催日>）を取り込んでおく。
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
 1レースに数十秒かかる（はじめの1レースは、事実表とスピード指数を作るので数分）。
@@ -27,22 +28,25 @@ sys.path[:0] = [str(HERE.parents[0])]
 from 共通 import card, cli, db, race  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
+from yosou.favorites_out_of_top3.command.yosou_name import YOSOU_NAME as FAVORITE_YOSOU_NAME  # noqa: E402
 from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 
 from 今週の予想.forecast_store import DEFAULT_FOLDER, ForecastStore  # noqa: E402
 from 今週の予想.forecast_table import ForecastTable  # noqa: E402
-from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
+from 今週の予想.race_forecaster import FORECAST_VERSION, RaceForecaster  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
 
 #: 学習済みモデルの既定の置き場所。
 DEFAULT_MODELS = HERE.parents[1] / "reports" / YOSOU_NAME / "models"
+#: 危険な人気馬を判定する予想（人気馬が4着以下になるかを予想）の学習済みモデルの既定の置き場所。
+DEFAULT_FAVORITE_MODELS = HERE.parents[1] / "reports" / FAVORITE_YOSOU_NAME / "models"
 _RID = card.CARD_LIST_HEADERS.index("rid")
 
 
 def main(args) -> None:
     store = ForecastStore(args.out_dir)
-    forecaster = RaceForecaster(args.models)
+    forecaster = RaceForecaster(args.models, args.favorite_models)
     tables: list[Table] = []
     with db.open_db(args.db) as con:
         race_ids = _race_ids(con, args)
@@ -78,9 +82,11 @@ def _race_ids(con, args) -> list[str]:
 
 
 def _same_timing_saved(con, store: ForecastStore, race_id: str) -> bool:
-    """作ってある結果が、今選ぶ時点と同じか。"""
+    """作ってある結果が、今の作り方の版で、今選ぶ時点と同じか。"""
     saved = store.load(race_id)
-    return saved is not None and saved.get("timing") == TimingChooser().choose(con, race_id).timing.label
+    if saved is None or saved.get("version") != FORECAST_VERSION:
+        return False
+    return saved.get("timing") == TimingChooser().choose(con, race_id).timing.label
 
 
 def _detail_table(forecast: dict) -> Table:
@@ -97,10 +103,12 @@ def build_parser():
     parser.add_argument("--race", type=int, help="レース番号（--date と --venue と一緒に）")
     parser.add_argument("--timing", type=PredictionTiming.parse, default=None,
                         help="時点を決めて予想する: 木曜・前日・当日（省略すると DB の情報から自動で選ぶ）")
-    parser.add_argument("--skip-saved", action="store_true", help="同じ時点で作ってある結果は作り直さない")
+    parser.add_argument("--skip-saved", action="store_true", help="同じ時点・同じ作り方の版で作ってある結果は作り直さない")
     parser.add_argument("--detail", action="store_true", help="各馬の総合の理由の表も出す")
     parser.add_argument("--models", type=Path, default=DEFAULT_MODELS,
                         help="学習済みモデルの置き場所（既定: reports/近走と適性から3着以内を予想/models）")
+    parser.add_argument("--favorite-models", type=Path, default=DEFAULT_FAVORITE_MODELS,
+                        help="危険な人気馬を判定する予想の学習済みモデルの置き場所（既定: reports/人気馬が4着以下になるかを予想/models）")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_FOLDER, help="結果を書く場所（既定: reports/今週の予想）")
     return parser
 

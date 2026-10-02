@@ -32,6 +32,7 @@ from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER as FI
 from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
 from 今週の予想 import forecast_columns as columns
+from 今週の予想.danger_finder import DangerFinder
 from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.mark_rule import MarkRule
 from 今週の予想.timing_chooser import TimingChooser
@@ -45,9 +46,12 @@ _RENAMES: dict[str, str] = {
 _HORSE_COLUMNS: tuple[str, ...] = (
     columns.RANK, columns.MARK, columns.MARK_REASON, columns.HORSE_NO, columns.HORSE_NAME, columns.HORSE_ID,
     columns.PROBABILITY, columns.WIN_ODDS, columns.POPULARITY, columns.MARKET_TOP3, columns.PLACE_VALUE, columns.UPDOWN,
+    *columns.DANGER_COLUMNS,
 )
 #: 予想の名前（画面に出す）。
-MODEL_NAME = "近走と適性から3着以内を予想"
+MODEL_NAME = "近走と適性から3着以内を予想（危険な人気馬は 人気馬が4着以下になるかを予想）"
+#: 結果の作り方の版。印の決め方や理由の作り方を変えたら上げる（``forecast.py --skip-saved`` は、版の違う結果を作り直す）。
+FORECAST_VERSION = 3
 
 
 class RaceForecaster:
@@ -55,12 +59,14 @@ class RaceForecaster:
 
     時点は ``TimingChooser`` が DB の情報から選ぶ（``timing`` を渡せばその時点）。組み立ては
     ``python -m yosou.form_aptitude_top3 predict`` と同じ（木曜は展開の予想の結果も使う。当日に券種のオッズが無ければ券種オッズなしのモデル）。
-    ``models`` は学習済みのモデルの置き場所。結果は JSON にできる辞書。
+    前日・当日は、危険な1番人気を予想「人気馬が4着以下になるかを予想」で判定して、印を付ける前に消にする（``DangerFinder``）。
+    ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所。結果は JSON にできる辞書。
     """
 
-    def __init__(self, models: Path, figure_cache: Path = FIGURE_CACHE,
+    def __init__(self, models: Path, favorite_models: Path, figure_cache: Path = FIGURE_CACHE,
                  development_root: Path = DEFAULT_DEVELOPMENT_ROOT) -> None:
         self._models = Path(models)
+        self._dangers = DangerFinder(favorite_models)
         self._figure_cache = Path(figure_cache)
         self._development_root = Path(development_root)
         self._chooser = TimingChooser()
@@ -76,18 +82,20 @@ class RaceForecaster:
         chosen = timing or choice.timing
         reason = choice.reason if timing is None else f"{chosen.label}のモデル（指定）"
         explained = self._workflow(con, chosen).explain(race_id, chosen)
-        horses = self._horses(explained)
+        horses = self._horses(explained, self._dangers.find(con, race_id, chosen))
         return {
-            "rid": race_id, "title": card.header_title(header), "header": header, "model": MODEL_NAME,
+            "version": FORECAST_VERSION, "rid": race_id, "title": card.header_title(header), "header": header, "model": MODEL_NAME,
             "timing": chosen.label, "timing_reason": reason, "pool_free": explained.pool_free,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
         }
 
-    def _horses(self, explained: ExplainedPrediction) -> list[dict[str, Any]]:
-        """全頭の結果（3着以内の確率の高い順）。"""
+    def _horses(self, explained: ExplainedPrediction, dangers: pd.DataFrame) -> list[dict[str, Any]]:
+        """全頭の結果（3着以内の確率の高い順）。``dangers`` は人気馬の危険の判定（``DangerFinder``。木曜は空）。"""
         table = explained.table.rename(columns=_RENAMES)
         table = table[[column for column in _RENAMES.values() if column in table.columns]]
-        table = table.assign(**{"_row": table.index})
+        table = table.assign(**{"_row": table.index, columns.HORSE_ID: table[columns.HORSE_ID].astype(str)})
+        dangers = dangers.assign(**{columns.HORSE_ID: dangers[columns.HORSE_ID].astype(str)})
+        table = table.merge(dangers, on=columns.HORSE_ID, how="left").set_index(table.index)
         marked = self._marks.assign(table)
         horses = []
         for _, horse in marked.iterrows():

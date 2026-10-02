@@ -368,7 +368,7 @@ function forecastLegend(legend) {
   const marks = el("div", {class: "legend"}, ...Object.entries(legend.marks).map(([mark, role]) => el("span", {}, markEl(mark), " ", role)));
   const cats = el("details", {}, el("summary", {}, "良い点・悪い点の分類の中身"),
     el("ul", {}, ...Object.entries(legend.categories).map(([name, note]) => el("li", {}, el("b", {}, name), "：", note))));
-  return el("div", {}, marks, el("div", {class: "note"}, "◎○▲ は3着以内に入る確率の1〜3位、△ は4〜6位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。ほかは 消。"), cats);
+  return el("div", {}, marks, el("div", {class: "note"}, "◎○▲ は3着以内に入る確率の1〜3位、△ は4〜6位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。危険な人気馬（人気馬の予想で4着以下になる確率が市場の見立てより線以上に高い1番人気。前日・当日だけ）は 消 にして、◎〜△ は残りの馬に付ける。ほかは 消。"), cats);
 }
 async function forecastRaceList(main, params) {
   const venueField = META.filters.find((field) => field.name === "venue");
@@ -442,7 +442,8 @@ function forecastTable(forecast) {
       el("td", {class: "num"}, percent(h.market_top3)), el("td", {class: "num"}, diff === null ? "" : points(diff)),
       el("td", {class: "num"}, h.place_value === null ? "" : h.place_value.toFixed(2)),
       el("td", {}, el("div", {class: "chips"}, ...h.good.map((p) => el("span", {class: "chip good"}, p.category)))),
-      el("td", {}, el("div", {class: "chips"}, ...h.bad.map((p) => el("span", {class: "chip bad"}, p.category))))), detail);
+      el("td", {}, el("div", {class: "chips"}, ...(h.is_danger ? [el("span", {class: "chip bad", title: h.mark_reason}, "危険な人気馬")] : []),
+        ...h.bad.map((p) => el("span", {class: "chip bad"}, p.category))))), detail);
   });
   const bar = el("div", {class: "toolbar"}, el("button", {type: "button", onclick: () => openAll.forEach((f) => f(true))}, "全頭の理由を開く"),
     el("button", {type: "button", onclick: () => openAll.forEach((f) => f(false))}, "閉じる"),
@@ -462,7 +463,7 @@ function showForecast(main, data) {
   else {
     head.append(el("div", {class: "note"}, "時点: " + forecast.timing + "（" + forecast.timing_reason + "）。予想: " + forecast.model + "。作成: " + forecast.made_at + "。"
       + (forecast.pool_free ? " 券種のオッズが無いので、券種オッズなしのモデルで予想した。" : "")
-      + (forecast.timing === "木曜" ? " 木曜はオッズを使わないので、市場の見立て・期待値・☆・注は出ない。" : "")));
+      + (forecast.timing === "木曜" ? " 木曜はオッズも人気もまだ無いので、市場の見立て・期待値・☆・注・危険な人気馬は出ない。" : "")));
   }
   head.append(forecastControls(rid, forecast, (fresh) => showForecast(main, fresh)), forecastLegend(data.legend),
     cliBlock(cliLine(TOOLS.forecast, {}, rid) + " --detail"));
