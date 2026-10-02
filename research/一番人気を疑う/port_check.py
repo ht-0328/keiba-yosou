@@ -34,6 +34,7 @@ from 一番人気を疑う.analysis.port import (  # noqa: E402
     PORT_VARIANTS,
     PortComparison,
     PortPredictionSource,
+    TableMerge,
     port_table_named,
 )
 from 既存モデルの改善.analysis.tables import TableStore  # noqa: E402
@@ -55,10 +56,21 @@ def _tables(args: argparse.Namespace) -> None:
     store = TableStore(args.root / "tables")
     for table in (table for table in PORT_TABLES if not args.only or table.name in args.only):
         print(f"{table.label}: 学習データを作っています …", flush=True)
-        with db.open_db(args.db) as con:
-            data = table.builder(con).build_training_data(table.period)
+        data = _merged(table, store) if table.sources else _built(table, args)
         folder = store.write(table.name, data)
         print(f"{table.label}: {len(data):,}行・特徴量 {data.features.shape[1]}個 → {folder}", flush=True)
+
+
+def _built(table, args: argparse.Namespace):
+    """元DB から、予想のパッケージの組み立て関数で表を作る。"""
+    with db.open_db(args.db) as con:
+        return table.builder(con).build_training_data(table.period)
+
+
+def _merged(table, store: TableStore):
+    """保存した2つの表を、同じ出走の行でつないで作る。"""
+    base, extra = (store.read(name, port_table_named(name).catalog) for name in table.sources)
+    return TableMerge().merge(base, extra, table.catalog)
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -140,7 +152,8 @@ def _pin_to_p_cores() -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="移したあとの確かめ", allow_abbrev=False)
     parser.add_argument("step", choices=("tables", "run", "summary"), help="tables（表を作る）・run（学習する）・summary（表を書く）")
-    parser.add_argument("--only", nargs="*", default=None, metavar="表", help="tables で作る表（form_pool / form_ability）")
+    parser.add_argument("--only", nargs="*", default=None, metavar="表",
+                        help="tables で作る表（form_pool / form_ability / form_pool_ability。最後のものは前の2つから作る）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="run で回す作り方（省略すると全部）")
     parser.add_argument("--force", action="store_true", help="run で、済んだ作り方も回し直す")
     parser.add_argument("--threads", type=int, default=6, help="run の学習のスレッド数（既定: 6）")

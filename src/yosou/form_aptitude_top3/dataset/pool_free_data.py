@@ -6,21 +6,27 @@ from dataclasses import replace
 
 from yosou.shared.dataset import PredictionData, TrainingData
 
-from ..feature import CATALOG, POOL_SUPPORT_NAMES
+from yosou.shared.feature import FeatureCatalog
+
+from ..feature import POOL_SUPPORT_NAMES
 
 
 class PoolFreeData:
-    """N の6列を外し、特徴量の一覧を今の材料（``CATALOG``。79個）にしたデータを返す。
+    """N の6列を外し、特徴量の一覧からも N を除いたデータを返す（当日のモデルなら 285個 → 279個）。
 
     当日に券種のオッズが無いレースは、N を使わないモデル（``POOL_FREE_FOLDER`` に置く）で予測する。
-    そのモデルは、N を足した学習データ（``pool_dataset_builder``）からこのクラスで N を外して学ぶので、
+    そのモデルは、当日の学習データ（``race_day_dataset_builder``）からこのクラスで N を外して学ぶので、
     学習データを2回作らなくてよい。
     """
 
     def training(self, data: TrainingData) -> TrainingData:
-        return replace(data, features=data.features.drop(columns=list(POOL_SUPPORT_NAMES), errors="ignore"),
-                       catalog=CATALOG)
+        return replace(data, features=self._without(data.features), catalog=self._catalog(data.catalog))
 
     def prediction(self, data: PredictionData) -> PredictionData:
-        return replace(data, features=data.features.drop(columns=list(POOL_SUPPORT_NAMES), errors="ignore"),
-                       catalog=CATALOG)
+        return replace(data, features=self._without(data.features), catalog=self._catalog(data.catalog))
+
+    def _without(self, features):
+        return features.drop(columns=list(POOL_SUPPORT_NAMES), errors="ignore")
+
+    def _catalog(self, catalog: FeatureCatalog) -> FeatureCatalog:
+        return FeatureCatalog(tuple(feature for feature in catalog.features if feature.name not in POOL_SUPPORT_NAMES))

@@ -32,7 +32,9 @@ def test_decision_compares_the_scores():
 
 def test_default_settings_load_and_overrides_apply(tmp_path: Path):
     defaults = BuyOrFadeSettings.load()
-    assert defaults.timing is PredictionTiming.RACE_DAY and defaults.k == 10 and defaults.fade_margin == 5.0
+    assert defaults.timing is PredictionTiming.RACE_DAY and defaults.k == 30 and defaults.fade_margin == 0.0
+    # 近さは、馬券外との AUC で上位 20列だけで測る（設計書 15 の 14）
+    assert (defaults.column_weighting, defaults.column_weighting_keep) == ("馬券外とのAUC", 20)
     # オッズなしで予想する（単勝オッズから見た評価 K は使わない。前走の人気などの人気の履歴 J は使う）
     assert defaults.group_weights["K"] == 0.0 and defaults.group_weights["J"] == 1.0
     override = tmp_path / "mine.toml"
@@ -57,12 +59,30 @@ def test_settings_reject_unknown_names_and_thursday(tmp_path: Path):
         BuyOrFadeSettings.load(late)
 
 
+def test_settings_reject_unknown_option_values(tmp_path: Path):
+    for text, name in (('[features]\nscaling = "対数"\n', "features.scaling"),
+                       ('[unit]\nsplit = "競馬場"\n', "unit.split"),
+                       ('[features]\ncategorical = "番号"\n', "features.categorical"),
+                       ('[features.column_weighting]\nmethod = "情報量"\n', "column_weighting.method"),
+                       ("[features.column_weighting]\nkeep = -1\n", "column_weighting.keep")):
+        path = tmp_path / "bad.toml"
+        path.write_text(text, encoding="utf-8")
+        with pytest.raises(ValueError, match=name):
+            BuyOrFadeSettings.load(path)
+
+
 def test_tune_last_year_splits_the_years_and_old_models_still_load():
     defaults = BuyOrFadeSettings.load()
     assert defaults.first_year <= defaults.tune_last_year < defaults.last_year
-    # tune_last_year を足す前に保存した一式は、全部の年を方針を決める年とみなして読める
-    saved = {name: value for name, value in defaults.to_dict().items() if name != "tune_last_year"}
-    assert BuyOrFadeSettings.from_dict(saved).tune_last_year == defaults.last_year
+    # あとから足した項目（tune_last_year・単位の分け方・そろえ方・カテゴリの直し方・列ごとの重み）を足す前に保存した
+    # 一式は、足す前と同じ作り方（全部の年を方針を決める年とみなす・芝ダートと距離・標準化・one-hot・重みなし）で読める
+    added_later = {"tune_last_year", "unit_split", "scaling", "categorical_encoding", "column_weighting",
+                   "column_weighting_keep"}
+    saved = {name: value for name, value in defaults.to_dict().items() if name not in added_later}
+    old = BuyOrFadeSettings.from_dict(saved)
+    assert old.tune_last_year == defaults.last_year
+    assert (old.unit_split, old.scaling, old.categorical_encoding, old.column_weighting, old.column_weighting_keep) == (
+        "芝ダートと距離", "標準化", "one-hot", "なし", 0)
 
 
 def test_stake_plan_and_summary():

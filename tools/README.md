@@ -66,7 +66,6 @@
 | 出走馬を能力指数の高い順に並べる（これから走るレースにも、終わったレースにも） | `uv run python tools/能力指数/ability.py --date 2026-09-27 --venue 中山 --race 11`（`--detail` で各馬の近5走のスピード指数、`--condition 稍重` で発表前の馬場状態、`--all` でその日の全レース） |
 | 当日のレースを予想して、買い（馬体重ありのモデルで複勝・期待値 1.2 以上。馬体重なしのモデルは「参考」で買わない）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース、`--date 2026-09-13` で別の日。重賞の日は、予想モデル「重賞の傾向と近走から3着以内を予想」の表も並ぶ（見せるだけで、買いには使わない。`--no-stakes` で出さない）） |
 | 当日の予想のモデルごとに、買いの線を学習に使っていない期間（線を選ぶ期間と確かめる期間）で確かめる | `uv run python tools/当日の予想/line_check.py`（数分。結果は `reports/当日の予想/線の確かめ.md`。設定は `predict_today.py` の `MODELS` に手で書く） |
-| 当日の予想を発走の約10分前のオッズで「買ったつもり」で記録し、結果で精算する（フォワードテスト） | `uv run python tools/フォワードテスト/follow.py`（開催日の間動き続ける。ふだんはタスク スケジューラが `tools/フォワードテスト/run.bat` を呼ぶ。登録は `register_schedule.bat`。成績は `reports/フォワードテスト/成績.md`） |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
 | 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日） |
 | テストを走らせる | `uv run python -m pytest -q` |
@@ -103,7 +102,6 @@
 | `傾向スコア/backtest.py` | 終わったレースを同じ採点にかけて、点数の順位別・人気の順位別・点数の帯別・点数の順位×人気の帯の成績7つを出す。1レースに数秒かかる | レースを選ぶ絞り込み（`--from` は必須）、`--sample N`（等間隔に間引く）、`--no-market`（人気を使う項目を外す）、線引きは上と同じ |
 | `能力指数/ability.py` | 1レースの出走馬の能力指数（基礎の速さ・距離／コース／馬場の適性・使った走の数）を高い順に。終わったレースなら、その走のスピード指数と着順も並ぶ。過去の全部の走のスピード指数は `reports/能力指数/cache/` にとっておき、DB に新しい確定成績が入ったときだけ作り直す（1〜2分） | 位置引数 rid、または `--date --venue --race`、`--all`（`--date`（と `--venue`）の全レース）、`--condition`、`--detail`、`--rebuild`（必ず作り直す）、`--cache` |
 | `当日の予想/predict_today.py` | 今日の、今より後に発走するレースを `custom_binary` のモデルで予想し、複勝の期待値が線（既定 1.2）以上の馬を「買い」として出す。重賞のレースには、重賞の予想の表も並べる（買いの判断には使わない）。結果は `reports/当日の予想/` にも書く | `--date`、`--after HH:MM`、`--line`、`--no-stakes`、`--stakes-models` |
-| `フォワードテスト/follow.py` | 開催日の間ずっと動き、各レースの発走の約10分前に当日の予想と同じモデル・同じ線で予想して、複勝を1点100円で「買ったつもり」として記録し、最後に精算して `reports/フォワードテスト/成績.md` を書く。ふだんはタスク スケジューラが毎朝動かす（登録は `register_schedule.bat`） | `--date` |
 | `検索画面/web.py` | ブラウザの検索画面（14タブ） | `--port`（既定 8767）、`--open`、`--idle`（既定 60 秒） |
 | `合成DB/synth.py` | テスト用の小さな DB を作る（確定成績の6レースと、確定前の2レース） | `--out PATH` |
 

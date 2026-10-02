@@ -37,7 +37,6 @@ from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
 from 当日の予想.stakes_predictor import StakesPredictor  # noqa: E402
 
 #: 「馬体重あり」の買いの線（研究「特徴量の組み合わせ探索」で、確かめる期間の結果から選んだ値）。
-#: フォワードテスト（tools/フォワードテスト/）が同じ線で記録しているので、結果の意味が途中で変わらないよう変えない。
 DEFAULT_LINE = 1.2
 #: 並べた順に試す。前のモデルで予想できない（馬体重が未発表など）ときは次を使う。
 #: 線と買うかどうかは、line_check.py で、学習に使っていない期間を「線を選ぶ期間」と「確かめる期間」に分けて確かめる
