@@ -18,6 +18,7 @@ from ..repository import POOLS
 from .ability import DAY_BEFORE_COLUMNS, RACE_DAY_COLUMNS, ability_columns
 from .feature import Feature
 from .head_to_head import HEAD_TO_HEAD_NAMES
+from .pace_forecast import PACE_FORECAST_NAMES
 from .feature_kind import FeatureKind
 from .prediction_timing import PredictionTiming
 
@@ -174,6 +175,11 @@ POOL_SUPPORT_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "N", _N, _RACE_
 #: 更新して作る。過去のレースの結果だけから作るので、木曜から分かる。作るのは ``group/head_to_head_rating_features.py``
 #: （部品は ``head_to_head/``）。研究「既存モデルの改善」で、近走と適性の予想に足して時点ごとに7つの区切りで比べる。
 HEAD_TO_HEAD_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "O", _N) for name in HEAD_TO_HEAD_NAMES)
+
+#: P. 展開の予想の結果（20個。どれも数値）。予想「展開から着順を予想」の前半・後半の展開の予想と、そのレース内の順位・偏差。
+#: その時点の展開のモデルの予測から作るので、どの時点でも分かる（木曜から）。作るのは ``group/pace_forecast_features.py``
+#: （部品は ``pace_forecast/``）。研究「既存モデルの改善」で、近走と適性の予想に足して時点ごとに7つの区切りで比べる。
+PACE_FORECAST_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "P", _N) for name in PACE_FORECAST_NAMES)
 
 
 @dataclass(frozen=True)
