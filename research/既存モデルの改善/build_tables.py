@@ -1,6 +1,6 @@
-"""5つの予想の学習データを、全期間（2017年1月〜DB の最後。重賞の予想は 2012年1月から）ぶん作って保存する（研究「既存モデルの改善」の入口①）。
+"""4つの予想の学習データを、全期間（2017年1月〜DB の最後）ぶん作って保存する（重賞の作り直したあとの表は stakes_rebuild.py）（研究「既存モデルの改善」の入口①）。
 
-    uv run python research/既存モデルの改善/build_tables.py                            # 5つ全部
+    uv run python research/既存モデルの改善/build_tables.py                            # 4つ全部
     uv run python research/既存モデルの改善/build_tables.py --only form_aptitude_top3  # 1つだけ
 
 出るもの: reports/既存モデルの改善/tables/<予想の名前>/（ids・features・targets・evaluation・baseline の pickle と meta.json）。
@@ -47,7 +47,7 @@ def _build(spec: ModelTableSpec, store: TableStore, args) -> list[object]:
 def _parser():
     parser = cli.build_parser(__doc__, limit=None)
     parser.add_argument("--only", nargs="*", default=None, metavar="予想の名前",
-                        help="作る予想（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level / stakes_tendency_top3）")
+                        help="作る予想（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level。重賞の表は stakes_rebuild.py で作る）")
     parser.add_argument("--tables", type=Path, default=_DEFAULT_OUT, help="保存する場所（既定: reports/既存モデルの改善/tables）")
     return parser
 

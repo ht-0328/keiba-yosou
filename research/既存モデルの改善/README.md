@@ -4,6 +4,7 @@
 （`plans/既存モデルの修正計画.md`）に沿って直し、**直す前（現行）・直した後（変更版）・オッズだけの基準**を、同じ期間・同じ時点で比べる研究。
 そのあと、直した予想を組み合わせた馬券の買い方を、過去のレースで確かめる。
 あとから作った重賞の予想（`src/yosou/stakes_tendency_top3`）も、同じ仕組みで、今の既定の作り方とオッズだけの基準を比べる（区切りは1年ずつ）。
+2026-10-02 に手本の新しい材料で作り直し、手本を重賞だけに使ったときとも比べた結果、重賞の専用モデルは引退した（`docs/02-結果の読み方.md` の 6-2）。
 
 - 予想そのものの直しは `src/yosou/`（予想のパッケージ）にある。この研究は、直した予想を**期間ごとに学習し直して比べる**道具と、**組み合わせた買い方の検証**を持つ。
 - 数値（JV-Data 由来の成績・回収率）は Git 対象外の `reports/既存モデルの改善/` に出す。この README と `docs/` には数値を書かない。
@@ -31,12 +32,13 @@
 
 | 場所 | 中身 |
 |---|---|
-| `build_tables.py` | 入口①: 5つの予想の学習データを、予想のパッケージの `dataset_builder` で全期間（2017年〜。重賞は 2012年〜）ぶん作って保存する |
+| `build_tables.py` | 入口①: 4つの予想の学習データを、予想のパッケージの `dataset_builder` で全期間（2017年〜）ぶん作って保存する（重賞の作り直したあとの表は入口⑨で作る。直す前の重賞の表は保存したものを読むだけ） |
 | `walk_forward.py` | 入口②: 区切りごとに学習し、検証とテストの予測を残す（作り方ごと） |
 | `upset_calc.py` | 入口③: 荒れ具合を、馬ごとの着順の確率と券種ごとの確定オッズから計算で出す |
 | `compare.py` | 入口④: 現行・オッズだけ・変更版を比べる表を出す（`--only form_experiments` で、材料の実験を変更版と比べた採否の表。重賞は既定・傾向を外す・オッズだけ） |
 | `backtest.py` | 入口⑤: 直した予想から馬の期待値と役割を決め、券種で期待値を積んで買う買い方を、過去のレースで確かめる。勝負するレースの選び方（1日3レースまで・軸の確率の帯 など）ごとにも比べる |
 | `build_experiments.py` | 入口⑥: 材料を1つずつ足す実験の表を作る（能力指数・当日の馬場傾向 など） |
+| `stakes_rebuild.py` | 入口⑨: 重賞の予想を手本の新しい材料で作り直したあとの確かめ。学習データの表を作り（`tables`）、作り直し・K を外したもの・K の見直し・手本を重賞だけに使ったとき・オッズだけを、1年ずつの7つの区切りで学ぶ（`run`）。比べ方の表は `compare.py --only stakes_tendency_top3` |
 | `calibration.py` | 入口⑦: 穴馬の予想の確率のずれを、7つの区切り × 3つの時点で確かめ、較正（Platt scaling・isotonic regression）と比べる（issue #31） |
 | `h2h_check.py` | 入口⑧: 対戦レーティング（全頭の予想のまとまり O）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`tables` → `run` → `summary` の3段） |
 | `pace_check.py` | 入口⑨: 予想「展開から着順を予想」の前半・後半の展開の予想の結果（全頭の予想のまとまり P）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`fill` → `tables` → `run` → `summary` の4段。今の予想の予測は入口⑧のものを使う） |
@@ -63,6 +65,7 @@
 | `betting/` | 買い方の検証（確率の補正・賭け金・券種で期待値を積む・勝負するレースを検証期間で決める・勝負するレースの選び方を比べる） |
 | `experiments/`・`repository/` | 材料を1つずつ足す実験（と、そのための元DB の読み出し） |
 | `calibration/` | 確率のずれを測る材料の表と、較正の方法の比べ方 |
+| `stakes_rebuild/` | 重賞の予想の作り直しの確かめ（表・作り方・重賞の行の取り出し・K の見直し・採用の基準・比べ方の表） |
 | `head_to_head/` | 対戦レーティングを足した比べ（元の表に7列を足す・時点ごとの作り方・区切りごとの採否） |
 | `pace_forecast/` | 展開の予想の結果を足した比べ（展開の年ごとの予測を読む・抜けた年を作り足す・元の表に 20列を足す・時点ごとの作り方） |
 
@@ -87,6 +90,9 @@ uv run python research/既存モデルの改善/backtest.py --selection current 
 uv run python research/既存モデルの改善/build_experiments.py                              # ⑥ 材料の実験の表
 uv run python research/既存モデルの改善/walk_forward.py --model form_experiments          # ⑥ 材料の実験（2時間ほど）
 uv run python research/既存モデルの改善/compare.py --only form_experiments                # ⑥ 材料の実験の採否の表
+uv run python research/既存モデルの改善/stakes_rebuild.py tables                         # ⑨ 重賞の作り直しの表（元DB を開く。10分ほど）
+uv run python research/既存モデルの改善/stakes_rebuild.py run                            # ⑨ 重賞の作り直し（1時間ほど。P コアに絞る）
+uv run python research/既存モデルの改善/compare.py --only stakes_tendency_top3           # ⑨ 重賞の作り直しの採否の表
 uv run python research/既存モデルの改善/calibration.py                                   # ⑦ 穴馬の確率のずれ（先に ② の穴馬を --timing 木曜・前日 でも回す）
 uv run python research/既存モデルの改善/h2h_check.py tables                              # ⑧ 対戦レーティングを足した表（元DB を開く。数分）
 uv run python research/既存モデルの改善/h2h_check.py run                                 # ⑧ 時点ごとに今の予想と足した作り方を学習（1つ 30〜60分。済んだものは飛ばす）

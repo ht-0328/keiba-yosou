@@ -11,7 +11,6 @@ from yosou.shared.dataset import HORSE_ID, HORSE_NO, RACE_DATE, RACE_ID, TOP3, B
 from yosou.shared.dataset.column_names import FIELD_SIZE, PLACE_ODDS_LOW, PLACE_PAYOUT, POPULARITY, WIN_PAYOUT
 from yosou.shared.feature import Feature, FeatureCatalog, FeatureKind, PredictionTiming
 from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE
-from yosou.stakes_tendency_top3.feature import CATALOG as STAKES_CATALOG
 
 from 既存モデルの改善.analysis.comparison import FormComparison
 from 既存モデルの改善.analysis.tables import STAKES_TABLE_PERIOD, spec_named
@@ -20,6 +19,8 @@ from 既存モデルの改善.analysis.walk_forward import PART, PART_TEST, PART
 from 既存モデルの改善.analysis.windows import STAKES_WINDOWS, WINDOWS, window_named, windows_of
 
 _STAKES = "stakes_tendency_top3"
+#: 重賞の直す前の作り方（85個）の表の特徴量の一覧（作り直したあとは、研究の側に残してある）。
+STAKES_CATALOG = spec_named(_STAKES).catalog
 
 
 def test_stakes_use_seven_yearly_windows_and_the_others_keep_half_years():
