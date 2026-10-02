@@ -13,6 +13,7 @@ from yosou.shared.workflow import AVERAGE, SegmentedPrediction
 
 from ..dataset import OddsInput, OddsResolver, PaceAttachment, PoolAvailability, PoolFreeData
 from ..feature import WIN_ODDS
+from .explained_prediction import ExplainedPrediction
 
 #: 予測の結果の、アンサンブルの確率の列の名前。
 PROBABILITY = "3着以内に入る確率"
@@ -54,13 +55,31 @@ class PredictionWorkflow:
         ``given`` は利用者が ``--odds`` で渡したオッズ（省略すると、元DB から決める）。
         当日に券種のオッズが無いレースは、N を使わないモデルで予測する（設計書 06 の図3）。
         """
+        data, predictor = self._prepared(race_id, timing, given)
+        return self._table(data, predictor)
+
+    def explain(self, race_id: str, timing: PredictionTiming,
+                given: OddsInput | None = None) -> ExplainedPrediction:
+        """``run`` と同じ予測に、モデルに渡した特徴量の値と、特徴量ごとの寄与（理由を見せる材料）を添える。"""
+        data, predictor = self._prepared(race_id, timing, given)
+        return ExplainedPrediction(
+            table=self._table(data, predictor), features=data.features,
+            contributions=predictor.contributions(data), timing=timing, pool_free=predictor is not self._predictor,
+        )
+
+    def _prepared(self, race_id: str, timing: PredictionTiming,
+                  given: OddsInput | None) -> tuple[PredictionData, SegmentedPrediction]:
+        """予測用データと、それを予測するモデル（当日に券種のオッズが無ければ、N を使わないモデル）。"""
         odds = self._odds_resolver.resolve(race_id, given)
         data = self._dataset_builder.build_prediction_data(race_id, timing, odds=odds)
         if self._pace is not None:
             data = PaceAttachment().apply(data, self._pace(race_id, timing, given))
-        predictor = self._predictor
         if self._pool_free is not None and self._pools.missing(data):
-            data, predictor = PoolFreeData().prediction(data), self._pool_free
+            return PoolFreeData().prediction(data), self._pool_free
+        return data, self._predictor
+
+    def _table(self, data: PredictionData, predictor: SegmentedPrediction) -> pd.DataFrame:
+        """予測の結果の表。"""
         predicted = predictor.predict(data)
         probability = predicted[AVERAGE].rename(PROBABILITY)
         members = predicted.drop(columns=[AVERAGE])
