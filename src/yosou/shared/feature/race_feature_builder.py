@@ -34,13 +34,13 @@ class RaceFeatureBuilder:
         """作るレース単位の特徴量の一覧。"""
         return self._catalog
 
-    def build(self, records: EntryRecords, payouts: pd.DataFrame, timing: PredictionTiming) -> pd.DataFrame:
+    def build(self, records: EntryRecords, race_results: pd.DataFrame, timing: PredictionTiming) -> pd.DataFrame:
         """``records.entries`` のレースごとの特徴量。index はレースID（出走の行に出てきた順）。
 
-        ``payouts`` はレースごとの払戻（対象のレースと、その前の1年）。過去の荒れ率の材料になる。
+        ``race_results`` はレースごとの結果（対象のレースと、その前のレース。荒れ具合の予想では払戻）。
         """
         horse_features = self._horse_feature_builder.build(records, PredictionTiming.RACE_DAY)
-        race_records = RaceRecords(records, horse_features, payouts)
+        race_records = RaceRecords(records, horse_features, race_results)
         parts = [group.build(race_records).reindex(race_records.race_ids) for group in self._groups]
         features = pd.concat(parts, axis=1)[list(self._catalog.names)]
         return typed_features(features, self._catalog.categorical)[list(self._catalog.columns_for(timing))]

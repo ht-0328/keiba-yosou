@@ -1,0 +1,28 @@
+# 展開から着順を予想する予想のハイパーパラメータの初期値（設計書 12・13 の「2. ハイパーパラメータの初期値」。手本と同じ値）。
+# 8種類のモデル（①〜⑦ と ⑦ の比べる基準）× 3つの時点は、同じ設定で学習する（設計書 14）。
+# 学習のコマンドに --config で別のファイルを渡すと、そのファイルに書いた項目だけが置き換わる。
+# ここに無い名前は書けない。目的関数（binary / multiclass / quantile / regression など）は変えられない（設計書 14）。
+
+[lightgbm]
+early_stopping_rounds = 100   # 検証データで、木を何本足しても良くならなければ止めるか
+min_category_count = 2000     # 学習データでの出走がこれより少ないカテゴリの値は「その他」にまとめる
+
+[lightgbm.params]             # LGBMClassifier・LGBMRegressor の引数。書いたものがそのまま渡る
+learning_rate = 0.05
+n_estimators = 2000
+num_leaves = 31
+min_child_samples = 100
+subsample = 0.8
+subsample_freq = 1
+colsample_bytree = 0.8
+random_state = 42
+
+[catboost]
+early_stopping_rounds = 100
+
+[catboost.params]             # CatBoostClassifier・CatBoostRegressor の引数。書いたものがそのまま渡る
+learning_rate = 0.05
+iterations = 2000
+depth = 6
+l2_leaf_reg = 3
+random_seed = 42

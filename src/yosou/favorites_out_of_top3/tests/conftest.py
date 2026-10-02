@@ -19,13 +19,11 @@ from 共通 import db
 
 from yosou.shared.dataset import TrainingData, TrainingPeriod
 from yosou.shared.evaluation import TrainingReport
-from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
-from yosou.shared.workflow import TrainingWorkflow
+from yosou.shared.workflow import SegmentedTraining
 
 from ..dataset import dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import TIMINGS
+from ..workflow import SEGMENTS, TIMINGS
 
 
 @pytest.fixture(scope="session")
@@ -37,13 +35,11 @@ def training_data(season_db: Path, season_period: TrainingPeriod) -> TrainingDat
 
 @pytest.fixture(scope="session")
 def trained(season_db: Path, fast_settings_path: Path, season_period: TrainingPeriod,
-            tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, TrainingReport]:
-    """学習の流れを1回通して、モデルを置いたフォルダと学習の結果を返す。"""
+            tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, list[tuple[str, TrainingReport]]]:
+    """人気帯ごとの学習を1回通して、モデルを置いたフォルダと（人気帯, 学習の結果）の並びを返す。"""
     models = tmp_path_factory.mktemp("favorite-models")
     with db.open_db(season_db) as con:
-        workflow = TrainingWorkflow(
-            dataset_builder(con), season_period, ModelRepository(models, MEMBER_TYPES),
-            TIMINGS, DEFAULT_SETTINGS_PATH,
-        )
-        report = workflow.run(fast_settings_path)
-    return models, report
+        training = SegmentedTraining(SEGMENTS, dataset_builder(con), season_period, models, TIMINGS,
+                                     DEFAULT_SETTINGS_PATH)
+        training_data = training.read_training_data()
+    return models, training.train(training_data, fast_settings_path)

@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from yosou.shared.tests import synthetic_season as season
+from 合成DB import synth
 from 検索画面 import server
 
 
@@ -198,8 +200,8 @@ def test_shutdown_stops_server_only_from_local_origin(synth_db: Path):
 
 
 @pytest.fixture
-def trend_web(trend_db: Path):
-    yield from serve(trend_db, today=lambda: CARD_TODAY)
+def trend_web(trend_db: Path, tmp_path: Path):
+    yield from serve(trend_db, today=lambda: CARD_TODAY, ability_cache=tmp_path / "ability-cache")
 
 
 def test_trend_json_csv_and_errors(trend_web: str):
@@ -227,3 +229,35 @@ def test_static_parts_are_served_by_name_only(web: str):
     assert status == 200 and "javascript" in headers["Content-Type"] and b"window.TrendView" in body
     assert get(web, "/static/index.html")[0] == 404 and get(web, "/static/../server.py")[0] == 404
     assert '<script src="/static/trend.js"></script>' in get(web, "/")[2].decode("utf-8")
+
+
+def test_ability_json_csv_and_errors(trend_web: str):
+    rid = "2025041905010102"  # 2025-04-19 東京 2R 出馬表
+    status, _, body = get(trend_web, "/api/ability", {"rid": rid, "condition": "良"})
+    data = json.loads(body)
+    assert status == 200 and data["ranking"]["columns"][:4] == ["順位", "馬番", "馬名", "能力指数"]
+    assert len(data["ranking"]["rows"]) == 6 and [no for no, _ in data["races"]] == [1, 2]
+    assert data["history"]["columns"][-1] == "スピード指数"
+    status, headers, body = get(trend_web, "/api/ability", {"rid": rid, "part": "ranking", "format": "csv"})
+    assert status == 200 and headers["Content-Type"].startswith("text/csv") and body.count(b"\n") == 7  # 見出し + 6頭
+    assert get(trend_web, "/api/ability", {"rid": rid, "part": "nope", "format": "csv"})[0] == 400
+    assert get(trend_web, "/api/ability", {"rid": rid, "condition": "晴"})[0] == 400
+
+
+@pytest.fixture
+def stakes_web(tmp_path: Path):
+    """月の最初の土曜に重賞「テスト記念」（G3・特別競走番号 9001）がある、架空の1シーズンの合成DB。"""
+    yield from serve(synth.build_db(tmp_path / "season.duckdb", season.SeasonBuilder().build()))
+
+
+def test_stakes_list_detail_csv_and_errors(stakes_web: str):
+    table = json.loads(get(stakes_web, "/api/stakes")[2])
+    assert [row[:3] for row in table["rows"]] == [["9001", "G3", "テスト記念"]]
+    status, headers, _ = get(stakes_web, "/api/stakes", {"format": "csv"})
+    assert status == 200 and headers["Content-Type"].startswith("text/csv")
+    detail = json.loads(get(stakes_web, "/api/stakes/detail", {"no": "9001"})[2])
+    assert detail["stakes_name"] == "テスト記念" and detail["markdown"].startswith("# テスト記念（G3）の攻略ポイント")
+    by_name = json.loads(get(stakes_web, "/api/stakes/detail", {"name": "テスト", "before": "2024-06-01"})[2])
+    assert by_name["stakes_no"] == "9001" and by_name["markdown"] != detail["markdown"]
+    assert get(stakes_web, "/api/stakes/detail", {"no": "0000"})[0] == 400
+    assert get(stakes_web, "/api/stakes", {"before": "2000-01-01"})[0] == 400

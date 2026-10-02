@@ -2,7 +2,7 @@
 
 **この文書で示すこと:** 学習と予測のとき、利用者・jvdata-store・元DB と、[04-classes.md](04-classes.md) のクラスが、どの順に、どのメソッドを呼ぶか。
 
-**結論: 流れは「学習」と「予測」の2つに分かれる。** 学習は `TrainingWorkflow` が進め、3つの時点ごとに LightGBM と CatBoost を学習させて保存する。予測は `PredictionWorkflow` が進め、その時点の予測用データを作り、保存した2つのモデルで予測確率を出して平均する。
+**結論: 流れは「学習」と「予測」の2つに分かれる。** 学習は `TrainingWorkflow` が進め、時点ごとに LightGBM と CatBoost を学習させて保存する。時点によって材料が違うので、`train` は材料ごとに `TrainingWorkflow` を使う（木曜・前日は馬の力の材料、当日は今の材料、当日の「券種オッズなし」は今の材料から券種の支持を外したもの）。予測は `PredictionWorkflow` が進め、その時点の予測用データを作り、保存した2つのモデルで予測確率を出して平均する。
 
 - public メソッドの中の判断（if 文による分かれ道）は [06-flowchart.md](06-flowchart.md) を参照。2種類の図の使い分けは [01-overview.md](01-overview.md) の「図の使い分け」を参照。
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
@@ -18,7 +18,7 @@
 | 元DB | jvdata-store が作った DuckDB。この AI は読むだけ | SQL を1回流す | ある |
 | `TrainingWorkflow` など | この AI のクラス。一覧と仕事は [04-classes.md](04-classes.md) を参照 | public メソッドを1回呼ぶ | ある（`src/yosou/form_aptitude_top3/`） |
 | `LGBMClassifier`・`CatBoostClassifier` | ライブラリのクラス | `fit()` か `predict_proba()` を1回呼ぶ | ライブラリはある |
-| モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/form_aptitude_top3/models/` にできる |
+| モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/近走と適性から3着以内を予想/models/` にできる |
 
 ## 図の読み方
 
@@ -53,30 +53,30 @@ sequenceDiagram
     W->>H: load（設定ファイルのパス）
     H-->>W: 設定
     W->>D: build_training_data（期間）
-    D->>L: load（ウォームアップの始まり。既定は 2020年1月1日）
+    D->>L: load（ウォームアップの始まり）
     L->>L: リポジトリを順に呼んで記録を集める（図3）
     L-->>D: 出走の記録
     D->>RS: training_samples（出走の行、学習データの始まり）
     RS->>RS: 入れる行を選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
-    F-->>D: 特徴量 74個
+    F-->>D: 特徴量（当日の学習データは 285個、馬の力の材料は 206個）
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数
     D-->>W: 学習データ
     W->>S: split（学習データ）
     S-->>W: 学習データ・検証データ・テストデータ
-    loop 3つの時点（木曜・前日・当日）ごと
+    loop 学習する時点ごと（今の材料は当日、馬の力の材料は木曜・前日）
         W->>W: LightGbmModel を作り、その時点の列だけで学習させる（12-lightgbm.md の 4.）
         W->>W: CatBoostModel を作り、その時点の列だけで学習させる（13-catboost.md の 4.）
         W->>MR: save（時点、2つのモデル、設定）
         MR-->>W: 保存した
     end
-    W->>W: 検証データで当たり具合を確かめる（穴馬の 16-evaluation.md）
+    W->>W: 検証データで当たり具合を確かめる（16-evaluation.md）
     W-->>U: 確かめた結果
 ```
 
-**説明。** 利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量 74個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。3つの時点ごとに、2つのモデルを学習させ、`ModelRepository` で保存する。モデルは合わせて6つになる。
+**説明。** この図は、1つの材料の学習である。`train`（`TrainCommand`）は、当日の材料（`race_day_dataset_builder`。今の材料・N・M。期間は `--train-from` から）と馬の力の材料（`ability_dataset_builder`。期間は `--ability-train-from`、既定は 2012年1月から。木曜・前日）の2つの `TrainingWorkflow` で学習データを読み、元DB を閉じてから、それぞれ学習する。さらに、今の材料の学習データから券種の支持（N）を外したもの（`PoolFreeData`）で、当日の「券種オッズなし」のモデルを学び、`models/券種オッズなし/race_day/` に保存する。利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量の全部で作る（単勝オッズと券種オッズは確定オッズ）。各時点のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。時点ごとに2つのモデルを学習させ、`ModelRepository` で保存する。モデルは、3つの時点と「券種オッズなし」の当日で、合わせて8つになる。
 
 ## 図2. 予測
 
@@ -103,6 +103,10 @@ sequenceDiagram
         U->>JS: jvstore realtime（開催日）
         JS->>DB: 馬場状態・出馬表の変更・締め切り前のオッズ（当日は馬体重も）を書き込む
     end
+    opt 当日だけ
+        U->>JS: jvstore realtime（全券種の速報オッズ 0B30）
+        JS->>DB: 券種ごとの締め切り前のオッズを書き込む
+    end
     U->>W: run（レースID、時点、--odds で渡したオッズ）
     W->>OR: resolve（レースID、渡されたオッズ）
     OR->>AO: read（レースID）
@@ -121,6 +125,7 @@ sequenceDiagram
     D->>C: check（特徴量）
     C-->>D: 要る情報（馬番・馬場状態・馬体重・オッズ）はそろっている
     D-->>W: 予測用データ（1行 = 1頭）
+    W->>W: 当日に券種のオッズが無ければ、N を外して券種オッズなしのモデルにする（06-flowchart.md の図3）
     W->>MR: load（時点）
     MR-->>W: その時点の LightGbmModel と CatBoostModel
     W->>E: predict_proba（予測用データ）
@@ -129,7 +134,7 @@ sequenceDiagram
     W-->>U: 1頭ずつの「3着以内に入る確率」
 ```
 
-**説明。** 利用者は、まず jvdata-store の `jvstore sync` で、出走馬名表（木曜）か出馬表（前日から）と、出走別着度数・調教を取り込む。前日と当日は、`jvstore realtime` で速報（締め切り前のオッズを含む）も取り込む。次に、レースIDと時点（前日・当日なら、必要に応じて `--odds` のオッズも）を付けて `PredictionWorkflow.run()` を呼ぶ。`PredictionWorkflow` は、まず `OddsResolver` に予測に使うオッズを決めさせる（渡されたオッズ → `AnnouncedOddsRepository` が読む締め切り前のオッズ → 無し、の順。[07-prediction-timing.md](07-prediction-timing.md#予測のときのオッズの与え方)）。次に `DatasetBuilder` に予測用データを作らせ、`ModelRepository` からその時点のモデル2つを読み込み、`EnsembleModel` で予測確率を平均する。予測用データも、学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md) の 4）。木曜は馬番が決まっていないので、馬番ではなく馬ごとに返す。
+**説明。** 利用者は、まず jvdata-store の `jvstore sync` で、出走馬名表（木曜）か出馬表（前日から）と、出走別着度数・調教を取り込む。前日と当日は、`jvstore realtime` で速報（締め切り前のオッズを含む）も取り込む。次に、レースIDと時点（前日・当日なら、必要に応じて `--odds` のオッズも）を付けて `PredictionWorkflow.run()` を呼ぶ。`PredictionWorkflow` は、まず `OddsResolver` に予測に使うオッズを決めさせる（渡されたオッズ → `AnnouncedOddsRepository` が読む締め切り前のオッズ → 無し、の順。[07-prediction-timing.md](07-prediction-timing.md#予測のときのオッズの与え方)）。次に `DatasetBuilder` に予測用データを作らせ（木曜・前日は馬の力の材料の `ability_dataset_builder`、当日は今の材料・N・M の `race_day_dataset_builder`。コマンドが時点で選んで渡す）、当日に券種のオッズが無ければ券種の支持を外して「券種オッズなし」のモデルに切り替え、`ModelRepository` からその時点のモデル2つを読み込み、`EnsembleModel` で予測確率を平均する。予測用データも、学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md) の 4）。木曜は馬番が決まっていないので、馬番ではなく馬ごとに返す。
 
 ## 図3. 記録を集める（リポジトリとのやりとり）
 
@@ -145,6 +150,9 @@ sequenceDiagram
     participant R4b as WorkoutCoverageRepository
     participant R5 as PeopleDayRepository（騎手）
     participant R6 as PeopleDayRepository（調教師）
+    participant R7 as MarketRunRepository
+    participant R8 as AbilitySourcesLoader
+    participant R9 as PoolProbabilityLoader
     participant DB as 元DB
     L->>R1: read（対象）
     R1->>DB: SQL（出走の行）
@@ -175,9 +183,19 @@ sequenceDiagram
     R6->>DB: SQL（調教師の日ごとの成績）
     DB-->>R6: 行
     R6-->>L: 調教師の成績
+    L->>R7: read（対象）
+    R7->>DB: SQL（期間の平地の全出走の単勝オッズと着順）
+    DB-->>R7: 行
+    R7-->>L: 過去の全出走のオッズと着順
+    L->>R8: load（対象）
+    R8->>DB: SQL 4本（2011年からの全出走と馬主・生産者・母、スピード指数、調教のまとめ、セリの取引）
+    R8-->>L: 馬の力の材料の元の記録
+    L->>R9: read（対象のレース）
+    R9->>DB: SQL 6本（券種ごとの、確定か最新の断面のオッズから馬ごとの確率）
+    R9-->>L: 券種ごとの馬の確率
 ```
 
-**説明。** 学習のときは、`HistoryRecordsLoader` が、`FactTableRepository.ensure()` で事実表を用意してから、この流れを呼ぶ。
+**説明。** 学習のときは、`HistoryRecordsLoader` が、`FactTableRepository.ensure()` で事実表を用意してから、この流れを呼ぶ。`MarketRunRepository` は、まとまり L（騎手・調教師・血統の市場に対する成績。[09-features.md の L](09-features.md#l-騎手調教師血統の市場に対する成績4個)）の材料を読む。ローダーが作られるときに渡されたときだけ呼び、この予想は今の材料で渡す。オッズから見た3着以内率はレースの全頭のオッズから出すので、対象の出走だけでなく、対象の開催日の前 365日の全レースを読む。`AbilitySourcesLoader`（まとまり M の元の記録。馬の力の材料で渡す）と `PoolProbabilityLoader`（まとまり N の券種ごとの確率。今の材料で渡す）も、渡されたときだけ呼ぶ。M は通算の成績を 2011年から数えるので、対象が1レースでも、その前の全出走を読む。スピード指数は道具「能力指数」がとっておいたファイルを読み、DB に新しい成績が入っていれば作り直す（1〜2分）。
 
 ## 図4. 1レースの記録を集める（速報の反映）
 
@@ -225,14 +243,14 @@ sequenceDiagram
 
 ## まだ決まっていないところ
 
-クラスは作ってある（[04-classes.md](04-classes.md)）。次のところは、まだ決まっていないか、仮の作りである。
+クラスは作ってある（[04-classes.md](04-classes.md)）。次のところは、はじめは決まっていないか、仮の作りだった。今の状態を右の列に書く。
 
 | 図の中の部分 | 今の状態 |
 |---|---|
-| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 穴馬の予想の設計書で決めた（[穴馬の 16](../穴馬が3着以内に入るかを予想/16-evaluation.md)。2025年7月から検証、2026年1月からテスト。ログ損失・AUC・Brier に、人気の基準との比べ方と同じ人気の中での AUC を足した。どの予想でも同じ） |
-| アンサンブルの平均のしかた | 仮に単純な平均。次の設計書で決める |
-| 学習をやり直す間隔 | 決まっていない。次の設計書で決める |
-| 予測確率を利用者に見せる形（表・画面など） | 決まっていない。次の設計書で決める |
+| 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | 決めた（[16-evaluation.md](16-evaluation.md)。既定の区切りと指標は穴馬の予想と共通。予想を直すときは 7つの半年の区切りで確かめる） |
+| アンサンブルの平均のしかた | 決めた。重みを付けない単純な平均（[03-library-basics.md の 6.](03-library-basics.md#6-2つの予測確率を合わせる)、[15-decisions.md の 8](15-decisions.md#8-アンサンブルの平均のしかた)） |
+| 学習をやり直す間隔 | 決めていない。利用者が `train` を実行したときに学習し直す。目安は半年（[16-evaluation.md の「今はしないこと」](16-evaluation.md#今はしないこと)） |
+| 予測確率を利用者に見せる形（表・画面など） | 決めた。確率の高い順の表（[04-classes.md の「コマンドの引数」](04-classes.md#コマンドの引数)、[15-decisions.md の 10](15-decisions.md#10-予測の表の形とコマンドの引数)） |
 
 ## 文書情報
 
@@ -240,3 +258,8 @@ sequenceDiagram
 |---|---|
 | 作成日 | 2026-09-21 |
 | 更新 | 2026-09-23: 図2・図4 に、予測に使うオッズを決めて反映する段を足した |
+| 更新 | 2026-09-28: 「まだ決まっていないところ」を、16-evaluation.md と 15-decisions.md の 8〜10 で決めた状態に直した |
+| 更新 | 2026-09-28: 図1の特徴量の数を 75個にそろえた |
+| 更新 | 2026-09-30: まとまり L（騎手・調教師・血統の市場に対する成績）の4個を足し、図1と説明の特徴量の数を 79個にそろえた。図3に、L の材料を読む `MarketRunRepository` を足した |
+| 更新 | 2026-10-01: 研究「一番人気を疑う」の直し方を移したのに合わせて、図1を材料ごとの学習に、図2に当日の券種オッズの取り込みとモデルの切り替えを、図3に `AbilitySourcesLoader`・`PoolProbabilityLoader` を足した |
+| 更新 | 2026-10-02: 当日のモデルにも馬の力の材料（M。今の材料と名前の重なる2つを除く 200個）を足した（PR #52 の残課題。7つの区切りで基準を満たした）。当日は 285個、券種オッズなしは 279個 |

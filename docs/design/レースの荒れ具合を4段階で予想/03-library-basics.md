@@ -75,6 +75,7 @@ p_upset = p_mean[:, 1:].sum(axis=1)      # 中荒れ以上の確率（固い以�
 
 - 動かして分かったこと: 2つのライブラリとも、`predict_proba()` の各行の合計は 1 になり、`classes_` は `[0 1 2 3]` で一致した。`np.vstack` で平均しようとすると形が崩れる（共通の `EnsembleModel` を直す理由。[04-classes.md](04-classes.md#2-共通の部品に足すもの変えるもの)）。
 - 確かめたスクリプトは JV-Data を使っていない。出力の数字も、乱数のデータのものである。
+- 平均に重みは付けない（手本と同じ単純な平均。[15-decisions.md の 16](15-decisions.md#16-アンサンブルの重み)）。計算は共通の `EnsembleModel` の `combine()` が行い、二値分類と同じ `np.stack(…, axis=0).mean(axis=0)` で済む。
 
 ## この予想で使う機能と、書いてある文書
 

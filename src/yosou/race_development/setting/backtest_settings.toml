@@ -1,0 +1,17 @@
+# 年ごとの確かめ（backtest）の既定の設定（設計書 13 の 2）。初期値（default_settings.toml）のうち、ここに書いた項目だけを置き換える。
+# 年ごとの確かめでは、1年につき 18 のモデルを、7〜9年ぶん学習し直す。初期値のままだと1日近くかかるので、学習の速さを上げる。
+# 使った設定は、結果の表に書く。
+
+[lightgbm]
+early_stopping_rounds = 50
+
+[lightgbm.params]
+learning_rate = 0.1
+n_estimators = 1000
+
+[catboost]
+early_stopping_rounds = 50
+
+[catboost.params]
+learning_rate = 0.1
+iterations = 1000

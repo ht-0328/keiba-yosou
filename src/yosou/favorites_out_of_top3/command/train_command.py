@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+from itertools import chain
 from pathlib import Path
 
 from 共通 import db
@@ -16,18 +17,20 @@ from yosou.shared.dataset import (
     DEFAULT_VALID_FIRST_DAY,
     TrainingPeriod,
 )
-from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
-from yosou.shared.workflow import TrainingWorkflow
+from yosou.shared.workflow import SegmentedTraining
 
 from ..dataset import dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import TIMINGS
+from ..workflow import SEGMENTS, TIMINGS
+from .danger_threshold_step import DangerThresholdStep
 from .yosou_name import YOSOU_NAME
 
 
 class TrainCommand:
-    """``train``: 2つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。"""
+    """``train``: 人気帯ごと・2つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。
+
+    学習のあとに、時点ごと・人気帯ごとの危険の判定の線（検証データで決めたもの）も保存する。
+    """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -47,13 +50,12 @@ class TrainCommand:
             args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
         )
         with db.open_db(args.db) as con:
-            workflow = TrainingWorkflow(
-                dataset_builder(con), period, ModelRepository(args.models, MEMBER_TYPES),
-                TIMINGS, DEFAULT_SETTINGS_PATH,
-            )
-            training_data = workflow.read_training_data()
-        report = workflow.train(training_data, args.config)
-        return TrainingReportTables(report).tables()
+            training = SegmentedTraining(SEGMENTS, dataset_builder(con), period, args.models, TIMINGS, DEFAULT_SETTINGS_PATH)
+            training_data = training.read_training_data()
+        reports = training.train(training_data, args.config)
+        tables = list(chain.from_iterable(TrainingReportTables(report, label).tables() for label, report in reports))
+        thresholds = DangerThresholdStep().run(reports, SEGMENTS, args.models, TIMINGS)
+        return [*tables, thresholds]
 
     def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
         """学習データの期間の区切り（設計書 08 の 4）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""

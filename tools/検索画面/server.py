@@ -22,16 +22,19 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from 共通 import browse, card, events, explore, facts, horse, perf, race, render, runners, trend, trend_html  # noqa: E402
+from 共通 import browse, card, codes, events, explore, facts, horse, perf, race, render, runners, trend, trend_html  # noqa: E402
+from 共通.ability import AbilitySettings, AbilityTables, FigureCache, RaceAbility  # noqa: E402
+from 共通.ability.figure_cache import DEFAULT_FOLDER as FIGURE_CACHE_FOLDER  # noqa: E402
 from 共通.filters import FILTER_FIELDS, Filters  # noqa: E402
 from 成績集計 import check  # noqa: E402
+from 重賞攻略.guide import StakesGuide  # noqa: E402
 from 検索画面.session import DbSession  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 DEFAULT_PORT = 8767
 APP_NAME = "keiba-yosou"
 #: API の版。画面（index.html の PAGE_VERSION）と合わないときは、古いサーバーが動いていると分かる。API を変えたら両方を上げる。
-APP_VERSION = "5"
+APP_VERSION = "7"
 #: 古い版のサーバーを止めて入れ替えるとき、ポートが空くのを待つ上限（秒）。
 _REPLACE_TIMEOUT_SECONDS = 10.0
 #: 画面が1度に出す行数の上限。
@@ -40,6 +43,8 @@ MAX_LIMIT = 1000
 _CARD_PARTS: tuple[str, ...] = ("entries", "recent")
 #: 傾向スコアの CSV で選べる表（``TrendReport`` のメソッド名）。
 _TREND_PARTS: dict[str, str] = {"ranking": "ranking_table", "highlights": "highlight_table", "breakdown": "breakdown_table"}
+#: 能力指数の CSV で選べる表（``AbilityTables`` のメソッド名）。
+_ABILITY_PARTS: tuple[str, ...] = ("ranking", "history")
 #: 画面に配る部品（``共通/static`` のファイル名 → 種類）。ここに無い名前は配らない。
 _STATIC_FILES: dict[str, str] = {"trend.js": "text/javascript; charset=utf-8"}
 #: 誤りの種類と HTTP の状態。
@@ -81,11 +86,15 @@ def table_dict(table: render.Table) -> dict[str, Any]:
 
 
 class Backend:
-    """API の中身。1つの ``DbSession`` を使い回す。``today`` は「今日以降の出馬表」の基準日（テストで差し替える）。"""
+    """API の中身。1つの ``DbSession`` を使い回す。``today`` は「今日以降の出馬表」の基準日（テストで差し替える）。
+    ``ability_cache`` は、能力指数のために作った過去の走の指数をとっておく場所（テストで差し替える）。
+    """
 
-    def __init__(self, session: DbSession, today: Callable[[], date] = date.today) -> None:
+    def __init__(self, session: DbSession, today: Callable[[], date] = date.today, ability_cache: Path | None = None) -> None:
         self.session = session
         self.today = today
+        settings = AbilitySettings()
+        self._ability = RaceAbility(settings, FigureCache(settings, ability_cache or FIGURE_CACHE_FOLDER))
 
     def info(self) -> dict[str, Any]:
         return {"app": APP_NAME, "version": APP_VERSION, "db": str(self.session.path), "session": self.session.state()}
@@ -202,6 +211,40 @@ class Backend:
         if part not in _TREND_PARTS:
             raise ValueError(f"part は {', '.join(_TREND_PARTS)} のどれかです: {part}")
         return getattr(self._trend_report(query), _TREND_PARTS[part])()
+
+    def _ability_report(self, query: dict[str, list[str]]):
+        """``rid`` と、手で与える当日の馬場状態（``condition``）から、能力指数を出す。"""
+        condition = _first(query, "condition")
+        with self.session.use() as con:
+            return self._ability.rank(con, _first(query, "rid"), codes.condition_code(condition) if condition else None)
+
+    def ability(self, query: dict[str, list[str]]) -> dict[str, Any]:
+        """能力指数のランキングと各馬の近走。同じ日・同じ競馬場のレースも添える。"""
+        report = self._ability_report(query)
+        tables = AbilityTables()
+        with self.session.use() as con:
+            races = card.same_day_races(con, _first(query, "rid"))
+        return {"header": report.header, "title": card.header_title(report.header), "ranking": table_dict(tables.ranking(report)),
+                "history": table_dict(tables.history(report)), "races": races}
+
+    def ability_table(self, query: dict[str, list[str]]) -> render.Table:
+        """能力指数の表を1つ（CSV 用）。``part`` は ``ranking``（ランキング）か ``history``（各馬の近走）。"""
+        part = _first(query, "part", _ABILITY_PARTS[0])
+        if part not in _ABILITY_PARTS:
+            raise ValueError(f"part は {', '.join(_ABILITY_PARTS)} のどれかです: {part}")
+        return getattr(AbilityTables(), part)(self._ability_report(query))
+
+    def stakes(self, query: dict[str, list[str]]) -> render.Table:
+        """重賞の一覧（``tools/重賞攻略/stakes.py --list`` と同じ）。``before`` でその日より前の開催だけで数える。"""
+        with self.session.use() as con:
+            return StakesGuide.load(con, _first(query, "before") or None).list_table()
+
+    def stakes_detail(self, query: dict[str, list[str]]) -> dict[str, Any]:
+        """1つの重賞の攻略ポイントのページ（``stakes.py --no`` / ``--name`` と同じ Markdown）。"""
+        with self.session.use() as con:
+            guide = StakesGuide.load(con, _first(query, "before") or None)
+        built = guide.page(guide.choose(_first(query, "no") or None, _first(query, "name") or None))
+        return {"stakes_no": built.stakes_no, "stakes_name": built.stakes_name, "markdown": built.markdown}
 
     def horses(self, query: dict[str, list[str]]) -> render.Table:
         with self.session.use() as con:
@@ -329,6 +372,14 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                 if _first(query, "format") == "csv":
                     return self._table(backend.trend_table(query), query, "trend")
                 return self._json(backend.trend(query))
+            if path == "/api/ability":
+                if _first(query, "format"):
+                    return self._table(backend.ability_table(query), query, "ability")
+                return self._json(backend.ability(query))
+            if path == "/api/stakes":
+                return self._table(backend.stakes(query), query, "stakes")
+            if path == "/api/stakes/detail":
+                return self._json(backend.stakes_detail(query))
             if path == "/api/horses":
                 return self._table(backend.horses(query), query, "horses")
             if path == "/api/horses/detail":
@@ -385,10 +436,12 @@ class _Server(ThreadingHTTPServer):
 
 
 def make_server(db_path: Path, port: int = DEFAULT_PORT, *, idle_seconds: float = 60.0,
-                today: Callable[[], date] = date.today) -> tuple[_Server, DbSession]:
-    """サーバーとセッションを作る（起動はしない）。テストは ``port=0`` で空きポートを使い、``today`` で基準日を固定する。"""
+                today: Callable[[], date] = date.today, ability_cache: Path | None = None) -> tuple[_Server, DbSession]:
+    """サーバーとセッションを作る（起動はしない）。テストは ``port=0`` で空きポートを使い、``today`` で基準日を固定し、
+    ``ability_cache`` で能力指数のとっておき場所を一時フォルダにする。
+    """
     session = DbSession(db_path, idle_seconds=idle_seconds)
-    server = _Server(("127.0.0.1", port), make_handler(Backend(session, today)))
+    server = _Server(("127.0.0.1", port), make_handler(Backend(session, today, ability_cache)))
     return server, session
 
 

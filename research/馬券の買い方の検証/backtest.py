@@ -23,12 +23,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import cli, db  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
+from yosou.shared.betting import TicketType  # noqa: E402
+from yosou.shared.repository import RaceDayRange  # noqa: E402
+
 from 馬券の買い方の検証.analysis import periods  # noqa: E402
 from 馬券の買い方の検証.analysis.column_names import RACE_ID  # noqa: E402
 from 馬券の買い方の検証.analysis.loading import MarketBooks, MarketBooksLoader, MaterialsLoader  # noqa: E402
 from 馬券の買い方の検証.analysis.participation import PATTERNS, PATTERNS_BY_KEY  # noqa: E402
 from 馬券の買い方の検証.analysis.race_material import RaceMaterials  # noqa: E402
-from 馬券の買い方の検証.analysis.repository import RaceDayRange  # noqa: E402
 from 馬券の買い方の検証.analysis.search import (  # noqa: E402
     CHOSEN_LIMIT,
     AdoptionRule,
@@ -42,7 +44,7 @@ from 馬券の買い方の検証.analysis.search import (  # noqa: E402
 from 馬券の買い方の検証.analysis.settlement import OddsFloorCut, PlanSettler, SettlementTable  # noqa: E402
 from 馬券の買い方の検証.analysis.summary import PlanSummaryTables  # noqa: E402
 from 馬券の買い方の検証.analysis.summary.strategy_tables import StrategyTables  # noqa: E402
-from 馬券の買い方の検証.analysis.ticket import ALL_NARROW_PLANS, ALL_PLANS, ALL_WIDE_PLANS, TicketType  # noqa: E402
+from 馬券の買い方の検証.analysis.ticket import ALL_NARROW_PLANS, ALL_PLANS, ALL_WIDE_PLANS  # noqa: E402
 
 #: リポジトリ直下と、出力の置き場（Git 対象外の reports/）。
 _REPO_ROOT = Path(__file__).resolve().parents[2]

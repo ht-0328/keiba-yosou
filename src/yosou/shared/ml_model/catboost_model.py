@@ -11,8 +11,13 @@ import pandas as pd
 
 from ..dataset import TrainingData
 from ..setting import CatBoostSettings, HyperparameterSettings
+from .baseline_check import BaselineCheck
 from .catboost_encoder import CatBoostEncoder
 from .probability_model import FeatureData
+
+#: 基準を使って学んだかを、モデルのメタデータに書くときの名前と値。
+_USES_BASELINE_KEY = "uses_baseline"
+_YES = "1"
 
 
 class CatBoostModel:
@@ -20,6 +25,10 @@ class CatBoostModel:
 
     多クラス分類（``CatBoostMulticlassModel``）は、このクラスの目的関数・目的変数の渡し方・確率の取り出し方だけを
     変えたもの。学習・保存・読み込みの手順は同じである。
+
+    学習データに目的変数の基準（``TrainingData.baseline``）があれば、それを出発点（``Pool`` の ``baseline``）にして、
+    基準からの上げ下げだけを学ぶ（既存モデルの修正計画の 1・2）。予測では、木の出した値に基準を足して確率に戻す。
+    基準を使って学んだかどうかは、モデルのメタデータに書いて一緒に保存する。
     """
 
     name = "CatBoost"
@@ -31,6 +40,7 @@ class CatBoostModel:
         self._settings = settings
         self._encoder: CatBoostEncoder | None = None
         self._classifier: catboost.CatBoostClassifier | None = None
+        self._baseline_check = BaselineCheck(uses_baseline=False)
 
     @classmethod
     def from_settings(cls, settings: HyperparameterSettings) -> Self:
@@ -46,18 +56,23 @@ class CatBoostModel:
             **self._settings.params,
         )
         classifier.fit(
-            encoder.transform(train.features), self._label(train),
-            cat_features=list(encoder.categorical_columns),
-            eval_set=(encoder.transform(valid.features), self._label(valid)),
+            self._pool(encoder, train), eval_set=self._pool(encoder, valid),
             early_stopping_rounds=self._settings.early_stopping_rounds,
         )
+        uses_baseline = train.baseline is not None
+        classifier.get_metadata()[_USES_BASELINE_KEY] = _YES if uses_baseline else ""
         self._encoder, self._classifier = encoder, classifier
+        self._baseline_check = BaselineCheck(uses_baseline=uses_baseline)
         return self
 
     def predict_proba(self, data: FeatureData) -> np.ndarray:
-        """1頭ずつの、目的変数が 1 になる確率（設計書 13 の 5）。"""
+        """1頭ずつの、目的変数が 1 になる確率（設計書 13 の 5）。基準を使って学んだモデルは、基準を足して確率に戻す。"""
         encoder, classifier = self._trained()
-        return self._probabilities(classifier.predict_proba(encoder.transform(data.features)))
+        pool = catboost.Pool(encoder.transform(data.features), cat_features=list(encoder.categorical_columns))
+        if not self._baseline_check.uses_baseline:
+            return self._probabilities(classifier.predict_proba(pool))
+        raw = classifier.predict(pool, prediction_type="RawFormulaVal") + self._baseline_check.values_of(data)
+        return 1.0 / (1.0 + np.exp(-raw))
 
     @property
     def tree_count(self) -> int:
@@ -65,7 +80,7 @@ class CatBoostModel:
         return int(classifier.tree_count_)
 
     def save(self, path: Path) -> None:
-        """学習済みの ``CatBoostClassifier`` を書く。列名とカテゴリ特徴量の列名は、モデルの中に残る（設計書 13 の 6）。"""
+        """学習済みの ``CatBoostClassifier`` を書く。列名・カテゴリ特徴量の列名・基準を使ったかは、モデルの中に残る（設計書 13 の 6）。"""
         _, classifier = self._trained()
         classifier.save_model(str(path))
 
@@ -78,7 +93,17 @@ class CatBoostModel:
         model = cls(settings.catboost)
         model._encoder = CatBoostEncoder(columns, categorical_columns)
         model._classifier = classifier
+        uses_baseline = dict(classifier.get_metadata()).get(_USES_BASELINE_KEY, "") == _YES
+        model._baseline_check = BaselineCheck(uses_baseline=uses_baseline)
         return model
+
+    def _pool(self, encoder: CatBoostEncoder, data: TrainingData) -> catboost.Pool:
+        """ライブラリに渡すデータ。基準があれば、出発点（``baseline``）として付ける。"""
+        baseline = data.baseline.array() if data.baseline is not None else None
+        return catboost.Pool(
+            encoder.transform(data.features), self._label(data),
+            cat_features=list(encoder.categorical_columns), baseline=baseline,
+        )
 
     def _check_labels(self, train: TrainingData) -> None:
         """学習の前に目的変数を確かめる。二値分類では何もしない。"""

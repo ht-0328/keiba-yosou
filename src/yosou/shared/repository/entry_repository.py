@@ -9,9 +9,9 @@ from .target_scope import TargetScope
 
 #: 読む事実表の列（意味は ``tools/共通/facts.py`` の ``FACT_COLUMNS``）。
 _COLUMNS: tuple[str, ...] = (
-    # レース（競走名・レース番号・重量種別は、レース単位の予想が使う）
+    # レース（競走名・レース番号・重量種別は、レース単位の予想が使う。グレードコードは重賞の予想が行を選ぶのに使う）
     "race_id", "month", "venue_code", "venue", "race_no", "race_name", "surface", "course", "distance_m",
-    "condition_code", "condition", "class_order", "field_size", "mixed_sex", "weight_type",
+    "condition_code", "condition", "class_order", "grade_code", "field_size", "mixed_sex", "weight_type",
     # 馬
     "horse_id", "horse_name", "sex", "age", "affiliation", "frame_no", "horse_no", "carried",
     "body_weight", "weight_change", "blinker",
@@ -21,13 +21,16 @@ _COLUMNS: tuple[str, ...] = (
     "prev_finish", "prev_time_diff", "prev_popularity", "prev_last3f", "prev_last3f_rank",
     "prev_corner4", "prev_field_size", "interval_days",
     "distance_change", "surface_change", "class_change", "venue_change",
-    # 過去走からの累積と、同じレースの馬との比較
-    "style_before", "course_runs_before", "course_places_before",
+    # 過去走からの累積と、同じレースの馬との比較（同じ競走名での3着内は、重賞の予想が使う）
+    "style_before", "course_runs_before", "course_places_before", "same_race_places_before",
     "best_time_unit_rank", "best_time_dist_rank", "lead_candidates",
     # 血統
     "sire", "grandsire", "damsire",
     # 結果（特徴量にしない。行を選ぶ・目的変数・評価用の列に使う）
     "ran", "abnormal", "finish", "popularity", "win_odds", "win_payout", "place_payout",
+    # 展開の結果（特徴量にしない。展開から着順を予想する予想の目的変数と評価用の列に使う）
+    "track_code", "first_corner_no", "corner_count", "corner_laps_over_one", "first_corner_rank",
+    "first_corner_leader_no", "corner4", "last3f", "last3f_rank", "last3f_count", "first3f", "last3f_race",
 )
 
 

@@ -6,11 +6,13 @@ from pathlib import Path
 
 import duckdb
 
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import FinalOddsRepository, RaceDayRange
+
 from ..prediction import PredictionFile
 from ..prediction.prediction_sources import FAVORITES, FORM_APTITUDE, LONGSHOTS, UPSET_LEVEL
 from ..race_material import RaceMaterials, RaceTableBuilder, RunnerTableBuilder
-from ..repository import FinalOddsRepository, RaceDayRange, RaceFactRepository
-from ..ticket import TicketType
+from ..repository import RaceFactRepository
 
 
 class MaterialsLoader:

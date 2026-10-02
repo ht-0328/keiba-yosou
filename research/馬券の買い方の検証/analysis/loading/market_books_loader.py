@@ -6,9 +6,10 @@ from collections.abc import Callable
 
 import duckdb
 
-from ..repository import REFUNDED, FinalOddsRepository, PayoutFlagRepository, PayoutRepository, RaceDayRange, void_column
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import REFUNDED, FinalOddsRepository, PayoutFlagRepository, PayoutRepository, RaceDayRange, void_column
+
 from ..settlement import OddsBook, PayoutBook
-from ..ticket import TicketType
 from .market_books import MarketBooks
 
 

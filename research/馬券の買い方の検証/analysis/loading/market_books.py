@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from yosou.shared.betting import TicketType
+
 from ..settlement import OddsBook, PayoutBook
-from ..ticket import TicketType
 
 
 @dataclass(frozen=True)

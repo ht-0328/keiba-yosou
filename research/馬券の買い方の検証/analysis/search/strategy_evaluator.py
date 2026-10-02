@@ -13,7 +13,7 @@ from ..participation import ConfidenceJudge, RacePattern, UpsetJudge
 from ..settlement import SettlementTable
 from ..settlement.settlement_table import HIT_COUNT, PAYOUT_YEN, POINTS, STAKE_YEN
 from ..summary import ReturnSummary
-from ..ticket import plan_named
+from ..ticket import plan_named, upset_bet_of
 from .strategy import Strategy
 from .strategy_result import StrategyResult
 
@@ -51,7 +51,7 @@ class StrategyEvaluator:
         """荒れ判定に使う券種（広めの買い方の券種に対応するもの。広めが無ければ単勝）。"""
         if strategy.wide_plan is None:
             return BetType.WIN
-        return plan_named(strategy.wide_plan).ticket_type.spec.upset_bet
+        return upset_bet_of(plan_named(strategy.wide_plan).ticket_type)
 
     def _rows(self, plan_name: str | None, race_ids: Sequence[str]) -> pd.DataFrame:
         """その買い方の精算表の行のうち、選んだレースのもの。"""

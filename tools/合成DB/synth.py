@@ -30,7 +30,7 @@ _LAPS: tuple[str, ...] = tuple(f"ラップタイム_{i:02d}" for i in range(1, 2
 
 RA_COLUMNS: tuple[str, ...] = (
     *_HEADER, *KEY_COLUMNS,
-    "競走名本題", "競走名略称10文字", "グレードコード", "競走種別コード", "競走記号コード", "重量種別コード",
+    "競走名本題", "競走名略称10文字", "特別競走番号", "グレードコード", "競走種別コード", "競走記号コード", "重量種別コード",
     "競走条件コード 最若年条件", "競走条件名称", "距離", "トラックコード", "コース区分", "発走時刻",
     "登録頭数", "出走頭数", "入線頭数", "天候コード", "芝馬場状態コード", "ダート馬場状態コード",
     *_LAPS, "前3ハロン", "前4ハロン", "後3ハロン", "後4ハロン",
@@ -42,7 +42,7 @@ SE_COLUMNS: tuple[str, ...] = (
     "異常区分コード", "入線順位", "確定着順", "走破タイム", "着差コード",
     "1コーナーでの順位", "2コーナーでの順位", "3コーナーでの順位", "4コーナーでの順位",
     "単勝オッズ", "単勝人気順", "後4ハロンタイム", "後3ハロンタイム", "タイム差",
-    "マイニング区分", "マイニング予想順位", "今回レース脚質判定",
+    "マイニング区分", "マイニング予想順位", "今回レース脚質判定", "馬主コード",
 )
 PAYOUT_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "払戻金", "人気順")
 #: 組み合わせの券種（馬連・3連複・3連単）の払戻。組番は馬番を並べた文字列（馬連 ``0104``、3連単 ``040102``）。
@@ -59,7 +59,7 @@ TM_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "予測スコ�
 DM_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "予想走破タイム", "予想誤差(信頼度)＋", "予想誤差(信頼度)－")
 UM_COLUMNS: tuple[str, ...] = (
     *_HEADER, "血統登録番号", "生年月日", "馬名", "性別コード", "毛色コード", "東西所属コード",
-    "調教師コード", "調教師名略称", "生産者名(法人格無)", "産地名", "馬主名(法人格無)",
+    "調教師コード", "調教師名略称", "生産者名(法人格無)", "産地名", "馬主名(法人格無)", "生産者コード", "馬主コード",
 )
 PEDIGREE_COLUMNS: tuple[str, ...] = ("血統登録番号", "_連番", "繁殖登録番号", "馬名")
 
@@ -85,7 +85,10 @@ _WORKOUT_TIMES: tuple[str, ...] = (
     "2ハロンタイム合計(400M～0M)", "ラップタイム(400M～200M)", "ラップタイム(200M～0M)",
 )
 HC_COLUMNS: tuple[str, ...] = (*_HEADER, "トレセン区分", "調教年月日", "調教時刻", "血統登録番号", *_WORKOUT_TIMES)
-WC_COLUMNS: tuple[str, ...] = (*_HEADER, "トレセン区分", "調教年月日", "調教時刻", "血統登録番号", "コース", "馬場周り", *_WORKOUT_TIMES)
+WC_COLUMNS: tuple[str, ...] = (
+    *_HEADER, "トレセン区分", "調教年月日", "調教時刻", "血統登録番号", "コース", "馬場周り", "5ハロンタイム合計(1000M～0M)",
+    *_WORKOUT_TIMES,
+)
 #: 天候馬場状態。変更後・変更前の同じ名前の列は、実DB と同じく2つ目に「#2」が付く。
 WE_COLUMNS: tuple[str, ...] = (
     *_HEADER, *KEY_COLUMNS[:-1], "発表月日時分", "変更識別",
@@ -170,13 +173,13 @@ def race_key(day: str, no: str, *, venue: str = "05", kai: str = "01", nichi: st
 
 def race(day: str, no: str, *, venue: str = "05", track: str = "11", distance: str = "1600",
          turf: str = "1", dirt: str = "0", field_size: str = "05", entries: str = "06",
-         name: str = "", condition: str = "005", grade: str = " ", stage: str = "7",
-         laps: tuple[str, ...] = (), **over: str) -> dict[str, str]:
+         name: str = "", condition: str = "005", grade: str = " ", stakes_no: str = "",
+         stage: str = "7", laps: tuple[str, ...] = (), **over: str) -> dict[str, str]:
     """レース1行（既定: 東京 芝・左 1600m 良、条件 1勝クラス、5頭出走）。"""
     values = {
         "レコード種別ID": "RA", "データ区分": stage, "データ作成年月日": day,
         **race_key(day, no, venue=venue),
-        "競走名本題": name, "グレードコード": grade, "競走種別コード": "13", "競走記号コード": "000",
+        "競走名本題": name, "特別競走番号": stakes_no, "グレードコード": grade, "競走種別コード": "13", "競走記号コード": "000",
         "重量種別コード": "3", "競走条件コード 最若年条件": condition, "距離": distance, "トラックコード": track,
         "コース区分": "A ", "発走時刻": "1500", "登録頭数": entries, "出走頭数": field_size, "入線頭数": field_size,
         "天候コード": "1", "芝馬場状態コード": turf, "ダート馬場状態コード": dirt,
@@ -211,6 +214,7 @@ def runner(race_row: dict[str, str], num: int, pop: int, fin: int, *, hid: str |
         "単勝オッズ": odds, "単勝人気順": f"{pop:02d}", "後4ハロンタイム": "470", "後3ハロンタイム": last3f,
         "タイム差": f"{max(0, fin - 1) * 2:03d}" if fin else "9999", "マイニング区分": "3",
         "マイニング予想順位": f"{mining_rank if mining_rank is not None else pop:02d}", "今回レース脚質判定": style,
+        "馬主コード": "000001",
     }
     values.update(over)
     return _row(SE_COLUMNS, values)
@@ -319,7 +323,7 @@ def horse(hid: str, name: str, *, sex: str = "1", born: str = "20200401",
         "レコード種別ID": "UM", "データ区分": "1", "データ作成年月日": born, "血統登録番号": hid, "生年月日": born,
         "馬名": name, "性別コード": sex, "毛色コード": "01", "東西所属コード": "1",
         "調教師コード": trainer[0], "調教師名略称": trainer[1], "生産者名(法人格無)": "生産者A", "産地名": "産地A",
-        "馬主名(法人格無)": "馬主A",
+        "馬主名(法人格無)": "馬主A", "生産者コード": "00000001", "馬主コード": "000001",
     })
 
 

@@ -2,8 +2,6 @@
 
 | クラス | 仕事 |
 |---|---|
-| ``TicketType`` | 券種（単勝・複勝・馬連・馬単・ワイド・3連複・3連単）。表の名前や組の形は ``spec`` |
-| ``TicketTypeSpec`` | 券種ごとの決まりごと（払戻・オッズの表、馬の数、着順を区別するか、対応する荒れ具合の券種） |
 | ``Ticket`` | 買い目1つ（券種と馬番の組。順不同は昇順にそろえる）。``combo`` は払戻の組番と同じ形 |
 | ``FormationTickets`` | 列ごとの馬番の並びから買い目を作る（直積・同じ馬を除く・順不同は1つに） |
 | ``ColumnRule`` | 1列の指定（候補の選び方・頭数・前の列を含めるか・先の列の写しか） |
@@ -13,6 +11,9 @@
 | ``DangerousFavoriteFilter`` | 危険確率がしきい値以上の人気馬を候補から外す |
 | ``Breadth`` | 広め・少点数 |
 | ``picker/`` | 候補の選び方（近走の順・穴馬の順・人気順位 …） |
+
+券種（``TicketType``）は共通の ``yosou.shared.betting`` のものを使う。
+``upset_bet_of(券種)`` は、その券種の買い方でどの券種の荒れ具合を見るかの対応（複勝 → 単勝、ワイド・馬単 → 馬連）。
 """
 
 from .breadth import Breadth
@@ -34,13 +35,12 @@ from .ticket_plans import (
     WIDE_PLANS,
     plan_named,
 )
-from .ticket_type import TICKET_TYPE_CHOICES, TicketType
-from .ticket_type_spec import TicketTypeSpec
+from .upset_bet_of import upset_bet_of
 
 __all__ = [
-    "TicketType", "TicketTypeSpec", "TICKET_TYPE_CHOICES", "Ticket", "FormationTickets", "ColumnRule",
+    "Ticket", "FormationTickets", "ColumnRule",
     "TicketPlan", "PlanTickets", "TicketBuilder", "DangerousFavoriteFilter", "DANGEROUS_THRESHOLD", "Breadth",
     "ALL_PLANS", "NARROW_PLANS", "WIDE_PLANS", "VALUE_NARROW_PLANS", "VALUE_WIDE_PLANS", "ALL_NARROW_PLANS", "ALL_WIDE_PLANS",
-    "BASELINE_PLANS", "plan_named",
+    "BASELINE_PLANS", "plan_named", "upset_bet_of",
     "SKIP_NO_CANDIDATES", "SKIP_TOP_NOT_FAVORITE", "SKIP_LOW_ODDS",
 ]

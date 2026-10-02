@@ -1,6 +1,6 @@
 # 04 クラスとパッケージの設計
 
-**この文書で決めること:** 「1行 = 1レース」「4クラス」「券種ごとのモデル」を、手本の予想と共通の部品（`src/yosou/shared/`）の上にどう載せるか。共通の部品に何を足し、何を変えるか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。
+**この文書で決めること:** 「1行 = 1レース」「4クラス」「券種ごとのモデル」を、手本の予想と共通の部品（`src/yosou/shared/`）の上にどう載せるか。共通の部品に何を足し、何を変えるか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。学習と予測のコマンドの引数のうち、手本と違うものは何か。
 
 **結論: 記録を集める・1頭ごとの特徴量を作る・設定を読む・モデルを保存する、のクラスは共通のものをそのまま使う。共通の部品に足すのは、①1頭ごとの特徴量をレース単位に集約して学習データを作る `RaceDatasetBuilder`・`RaceFeatureBuilder`、②4列の確率を返す多クラス分類のモデル（`LightGbmMulticlassModel`・`CatBoostMulticlassModel`）とその決まり `ClassProbabilityModel`、③払戻とレースの結果を読む2つのリポジトリ、④4クラスの当たり具合を測るクラス、である。変えるのは、`EnsembleModel` の平均の1行と、`TrainingWorkflow`・`TrainingData`・`RequiredInfoCheck` に差し替え口を足すところだけである。手本の予想だけが持つオッズの部品（`MarketFeatures`・`OddsInput`・`OddsResolver`）は `shared` に移す。この予想だけに作るのは、レースを選ぶ・荒れ具合を付ける・まとまり A〜E を集約する・券種ごとにモデルを回す、のクラスとコマンドである。**
 
@@ -103,7 +103,10 @@
 
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
+| `ClassShareBaseline` | 学習データの4クラスの割合だけから作る2つの基準（常に最多クラス・クラスの割合をそのまま確率にする）の、検証データでの当たり具合を出す。値は時点によらないので、時点ごとに同じ値を返す（[16-evaluation.md](16-evaluation.md#3-比べる基準)） | `evaluate(時期で分けたデータ, 時点)` |
 | `UserRuleBaseline` | 利用者の規則（1番人気 4.0倍以上かつ 2〜5番人気の最大 10倍未満）を「中荒れ以上」の予想とみなして、的中率と再現率を出す（[16-evaluation.md](16-evaluation.md#3-比べる基準)） | `evaluate(データ)` |
+| `FavoriteOddsBaseline` | 特徴量を「1番人気のオッズ」の1つだけにして、同じ設定・同じ期間で LightGBM と CatBoost を学習し、検証データでの当たり具合を出す（基準「1番人気のオッズだけの予想」。時点は前日。モデルは保存しない） | `evaluate(時期で分けたデータ)` |
+| `UpsetThresholdSummary` | 平均の「中荒れ以上の確率」のしきい値ごとに、選ばれるレース数と、そのうち実際に中荒れ以上だった割合を数える（[16-evaluation.md の「荒れるレースだけ買う使い方の線引き」](16-evaluation.md#3-比べる基準)） | `summarize(アンサンブル, データ)` |
 
 ### workflow/ — 流れを進める
 
@@ -121,6 +124,7 @@
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
 | `TrainCommand` | この予想 | `train`: 学習する。期間の引数から `TrainingPeriod` を作る。`--bet` で券種を絞れる（既定は4つ全部）。学習データを1回作り、券種 × 時点のモデルを学習する | `add_parser(subparsers)`・`run(引数)` |
 | `PredictCommand` | この予想 | `predict`: 1レースの荒れ具合を予測する。`--odds 馬番:オッズ` で全頭の単勝オッズを受け取って `OddsInput` にし、`--bet` を `BetType` にする | `add_parser(subparsers)`・`run(引数)` |
+| `UpsetComparisonTables` | この予想 | `train` の報告のうち、この予想だけの4つの表（クラスの割合だけの基準との比べ・利用者の規則・しきい値ごとの線引き・1番人気のオッズだけの基準との比べ）を作る。値を計算するのは `evaluation/` のクラスで、ここは表の形にするだけ | `tables()` |
 | `CommonArguments` | `shared` | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`） | `add_to(parser)` |
 | `ClassTrainingReportTables`・`RacePredictionTable` | `shared` | 上の「2.」 | `tables()`・`table()` |
 
@@ -148,12 +152,12 @@ src/yosou/upset_level/              レースの荒れ具合を4段階で予想�
 ├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
 ├── dataset/                        レースを選ぶ・券種・荒れ具合・線引き・目的変数を付ける
 ├── feature/                        まとまり A〜E を集約するクラスと、この予想の特徴量の一覧
-├── evaluation/                     利用者の規則の基準
+├── evaluation/                     比べる基準（クラスの割合・利用者の規則・1番人気のオッズだけ）と、しきい値ごとの数え上げ
 ├── setting/                        ハイパーパラメータの初期値のファイル
 └── tests/                          テスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`UpsetLevelRule` → `upset_level_rule.py`）。学習したモデルは、Git の対象外の `reports/upset_level/models/<券種>/<時点>/` に保存する（券種ごとに `ModelRepository` を1つ作り、置き場所を変える。`ModelRepository` は変えない）。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`UpsetLevelRule` → `upset_level_rule.py`）。学習したモデルは、Git の対象外の `reports/レースの荒れ具合を4段階で予想/models/<券種>/<時点>/` に保存する（券種ごとに `ModelRepository` を1つ作り、置き場所を変える。`ModelRepository` は変えない）。
 
 | 決まり | 理由 |
 |---|---|
@@ -175,8 +179,26 @@ src/yosou/upset_level/              レースの荒れ具合を4段階で予想�
 | 利用者の規則を特徴量に入れる（[15 の 9](15-decisions.md#9-利用者の規則を特徴量に入れるか)） | `OddsShapeFeatures` に 1/0 の列を1つ足し、`CATALOG` を 50個にする |
 | 券種ごとにハイパーパラメータを変える（[15 の 14](15-decisions.md#14-券種ごとにハイパーパラメータを変えられるようにするか)） | 共通の `HyperparameterSettings` に、券種の表を重ねる段（`SettingsOverlay` の呼び出しが1段増える）を足す |
 
+## 6. コマンドの引数
+
+コマンドは `uv run python -m yosou.upset_level <train か predict> …` で動かす。**引数の多くは手本と同じである。** 共通の引数（`--models`・`--db`・`--format`・`--out`）、`train` の `--config` と期間の4つ、`predict` の `rid`・`--date`・`--venue`・`--race`・`--timing`・`--odds`、引数の決まりは、[手本の 04 の「コマンドの引数」](../近走と適性から3着以内を予想/04-classes.md#コマンドの引数) を参照。下の表は `--help` の出力とコードで確かめた、この予想で違うところだけである。
+
+| コマンド | 引数・出力 | この予想では |
+|---|---|---|
+| 共通 | `--models` の既定 | `reports/レースの荒れ具合を4段階で予想/models`。中は `<券種>/<時点>/`（券種は `win`・`quinella`・`trio`・`trifecta`、時点は `thursday`・`day_before`・`race_day`）に分かれる |
+| `train` | `--train-from` の既定 | 2012-01-01（DB にある全部。ウォームアップは省略すると 2011年）。手本は 2021-08-01（[15-decisions.md の 5](15-decisions.md#5-学習データの期間の既定)） |
+| `train` | `--bet 券種 …` | 学習する券種。`単勝`・`馬連`・`3連複`・`3連単` から1つ以上。省略すると4つ全部。学習データは1回だけ作り、券種ごとに目的変数の列を持ち替えて学習する |
+| `train` | 学習するモデル | 券種の数 × 3つの時点 × 2つのモデル（4券種なら 24個） |
+| `train` | 出す表 | 券種ごとに、学習データの期間（4クラスの割合）・検証データでの当たり具合・混同行列（平均の予測）・保存したモデル（`ClassTrainingReportTables`）と、この予想だけの4つの表（`UpsetComparisonTables`。[16-evaluation.md の 3.](16-evaluation.md#3-比べる基準)）。4つは、常に最多クラスとクラスの割合をそのまま確率にする基準との比べ（`ClassShareBaseline`。時点ごと）、利用者の規則を基準にしたときの当たり具合（`UserRuleBaseline`）、「荒れるレースだけ買う」使い方のしきい値ごとのレース数と中荒れ以上だった割合（`UpsetThresholdSummary`。時点ごと）、1番人気のオッズだけの予想との比べ（`FavoriteOddsBaseline`。前日・当日）。どれも検証データで測る |
+| `predict` | `--odds 馬番:オッズ …` | 意味は手本と同じ。この予想では、1番人気のオッズや2〜5番人気のオッズの形を特徴量にするので、全頭ぶん渡す。木曜は使わない |
+| `predict` | `--bet 券種 …` | 出す券種。省略すると4つ全部 |
+| `predict` | 出す表 | 1レースの、券種ごとの行（1行 = 1券種）。列は、券種・固い・中荒れ・大荒れ・超荒れの確率・いちばん高いクラス・中荒れ以上の確率。確率は LightGBM と CatBoost の平均で、モデルごとの確率は出さない（[15-decisions.md の 16](15-decisions.md#16-アンサンブルの重み)） |
+
 ## 文書情報
 
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-23 |
+| 更新 | 2026-09-28: 「6. コマンドの引数」を足した |
+| 更新 | 2026-09-30: `FavoriteOddsBaseline`・`UpsetThresholdSummary`・`UpsetComparisonTables` を足し、`--train-from` の既定を 2012-01-01 にした |
+| 更新 | 2026-10-01: `ClassShareBaseline`（常に最多クラス・クラスの割合の基準）を足した |

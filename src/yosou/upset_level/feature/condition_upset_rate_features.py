@@ -44,7 +44,7 @@ class ConditionUpsetRateFeatures:
 
     def build(self, records: RaceRecords) -> pd.DataFrame:
         races = self._with_keys(records.races[["race_date", "venue_code", "surface", "distance_m", "class_order"]])
-        history = self._with_keys(records.payouts)
+        history = self._with_keys(records.race_results)
         features = {
             **{course_rate_name(bet): self._rate(races, history, COURSE_KEY, bet) for bet in BetType},
             **{class_rate_name(bet): self._rate(races, history, CLASS_KEY, bet) for bet in BetType},

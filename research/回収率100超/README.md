@@ -5,7 +5,7 @@
 
 **なぜ今までのやり方では届かなかったか。** これまでの4つの予想（`src/yosou/`）は、馬柱（近走・適性・人・血統・調教）から
 「3着以内に入るか」を当てる学習をしていた。しかし、その情報は単勝オッズにすでに織り込まれていて、
-市場より正しい確率にはなっていなかった（`reports/form_aptitude_top3/market/combine.txt`）。
+市場より正しい確率にはなっていなかった（`reports/近走と適性から3着以内を予想/market/combine.txt`）。
 市場と同じ確率しか出せないモデルでは、どの買い方を探しても控除率（2〜3割）のぶん負ける。
 
 **この研究のやり方。** 馬柱ではなく、**市場そのもの**を出発点にする。JRA には券種ごとに別々の投票プールがあり、
@@ -13,12 +13,14 @@
 大きなプールのオッズから取り出した確率を、小さなプールのオッズと比べれば、
 「よく見られている確率」と「あまり見られていない値段」のずれが見える。そのずれを買う。
 
-**結果。** 2019〜2026年のウォークフォワードで、複勝を期待値 1.20 以上のときだけ買う買い方が、
+**結果。** 2019〜2026年のウォークフォワードで、複勝を期待値 1.25 以上のときだけ買う買い方が、
 **回収率 100% を超えた**。開催日を単位にしたブートストラップの 90% の幅の下限も 100% を上回っている。
 線の決め方を前半の年だけに絞った確認でも、後半の年で 100% を超えた。
 実測値は `reports/回収率100超/`（Git 対象外）にある。
-ただし確定オッズでの検証なので、締め切り前のオッズで同じことができるかはまだ確かめていない
-（[docs/04-買い方.md](docs/04-買い方.md) の「残っている課題」）。
+ただし確定オッズでの検証である。過去1年の締め切り前のオッズで確かめると、**発走の10分前のオッズで買えば 100% を大きく割り、
+発走の1分前のオッズなら確定オッズとほぼ同じ**だった（[docs/04-買い方.md](docs/04-買い方.md) の 6-1）。
+確率の出どころを予想「近走と適性から3着以内を予想」の当日のモデル（券種の支持入り）に替えても、元より良くはならなかった
+（[docs/04-買い方.md](docs/04-買い方.md) の 8）。
 
 ## この文書で使う言葉の意味
 
@@ -46,13 +48,19 @@
 | `extract.py` | 入口①。元DB から中間データ（parquet）を作る |
 | `backtest.py` | 入口②。学習と検証を回して、結果を `reports/` に書く |
 | `market_check.py` | 入口③（診断）。単勝オッズの歪みが直せるかを年ごとに測る |
+| `extract_tickets.py` | 入口④。元DB から、券種ごとの買い目のオッズと払戻を中間データにする |
+| `backtest_tickets.py` | 入口⑤。複勝以外の券種（単勝・ワイド・馬連・馬単・3連複・3連単）を期待値で買って確かめる（[docs/05-券種ごとの検証.md](docs/05-券種ごとの検証.md)） |
+| `check_pre_deadline.py` | 入口⑥。締め切り前のオッズ（時系列オッズ）で買っていたら回収率がどうなったかを、過去1年のレースで確かめる（[docs/04-買い方.md](docs/04-買い方.md) の 6-1） |
+| `compare_probability_sources.py` | 入口⑦。複勝の買い方はそのままに、確率の出どころを予想「近走と適性から3着以内を予想」の当日のモデル（その年より前だけで学習し直す）に替えて、元より良いかを確かめる（[docs/04-買い方.md](docs/04-買い方.md) の 8） |
 | `analysis/repository/` | 元DB から読む部品。1つのクラスが1つの SQL を持つ |
 | `analysis/cache_loader.py` | 中間データを1つの表にまとめる |
 | `analysis/market/` | オッズから確率を作る部品（条件付きロジット・Harville/Stern） |
 | `analysis/feature/` | モデルに渡す列を作る部品 |
 | `analysis/probability/` | LightGBM と CatBoost で確率を出す部品 |
 | `analysis/ticket/` | 買い目を選ぶ部品（想定払戻倍率・期待値・確率のそろえ直し） |
+| `analysis/tickets/` | 複勝以外の券種の部品（買い目の確率・オッズの帯ごとの較正・印・線の決め方） |
 | `analysis/backtest/` | 検証の部品（ウォークフォワード・回収率・信頼区間） |
+| `analysis/probability_source/` | 確率の出どころを替えて比べる部品（当日のモデルの学習し直し・突き合わせ・採用の基準） |
 | `analysis/bet_rule.py` | 採用した買い方（どの期待値から買うか） |
 | `tests/` | 架空の値で部品を確かめるテスト |
 | `reports/回収率100超/`（Git 対象外） | 実測の数値。JV-Data 由来の値はここにだけ置く |
@@ -63,15 +71,24 @@
 2. [docs/02-市場の測り方.md](docs/02-市場の測り方.md) — オッズから確率を作る手順
 3. [docs/03-実験と結果.md](docs/03-実験と結果.md) — 何を試して何が分かったか
 4. [docs/04-買い方.md](docs/04-買い方.md) — 期待値で買う手順と、そのときの回収率
+5. [docs/05-券種ごとの検証.md](docs/05-券種ごとの検証.md) — 複勝以外の券種でも同じ作りで 100% を超えるか
 
 ## 動かし方
 
 リポジトリ直下（`keiba-yosou/`）から実行する。
 
 ```bash
-uv run python research/回収率100超/extract.py    # 元DB から中間データを作る（数十分）
-uv run python research/回収率100超/backtest.py   # 学習と検証（2時間ほど）
-uv run python -m pytest -q research              # 部品のテスト（架空の値だけ）
+uv run python research/回収率100超/extract.py            # 元DB から中間データを作る（数十分）
+uv run python research/回収率100超/backtest.py           # 学習と検証（2時間ほど）
+uv run python research/回収率100超/extract_tickets.py    # 券種ごとの買い目のオッズと払戻を読み出す（十数分）
+uv run python research/回収率100超/backtest_tickets.py   # 複勝以外の券種の検証（学習に数時間。2回目からは予測を使い回す）
+uv run python research/回収率100超/check_pre_deadline.py # 締め切り前のオッズでの確認（先に backtest.py と、jvdata-store で時系列オッズの取り込み）
+uv run python research/回収率100超/compare_probability_sources.py          # 確率の出どころを当日のモデルに替えて比べる（学習し直しに 30〜60分。先に backtest.py と research/一番人気を疑う/port_check.py tables）
+uv run python research/回収率100超/compare_probability_sources.py --reuse  # 残した新しい予測から表だけを書き直す
+uv run python -m pytest -q research                      # 部品のテスト（架空の値だけ）
 ```
 
-`extract.py` は元DB を読む間だけ開く。`backtest.py` は元DB に触らない。
+中間データ（parquet）と表の書き出しに使う pyarrow と tabulate は、pyproject に入っている（`uv sync` で入る）。
+
+`extract.py` は元DB を読む間だけ開く。`backtest.py` と `compare_probability_sources.py` は元DB に触らない。
+`compare_probability_sources.py` の学習は、同じマシンのほかの学習とぶつからないように1つずつ走らせ、Windows では P コア（論理 CPU 0〜11）に絞る（`--threads` で学習のスレッド数。既定 6）。

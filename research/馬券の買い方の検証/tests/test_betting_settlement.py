@@ -2,9 +2,11 @@
 
 import pandas as pd
 
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import REFUNDED, void_column
+
 from 馬券の買い方の検証.analysis import column_names as names
 from 馬券の買い方の検証.analysis.race_material import RaceMaterials
-from 馬券の買い方の検証.analysis.repository import REFUNDED, void_column
 from 馬券の買い方の検証.analysis.settlement import (
     SKIP_NO_ODDS,
     SKIP_NO_PAYOUT,
@@ -17,7 +19,7 @@ from 馬券の買い方の検証.analysis.settlement import (
     PlanSettler,
     SettlementTable,
 )
-from 馬券の買い方の検証.analysis.ticket import Ticket, TicketType, plan_named
+from 馬券の買い方の検証.analysis.ticket import Ticket, plan_named
 
 from betting_fixtures import RACE_ID, runners
 

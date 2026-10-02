@@ -7,7 +7,7 @@
 | 1. 学習データの渡し方 | 手本と同じ。足した4個（まとまり J）は数値特徴量なので、そのまま渡す |
 | 2. ハイパーパラメータの初期値 | 手本と同じ値から始める。`min_category_count` は、学習データが手本より少ないので 600・200 と比べたが、2000 のままにした |
 | 3. カテゴリ特徴量の値の変え方 | 手本と同じ |
-| 4.〜6. 学習・予測・保存の手順 | 2つの時点（[07-prediction-timing.md](07-prediction-timing.md)）ごとに1つずつ、計2つのモデルを学習する。保存先は `reports/favorites_out_of_top3/models/` |
+| 4.〜6. 学習・予測・保存の手順 | 2つの時点（[07-prediction-timing.md](07-prediction-timing.md)）ごとに1つずつ、計2つのモデルを学習する。保存先は `reports/人気馬が4着以下になるかを予想/models/` |
 
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 - 学習データ・特徴量・目的変数は CatBoost と共通で、[08-training-data.md](08-training-data.md)・[09-features.md](09-features.md)・[10-target.md](10-target.md) を参照。
@@ -53,7 +53,7 @@
 
 - 名前を細かく残すほど、木が少ないうちに検証データで良くならなくなり、当たり具合も下がった。手本で 50 → 2000 に上げたときと同じ傾向である（名前で偶然を覚え込む）。**初期値は 2000 のままにする。**
 - 名前そのものは、扱いの上手な CatBoost（順序付きターゲット統計）が引き続き使う（[13-catboost.md](13-catboost.md#1-学習データの渡し方)）。
-- 比べた結果の表は Git 対象外の `reports/favorites_out_of_top3/category-count/` にある。学習データの期間を変えたら、同じ比べ方でもう一度確かめる。
+- 比べた結果の表は Git 対象外の `reports/人気馬が4着以下になるかを予想/category-count/` にある。学習データの期間を変えたら、同じ比べ方でもう一度確かめる。
 
 ## 3. カテゴリ特徴量の値の変え方（フローチャート）
 
@@ -71,7 +71,7 @@
 
 - 保存のしかた（`joblib.dump()` で、学習済みの `LGBMClassifier` とカテゴリの一覧を書き込む）は、[手本の 12 の「6. 保存」](../近走と適性から3着以内を予想/12-lightgbm.md#6-保存) と同じである。
 - 保存するのは、2つの時点ごとのモデルと、学習に使った設定である。
-- 保存先: Git の対象外の `reports/favorites_out_of_top3/models/`（[04-classes.md](04-classes.md#2-パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。手本の予想のモデル（`reports/form_aptitude_top3/models/`）とは別のフォルダにする。
+- 保存先: Git の対象外の `reports/人気馬が4着以下になるかを予想/models/`（[04-classes.md](04-classes.md#2-パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。手本の予想のモデル（`reports/近走と適性から3着以内を予想/models/`）とは別のフォルダにする。
 
 ## 文書情報
 

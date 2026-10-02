@@ -11,7 +11,7 @@ from yosou.upset_level.dataset import BetType
 
 from ..column_names import upset_column
 from ..participation import RacePattern
-from ..ticket import TicketPlan
+from ..ticket import TicketPlan, upset_bet_of
 from .strategy import Strategy
 from .threshold_grid import DANGER_THRESHOLDS, FORM_THRESHOLDS, TOP_KS, UPSET_TOP_SHARES
 
@@ -66,4 +66,4 @@ class StrategyGrid:
     def _wide_bet(self, wide_name: str | None) -> BetType:
         if wide_name is None:
             return BetType.WIN
-        return next(plan for plan in self._wide_plans if plan.name == wide_name).ticket_type.spec.upset_bet
+        return upset_bet_of(next(plan for plan in self._wide_plans if plan.name == wide_name).ticket_type)

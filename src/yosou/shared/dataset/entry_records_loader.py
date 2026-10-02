@@ -6,12 +6,18 @@ import duckdb
 import pandas as pd
 
 from ..feature import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS, EntryRecords, WorkoutCoverage
+from .ability_sources_loader import AbilitySourcesLoader
+from .pool_probability_loader import PoolProbabilityLoader
 from ..repository import (
     CareerCountRepository,
     EntryRepository,
+    MarketRunRepository,
     PastRunRepository,
     PedigreeDayRepository,
     PeopleDayRepository,
+    PlaceOddsRepository,
+    RaceEarlyRecordRepository,
+    StakesTendencyRepository,
     TargetScope,
     WorkoutCoverageRepository,
     WorkoutRepository,
@@ -19,13 +25,31 @@ from ..repository import (
 
 #: 出走の行と、出走別着度数の行を突き合わせる鍵。
 _ENTRY_KEY = ["race_id", "horse_id"]
+#: 出走の行と、複勝オッズの行を突き合わせる鍵（複勝オッズは馬番ごと）。
+_PLACE_ODDS_KEY = ["race_id", "horse_no"]
 
 
 class EntryRecordsLoader:
-    """リポジトリを順に呼んで、対象の出走の記録（``EntryRecords``）を集める。SQL は持たない。"""
+    """リポジトリを順に呼んで、対象の出走の記録（``EntryRecords``）を集める。SQL は持たない。
 
-    def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
+    ``race_history`` は、レースごとの序盤と後半の記録を読むリポジトリ（展開から着順を予想する予想だけが渡す。
+    展開の設計書 04 の 2）。渡さなければ呼ばず、``EntryRecords.race_history`` は空の表になる（ほかの予想は SQL が増えない）。
+    ``stakes_tendency`` も同じ形で、重賞のレースごとの傾向を読むリポジトリ（重賞の傾向の予想だけが渡す）。
+    ``market_runs`` も同じ形で、過去の全出走の単勝オッズと着順を読むリポジトリ（騎手・調教師・血統の市場に対する成績を
+    使う予想だけが渡す）。
+    ``ability_sources`` も同じ形で、馬の力の材料（まとまり M）の元の記録を集める部品（近走と適性の予想の木曜・前日の
+    モデルだけが渡す）。``pool_probabilities`` も同じ形で、券種ごとのオッズから見た馬ごとの確率を読む部品（近走と適性の
+    予想の当日のモデルだけが渡す）。
+    """
+
+    def __init__(self, con: duckdb.DuckDBPyConnection,
+                 race_history: RaceEarlyRecordRepository | None = None,
+                 stakes_tendency: StakesTendencyRepository | None = None,
+                 market_runs: MarketRunRepository | None = None,
+                 ability_sources: AbilitySourcesLoader | None = None,
+                 pool_probabilities: PoolProbabilityLoader | None = None) -> None:
         self._entries = EntryRepository(con)
+        self._place_odds = PlaceOddsRepository(con)
         self._career_counts = CareerCountRepository(con)
         self._past_runs = PastRunRepository(con)
         self._workouts = WorkoutRepository(con, WORKOUT_WINDOW_DAYS)
@@ -34,13 +58,19 @@ class EntryRecordsLoader:
         self._trainer_days = PeopleDayRepository.for_trainers(con, PEOPLE_WINDOW_DAYS)
         self._sire_days = PedigreeDayRepository.for_sires(con, PEOPLE_WINDOW_DAYS)
         self._damsire_days = PedigreeDayRepository.for_damsires(con, PEOPLE_WINDOW_DAYS)
+        self._race_history = race_history
+        self._stakes_tendency = stakes_tendency
+        self._market_runs = market_runs
+        self._ability_sources = ability_sources
+        self._pool_probabilities = pool_probabilities
 
     def load(self, scope: TargetScope) -> EntryRecords:
         """``scope`` の出走の記録。"""
         entries = self._entries.read(scope)
         career_counts = self._career_counts.read(scope)
+        with_counts = self._with_career_counts(entries, career_counts)
         return EntryRecords(
-            entries=self._with_career_counts(entries, career_counts),
+            entries=self._with_place_odds(with_counts, self._place_odds.read(scope)),
             past_runs=self._past_runs.read(scope),
             workouts=self._workouts.read(scope),
             workout_coverage=WorkoutCoverage.from_table(self._workout_coverage.read()),
@@ -48,8 +78,21 @@ class EntryRecordsLoader:
             trainer_days=self._trainer_days.read(scope),
             sire_days=self._sire_days.read(scope),
             damsire_days=self._damsire_days.read(scope),
+            race_history=self._race_history.read(scope) if self._race_history is not None else pd.DataFrame(),
+            stakes_tendency=self._stakes_tendency.read(scope) if self._stakes_tendency is not None else pd.DataFrame(),
+            market_runs=self._market_runs.read(scope) if self._market_runs is not None else pd.DataFrame(),
+            ability_sources=self._ability_sources.load(scope) if self._ability_sources is not None else None,
+            pool_probabilities=(self._pool_probabilities.read(scope.relation)
+                                if self._pool_probabilities is not None else pd.DataFrame()),
         )
 
     def _with_career_counts(self, entries: pd.DataFrame, career_counts: pd.DataFrame) -> pd.DataFrame:
         """出走の行に、その出走の出走別着度数（``ck_`` で始まる列）を付ける。無い出走は欠損値。"""
         return entries.merge(career_counts, on=_ENTRY_KEY, how="left")
+
+    def _with_place_odds(self, entries: pd.DataFrame, place_odds: pd.DataFrame) -> pd.DataFrame:
+        """出走の行に、複勝オッズ（``place_odds_low``・``place_odds_high``）を付ける。馬番の無い行（木曜）と、無い馬は欠損値。"""
+        numbered = entries.assign(horse_no=pd.to_numeric(entries["horse_no"], errors="coerce").astype("Int64"))
+        odds = place_odds.assign(horse_no=pd.to_numeric(place_odds["horse_no"], errors="coerce").astype("Int64"))
+        merged = numbered.merge(odds, on=_PLACE_ODDS_KEY, how="left")
+        return merged.assign(horse_no=entries["horse_no"].to_numpy())

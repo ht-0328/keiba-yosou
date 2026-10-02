@@ -14,7 +14,7 @@ from .train_command import TrainCommand
 #: --help に出す使い方。
 USAGE = """近走と適性から3着以内を予想する。
 
-学習（3つの時点ごとに LightGBM と CatBoost を学習し、reports/form_aptitude_top3/models/ に保存する）:
+学習（時点ごとに LightGBM と CatBoost を学習し、reports/近走と適性から3着以内を予想/models/ に保存する）:
 
     uv run python -m yosou.form_aptitude_top3 train
     uv run python -m yosou.form_aptitude_top3 train --config my_settings.toml
@@ -28,6 +28,8 @@ USAGE = """近走と適性から3着以内を予想する。
 予測の前に、jvdata-store で出走馬名表・出馬表・出走別着度数・調教を取り込んでおく（前日と当日は速報も）。
 前日と当日は単勝オッズも使う。--odds で渡すか、jvstore realtime で締め切り前のオッズを取り込んでおく
 （終わったレースは確定オッズを使う。木曜はオッズを使わない）。
+当日は、jvstore realtime で全券種の速報オッズ（0B30）も取り込んでおく。無ければ、券種の支持を使わないモデルで予測する。
+木曜・前日は馬の力の材料のモデル、当日は今の材料に券種の支持を足したモデルを使う。
 設計書は docs/design/近走と適性から3着以内を予想/。
 """
 

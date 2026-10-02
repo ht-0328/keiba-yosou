@@ -7,7 +7,7 @@
 | 1. 学習データの渡し方 | 危険な人気馬の予想と同じ。まとまり J の4個は数値特徴量なので、そのまま渡す。穴馬の区分と1着の列は渡さない |
 | 2. ハイパーパラメータの初期値 | 手本と同じ値から始める。`min_category_count` は 2000 のまま |
 | 3. カテゴリ特徴量の値の変え方 | 手本と同じ |
-| 4.〜6. 学習・予測・保存の手順 | 3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）ごとに1つずつ、計3つのモデルを学習する。保存先は `reports/longshots_in_top3/models/` |
+| 4.〜6. 学習・予測・保存の手順 | 3つの時点（[07-prediction-timing.md](07-prediction-timing.md)）ごとに1つずつ、計3つのモデルを学習する。保存先は `reports/穴馬が3着以内に入るかを予想/models/` |
 
 - 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 - 学習データ・特徴量・目的変数は CatBoost と共通で、[08-training-data.md](08-training-data.md)・[09-features.md](09-features.md)・[10-target.md](10-target.md) を参照。
@@ -57,7 +57,7 @@
 
 - 保存のしかた（`joblib.dump()` で、学習済みの `LGBMClassifier` とカテゴリの一覧を書き込む）は、[手本の 12 の「6. 保存」](../近走と適性から3着以内を予想/12-lightgbm.md#6-保存) と同じである。
 - 保存するのは、3つの時点ごとのモデルと、学習に使った設定である。
-- 保存先: Git の対象外の `reports/longshots_in_top3/models/`（[04-classes.md](04-classes.md#2-パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。手本の予想（`reports/form_aptitude_top3/models/`）・危険な人気馬の予想（`reports/favorites_out_of_top3/models/`）とは別のフォルダにする。
+- 保存先: Git の対象外の `reports/穴馬が3着以内に入るかを予想/models/`（[04-classes.md](04-classes.md#2-パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。手本の予想（`reports/近走と適性から3着以内を予想/models/`）・危険な人気馬の予想（`reports/人気馬が4着以下になるかを予想/models/`）とは別のフォルダにする。
 
 ## 文書情報
 

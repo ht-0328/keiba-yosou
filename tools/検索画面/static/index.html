@@ -69,6 +69,7 @@
   td.w1 { background: #f4f4f4; color: #111; } td.w2 { background: #1b1b1b; color: #fff; } td.w3 { background: #d9423a; color: #fff; }
   td.w4 { background: #2f6fd0; color: #fff; } td.w5 { background: #e8d33a; color: #111; } td.w6 { background: #2f9d57; color: #fff; }
   td.w7 { background: #e88a2c; color: #111; } td.w8 { background: #ee9ab8; color: #111; }
+  .card ul { margin: 4px 0 8px; padding-left: 22px; }
 </style>
 </head>
 <body>
@@ -82,23 +83,25 @@
 <script src="/static/trend.js"></script>
 <script>
 "use strict";
-const VIEWS = ["db", "tables", "cards", "trend", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
-const TAB_LABELS = {db: "DB", tables: "テーブル", cards: "出馬表", trend: "傾向スコア", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
+const VIEWS = ["db", "tables", "cards", "trend", "ability", "stakes", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
+const TAB_LABELS = {db: "DB", tables: "テーブル", cards: "出馬表", trend: "傾向スコア", ability: "能力指数", stakes: "重賞攻略", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
 const FLAG_ONLY = ["by_popularity", "pairs"];
 //: サーバー（server.py の APP_VERSION）と合わせる。違えば古いサーバーが動いている。
-const PAGE_VERSION = "5";
+const PAGE_VERSION = "7";
 const RESTART_HINT = "画面とサーバーの版が違います（画面 " + PAGE_VERSION + "）。サーバーの黒い窓を閉じるか Ctrl+C で止めて、run.bat（または web.py）をもう一度実行してください。新しい版の起動が古い版を自動で止めます。";
 const DETAIL_TAB = {table: "tables", card: "cards", race: "races", horse: "horses"};
 const TOOLS = {
   races: "tools/レース一覧/races.py", runners: "tools/出走検索/runners.py", perf: "tools/成績集計/perf.py", explore: "tools/回収率探索/explore.py",
   lost: "tools/人気馬が負けたレース/lost_favorites.py", longshot: "tools/穴馬が勝ったレース/longshot_wins.py",
-  card: "tools/今週の出馬表/card.py", trend: "tools/傾向スコア/trend_score.py", horse: "tools/馬の過去走/horse.py", race: "tools/レース詳細/race.py", table: "tools/テーブル閲覧/table.py", sql: "tools/任意SQL/sql.py",
+  card: "tools/今週の出馬表/card.py", trend: "tools/傾向スコア/trend_score.py", ability: "tools/能力指数/ability.py", stakes: "tools/重賞攻略/stakes.py", horse: "tools/馬の過去走/horse.py", race: "tools/レース詳細/race.py", table: "tools/テーブル閲覧/table.py", sql: "tools/任意SQL/sql.py",
 };
 const HELP = {
   db: "元DB の状態。期間・件数・途中から入っている表・同期の記録。",
   tables: "元DB の表を1つずつ見る。列名は JV-Data 仕様書の日本語のまま、値は文字列。",
   cards: "これから走るレース（今週の出馬表）。レースを押すと、出走馬と各馬の近走が見られる。木曜の出走馬名表の間は枠番・馬番が空で、金・土の出馬表で決まる。過去の日付も開始日を変えれば見られる。",
   trend: "レースを選ぶと、条件が同じ過去レース（同レース → 競馬場・コース・距離・馬場状態の4つ一致 → 3つ以上 → 2つ以上）の傾向を出し、出走馬を項目ごとに +1 / −1 で採点して順位を付ける。発走前の DB に無い馬場状態・人気・馬体重は手で入れる（入れなければその項目は 0 点）。終わったレースを選ぶと、着順と見比べられる。項目の説明は tools/傾向スコア/score-items.md。",
+  ability: "レースを選ぶと、出走馬を能力指数の高い順に並べる。能力指数は、近8走の走破タイムを、コースの基準タイム・その日の馬場差・斤量・ペース（展開の得・損）で補正したスピード指数を、新しい走ほど・今回の条件（距離・競馬場・芝ダと馬場）に近い走ほど重く見て平均したもの。80 が1勝クラスの古馬のふつうの走、10点で1%速い。着順・人気・オッズは使わない。発表前の馬場状態は手で入れる。終わったレースを選ぶと、その走のスピード指数と着順も並ぶ。DB に新しい確定成績が入ったあとの最初の1回は、過去の全部の走の指数を作り直すので1〜2分かかる。",
+  stakes: "重賞（G1・G2・G3）ごとの攻略ポイント。どのレースでも成り立つ一般論（1番人気や前に行く馬が走る）ではなく、そのレースならではのずれを出す。人気は同じグレードの重賞全体と、脚質の前・枠の内はそのコースの全クラスと、年齢・ローテなどはそのレースのほかの出走馬と比べ、ずれの大きさ・検定の印（◎ p<0.05、○ p<0.10）・回収率を添える。同じレースは特別競走番号で見分けるので、競走名が変わっても過去の開催をたどれる。「この日より前」を入れると、その日より前の開催だけで数える。はじめの1回は事実表を作るので時間がかかる。",
   races: "条件に合うレースの一覧。馬の条件（人気・騎手 …）を付けると「その馬が出たレース」になる。rid を押すと詳細。",
   horses: "馬名で探して、プロフィールと中央の過去走を見る。",
   runners: "条件を組み合わせて出走（1行=1頭）を検索する。rid・hid から詳細へ。",
@@ -414,6 +417,111 @@ renderers.trend = async (main, {id, params}) => {
   TrendView.render(host, data);
 };
 
+// ---------------------------------------------------------------- 能力指数
+async function abilityRaceList(main, params) {
+  const venueField = META.filters.find((field) => field.name === "venue");
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("ability", formValues(form)); }},
+    labeled("開催日（開始。空なら今日）", el("input", {type: "date", name: "from", value: params.from || ""})),
+    labeled("開催日（終了）", el("input", {type: "date", name: "to", value: params.to || ""})),
+    labeled("競馬場", fieldInput(venueField, params.venue)),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"),
+      el("button", {type: "button", onclick: () => go("ability", {})}, "今日以降に戻す")));
+  main.append(el("div", {class: "card"}, el("div", {class: "note"}, "能力指数を出すレースを選んでください。過去の日付にすると、終わったレースでその走の指数と見比べられます。"), form));
+  const table = await api("/api/cards", params);
+  main.append(el("div", {class: "card"}, el("h2", {}, table.title), el("div", {class: "note"}, table.note)));
+  appendRaceDays(main, table, "ability");
+}
+renderers.ability = async (main, {id, params}) => {
+  main.append(el("div", {class: "help"}, HELP.ability));
+  if (!id) return abilityRaceList(main, params);
+  const rid = id;
+  const waiting = el("div", {class: "note"}, "能力指数を出しています…（ふだんは十数秒。新しい成績が入ったあとの初回は1〜2分）");
+  main.append(waiting);
+  const query = {rid, condition: params.condition};
+  let data;
+  try { data = await api("/api/ability", query); } finally { waiting.remove(); }
+  const day = data.header["日付"];
+  const nav = el("div", {class: "toolbar racenav"}, el("a", {href: hashFor("ability", {from: day, to: day})}, "← この日の一覧"),
+    ...data.races.map(([no, other]) => el("a", {href: hashFor("ability", {}, other)}, el("button", {type: "button", class: other === rid ? "sel" : ""}, no + "R"))),
+    el("a", {href: hashFor("card", {}, rid)}, "出馬表を見る"));
+  const conditionField = META.filters.find((field) => field.name === "condition");
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("ability", formValues(form), rid); }},
+    labeled("当日の馬場状態（未発表なら入れる）", fieldInput(conditionField, params.condition)),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "出し直す")));
+  main.append(el("div", {class: "card"}, nav, el("h2", {}, data.title), form, cliBlock(cliLine(TOOLS.ability, {condition: params.condition}, rid) + " --detail")));
+  const csv = (part) => urlFor("/api/ability", {...query, part, format: "csv"}).toString();
+  main.append(resultBlock(data.ranking, {csv: csv("ranking")}));
+  const horseAt = data.history.columns.indexOf("馬番");
+  let previous = null;
+  main.append(resultBlock(data.history, {csv: csv("history"), rowClass: (row) => { const first = row[horseAt] !== previous; previous = row[horseAt]; return first ? "first-run" : ""; }}));
+};
+
+// ---------------------------------------------------------------- 重賞攻略
+const GRADES = ["G1", "G2", "G3"];
+async function stakesList(main, params) {
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("stakes", formValues(form)); }},
+    labeled("この日より前の開催だけで数える（空なら全部）", el("input", {type: "date", name: "before", value: params.before || ""})),
+    labeled("競走名（部分一致で絞る）", el("input", {type: "text", name: "name", value: params.name || "", size: 16})),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示")));
+  main.append(el("div", {class: "card"}, form));
+  const waiting = el("div", {class: "note"}, "重賞の一覧を数えています…");
+  main.append(waiting);
+  let table;
+  try { table = await api("/api/stakes", {before: params.before}); } finally { waiting.remove(); }
+  const stakes = recordsOf(table).filter((r) => !params.name || String(r["競走名"]).includes(params.name));
+  main.append(el("div", {class: "card"}, el("h2", {}, "重賞の一覧"), el("div", {class: "note"}, table.note),
+    el("div", {class: "toolbar"}, el("a", {href: urlFor("/api/stakes", {before: params.before, format: "csv"}).toString(), download: ""}, el("button", {}, "CSV を保存")),
+      el("span", {class: "hint"}, stakes.length + " レース")),
+    cliBlock(cliLine(TOOLS.stakes, {before: params.before}, "--list"))));
+  const grades = el("div", {class: "venues"});
+  GRADES.forEach((grade) => {
+    const ofGrade = stakes.filter((r) => r["グレード"] === grade);
+    if (!ofGrade.length) return;
+    const box = el("div", {class: "venue list"}, el("h3", {}, grade));
+    ofGrade.forEach((r) => box.append(el("div", {class: "tbl", onclick: () => go("stakes", {before: params.before}, r["特別競走番号"])},
+      el("span", {class: "name"}, r["競走名"]),
+      el("span", {class: "sub"}, `${r["競馬場"]} ${r["コース"]} ${r["距離"]}m · ${r["開催数"]}開催 · ${r["期間"]}`))));
+    grades.append(box);
+  });
+  main.append(el("div", {class: "card"}, grades));
+}
+// 攻略ポイントのページ（stakes.py と同じ Markdown）を、見出し（##）ごとの箱に並べる。表・箇条書き・引用だけを読む。
+function markdownCards(text) {
+  const cards = [];
+  let box = null, list = null, rows = [];
+  const newBox = () => { box = el("div", {class: "card"}); cards.push(box); list = null; };
+  const cellsOf = (line) => line.slice(1, -1).split("|").map((c) => c.trim()).map((c) => (/^-?\d+(\.\d+)?$/.test(c) ? Number(c) : c));
+  const flushTable = () => { if (!rows.length) return; const [columns, ...body] = rows; box.append(tableEl({columns, rows: body})); rows = []; };
+  newBox();
+  text.split("\n").forEach((line) => {
+    if (line.startsWith("|")) { if (!/^\|(\s*:?-+:?\s*\|)+$/.test(line)) rows.push(cellsOf(line)); return; }
+    flushTable();
+    if (line.startsWith("- ")) { if (!list) { list = el("ul"); box.append(list); } list.append(el("li", {}, line.slice(2))); return; }
+    list = null;
+    if (line.startsWith("## ")) { if (box.childNodes.length) newBox(); box.append(el("h2", {}, line.slice(3))); return; }
+    if (line.startsWith("# ")) { box.append(el("h2", {}, line.slice(2))); return; }
+    if (line.startsWith("> ")) { box.append(el("div", {class: "note"}, line.slice(2))); return; }
+    if (line.trim()) box.append(el("div", {class: "note"}, line));
+  });
+  flushTable();
+  return cards;
+}
+renderers.stakes = async (main, {id, params}) => {
+  main.append(el("div", {class: "help"}, HELP.stakes));
+  if (!id) return stakesList(main, params);
+  const waiting = el("div", {class: "note"}, "攻略ポイントを数えています…");
+  main.append(waiting);
+  let data;
+  try { data = await api("/api/stakes/detail", {no: id, before: params.before}); } finally { waiting.remove(); }
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("stakes", formValues(form), id); }},
+    labeled("この日より前の開催だけで数える（空なら全部）", el("input", {type: "date", name: "before", value: params.before || ""})),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "数え直す")));
+  const nav = el("div", {class: "toolbar"}, el("a", {href: hashFor("stakes", {before: params.before})}, "← 重賞の一覧"),
+    el("span", {class: "hint"}, `特別競走番号 ${data.stakes_no}`));
+  main.append(el("div", {class: "card"}, nav, form, cliBlock(cliLine(TOOLS.stakes, {no: id, before: params.before}))));
+  markdownCards(data.markdown).forEach((card) => main.append(card));
+};
+
 renderers.card = async (main, {id, params}) => {
   const rid = id;
   const runs = params.runs || META.card.runs;
@@ -527,7 +635,7 @@ renderers.perf = async (main, {params}) => {
   const checkBox = el("div", {id: "check"});
   const checkButton = el("button", {type: "button", onclick: async () => { checkBox.innerHTML = ""; try { checkBox.append(resultBlock(await api("/api/check", {to: params.to}))); } catch (err) { checkBox.append(errorBlock(err)); } }},
     `答え合わせ（${META.check.describe}）`);
-  main.append(el("div", {class: "card"}, form, el("div", {class: "toolbar"}, checkButton, el("span", {class: "hint"}, "reports/stats のページの値と、この集計の値を比べます。"))), checkBox);
+  main.append(el("div", {class: "card"}, form, el("div", {class: "toolbar"}, checkButton, el("span", {class: "hint"}, "reports/成績集計 のページの値と、この集計の値を比べます。"))), checkBox);
   const query = {...params, dimension};
   const table = await api("/api/perf", query);
   const cliParams = {...query}; delete cliParams.dimension;

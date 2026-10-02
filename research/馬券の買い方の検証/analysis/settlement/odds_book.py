@@ -6,8 +6,10 @@ from collections.abc import Mapping
 
 import pandas as pd
 
-from ..repository.final_odds_repository import COMBO, ODDS
-from ..ticket import Ticket, TicketType
+from yosou.shared.betting import TicketType
+from yosou.shared.repository.final_odds_repository import COMBO, ODDS
+
+from ..ticket import Ticket
 
 _RACE_ID = "race_id"
 

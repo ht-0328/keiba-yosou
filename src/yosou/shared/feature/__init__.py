@@ -2,17 +2,21 @@
 
 | 場所 | 中身 |
 |---|---|
-| ``feature_catalog.py`` | どの予想でも使う 71個の一覧（``BASE_FEATURES``）、人気を使う予想が足す4個（``POPULARITY_FEATURES``）、オッズを使う予想が足す3個（``MARKET_FEATURES``）、予想ごとの一覧（``FeatureCatalog``） |
+| ``feature_catalog.py`` | どの予想でも使う 71個の一覧（``BASE_FEATURES``）、人気を使う予想が足す4個（``POPULARITY_FEATURES``）、人気を使う予想がオッズも使うときに足す3個（``ODDS_FEATURES``）、オッズを使う予想が足す4個（``MARKET_FEATURES``）、騎手・調教師・血統の市場に対する成績の4個（``PEOPLE_MARKET_FEATURES``）、馬の力の材料の202個（``ABILITY_FEATURES``）、券種ごとのオッズから見た支持の6個（``POOL_SUPPORT_FEATURES``）、予想ごとの一覧（``FeatureCatalog``） |
 | ``Feature``・``FeatureKind`` | 一覧の1行と、その型 |
 | ``FeatureGroup`` | まとまりのクラスに共通の決まり（インターフェース。1頭ごと） |
 | ``RaceFeatureGroup`` | レース単位のまとまりのクラスに共通の決まり（インターフェース） |
+| ``FieldFeatureGroup`` | 同じレースの馬どうしで比べるまとまり（G など）のクラスに共通の決まり（インターフェース） |
+| ``RaceConditionSummary`` | レース単位のまとまり「レースの条件」（11個）。荒れ具合の予想と展開の予想が使う |
 | ``PredictionTiming`` | 予測する時点（木曜・前日・当日）と、その時点で分からない特徴量 |
 | ``EntryRecords`` | 特徴量を作る元の記録の入れ物（1頭ごと） |
 | ``RaceRecords`` | レース単位の特徴量を作る元の記録の入れ物（1頭ごとの特徴量と払戻を含む） |
 | ``EntryColumns`` | 記録から列を選び、名前を付け直す |
 | ``FeatureBuilder`` | 入口（1頭ごと）。まとまりごとのクラスを順に呼んで、1つの表にする |
 | ``RaceFeatureBuilder`` | 入口（レース単位）。1頭ごとの特徴量を作ってから、まとまりごとに集約する（荒れ具合の設計書 05 の図3） |
-| ``group/`` | 1頭ごとのまとまり A〜J ごとに1クラス（J は人気かオッズを使う予想だけが渡す） |
+| ``group/`` | 1頭ごとのまとまり A〜N ごとに1クラス（J・K は人気かオッズを使う予想、L は全頭の3着以内・穴馬・人気馬の予想、M・N は全頭の3着以内の予想だけが渡す） |
+| ``ability/`` | 馬の力の材料（まとまり M）を作る部品 |
+| ``odds/`` | 単勝オッズから見た勝率・2着以内率・3着以内率（Harville の式）。特徴量と、目的変数の基準の両方に使う |
 | ``history/`` | 過去の記録から数える部品（開催日より前のものだけを使う決まりを、ここで守る） |
 | ``as_numbers``・``typed_features`` | 数の列を小数の列にする関数と、特徴量の表の型をそろえる関数（欠損値のそろえ方を1か所にする） |
 
@@ -23,12 +27,24 @@ from .entry_columns import EntryColumns
 from .entry_records import EntryRecords
 from .feature import Feature
 from .feature_builder import FeatureBuilder
-from .feature_catalog import BASE_FEATURES, MARKET_FEATURES, POPULARITY_FEATURES, FeatureCatalog
+from .feature_catalog import (
+    ABILITY_FEATURES,
+    BASE_FEATURES,
+    MARKET_FEATURES,
+    ODDS_FEATURES,
+    PEOPLE_MARKET_FEATURES,
+    POOL_SUPPORT_FEATURES,
+    POOL_SUPPORT_NAMES,
+    POPULARITY_FEATURES,
+    FeatureCatalog,
+)
 from .feature_group import FeatureGroup
+from .field_feature_group import FieldFeatureGroup
 from .feature_kind import FeatureKind
 from .history import RecentRunSummary, WorkoutCoverage
 from .prediction_timing import PredictionTiming
 from .race_feature_builder import RaceFeatureBuilder
+from .race_condition_summary import FIELD_SIZE, GOING, HANDICAP, SPECIAL_RACE, RaceConditionSummary
 from .race_feature_group import RaceFeatureGroup
 from .race_records import RaceRecords
 from .time_windows import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS
@@ -37,7 +53,9 @@ from .value_types import as_numbers, as_yes_no, typed_features
 __all__ = [
     "FeatureBuilder", "RaceFeatureBuilder", "EntryRecords", "RaceRecords", "EntryColumns", "PredictionTiming",
     "WorkoutCoverage", "RecentRunSummary",
-    "BASE_FEATURES", "POPULARITY_FEATURES", "MARKET_FEATURES", "FeatureCatalog", "Feature", "FeatureKind",
-    "FeatureGroup", "RaceFeatureGroup",
+    "BASE_FEATURES", "POPULARITY_FEATURES", "MARKET_FEATURES", "ODDS_FEATURES", "PEOPLE_MARKET_FEATURES",
+    "ABILITY_FEATURES", "POOL_SUPPORT_FEATURES", "POOL_SUPPORT_NAMES", "FeatureCatalog", "Feature", "FeatureKind",
+    "FeatureGroup", "RaceFeatureGroup", "FieldFeatureGroup",
+    "RaceConditionSummary", "GOING", "FIELD_SIZE", "SPECIAL_RACE", "HANDICAP",
     "WORKOUT_WINDOW_DAYS", "PEOPLE_WINDOW_DAYS", "as_numbers", "as_yes_no", "typed_features",
 ]

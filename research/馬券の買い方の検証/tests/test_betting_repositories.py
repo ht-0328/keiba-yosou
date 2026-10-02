@@ -11,16 +11,17 @@ import pytest
 
 from 合成DB import synth
 
-from 馬券の買い方の検証.analysis.repository import (
+from yosou.shared.betting import TicketType
+from yosou.shared.repository import (
     REFUNDED,
     FinalOddsRepository,
     PayoutFlagRepository,
     PayoutRepository,
     RaceDayRange,
-    RaceFactRepository,
     void_column,
 )
-from 馬券の買い方の検証.analysis.ticket import TicketType
+
+from 馬券の買い方の検証.analysis.repository import RaceFactRepository
 
 _DAYS = RaceDayRange(date(2025, 7, 1), date(2025, 7, 31))
 _RACE_1 = "2025070605010101"

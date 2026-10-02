@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import pandas as pd
 
 from ..repository import AnnouncedOddsRepository
@@ -14,18 +16,22 @@ class PopularityApplier:
     次の順で決める。
 
     1. 利用者が ``--pops`` で渡した人気。木曜は、馬番が無いのでこれしか使えない。
-    2. 元DB にそのレースの締め切り前の単勝オッズがあれば、オッズの小さい順に 1, 2, 3, … と人気を付ける。
-    3. どちらも無ければ ``None``。元DB の出走の行に入っている人気（終わったレースなら確定単勝人気）が
+    2. 予測に使う単勝オッズ（利用者が ``--odds`` で渡したもの）があれば、オッズの小さい順に 1, 2, 3, … と人気を付ける。
+    3. 元DB にそのレースの締め切り前の単勝オッズがあれば、同じようにオッズの小さい順に人気を付ける。
+    4. どれも無ければ ``None``。元DB の出走の行に入っている人気（終わったレースなら確定単勝人気）が
        そのまま使われる。それも無ければ、行を選ぶクラス（``SampleSelector``）が止める。
     """
 
     def __init__(self, odds_repository: AnnouncedOddsRepository) -> None:
         self._odds_repository = odds_repository
 
-    def resolve(self, race_id: str, given: PopularityInput | None) -> dict[int | str, int] | None:
+    def resolve(self, race_id: str, given: PopularityInput | None,
+                odds: Mapping[int, float] | None = None) -> dict[int | str, int] | None:
         """予測に使う 馬番（か馬名）→ 人気。決められなければ ``None``。"""
         if given is not None:
             return given.as_mapping()
+        if odds:
+            return self._ranked(pd.DataFrame({"horse_no": list(odds), "odds": list(odds.values())}))
         odds = self._odds_repository.read(race_id)
         if odds.empty:
             return None

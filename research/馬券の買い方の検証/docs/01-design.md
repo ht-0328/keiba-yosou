@@ -26,7 +26,7 @@ backtest.py（入口②）
 | フォルダ | 仕事 |
 |---|---|
 | `prediction/` | 4モデルの当日予測を期間ぶん一括で出して CSV に残す（`RunnerBatchPredictor`・`RaceBatchPredictor`） |
-| `repository/` | 元DB から期間ぶんを読む。1 SQL = 1クラス（レースの属性・確定オッズ・払戻の明細・払戻のフラグ） |
+| `repository/` | 元DB から期間ぶんを読む。1 SQL = 1クラス（レースの属性）。確定オッズ・払戻の明細・払戻のフラグは共通の `yosou.shared.repository`、券種は `yosou.shared.betting` のものを使う |
 | `loading/` | 予測の CSV と元DB から、材料表（`RaceMaterials`）と帳簿（`OddsBook`・`PayoutBook`）を組み立てる |
 | `race_material/` | 予測と事実を、1行 = 1レースの `races` と 1行 = 1頭の `runners` にまとめる |
 | `ticket/` | 買い方（券種・列の指定・候補の選び方）から 1レースの買い目を作る。目録は `ticket_plans.py` |
@@ -76,7 +76,7 @@ backtest.py（入口②）
 
 ## 荒れ判定に使う券種
 
-広めの買い方の券種に対応する荒れ具合の券種で判定する: 単勝・複勝 → 単勝、馬連・ワイド・馬単 → 馬連、3連複 → 3連複、3連単 → 3連単（`TicketTypeSpec.upset_bet`）。
+広めの買い方の券種に対応する荒れ具合の券種で判定する: 単勝・複勝 → 単勝、馬連・ワイド・馬単 → 馬連、3連複 → 3連複、3連単 → 3連単（`ticket/upset_bet_of.py`）。
 
 ## 対象外
 

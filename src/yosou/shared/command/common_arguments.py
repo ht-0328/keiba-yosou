@@ -14,8 +14,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 class CommonArguments:
     """train と predict に共通の引数（--models --db --format --out）。ほかの道具（tools/）と同じ名前にそろえる。
 
-    ``yosou_name`` は予想のパッケージ名（例: ``form_aptitude_top3``）。学習したモデルの既定の置き場所
-    （``reports/<予想の名前>/models``）を決めるのに使う。
+    ``yosou_name`` は予想の名前（例: ``近走と適性から3着以内を予想``。各パッケージの ``yosou_name.py``）。
+    学習したモデルの既定の置き場所（``reports/<予想の名前>/models``）を決めるのに使う。
     """
 
     def __init__(self, yosou_name: str) -> None:

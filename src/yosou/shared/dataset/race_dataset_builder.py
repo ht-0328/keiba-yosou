@@ -8,12 +8,12 @@ from datetime import timedelta
 import pandas as pd
 
 from ..feature import PEOPLE_WINDOW_DAYS, EntryColumns, PredictionTiming, RaceFeatureBuilder
-from ..repository import RacePayoutRepository
 from . import column_names as names
 from .field_odds_check import FieldOddsCheck
 from .history_records_loader import HistoryRecordsLoader
 from .prediction_data import PredictionData
 from .race_records_loader import RaceRecordsLoader
+from .race_result_source import RaceResultSource
 from .race_result_summary import RaceResultSummary
 from .race_target_labeler import RaceTargetLabeler
 from .required_info_check import RequiredInfoCheck
@@ -25,30 +25,36 @@ from .training_period import TrainingPeriod
 _ID_COLUMNS = EntryColumns({
     names.RACE_ID: "race_id", names.RACE_DATE: "race_date", names.VENUE: "venue", names.RACE_NO: "race_no",
 })
+#: 既定の単勝オッズの確認（オッズを使う荒れ具合の予想のため）。
+_ODDS_CHECK = FieldOddsCheck()
 
 
 class RaceDatasetBuilder:
     """1行 = 1レースの学習データと予測用データを作る（荒れ具合の設計書 04 の 1・05 の図1・図2）。
 
-    1頭ごとの ``DatasetBuilder`` の隣に置く。手順は「1頭ごとの記録を集める → 行（1頭）を選ぶ → 払戻を読む →
-    1頭ごとの特徴量を作ってレース単位に集約する → レースの結果を読む → 目的変数を付ける」で、
+    1頭ごとの ``DatasetBuilder`` の隣に置く。手順は「1頭ごとの記録を集める → 行（1頭）を選ぶ → レースごとの結果を読む →
+    1頭ごとの特徴量を作ってレース単位に集約する → 目的変数を付ける」で、
     学習と予測で同じ ``RaceFeatureBuilder`` を使う（設計書 11 の 4）。既存の ``DatasetBuilder``・``FeatureBuilder`` は触らない。
 
     - ``selector``: 入れる行（1頭）の選び方。レース単位の予想は、全頭を残す。
-    - ``target_labeler``: レースごとの払戻から目的変数（複数列でよい）を付ける。
-    - ``payout_columns``: 評価用の列に残す払戻の列（学習データの列名 → 払戻の表の列名）。
+    - ``result_source``: レースごとの結果の読み方（荒れ具合なら払戻、展開なら前半・後半タイムと基準）。
+    - ``target_labeler``: レースごとの結果から目的変数（複数列でよい）を付ける。
+    - ``payout_columns``: 評価用の列に残す結果の列（学習データの列名 → 結果の表の列名）。
     - ``class_labels``: 目的変数の値の並び（荒れ具合なら 0〜3）。
     - ``required_info``: その時点で要る情報（馬場状態・1番人気のオッズ など）の確認。
+    - ``history_days``: 予測のとき、予測するレースの何日前からの結果を読むか（過去の結果から作る特徴量の材料）。
+    - ``field_odds_check``: 前日以降に全頭の単勝オッズがあるかの確認。オッズを使わない予想は None を渡す。
     """
 
     def __init__(self, history_loader: HistoryRecordsLoader, race_loader: RaceRecordsLoader,
-                 payout_repository: RacePayoutRepository, selector: SampleSelector,
+                 result_source: RaceResultSource, selector: SampleSelector,
                  target_labeler: RaceTargetLabeler, feature_builder: RaceFeatureBuilder,
                  payout_columns: Mapping[str, str], class_labels: Sequence[int],
-                 required_info: RequiredInfoCheck) -> None:
+                 required_info: RequiredInfoCheck, history_days: int = PEOPLE_WINDOW_DAYS,
+                 field_odds_check: FieldOddsCheck | None = _ODDS_CHECK) -> None:
         self._history_loader = history_loader
         self._race_loader = race_loader
-        self._payout_repository = payout_repository
+        self._result_source = result_source
         self._selector = selector
         self._target_labeler = target_labeler
         self._feature_builder = feature_builder
@@ -56,17 +62,18 @@ class RaceDatasetBuilder:
         self._class_labels = tuple(class_labels)
         self._required_info = required_info
         self._result_summary = RaceResultSummary()
-        self._field_odds_check = FieldOddsCheck()
+        self._history_days = history_days
+        self._field_odds_check = field_odds_check
 
     def build_training_data(self, period: TrainingPeriod) -> TrainingData:
         """``period`` の学習データの始まりからのレースで、学習データを作る。特徴量は当日の時点の全部。
 
-        ウォームアップの始まりからの出走と払戻を読み、学習データの始まりより前のレースは、近走と過去の荒れ率の
+        ウォームアップの始まりからの出走とレースの結果を読み、学習データの始まりより前のレースは、近走と過去の結果の
         計算にだけ使う。
         """
         records = self._history_loader.load(period.warmup_first_day)
         samples = self._selector.training_samples(records.entries, period.train_first_day)
-        payouts = self._payout_repository.read(period.warmup_first_day)
+        payouts = self._result_source.read(period.warmup_first_day)
         features = self._feature_builder.build(records.with_entries(samples), payouts, PredictionTiming.RACE_DAY)
         race_ids = features.index
         by_race = payouts.set_index("race_id").reindex(race_ids)
@@ -92,8 +99,9 @@ class RaceDatasetBuilder:
         """
         records = self._race_loader.load(race_id, odds=odds)
         runners = self._selector.prediction_runners(records.entries, race_id)
-        self._field_odds_check.check(runners, timing)
-        payouts = self._payout_repository.read(self._history_first_day(runners))
+        if self._field_odds_check is not None:
+            self._field_odds_check.check(runners, timing)
+        payouts = self._result_source.read(self._history_first_day(runners))
         features = self._feature_builder.build(records.with_entries(runners), payouts, timing)
         self._required_info.check(features)
         return PredictionData(
@@ -102,9 +110,9 @@ class RaceDatasetBuilder:
         )
 
     def _history_first_day(self, runners: pd.DataFrame):
-        """過去の荒れ率のために読む払戻の最初の日（開催日の前日までの 365日が入るように）。"""
+        """過去の結果のために読む最初の日（開催日の前日までの ``history_days`` 日が入るように）。"""
         race_day = pd.Timestamp(runners["race_date"].iloc[0]).date()
-        return race_day - timedelta(days=PEOPLE_WINDOW_DAYS + 1)
+        return race_day - timedelta(days=self._history_days + 1)
 
     def _ids(self, runners: pd.DataFrame, race_ids: pd.Index) -> pd.DataFrame:
         """レースごとの ID 列（``race_ids`` の順）。"""

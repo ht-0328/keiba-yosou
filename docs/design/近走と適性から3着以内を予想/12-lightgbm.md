@@ -28,7 +28,7 @@
 
 ## 2. ハイパーパラメータの初期値
 
-`lightgbm.LGBMClassifier` の引数名で書く。ここの値は設定ファイルの初期値で、プログラムを書き換えずに設定ファイルで変えられる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。値は仮で、検証データで調整する。調整のやり方は、検証データの分け方と一緒に次の設計書で決める。
+`lightgbm.LGBMClassifier` の引数名で書く。ここの値は設定ファイルの初期値で、プログラムを書き換えずに設定ファイルで変えられる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。値は仮で、検証データで調整する。調整のやり方は [16-evaluation.md の「5. ハイパーパラメータの調整のやり方」](16-evaluation.md#5-ハイパーパラメータの調整のやり方) を参照。
 
 | 引数 | 初期値 | 意味 | 理由 |
 |---|---|---|---|
@@ -128,7 +128,7 @@ sequenceDiagram
 
 - `ModelRepository` が `LightGbmModel.save(パス)` を呼ぶ。`LightGbmModel` は、学習済みの `LGBMClassifier` と、`LightGbmEncoder` のカテゴリの一覧を、`joblib.dump()` で書き込む。読み込みは `LightGbmModel.load(パス)` で、`joblib.load()` を使う。
 - 3つの時点ごとのモデルと、学習に使った設定を保存する（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）。
-- 保存先: Git の対象外の `reports/form_aptitude_top3/models/`（[04-classes.md の「パッケージ構成」](04-classes.md#パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
+- 保存先: Git の対象外の `reports/近走と適性から3着以内を予想/models/`（[04-classes.md の「パッケージ構成」](04-classes.md#パッケージ構成)）。モデルは JV-Data から作ったもので、公開しないため。
 
 ## 文書情報
 
@@ -136,3 +136,4 @@ sequenceDiagram
 |---|---|
 | 作成日 | 2026-09-21 |
 | 更新 | 2026-09-22: 学習データの期間を延ばして `min_category_count` を比べ直した結果を足した |
+| 更新 | 2026-09-28: ハイパーパラメータの調整のやり方を、16-evaluation.md へのリンクにした |

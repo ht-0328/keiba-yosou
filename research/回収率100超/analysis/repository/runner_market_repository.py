@@ -5,7 +5,7 @@ from __future__ import annotations
 import duckdb
 import pandas as pd
 
-from .race_key_sql import FINAL_STAGES, JRA_ONLY, RACE_KEYS, RID
+from .race_key_sql import FINAL_STAGES, JRA_ONLY, RACE_KEYS, RID, final_odds_rows
 
 #: 読み出す SQL。1頭ぶんの「市場が付けた値（単勝・複勝のオッズ）」と「結果」をそろえる。
 _SQL = f"""
@@ -43,7 +43,7 @@ with 出走 as (
         select {RID} as rid, try_cast(馬番 as integer) as horse_no,
             try_cast(オッズ as double) / 10.0 as win_odds,
             row_number() over (partition by {RACE_KEYS}, 馬番 order by 発表月日時分 desc) as rn
-        from o1__単勝オッズ where 開催年 >= '{{first_year}}' and {JRA_ONLY}
+        from {final_odds_rows("o1__単勝オッズ")} where 開催年 >= '{{first_year}}' and {JRA_ONLY}
     ) where rn = 1
 ),
 複勝オッズ as (
@@ -52,7 +52,7 @@ with 出走 as (
             try_cast(最低オッズ as double) / 10.0 as place_odds_low,
             try_cast(最高オッズ as double) / 10.0 as place_odds_high,
             row_number() over (partition by {RACE_KEYS}, 馬番 order by 発表月日時分 desc) as rn
-        from o1__複勝オッズ where 開催年 >= '{{first_year}}' and {JRA_ONLY}
+        from {final_odds_rows("o1__複勝オッズ")} where 開催年 >= '{{first_year}}' and {JRA_ONLY}
     ) where rn = 1
 ),
 単勝払戻 as (

@@ -10,12 +10,19 @@ TURF_TRACK, DIRT_TRACK, JUMP_TRACK = "11", "23", "54"
 
 @dataclass(frozen=True)
 class RacePlan:
-    """レース1つの条件。``base_time`` は1着の走破タイム（``1340`` = 1分34秒0）。"""
+    """レース1つの条件。``base_time`` は1着の走破タイム（``1340`` = 1分34秒0）。
+
+    ``grade``・``stakes_no``・``name`` は重賞のレースだけが持つ（グレードコード・特別競走番号・競走名。
+    ふつうのレースは空のまま）。
+    """
 
     race_no: str
     track_code: str
     distance_m: int
     base_time: int
+    grade: str = " "
+    stakes_no: str = ""
+    name: str = ""
 
     @property
     def is_dirt(self) -> bool:

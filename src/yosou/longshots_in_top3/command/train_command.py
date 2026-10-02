@@ -3,31 +3,33 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from itertools import chain
 from pathlib import Path
 
 from 共通 import db
 from 共通.render import Table
 
-from yosou.shared.command import CommonArguments, TrainingReportTables
-from yosou.shared.dataset import (
-    DEFAULT_TEST_FIRST_DAY,
-    DEFAULT_TRAIN_FIRST_DAY,
-    DEFAULT_VALID_FIRST_DAY,
-    TrainingPeriod,
-)
-from yosou.shared.ml_model import MEMBER_TYPES
-from yosou.shared.repository import ModelRepository
-from yosou.shared.workflow import TrainingWorkflow
+from yosou.shared.command import CommonArguments, PlacePriceStep, TrainingReportTables
+from yosou.shared.workflow import SegmentedTraining
 
 from ..dataset import dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import TIMINGS
+from ..workflow import SEGMENTS, TIMINGS
+from .buy_line_step import BuyLineStep
+from .period_arguments import PeriodArguments
 from .yosou_name import YOSOU_NAME
 
 
 class TrainCommand:
-    """``train``: 3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。"""
+    """``train``: 区分（中穴・大穴）ごと・3つの時点ごとに2つのモデルを学習して保存し、検証データでの当たり具合を出す。
+
+    学習のあとに、複勝の見込みの倍率（学習データの期間の払戻から決めたもの。複勝オッズの幅でも直す。設計書 15 の 18）も
+    保存する（予測で複勝の期待値を出すため）。
+    最後に、時点ごと・区分ごとの「買い」の線（検証データで決めたもの）も保存する（設計書 16 の 3）。
+    """
+
+    def __init__(self) -> None:
+        self._period_arguments = PeriodArguments()
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -37,41 +39,19 @@ class TrainCommand:
             "--config", type=Path, default=None,
             help="ハイパーパラメータの設定ファイル（TOML。省略すると初期値）",
         )
-        self._add_period_arguments(parser)
+        self._period_arguments.add_to(parser)
         CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:
         """元DB を開くのは学習データを読む段だけ。学習は DB を閉じてから行い、ほかの道具を待たせない。"""
-        period = TrainingPeriod.starting(
-            args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
-        )
+        period = self._period_arguments.period(args)
         with db.open_db(args.db) as con:
-            workflow = TrainingWorkflow(
-                dataset_builder(con), period, ModelRepository(args.models, MEMBER_TYPES),
-                TIMINGS, DEFAULT_SETTINGS_PATH,
-            )
-            training_data = workflow.read_training_data()
-        report = workflow.train(training_data, args.config)
-        return TrainingReportTables(report).tables()
-
-    def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
-        """学習データの期間の区切り（設計書 08 の 4）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""
-        group = parser.add_argument_group("学習データの期間")
-        group.add_argument(
-            "--warmup-from", type=date.fromisoformat, default=None,
-            help="ウォームアップ期間の最初の開催日。この日からの出走を過去走の計算にだけ使い、サンプルにしない"
-                 "（省略すると、学習データの最初の日の前の年の1月1日）",
-        )
-        group.add_argument(
-            "--train-from", type=date.fromisoformat, default=DEFAULT_TRAIN_FIRST_DAY,
-            help=f"学習データの最初の開催日（既定: {DEFAULT_TRAIN_FIRST_DAY}）",
-        )
-        group.add_argument(
-            "--valid-from", type=date.fromisoformat, default=DEFAULT_VALID_FIRST_DAY,
-            help=f"検証データの最初の開催日（既定: {DEFAULT_VALID_FIRST_DAY}。これより前が学習データ）",
-        )
-        group.add_argument(
-            "--test-from", type=date.fromisoformat, default=DEFAULT_TEST_FIRST_DAY,
-            help=f"テストデータの最初の開催日（既定: {DEFAULT_TEST_FIRST_DAY}）",
-        )
+            training = SegmentedTraining(SEGMENTS, dataset_builder(con), period, args.models, TIMINGS, DEFAULT_SETTINGS_PATH)
+            training_data = training.read_training_data()
+        reports = training.train(training_data, args.config)
+        tables = list(chain.from_iterable(TrainingReportTables(report, label).tables() for label, report in reports))
+        train_rows = training_data.between(None, period.valid_first_day)
+        place_price = PlacePriceStep(use_spread=True).run(train_rows, args.models)
+        buy_lines = BuyLineStep(SEGMENTS, TIMINGS).run(training_data, period, args.models)
+        return [*tables, place_price, *buy_lines]

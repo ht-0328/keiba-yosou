@@ -32,7 +32,7 @@ _SURFACE_RANGES: tuple[tuple[str, str, str], ...] = (
 )
 #: 芝ダの並び順。
 SURFACE_ORDER: dict[str, int] = {"芝": 0, "ダート": 1, "障害": 2}
-#: ページのファイル名に使う芝ダの英字（``reports/stats`` と同じ規則）。
+#: ページのファイル名に使う芝ダの英字（``reports/成績集計`` と同じ規則）。
 SURFACE_SLUG: dict[str, str] = {"芝": "turf", "ダート": "dirt", "障害": "jump"}
 
 #: コード表 2010.馬場状態コード。

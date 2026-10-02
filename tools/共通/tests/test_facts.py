@@ -74,6 +74,19 @@ def test_previous_run_is_taken_from_this_horse_earlier_races(synth_db: Path):
     assert rows[-1]["prev_finish"] == 1 and rows[-1]["interval_days"] == 370 and rows[-1]["prev_popularity"] == 1
 
 
+def test_a_scratched_race_is_not_the_previous_run(tmp_path: Path):
+    """前走は1つ前に出走したレース。出走取消（走っていない）のレースは飛ばす。"""
+    sample = synth.simple_race("20240323", "01")           # 馬番1 は4着
+    scratched = synth.simple_race("20240330", "01")
+    scratched.se[0].update({"異常区分コード": "1", "確定着順": "00"})  # 馬番1 は出走取消
+    sample.extend(scratched).extend(synth.simple_race("20240406", "01"))
+    path = synth.build_db(tmp_path / "scratch.duckdb", sample)
+    with db.open_db(path) as con:
+        rows = _facts(con, "horse_id = '2020000001' AND ran")
+    last = rows[-1]
+    assert len(rows) == 2 and last["prev_finish"] == 4 and last["interval_days"] == 14 and last["prev_popularity"] == 1
+
+
 def test_latest_row_wins_over_entry_stage_rows(tmp_path: Path):
     sample = synth.simple_race()
     entry = synth.runner(sample.ra[0], 1, 1, 0, stage="2", odds="0000")
