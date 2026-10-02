@@ -49,7 +49,8 @@ class RecentRecordRates:
     def _cumulative_before(self, query: pd.DataFrame, dates: pd.Series) -> pd.DataFrame:
         """その日付の前日までの累積（出走・勝ち・3着内）。区分の値が無い行や、まだ走っていない区分は 0。"""
         left = query.assign(race_date=dates - pd.Timedelta(days=1)).sort_values("race_date")
-        valid = left[left[self._key].notna()]
+        # 区分の型を右の表にそろえる（新馬戦の前走の騎手のように全部が欠損値だと、型の違う空の列になり merge_asof が止まる）
+        valid = left[left[self._key].notna()].astype({self._key: self._daily[self._key].dtype})
         found = pd.merge_asof(valid, self._daily[[self._key, "race_date", *_CUMULATIVE]],
                               on="race_date", by=self._key, direction="backward")
         found = found.set_index("order").reindex(range(len(query)))

@@ -37,23 +37,24 @@ class RatingHistoryBuilder:
         finishes = pd.to_numeric(ordered["finish"], errors="coerce").to_numpy(dtype=float)
         ratings = np.full(len(horses), INITIAL_RATING)
         counts = np.zeros(len(horses), dtype=int)
+        # レースID の列は1度だけ配列にする（開催日ごとに列全体を変換し直すと、それだけで1分以上かかる）
+        race_ids = ordered["race_id"].to_numpy()
         before = np.empty(len(ordered))
         runs_before = np.empty(len(ordered), dtype=int)
         for start, end in _slices(ordered["race_date"].to_numpy()):
             codes = horse_codes[start:end]
             before[start:end] = ratings[codes]
             runs_before[start:end] = counts[codes]
-            self._update_day(ordered, start, end, horse_codes, finishes, ratings, counts)
+            self._update_day(race_ids[start:end], start, horse_codes, finishes, ratings, counts)
         history = pd.DataFrame({
             "race_id": ordered["race_id"].to_numpy(), "horse_id": ordered["horse_id"].to_numpy(),
             "race_date": ordered["race_date"].to_numpy(), RATING: before, RUN_COUNT: runs_before.astype(float),
         }, index=ordered.index)
         return history.loc[runs.index]
 
-    def _update_day(self, ordered: pd.DataFrame, start: int, end: int, horse_codes: np.ndarray,
+    def _update_day(self, race_ids: np.ndarray, start: int, horse_codes: np.ndarray,
                     finishes: np.ndarray, ratings: np.ndarray, counts: np.ndarray) -> None:
-        """1つの開催日のレースを順に、着順でレーティングを更新する。"""
-        race_ids = ordered["race_id"].to_numpy()[start:end]
+        """1つの開催日のレースを順に、着順でレーティングを更新する。``race_ids`` はその日の行のレースID、``start`` はその日の最初の行。"""
         for race_start, race_end in _slices(race_ids):
             rows = np.arange(start + race_start, start + race_end)
             finished = rows[np.isfinite(finishes[rows])]
