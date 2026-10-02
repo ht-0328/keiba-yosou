@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+from pathlib import Path
 
+import duckdb
 import pandas as pd
 
 from 共通 import db
 from 共通.render import Table
 
+from yosou.form_aptitude_top3.command.figure_cache_argument import FigureCacheArgument
 from yosou.shared.command import CommonArguments
-from yosou.shared.dataset import TrainingData, TrainingPeriod
+from yosou.shared.dataset import DatasetBuilder, TrainingData, TrainingPeriod
 from yosou.shared.dataset import column_names as names
 from yosou.shared.evaluation.value_bands import ValueBands
 from yosou.shared.feature import PredictionTiming
@@ -20,7 +23,8 @@ from yosou.shared.place_value import PlaceHitProbability, PlacePriceEstimator
 from yosou.shared.repository import PlacePriceRepository
 from yosou.shared.workflow import ModelSegments, SegmentedHoldoutPrediction
 
-from ..dataset import dataset_builder
+from ..dataset import ability_dataset_builder, race_day_dataset_builder
+from ..workflow import ABILITY_TIMINGS
 from .train_command import TEST_FIRST_DAY, TRAIN_FIRST_DAY, VALID_FIRST_DAY
 from .yosou_name import YOSOU_NAME
 
@@ -35,6 +39,7 @@ class EvaluateCommand:
 
     期間の区切りは ``train`` と同じ引数で、既定も同じ。学習と同じ区切りで実行しないと、
     学習に使った行を「学習に使っていない」として測ってしまうので、``train`` と同じ引数で使う。
+    学習データは、測る時点のモデルの材料（木曜・前日は馬の力の材料＋K、当日は当日の材料＋K）で作る。
     """
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
@@ -50,6 +55,7 @@ class EvaluateCommand:
         group.add_argument("--train-from", type=_iso_date, default=TRAIN_FIRST_DAY, help="train と同じ")
         group.add_argument("--valid-from", type=_iso_date, default=VALID_FIRST_DAY, help="train と同じ")
         group.add_argument("--test-from", type=_iso_date, default=TEST_FIRST_DAY, help="train と同じ")
+        FigureCacheArgument().add_to(parser)
         CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
@@ -58,7 +64,7 @@ class EvaluateCommand:
             args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
         )
         with db.open_db(args.db) as con:
-            data = dataset_builder(con).build_training_data(period)
+            data = self._dataset_builder(con, args.timing, args.figure_cache).build_training_data(period)
         predictor = SegmentedHoldoutPrediction(ModelSegments(), args.models)
         estimator = self._place_price(args)
         tables: list[Table] = []
@@ -71,6 +77,12 @@ class EvaluateCommand:
         if not tables:
             raise LookupError("検証・テストの期間に重賞の行がありません（--valid-from・--test-from を確かめてください）")
         return tables
+
+    def _dataset_builder(self, con: duckdb.DuckDBPyConnection, timing: PredictionTiming, figure_cache: Path) -> DatasetBuilder:
+        """測る時点のモデルの材料の組み立て（``train`` と同じ分け方）。"""
+        if timing in ABILITY_TIMINGS:
+            return ability_dataset_builder(con, figure_cache)
+        return race_day_dataset_builder(con, figure_cache)
 
     def _place_price(self, args: argparse.Namespace) -> PlacePriceEstimator:
         state = PlacePriceRepository(args.models).load()

@@ -10,7 +10,8 @@ from 共通 import keys, stakes
 class StakesGradeRepository:
     """重賞の判定は ``共通/stakes.py`` の対応表（グレードコード A・B・C、中央だけ、障害の重賞は含めない）に任せる。
 
-    予想モデル「重賞の傾向と近走から3着以内を予想」が対象にするレースと同じ決め方にするため、ここで別に決めない。
+    分析ツール「重賞攻略」と予想モデル「重賞の傾向と近走から3着以内を予想」（引退）が対象にするレースと同じ決め方にするため、
+    ここで別に決めない。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:

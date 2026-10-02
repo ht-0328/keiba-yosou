@@ -11,6 +11,7 @@ from yosou.shared.tests import synthetic_season as season  # noqa: E402
 
 import same_day_predictor  # noqa: E402
 from same_day_predictor import SameDayModel, SameDayPredictor  # noqa: E402
+from 当日の予想.form_race_day_table import FormRaceDayTable  # noqa: E402
 from 当日の予想.stakes_predictor import StakesPredictor  # noqa: E402
 
 CARD_DAY = f"{season.CARD_RACE_ID[:4]}-{season.CARD_RACE_ID[4:6]}-{season.CARD_RACE_ID[6:8]}"
@@ -122,7 +123,7 @@ def test_stakes_table_follows_the_stakes_race_and_leaves_buys_alone(predictor, m
     """
     plain = predictor.run(STAKES_DAY, "00:00")
     predictor_with_stakes = SameDayPredictor(models, DefaultRegistry().build(), season_db, 0.0,
-                                             StakesPredictor(tmp_path / "no_models"), models_root=_models_root(tmp_path))
+                                             StakesPredictor(FormRaceDayTable(tmp_path / "no_models", tmp_path)), models_root=_models_root(tmp_path))
     tables = predictor_with_stakes.run(STAKES_DAY, "00:00")
     stakes = [index for index, table in enumerate(tables) if "重賞の予想" in table.title]
     assert len(stakes) == 1
