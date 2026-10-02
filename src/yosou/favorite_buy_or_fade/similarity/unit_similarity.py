@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..dataset import GROUPS
+from ..dataset import GROUPS, OUT_OF_THE_MONEY
 from .feature_matrix import FeatureMatrix
 from .group_similarity import GroupSimilarity
 from .score_columns import SCORE_COLUMNS
@@ -23,8 +23,11 @@ class UnitSimilarity:
         self._rows: dict[str, int] = {}
 
     def fit(self, features: pd.DataFrame, targets: pd.DataFrame) -> UnitSimilarity:
-        """``targets`` は勝利・馬券内・馬券外の列（1 ならそのグループ）。行の並びは ``features`` と同じ。"""
-        matrix = self._matrix.fit(features).transform(features)
+        """``targets`` は勝利・馬券内・馬券外の列（1 ならそのグループ）。行の並びは ``features`` と同じ。
+
+        物差しには「馬券外か」も渡す（カテゴリを馬券外率に直すときと、列ごとの重みを決めるときに使う）。
+        """
+        matrix = self._matrix.fit(features, targets[OUT_OF_THE_MONEY] == 1).transform(features)
         self._rows = {group: int(targets[group].sum()) for group in self._models}
         for group, model in self._models.items():
             model.fit(matrix, targets[group].to_numpy() == 1)
