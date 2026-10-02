@@ -41,7 +41,7 @@
 | `stakes_rebuild.py` | 入口⑨: 重賞の予想を手本の新しい材料で作り直したあとの確かめ。学習データの表を作り（`tables`）、作り直し・K を外したもの・K の見直し・手本を重賞だけに使ったとき・オッズだけを、1年ずつの7つの区切りで学ぶ（`run`）。比べ方の表は `compare.py --only stakes_tendency_top3` |
 | `calibration.py` | 入口⑦: 穴馬の予想の確率のずれを、7つの区切り × 3つの時点で確かめ、較正（Platt scaling・isotonic regression）と比べる（issue #31） |
 | `h2h_check.py` | 入口⑧: 対戦レーティング（全頭の予想のまとまり O）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`tables` → `run` → `summary` の3段） |
-| `pace_check.py` | 入口⑨: 予想「展開から着順を予想」の前半・後半の展開の予想の結果（全頭の予想のまとまり P）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`fill` → `tables` → `run` → `summary` の4段。今の予想の予測は入口⑧のものを使う） |
+| `pace_check.py` | 入口⑩: 予想「展開から着順を予想」の前半・後半の展開の予想の結果（全頭の予想のまとまり P）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`fill` → `tables` → `run` → `summary` の4段。今の予想の予測は入口⑧のものを使う） |
 | `analysis/` | 部品（下の表） |
 | `docs/` | 進め方（`01-進め方.md`）と結果の読み方（`02-結果の読み方.md`） |
 | `tests/` | 部品のテスト（合成データだけ） |
@@ -97,10 +97,10 @@ uv run python research/既存モデルの改善/calibration.py                  
 uv run python research/既存モデルの改善/h2h_check.py tables                              # ⑧ 対戦レーティングを足した表（元DB を開く。数分）
 uv run python research/既存モデルの改善/h2h_check.py run                                 # ⑧ 時点ごとに今の予想と足した作り方を学習（1つ 30〜60分。済んだものは飛ばす）
 uv run python research/既存モデルの改善/h2h_check.py summary                             # ⑧ 時点ごとの採否と、◎と1番人気の表
-uv run python research/既存モデルの改善/pace_check.py fill                              # ⑨ 展開の予想の年ごとの予測の抜け（2026年の木曜など）を作り足す（学習する。数十分）
-uv run python research/既存モデルの改善/pace_check.py tables                            # ⑨ ⑧ の表に展開の予想の結果を足した表（元DB は開かない）
-uv run python research/既存モデルの改善/pace_check.py run                               # ⑨ 時点ごとに足した作り方を学習（今の予想は ⑧ の予測を使う。済んだものは飛ばす）
-uv run python research/既存モデルの改善/pace_check.py summary                           # ⑨ 時点ごとの採否と、◎と1番人気の表
+uv run python research/既存モデルの改善/pace_check.py fill                              # ⑩ 展開の予想の年ごとの予測の抜け（2026年の木曜など）を作り足す（学習する。数十分）
+uv run python research/既存モデルの改善/pace_check.py tables                            # ⑩ ⑧ の表に展開の予想の結果を足した表（元DB は開かない）
+uv run python research/既存モデルの改善/pace_check.py run                               # ⑩ 時点ごとに足した作り方を学習（今の予想は ⑧ の予測を使う。済んだものは飛ばす）
+uv run python research/既存モデルの改善/pace_check.py summary                           # ⑩ 時点ごとの採否と、◎と1番人気の表
 uv run python -m pytest -q research/既存モデルの改善                                       # 部品のテスト
 ```
 
