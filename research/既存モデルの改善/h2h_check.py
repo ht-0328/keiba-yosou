@@ -109,7 +109,7 @@ def _summary(args: argparse.Namespace) -> None:
     store = PredictionStore(args.root / "predictions")
     lines = [f"# 対戦レーティングを足した比べ — 結果（{args.day}）", "", "JV-Data 由来の値を含むため、この文書は Git の対象外。", "",
              f"採用の基準: テスト期間のログ損失が今の予想より小さい区切りが 7つのうち {MIN_BETTER_WINDOWS}つ以上あり、全期間でも小さいこと。",
-             "今の予想は本番と同じ材料（木曜・前日は馬の力の材料 M と J、当日は今の材料 A〜L と券種の支持 N）。", ""]
+             "今の予想は本番と同じ材料（木曜・前日は馬の力の材料 M と J、当日は今の材料 A〜L と券種の支持 N と M）。", ""]
     for spec in H2H_COMPARISONS:
         if not (store.exists(spec.current.model, spec.current.key) and store.exists(spec.rated.model, spec.rated.key)):
             lines += [f"## {spec.timing.label}", "", "予測がまだ無い。", ""]
@@ -169,7 +169,7 @@ def _pin_to_p_cores() -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="対戦レーティングを足した比べ", allow_abbrev=False)
     parser.add_argument("step", choices=("tables", "run", "summary"), help="tables（表を作る）・run（学習する）・summary（表を書く）")
-    parser.add_argument("--only", nargs="*", default=None, metavar="表", help="tables で作る表（h2h_ability / h2h_pool）")
+    parser.add_argument("--only", nargs="*", default=None, metavar="表", help="tables で作る表（h2h_ability / h2h_pool_ability）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="run で回す作り方（省略すると全部）")
     parser.add_argument("--force", action="store_true", help="run で、済んだ作り方も回し直す")
     parser.add_argument("--threads", type=int, default=6, help="run の学習のスレッド数（既定: 6）")

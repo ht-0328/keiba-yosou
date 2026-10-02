@@ -8,8 +8,8 @@ from datetime import date
 
 import duckdb
 
-from yosou.form_aptitude_top3.dataset import ability_dataset_builder, pool_dataset_builder
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, POOL_CATALOG
+from yosou.form_aptitude_top3.dataset import ability_dataset_builder, race_day_dataset_builder
+from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, RACE_DAY_CATALOG
 from yosou.shared.dataset import DatasetBuilder, TrainingPeriod
 from yosou.shared.feature import HEAD_TO_HEAD_FEATURES, FeatureCatalog
 
@@ -34,13 +34,13 @@ class BaseTable:
         return FeatureCatalog(self.catalog.features + HEAD_TO_HEAD_FEATURES)
 
 
-#: 今の本番と同じ2つの表。木曜・前日のモデルは馬の力の材料（2012年から）、当日のモデルは今の材料に券種の支持を足したもの
-#: （2017年から）。研究「一番人気を疑う」の移したあとの確かめ（``port_check.py tables``）と同じ作り方なので、その表があれば読む。
+#: 今の本番と同じ2つの表。木曜・前日のモデルは馬の力の材料（2012年から）、当日のモデルは今の材料に券種の支持と馬の力の材料を
+#: 足したもの（2017年から）。研究「一番人気を疑う」の移したあとの確かめ（``port_check.py tables``）と同じ作り方なので、その表があれば読む。
 BASE_TABLES: tuple[BaseTable, ...] = (
     BaseTable("form_ability", "馬の力の材料 ＋ 市場の評価（木曜・前日）", ability_dataset_builder, ABILITY_CATALOG,
               TrainingPeriod(date(2011, 1, 1), date(2012, 1, 1), _UNUSED_VALID, _UNUSED_TEST), "h2h_ability"),
-    BaseTable("form_pool", "今の材料 ＋ 券種の支持（当日）", pool_dataset_builder, POOL_CATALOG,
-              TrainingPeriod(date(2016, 1, 1), date(2017, 1, 1), _UNUSED_VALID, _UNUSED_TEST), "h2h_pool"),
+    BaseTable("form_pool_ability", "今の材料 ＋ 券種の支持 ＋ 馬の力の材料（当日）", race_day_dataset_builder, RACE_DAY_CATALOG,
+              TrainingPeriod(date(2016, 1, 1), date(2017, 1, 1), _UNUSED_VALID, _UNUSED_TEST), "h2h_pool_ability"),
 )
 
 

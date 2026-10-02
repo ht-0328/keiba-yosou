@@ -12,7 +12,7 @@
 | ``PoolFreeData`` | 学習データ・予測用データから N を外す（当日に券種のオッズが無いときのモデル） |
 | ``PoolAvailability`` | 予測するレースの券種のオッズがあるかを確かめる |
 | ``ABILITY_TRAIN_FIRST_DAY`` | 馬の力の材料のモデルの学習データの始まり（2012年1月1日） |
-| ``ability_dataset_builder()`` | 馬の力の材料（M と J）の ``DatasetBuilder``（``ABILITY_CATALOG``。木曜・前日のモデル） |
+| ``ability_dataset_builder()`` | 馬の力の材料（M と O と J）の ``DatasetBuilder``（``ABILITY_CATALOG``。木曜・前日のモデル） |
 
 目的変数（3着以内・1着）を付ける部品と、その列の名前（``TOP3``・``WIN``）は、穴馬の予想とも共通なので
 ``yosou.shared.dataset`` にある。利用者が ``--odds`` で渡すオッズ（``OddsInput``）と、予測に使うオッズの決め方
