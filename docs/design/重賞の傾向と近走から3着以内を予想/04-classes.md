@@ -15,7 +15,7 @@
 |---|---|---|
 | `repository/`（データの読み書き） | 共通。重賞の傾向を読む `StakesTendencyRepository` を足す（下の 2） | 無し |
 | `dataset/`（学習データ・予測用データを作る） | 共通（`DatasetBuilder`・ローダー・`Top3TargetBuilder`・基準 `Top3Baseline`・`OddsResolver`・`OddsInput`・`TrainingPeriod`・`PeriodSplitter`） | 重賞の行を選ぶ `RunnerSelector` と、部品を渡して組み立てる `dataset_assembly.py` |
-| `feature/`（特徴量を作る） | 共通（まとまり A〜I の `BASE_FEATURES` と J の `MARKET_FEATURES`、過去の記録から数える部品） | まとまり K を作る `StakesTendencyFeatures` と、この予想の特徴量の一覧 `CATALOG`（85個） |
+| `feature/`（特徴量を作る） | 共通（手本と同じまとまり A〜N の一覧と作るクラス、過去の記録から数える部品） | まとまり K を作る `StakesTendencyFeatures` と、この予想の特徴量の一覧 `ABILITY_CATALOG`（木曜・前日）・`RACE_DAY_CATALOG`（当日。295個） |
 | `ml_model/`・`setting/`・`evaluation/`・`place_value/` | 共通 | 初期値の設定ファイルだけ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `workflow/`（流れを進める） | 学習は共通の `TrainingWorkflow` | `PredictionWorkflow` と、予測を出す時点の並び `TIMINGS` |
 | `command/` | 部品は共通（`CommonArguments`・`TrainingReportTables`・`PredictionTable`・`PlacePriceStep`） | コマンドの組み立てと、期間の既定（手本と違う。[08-training-data.md の 4](08-training-data.md#4-期間の指定)）、`evaluate` コマンド |
@@ -57,7 +57,7 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 ├── command/                        コマンド（train・predict・evaluate）の引数と、期間の既定
 ├── workflow/                       予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
 ├── dataset/                        重賞の行の選び方と、DatasetBuilder の組み立て
-├── feature/                        まとまり K（重賞の傾向）を作る。この予想の特徴量 85個の一覧（CATALOG）
+├── feature/                        まとまり K（重賞の傾向）を作る。この予想の特徴量の一覧（ABILITY_CATALOG・RACE_DAY_CATALOG）
 ├── setting/                        ハイパーパラメータの初期値のファイル
 └── tests/                          この予想の組み立てのテスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
@@ -78,23 +78,24 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `RunnerSelector` | 入れる行を選ぶ。平地・出走した馬（共通の `FlatRunnerFilter`）のうち、重賞（グレードコード A・B・C）の行だけを残す（[06-flowchart.md の図1](06-flowchart.md#図1-学習データに入れる行の選び方)）。予測では、渡されたレースが重賞でなければ `ValueError` を投げる（コマンドが「エラー:」の1行で見せる）。`keep_samples` はそのまま返す（重賞の全頭がサンプル） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | 共通の `FlatRunnerFilter` |
-| `dataset_assembly.py` の `dataset_builder()` | この予想の部品（`RunnerSelector`、共通の `Top3TargetBuilder`、`CATALOG`、まとまりの並び（共通の A〜F・H・I と `MarketFeatures`（J）に `StakesTendencyFeatures`（K）を足したもの）、基準の作り方 `Top3Baseline`、傾向のリポジトリ `StakesTendencyRepository`）を渡して、共通の `DatasetBuilder` を組み立てる関数 | `dataset_builder(接続)` | 上のクラスと共通の `DatasetBuilder` |
+| `dataset_assembly.py` の `ability_dataset_builder()`・`race_day_dataset_builder()` | この予想の部品（`RunnerSelector`、共通の `Top3TargetBuilder`、一覧、まとまりの並び（手本と同じ並びに `StakesTendencyFeatures`（K）を足したもの）、基準の作り方 `Top3Baseline`、傾向のリポジトリ `StakesTendencyRepository` と、手本と同じ M・L・N の元の記録を読む部品）を渡して、共通の `DatasetBuilder` を組み立てる関数。前者は木曜・前日（M・J・K）、後者は当日（A〜L・N・M・K） | `ability_dataset_builder(接続, スピード指数の置き場所)`・`race_day_dataset_builder(同じ)` | 上のクラスと共通の `DatasetBuilder` |
+| `PoolFreeData`・`PoolAvailability` | 当日に券種のオッズが無いとき、N を外して N を使わないモデルに切り替える部品。手本（`form_aptitude_top3`）のものを借りる（`shared` と手本を別の作業が変えていたため。落ち着いたら `shared` に移す） | ― | ― |
 
 ### feature/ — まとまり K と特徴量の一覧
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `StakesTendencyFeatures`（`stakes_tendency_features.py`） | まとまり K（重賞の傾向）の 10個を作る。`EntryRecords` の `stakes_tendency` の表を、出走の行と `race_id` で突き合わせ、切り口ごとの「縮めたずれ」と、自分が当てはまるかを掛けた列を作る（作り方は [09-features.md の K](09-features.md#k-重賞の傾向10個)）。`FeatureGroup` を守る | `build(記録)` | ― |
-| `CATALOG`（`feature_catalog.py`） | この予想の特徴量の一覧。`FeatureCatalog(BASE_FEATURES + MARKET_FEATURES + STAKES_TENDENCY_FEATURES)`（当日は 85個。[09-features.md](09-features.md)）。K の一覧 `STAKES_TENDENCY_FEATURES`（10個。名前・まとまり・型・いつから分かるか）も、このファイルに置く | ―（値） | 共通の `FeatureCatalog` |
+| `ABILITY_CATALOG`・`RACE_DAY_CATALOG`（`feature_catalog.py`） | この予想の特徴量の一覧。手本と同じ材料に K を足したもの（木曜・前日は `ABILITY_FEATURES + MARKET_FEATURES + K_FEATURES`、当日は手本の当日の 285個 + `K_FEATURES` の 295個。[09-features.md](09-features.md)）。K の一覧 `K_FEATURES`（10個。名前・まとまり・型・いつから分かるか）も、このファイルに置く | ―（値） | 共通の `FeatureCatalog` |
 
 ### workflow/ — 流れを進める
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `PredictionWorkflow` | 予測の流れを進める。予測に使うオッズを決め、予測用データを作り、その時点のモデル2つを読み込み、予測確率を平均し、前日・当日は複勝の期待値を足す。手本の `PredictionWorkflow` と同じ流れ（[05-sequence.md の図2](05-sequence.md#図2-予測)） | `run(レースID, 時点, 渡されたオッズ=省略可)` | 共通の `OddsResolver`・`DatasetBuilder`・`ModelRepository`・`EnsembleModel`・`PlaceValueColumns` |
-| `prediction_timings.py` の `TIMINGS` | この予想が学習し、予測を出す時点（木曜・前日・当日）の並び。手本と同じ3つ | ―（値） | ― |
+| `prediction_timings.py` の `TIMINGS`・`ABILITY_TIMINGS`・`FORM_TIMINGS` | この予想が学習し、予測を出す時点（木曜・前日・当日）と、馬の力の材料のモデルで予測する時点（木曜・前日）・当日の材料のモデルで予測する時点（当日）。手本と同じ分け方 | ―（値） | ― |
 
-`PredictionWorkflow` は、ほかのクラスを呼んで受け渡すだけで、計算・判断・SQL は書かない。**学習の流れ（`TrainingWorkflow`）は、共通のものをそのまま使う。** この予想は `TIMINGS`（3つ）と、初期値の設定ファイルと、この予想の期間の既定を渡す。モデルは 3つの時点 × 2つで、6個になる。
+`PredictionWorkflow` は、ほかのクラスを呼んで受け渡すだけで、計算・判断・SQL は書かない。当日に券種のオッズが無ければ、N を外して券種オッズなしのモデルに切り替える（手本と同じ）。**学習の流れ（`TrainingWorkflow`）は、共通のものをそのまま使う。** この予想は材料ごとに `TrainingWorkflow` を作り、時点の並びと、初期値の設定ファイルと、この予想の期間の既定を渡す。モデルは 3つの時点と券種オッズなしの当日 × 2つで、8個になる。
 
 ### command/ — コマンド
 
@@ -113,6 +114,7 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 | コマンド | 引数・出力 | この予想では |
 |---|---|---|
 | 共通 | `--models` の既定 | `reports/重賞の傾向と近走から3着以内を予想/models` |
+| `train`・`predict`・`evaluate` | `--figure-cache` | スピード指数をとっておく場所（手本と同じ引数。既定は `reports/能力指数/cache`） |
 | `train` | 期間の引数の既定 | この予想専用の既定（[08-training-data.md の 4](08-training-data.md#4-期間の指定) の表）。引数で変えられるのは手本と同じ |
 | `train` | 出す表 | 手本と同じ5つ（学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル・複勝の見込みの倍率） |
 | `predict` | `rid` | 重賞のレースだけ。重賞でないレースを渡すと「エラー: このレースは重賞（G1・G2・G3）ではない」の1行で止まる |
@@ -125,4 +127,4 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-29 |
-| 更新 | 2026-09-29: `shared` への追加とこの予想のパッケージが実装されたのに合わせ、状態と `StakesTendencyRepository` の列（`*_exp`・`base_*_excess`）を直した |
+| 更新 | 2026-09-29: `shared` への追加とこの予想のパッケージが実装されたのに合わせ、状態と `StakesTendencyRepository` の列（`*_exp`・`base_*_excess`）を直した。2026-10-02: 手本の新しい材料で作り直したので、組み立ての関数・一覧・時点の分け方・券種オッズなしの部品を直した |

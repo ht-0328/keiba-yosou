@@ -34,7 +34,7 @@ sequenceDiagram
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
     F->>F: StakesTendencyFeatures が K の10個を作る（09-features.md の K）
-    F-->>D: 特徴量 85個
+    F-->>D: 特徴量（当日の材料 295個か、馬の力の材料 216個）
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数（3着以内なら 1）と、1着の列
     D->>B: build（サンプルにする行）
@@ -63,7 +63,7 @@ sequenceDiagram
 
 - 記録を集めるとき、`StakesTendencyRepository` が重賞の傾向を読む呼び出しが1つ増える（図3）。傾向は出走の記録（`EntryRecords`）の `stakes_tendency` の表として持ち、`FeatureBuilder` の中で `StakesTendencyFeatures` が出走の行と突き合わせて K の10個を作る。
 - `RunnerSelector` が、重賞（グレードコード A・B・C の平地）の行だけをサンプルにする（[06-flowchart.md の図1](06-flowchart.md#図1-学習データに入れる行の選び方)）。重賞でないレースの出走も読むが、過去走と傾向の数え上げにだけ使う。
-- 学習データは、当日の時点の特徴量 85個で作る（単勝オッズは確定オッズ）。木曜と前日のモデルには、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。モデルは 3つの時点 × 2つで6個になる。
+- 学習データは、手本と同じく材料ごとに2つ作る（当日の材料 295個と、木曜・前日の馬の力の材料。単勝オッズは確定オッズ）。木曜と前日のモデルには、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。当日は、券種のオッズが無いレースのために N を外したモデルも学ぶ。モデルは 4つ × 2つで8個になる（手本の 05 の図1と同じ形）。
 
 ## 図2. 予測
 
@@ -102,7 +102,7 @@ sequenceDiagram
     RS->>RS: 重賞でなければ ValueError（コマンドがエラーの1行で止める）
     RS-->>D: 予測する馬の行
     D->>F: build（記録、時点）
-    F-->>D: その時点で使う特徴量（木曜 71・前日 83・当日 85）
+    F-->>D: その時点で使う特徴量（木曜 201・前日 213・当日 295）
     D->>C: check（特徴量）
     C-->>D: 要る情報（馬番・馬場状態・馬体重・オッズ）はそろっている
     D-->>W: 予測用データ（1行 = 1頭。前日・当日は基準付き）
@@ -147,8 +147,8 @@ sequenceDiagram
 | `shared` に足す・変えるもの（`StakesTendencyRepository`・`EntryRecords` の `stakes_tendency`・ローダーの変更） | 作った（`src/yosou/shared/`。[04-classes.md の 2](04-classes.md#2-shared-に足す変えるもの)） |
 | この予想のパッケージ（`RunnerSelector`・`StakesTendencyFeatures`・`PredictionWorkflow`・コマンド） | 作った（`src/yosou/stakes_tendency_top3/`。[04-classes.md](04-classes.md#4-この予想だけのクラスの一覧)） |
 | `evaluate` コマンド | 作った（同上。[16-evaluation.md の 4](16-evaluation.md#4-evaluate-コマンド学習に使っていない期間での確かめ)） |
-| 学習済みモデル（`reports/重賞の傾向と近走から3着以内を予想/models/`） | 実DB で学習して保存済み（2026-09-29）。学習し直すときは `train` を実行する |
-| 7つの区切りでの確かめ（ウォークフォワード）の重賞版 | 作った（1年ずつの7つの区切り。`research/既存モデルの改善/`。結果は [15-decisions.md の 8](15-decisions.md#8-当たり具合の確かめ方)） |
+| 学習済みモデル（`reports/重賞の傾向と近走から3着以内を予想/models/`） | 作り直したコードで学習し直した（2026-10-02。前のモデルは `models-直す前-20261002/`）。この予想は引退したので、確かめ直し用 |
+| 7つの区切りでの確かめ（ウォークフォワード）の重賞版 | 作った（1年ずつの7つの区切り。`research/既存モデルの改善/`。結果は [15-decisions.md の 8](15-decisions.md#8-当たり具合の確かめ方)。作り直したあとの確かめと引退は [15-decisions.md の 9](15-decisions.md#9-新しい一般の予想の材料で作り直し採用か引退かを決める2026-10-02)） |
 
 ## 文書情報
 

@@ -20,7 +20,7 @@ from yosou.shared.tests.synthetic_season.season_plan import FIELD_SIZE
 from yosou.shared.workflow import AVERAGE, ModelSegments, SegmentedPrediction
 from yosou.shared.tests import synthetic_season as season
 
-from ..command import CommandLine, EvaluateCommand
+from ..command import CommandLine, EvaluateCommand, PredictCommand
 from ..dataset import POOL_FREE_FOLDER, OddsResolver, PoolAvailability, PoolFreeData, ability_dataset_builder, race_day_dataset_builder
 from ..feature import WIN_ODDS
 from ..workflow import PROBABILITY, PredictionWorkflow
@@ -86,6 +86,15 @@ def test_command_predicts_a_finished_stakes_race(trained: tuple[Path, str], seas
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + FIELD_SIZE and lines[0].startswith("順位,馬番,馬名,")
+
+
+def test_tables_say_the_model_is_retired(trained: tuple[Path, str], season_db: Path, figure_cache: Path):
+    """引退したことが、学習と予測の結果の表に出る（動きは変えない）。"""
+    models, text = trained
+    assert "【引退】" in text
+    with db.open_db(season_db) as con:
+        table = PredictCommand().predict_table(con, FINISHED_STAKES_RID, PredictionTiming.RACE_DAY, models, figure_cache=figure_cache)
+    assert table.note.startswith("【引退】")
 
 
 def test_command_rejects_non_stakes_races_in_one_line(trained: tuple[Path, str], season_db: Path, figure_cache: Path, capsys):

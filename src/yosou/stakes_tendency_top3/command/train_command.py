@@ -20,6 +20,7 @@ from yosou.shared.workflow import TrainingWorkflow
 from ..dataset import POOL_FREE_FOLDER, PoolFreeData, ability_dataset_builder, race_day_dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS
+from .retirement import RETIRED_NOTE
 from .yosou_name import YOSOU_NAME
 
 #: 学習データの期間の既定。重賞は年に約125レースしかないので、共通の既定（2021年8月〜）では行が足りず、
@@ -40,7 +41,7 @@ class TrainCommand:
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
-            "train", help="3つの時点ごとに2つのモデルを学習して保存する", allow_abbrev=False,
+            "train", help="3つの時点ごとに2つのモデルを学習して保存する（引退。確かめ直し用）", allow_abbrev=False,
         )
         parser.add_argument(
             "--config", type=Path, default=None,
@@ -66,6 +67,7 @@ class TrainCommand:
             ability_data = ability.read_training_data()
         tables = self._race_day_tables(race_day, race_day_data, period, args)
         tables += TrainingReportTables(ability.train(ability_data, args.config), "馬の力の材料＋重賞の傾向").tables()
+        tables[0].note = f"{RETIRED_NOTE} {tables[0].note}"
         return tables
 
     def _race_day_tables(self, race_day: TrainingWorkflow, data: TrainingData, period: TrainingPeriod,

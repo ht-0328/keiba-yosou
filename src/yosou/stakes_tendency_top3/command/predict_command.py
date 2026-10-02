@@ -24,6 +24,7 @@ from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 from ..dataset import POOL_FREE_FOLDER, OddsInput, OddsResolver, ability_dataset_builder, race_day_dataset_builder
 from ..feature import WIN_ODDS
 from ..workflow import ABILITY_TIMINGS, PROBABILITY, PredictionWorkflow
+from .retirement import RETIRED_NOTE
 from .yosou_name import YOSOU_NAME
 
 
@@ -32,7 +33,7 @@ class PredictCommand:
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
-            "predict", help="1レース（重賞）の出走馬ごとの「3着以内に入る確率」を出す", allow_abbrev=False,
+            "predict", help="1レース（重賞）の出走馬ごとの「3着以内に入る確率」を出す（引退。確かめ直し用）", allow_abbrev=False,
         )
         parser.add_argument("rid", nargs="?", help="レースの rid（16桁）")
         parser.add_argument("--date", help="開催日 YYYY-MM-DD（rid を省くとき）")
@@ -69,7 +70,9 @@ class PredictCommand:
             pool_free=SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER),
         )
         prediction = workflow.run(race_id, timing, given)
-        return PredictionTable(prediction, timing, PROBABILITY, self._extra_columns(prediction)).table()
+        table = PredictionTable(prediction, timing, PROBABILITY, self._extra_columns(prediction)).table()
+        table.note = f"{RETIRED_NOTE} {table.note}".strip()
+        return table
 
     def _dataset_builder(self, con: duckdb.DuckDBPyConnection, timing: PredictionTiming, figure_cache: Path) -> DatasetBuilder:
         """その時点のモデルの材料の組み立て。木曜・前日は馬の力の材料＋K、当日は当日の材料＋K。"""
