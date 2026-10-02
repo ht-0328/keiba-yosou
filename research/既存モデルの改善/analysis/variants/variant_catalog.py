@@ -63,6 +63,9 @@ VARIANTS: tuple[ModelVariant, ...] = (
     ModelVariant(_FAVORITES, "odds_baseline", "基準＋補正（分けない）", _BASE + _POPULARITY + _ODDS, uses_baseline=True),
     ModelVariant(_FAVORITES, "improved", "変更版（基準＋補正・人気帯で分ける）", _BASE + _POPULARITY + _ODDS,
                  uses_baseline=True, segment_column=FAVORITE_BAND),
+    # 人気馬の今の本番の作り方（変更版 ＋ L。研究「馬券の買い方の検証」の3回目が、7つの区切りの危険度を出すのに使う）
+    ModelVariant(_FAVORITES, "people_market", "変更版 ＋ 市場に対する成績（今の本番）", _BASE + _POPULARITY + _ODDS + _PEOPLE_MARKET,
+                 uses_baseline=True, segment_column=FAVORITE_BAND),
     # 重賞の3着以内（設計書 docs/design/重賞の傾向と近走から3着以内を予想）。既定 = 今の設計の作り方（85個・基準＋補正）。
     # 傾向を外した作り方は、重賞の傾向（まとまり K）が効いているかを見るためのもの（全頭の変更版と同じ列を、重賞だけで学ぶ）
     ModelVariant(_STAKES, "odds_only", "オッズだけ", _ODDS_ONLY_FORM, uses_baseline=True),

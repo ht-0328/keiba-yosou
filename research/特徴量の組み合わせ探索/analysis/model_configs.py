@@ -4,7 +4,7 @@
 （計画「券種オッズの特徴量で、custom_binary を回収率 100% 超にする計画」）。
 """
 
-from yosou.custom_binary.repository import POOLS
+from yosou.shared.repository import POOLS
 from yosou.shared.feature.feature_catalog import BASE_FEATURES, ODDS_FEATURES, POPULARITY_FEATURES
 
 from .model_config import ModelConfig

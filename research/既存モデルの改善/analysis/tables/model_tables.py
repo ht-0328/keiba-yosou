@@ -25,13 +25,16 @@ TABLE_PERIOD = TrainingPeriod(date(2016, 1, 1), date(2017, 1, 1), date(2027, 1, 
 #: 重賞の予想の学習データを作る期間。重賞は1年に約125レースしかないので、予想の設計（設計書 08 の 4）と同じく、
 #: ウォームアップは 2011年（特別競走番号でレースを同定できると確かめた最初の年）、サンプルは 2012年1月から。
 STAKES_TABLE_PERIOD = TrainingPeriod(date(2011, 1, 1), date(2012, 1, 1), date(2027, 1, 1), date(2027, 1, 2))
+#: 荒れ具合の予想の学習データを作る期間。予想の学習の既定（2026-09-30 に 2017年から延ばした。荒れ具合の設計書 15 の 5）と同じく、
+#: ウォームアップは 2011年、サンプルは 2012年1月から。
+UPSET_TABLE_PERIOD = TrainingPeriod(date(2011, 1, 1), date(2012, 1, 1), date(2027, 1, 1), date(2027, 1, 2))
 
 MODEL_TABLES: tuple[ModelTableSpec, ...] = (
     ModelTableSpec("form_aptitude_top3", "近走と適性から3着以内を予想（全頭）", form_builder, FORM_CATALOG),
     ModelTableSpec("longshots_in_top3", "穴馬が3着以内に入るかを予想", longshots_builder, LONGSHOTS_CATALOG),
     ModelTableSpec("favorites_out_of_top3", "人気馬が4着以下になるかを予想", favorites_builder, FAVORITES_CATALOG),
     ModelTableSpec("upset_level", "レースの荒れ具合を4段階で予想", race_dataset_builder, UPSET_CATALOG,
-                   UpsetLevel.class_labels()),
+                   UpsetLevel.class_labels(), period=UPSET_TABLE_PERIOD),
 )
 
 
