@@ -261,3 +261,27 @@ def test_stakes_list_detail_csv_and_errors(stakes_web: str):
     assert by_name["stakes_no"] == "9001" and by_name["markdown"] != detail["markdown"]
     assert get(stakes_web, "/api/stakes/detail", {"no": "0000"})[0] == 400
     assert get(stakes_web, "/api/stakes", {"before": "2000-01-01"})[0] == 400
+
+
+def test_forecasts_list_saved_and_detail(card_db: Path, tmp_path: Path):
+    from 今週の予想.forecast_store import ForecastStore
+    from 今週の予想.tests.test_forecast_store import sample_forecast
+
+    store = ForecastStore(tmp_path / "forecasts")
+    gen = serve(card_db, today=lambda: CARD_TODAY, forecasts=store)
+    base = next(gen)
+    try:
+        cards = json.loads(get(base, "/api/cards")[2])
+        first, second = (row[-1] for row in cards["rows"])
+        store.save(sample_forecast(second))
+        listed = json.loads(get(base, "/api/forecasts")[2])
+        assert list(listed["saved"]) == [second] and listed["saved"][second]["marks"] == "◎3"
+        assert listed["legend"]["marks"]["消"] == "買わない" and "能力" in listed["legend"]["categories"]
+        detail = json.loads(get(base, "/api/forecast", {"rid": second})[2])
+        assert detail["forecast"]["horses"][0]["mark"] == "◎" and detail["title"].startswith("2025-04-19（土） 東京 2R")
+        assert json.loads(get(base, "/api/forecast", {"rid": first})[2])["forecast"] is None
+        # 予想し直すのは、この画面からの POST だけ
+        status, _ = post(base, "/api/forecast/run", {"rid": first}, headers={"Origin": "http://evil.example"})
+        assert status == 403
+    finally:
+        next(gen, None)

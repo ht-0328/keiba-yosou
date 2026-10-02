@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 import numpy as np
+import pandas as pd
 
 from .class_probability_model import ClassProbabilityModel
 from .probability_model import FeatureData, ProbabilityModel
@@ -43,3 +44,12 @@ class EnsembleModel:
     def predict_proba(self, data: FeatureData) -> np.ndarray:
         """モデルごとの確率の平均（1頭ずつの確率、またはクラスごとの確率）。"""
         return self.combine(self.predict_members(data))
+
+    def contributions(self, data: FeatureData) -> pd.DataFrame:
+        """特徴量ごとの寄与（ロジットの上げ下げ）を、モデルどうしで平均したもの。二値分類のモデルだけが出せる。
+
+        列は特徴量、行と index は ``data.features`` と同じ。片方のモデルにしか無い特徴量は、無いモデルの寄与を 0 とみなす。
+        確率の平均とロジットの寄与の平均は厳密には一致しないので、理由の大きさの目安として使う。
+        """
+        parts = [member.contributions(data) for member in self._members]
+        return pd.concat(parts).groupby(level=0, sort=False).sum().div(len(parts)).loc[data.features.index]

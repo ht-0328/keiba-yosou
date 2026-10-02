@@ -5,6 +5,7 @@
 | 名前 | 仕事 |
 |---|---|
 | ``PredictionWorkflow`` | 予測の流れ（設計書 05 の図2）。``PROBABILITY`` は確率の列の名前、``PaceSource`` は展開の予測を返す関数の型 |
+| ``ExplainedPrediction`` | 予測の結果に、モデルに渡した特徴量の値と特徴量ごとの寄与（理由を見せる材料）を添えたもの（``PredictionWorkflow.explain``） |
 | ``TIMINGS`` | この予想が学習し、予測を出す時点（木曜・前日・当日） |
 | ``ABILITY_TIMINGS``・``FORM_TIMINGS`` | 馬の力の材料のモデルで予測する時点と、今の材料のモデルで予測する時点 |
 | ``PACE_TIMINGS`` | 展開の予想の結果（P）を足して学ぶ時点（木曜） |
@@ -14,7 +15,8 @@
 学習の結果の入れ物（``TrainingReport``）は ``yosou.shared.evaluation``。
 """
 
+from .explained_prediction import ExplainedPrediction
 from .prediction_timings import ABILITY_TIMINGS, FORM_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER, TIMINGS
 from .prediction_workflow import PROBABILITY, PaceSource, PredictionWorkflow
 
-__all__ = ["PredictionWorkflow", "PROBABILITY", "PaceSource", "TIMINGS", "ABILITY_TIMINGS", "FORM_TIMINGS", "PACE_TIMINGS", "POOL_FREE_FOLDER"]
+__all__ = ["PredictionWorkflow", "ExplainedPrediction", "PROBABILITY", "PaceSource", "TIMINGS", "ABILITY_TIMINGS", "FORM_TIMINGS", "PACE_TIMINGS", "POOL_FREE_FOLDER"]

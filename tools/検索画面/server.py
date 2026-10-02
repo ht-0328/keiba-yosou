@@ -28,13 +28,16 @@ from 共通.ability.figure_cache import DEFAULT_FOLDER as FIGURE_CACHE_FOLDER  #
 from 共通.filters import FILTER_FIELDS, Filters  # noqa: E402
 from 成績集計 import check  # noqa: E402
 from 重賞攻略.guide import StakesGuide  # noqa: E402
+from 今週の予想.feature_labels import CATEGORY_NOTES  # noqa: E402
+from 今週の予想.forecast_store import ForecastStore  # noqa: E402
+from 今週の予想.horse_evaluator import MARK_ROLES  # noqa: E402
 from 検索画面.session import DbSession  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 DEFAULT_PORT = 8767
 APP_NAME = "keiba-yosou"
 #: API の版。画面（index.html の PAGE_VERSION）と合わないときは、古いサーバーが動いていると分かる。API を変えたら両方を上げる。
-APP_VERSION = "7"
+APP_VERSION = "8"
 #: 古い版のサーバーを止めて入れ替えるとき、ポートが空くのを待つ上限（秒）。
 _REPLACE_TIMEOUT_SECONDS = 10.0
 #: 画面が1度に出す行数の上限。
@@ -88,13 +91,16 @@ def table_dict(table: render.Table) -> dict[str, Any]:
 class Backend:
     """API の中身。1つの ``DbSession`` を使い回す。``today`` は「今日以降の出馬表」の基準日（テストで差し替える）。
     ``ability_cache`` は、能力指数のために作った過去の走の指数をとっておく場所（テストで差し替える）。
+    ``forecasts`` は、今週の予想の結果の置き場所（テストで差し替える）。
     """
 
-    def __init__(self, session: DbSession, today: Callable[[], date] = date.today, ability_cache: Path | None = None) -> None:
+    def __init__(self, session: DbSession, today: Callable[[], date] = date.today, ability_cache: Path | None = None,
+                 forecasts: ForecastStore | None = None) -> None:
         self.session = session
         self.today = today
         settings = AbilitySettings()
         self._ability = RaceAbility(settings, FigureCache(settings, ability_cache or FIGURE_CACHE_FOLDER))
+        self._forecasts = forecasts or ForecastStore()
 
     def info(self) -> dict[str, Any]:
         return {"app": APP_NAME, "version": APP_VERSION, "db": str(self.session.path), "session": self.session.state()}
@@ -233,6 +239,41 @@ class Backend:
         if part not in _ABILITY_PARTS:
             raise ValueError(f"part は {', '.join(_ABILITY_PARTS)} のどれかです: {part}")
         return getattr(AbilityTables(), part)(self._ability_report(query))
+
+    def forecasts(self, query: dict[str, list[str]]) -> dict[str, Any]:
+        """今週の予想のレース一覧（出馬表のあるレース）と、予想を作ってあるレースの時点・作った時刻・上位の印。"""
+        cards = self.cards(query)
+        rid_at = card.CARD_LIST_HEADERS.index("rid")
+        saved = {}
+        for row in cards.rows:
+            forecast = self._forecasts.load(row[rid_at])
+            if forecast is not None:
+                marks = " ".join(f"{horse['mark']}{horse['horse_no'] or ''}" for horse in forecast["horses"] if horse["mark"] != "消")
+                saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": marks}
+        return {"cards": table_dict(cards), "saved": saved, "legend": self._forecast_legend()}
+
+    def forecast(self, query: dict[str, list[str]]) -> dict[str, Any]:
+        """1レースの今週の予想（作ってある結果）。無ければ ``forecast`` が None。同じ日・同じ競馬場のレースも添える。"""
+        rid = _first(query, "rid")
+        with self.session.use() as con:
+            races = card.same_day_races(con, rid)
+            title = card.header_title(card.race_header(con, rid))
+        return {"rid": rid, "title": title, "forecast": self._forecasts.load(rid), "races": races, "legend": self._forecast_legend()}
+
+    def forecast_run(self, rid: str, timing: str | None) -> dict[str, Any]:
+        """1レースを今のモデルで予想し直して書き、結果を返す（数十秒〜数分かかる）。"""
+        # 予想のモデル（LightGBM・CatBoost）の読み込みは重いので、予想するときだけ読む
+        from yosou.shared.feature import PredictionTiming
+        from 今週の予想.forecast import DEFAULT_MODELS
+        from 今週の予想.race_forecaster import RaceForecaster
+        with self.session.use() as con:
+            forecast = RaceForecaster(DEFAULT_MODELS).forecast(con, rid, PredictionTiming.parse(timing) if timing else None)
+        self._forecasts.save(forecast)
+        return self.forecast({"rid": [rid]})
+
+    def _forecast_legend(self) -> dict[str, Any]:
+        """画面の凡例: 印の役割と、良い点・悪い点の分類の説明。"""
+        return {"marks": MARK_ROLES, "categories": CATEGORY_NOTES}
 
     def stakes(self, query: dict[str, list[str]]) -> render.Table:
         """重賞の一覧（``tools/重賞攻略/stakes.py --list`` と同じ）。``before`` でその日より前の開催だけで数える。"""
@@ -376,6 +417,10 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                 if _first(query, "format"):
                     return self._table(backend.ability_table(query), query, "ability")
                 return self._json(backend.ability(query))
+            if path == "/api/forecasts":
+                return self._json(backend.forecasts(query))
+            if path == "/api/forecast":
+                return self._json(backend.forecast(query))
             if path == "/api/stakes":
                 return self._table(backend.stakes(query), query, "stakes")
             if path == "/api/stakes/detail":
@@ -408,10 +453,12 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                     # 新しい版の起動が、古い版を止めて入れ替えるために使う。応答を返してから止める
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
                     return self._json({"stopped": True, "version": APP_VERSION})
-                if url.path != "/api/sql":
+                if url.path not in ("/api/sql", "/api/forecast/run"):
                     return self._json({"error": "not found"}, 404)
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length) or b"{}")
+                if url.path == "/api/forecast/run":
+                    return self._json(backend.forecast_run(str(body.get("rid", "")), body.get("timing") or None))
                 table = backend.sql(str(body.get("sql", "")), max(1, min(int(body.get("limit", browse.WEB_MAX_ROWS)), MAX_LIMIT)),
                                     float(body.get("timeout", browse.DEFAULT_TIMEOUT_SECONDS)))
                 return self._json(table_dict(table))
@@ -436,12 +483,13 @@ class _Server(ThreadingHTTPServer):
 
 
 def make_server(db_path: Path, port: int = DEFAULT_PORT, *, idle_seconds: float = 60.0,
-                today: Callable[[], date] = date.today, ability_cache: Path | None = None) -> tuple[_Server, DbSession]:
+                today: Callable[[], date] = date.today, ability_cache: Path | None = None,
+                forecasts: ForecastStore | None = None) -> tuple[_Server, DbSession]:
     """サーバーとセッションを作る（起動はしない）。テストは ``port=0`` で空きポートを使い、``today`` で基準日を固定し、
-    ``ability_cache`` で能力指数のとっておき場所を一時フォルダにする。
+    ``ability_cache`` で能力指数のとっておき場所を、``forecasts`` で今週の予想の置き場所を一時フォルダにする。
     """
     session = DbSession(db_path, idle_seconds=idle_seconds)
-    server = _Server(("127.0.0.1", port), make_handler(Backend(session, today, ability_cache)))
+    server = _Server(("127.0.0.1", port), make_handler(Backend(session, today, ability_cache, forecasts)))
     return server, session
 
 
@@ -471,12 +519,20 @@ def _replace_old_server(url: str, port: int) -> bool:
     return False
 
 
-def serve(db_path: Path, port: int = DEFAULT_PORT, open_browser: bool = False, *, idle_seconds: float = 60.0) -> None:
-    """画面を起動して待ち受ける。Ctrl+C で止まる。
+def page_url(port: int, tab: str = "") -> str:
+    """ブラウザで開くアドレス。``tab`` を渡すと、そのタブ（例: ``forecast`` = 今週の予想）を開く。"""
+    url = f"http://127.0.0.1:{port}/"
+    return url + f"#/{tab}" if tab else url
+
+
+def serve(db_path: Path, port: int = DEFAULT_PORT, open_browser: bool = False, *, idle_seconds: float = 60.0,
+          tab: str = "") -> None:
+    """画面を起動して待ち受ける。Ctrl+C で止まる。``tab`` は、ブラウザで開くときに最初に見せるタブ。
 
     同じポートに同じ版の自分の画面があれば、それを開くだけ。古い版が動いていれば止めて入れ替える。
     """
     url = f"http://127.0.0.1:{port}/"
+    shown = page_url(port, tab)
     try:
         server, session = make_server(db_path, port, idle_seconds=idle_seconds)
     except OSError as error:
@@ -484,18 +540,18 @@ def serve(db_path: Path, port: int = DEFAULT_PORT, open_browser: bool = False, *
         if info is None:
             raise SystemExit(f"ポート {port} は別の画面で使用中です。--port で変えてください。") from error
         if info.get("version") == APP_VERSION:
-            print(f"起動済みの画面: {url}")
+            print(f"起動済みの画面: {shown}")
             if open_browser:
-                webbrowser.open(url)
+                webbrowser.open(shown)
             return
         print(f"古い版の画面（版 {info.get('version', '?')}）が動いています。止めて入れ替えます。", flush=True)
         if not _replace_old_server(url, port):
             raise SystemExit("古い画面を止められませんでした。その黒い窓を閉じてから、もう一度起動してください。") from error
         server, session = make_server(db_path, port, idle_seconds=idle_seconds)
-    print(f"keiba-yosou 検索画面: {url}", flush=True)
+    print(f"keiba-yosou 検索画面: {shown}", flush=True)
     print(f"元DB: {db_path}\n終了するには Ctrl+C", flush=True)
     if open_browser:
-        webbrowser.open(url)
+        webbrowser.open(shown)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

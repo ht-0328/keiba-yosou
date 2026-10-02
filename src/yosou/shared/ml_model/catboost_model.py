@@ -74,6 +74,18 @@ class CatBoostModel:
         raw = classifier.predict(pool, prediction_type="RawFormulaVal") + self._baseline_check.values_of(data)
         return 1.0 / (1.0 + np.exp(-raw))
 
+    def contributions(self, data: FeatureData) -> pd.DataFrame:
+        """1頭ずつの、特徴量ごとの寄与（SHAP 値。ロジットをどれだけ上げ下げしたか）。
+
+        列は特徴量（学習と同じ並び）、行と index は ``data.features`` と同じ。木の出発点（全体の平均）と、
+        基準を使って学んだモデルの基準の分は入れない。予想の理由を人に見せるのに使う。
+        """
+        encoder, classifier = self._trained()
+        encoded = encoder.transform(data.features)
+        pool = catboost.Pool(encoded, cat_features=list(encoder.categorical_columns))
+        values = classifier.get_feature_importance(pool, type="ShapValues")
+        return pd.DataFrame(values[:, :-1], columns=encoded.columns, index=data.features.index)
+
     @property
     def tree_count(self) -> int:
         _, classifier = self._trained()

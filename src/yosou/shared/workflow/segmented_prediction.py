@@ -34,6 +34,20 @@ class SegmentedPrediction:
         parts = [self._one(data, label) for label in present]
         return pd.concat(parts).loc[data.ids.index]
 
+    def contributions(self, data: PredictionData) -> pd.DataFrame:
+        """特徴量ごとの寄与（2つのモデルの平均。``EnsembleModel.contributions``）。区分ごとに、その区分のモデルで出す。
+
+        列は特徴量、行と index は予測用データの ID 列と同じ。区分によって無い特徴量は 0。
+        """
+        present = [label for label in self._segments.labels() if self._segments.rows(data.ids, label).any()]
+        parts = [self._contributions_of(data, label) for label in present]
+        return pd.concat(parts).fillna(0.0).loc[data.ids.index]
+
+    def _contributions_of(self, data: PredictionData, label: str) -> pd.DataFrame:
+        chosen = data.where(self._segments.rows(data.ids, label))
+        repository = ModelRepository(self._segments.root_of(self._root, label), self._member_types)
+        return EnsembleModel(repository.load(data.timing)).contributions(chosen)
+
     def _one(self, data: PredictionData, label: str) -> pd.DataFrame:
         chosen = data.where(self._segments.rows(data.ids, label))
         repository = ModelRepository(self._segments.root_of(self._root, label), self._member_types)
