@@ -34,7 +34,7 @@ from yosou.shared.feature.group import (
 from yosou.shared.repository import MarketRunRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER
 
-from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG
+from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_ABILITY_FEATURES, RACE_DAY_CATALOG
 from .runner_selector import RunnerSelector
 
 #: 馬の力の材料のモデルの学習データの始まり。研究「一番人気を疑う」で、2017年からより長い期間で学ぶほうが良かった
@@ -48,6 +48,10 @@ _FEATURE_GROUPS = (
 )
 #: 今の材料に N（券種ごとのオッズから見た支持）を足したまとまり。
 _POOL_FEATURE_GROUPS = (*_FEATURE_GROUPS, PoolSupportFeatures())
+#: 当日のモデルのまとまり（今の材料・N と、M のうち今の材料と名前の重ならない列）。
+_RACE_DAY_FEATURE_GROUPS = (
+    *_POOL_FEATURE_GROUPS, HorseAbilityFeatures(tuple(feature.name for feature in RACE_DAY_ABILITY_FEATURES)),
+)
 #: 馬の力の材料のまとまり（M と J）。G（同じレースの馬との比較）は A〜F の特徴量から作るので、使わない。
 _ABILITY_FEATURE_GROUPS = (HorseAbilityFeatures(), MarketFeatures())
 
@@ -77,7 +81,7 @@ def dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
 
 
 def pool_dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
-    """今の材料に N（券種ごとのオッズから見た支持の6個）を足した学習データ・予測用データを作るクラス（当日のモデル）。
+    """今の材料に N（券種ごとのオッズから見た支持の6個）を足した学習データ・予測用データを作るクラス（研究の比べに使う。本番の当日のモデルは ``race_day_dataset_builder``）。
 
     券種ごとのオッズから見た確率は
     ``PoolProbabilityLoader`` で読む（終わったレースは確定、これから走るレースは締め切り前の最新の断面）。
@@ -87,6 +91,21 @@ def pool_dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
         HistoryRecordsLoader(con, market_runs=_market_runs(con), pool_probabilities=pools),
         RaceRecordsLoader(con, market_runs=_market_runs(con), pool_probabilities=pools),
         RunnerSelector(), Top3TargetBuilder(), FeatureBuilder(POOL_CATALOG, _POOL_FEATURE_GROUPS),
+        baseline=Top3Baseline(),
+    )
+
+
+def race_day_dataset_builder(con: duckdb.DuckDBPyConnection, figure_folder: Path = DEFAULT_FOLDER) -> DatasetBuilder:
+    """当日のモデルの学習データ・予測用データを作るクラス（今の材料に N と M を足した 285個。``RACE_DAY_CATALOG``）。
+
+    ローダーには、L の過去の全出走（``MarketRunRepository``）・券種ごとのオッズから見た確率（``PoolProbabilityLoader``）・
+    M の元の記録（``AbilitySourcesLoader``）を渡す。``figure_folder`` はスピード指数をとっておく場所。
+    """
+    pools, sources = PoolProbabilityLoader(con), AbilitySourcesLoader(con, figure_folder)
+    return DatasetBuilder(
+        HistoryRecordsLoader(con, market_runs=_market_runs(con), ability_sources=sources, pool_probabilities=pools),
+        RaceRecordsLoader(con, market_runs=_market_runs(con), ability_sources=sources, pool_probabilities=pools),
+        RunnerSelector(), Top3TargetBuilder(), FeatureBuilder(RACE_DAY_CATALOG, _RACE_DAY_FEATURE_GROUPS),
         baseline=Top3Baseline(),
     )
 
