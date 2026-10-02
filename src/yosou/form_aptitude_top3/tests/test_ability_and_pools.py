@@ -25,9 +25,9 @@ _FIGURE = "指数_前走"
 def test_the_catalogs_split_by_timing():
     # 木曜・前日は馬の力の材料（木曜は M だけ、前日は J も）。当日は今の材料に N と M を足す
     assert ABILITY_TIMINGS == (PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE)
-    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 199 + 4
+    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 199 + 7 + 4
     assert set(ABILITY_TIMINGS) | set(FORM_TIMINGS) == set(PredictionTiming)
-    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.THURSDAY)) == 192
+    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.THURSDAY)) == 192 + 7
     assert len(POOL_CATALOG.columns_for(PredictionTiming.RACE_DAY)) == len(CATALOG.columns_for(PredictionTiming.RACE_DAY)) + 6
     assert POOL_CATALOG.columns_for(PredictionTiming.DAY_BEFORE) == CATALOG.columns_for(PredictionTiming.DAY_BEFORE)
     assert all(feature.group == "M" and not feature.is_categorical for feature in ABILITY_FEATURES)

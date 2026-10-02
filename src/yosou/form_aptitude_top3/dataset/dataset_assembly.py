@@ -8,6 +8,7 @@ from pathlib import Path
 import duckdb
 
 from yosou.shared.dataset import (
+    HISTORY_FIRST_DAY,
     AbilitySourcesLoader,
     DatasetBuilder,
     HistoryRecordsLoader,
@@ -19,6 +20,7 @@ from yosou.shared.dataset import (
 from yosou.shared.feature import PEOPLE_WINDOW_DAYS, FeatureBuilder
 from yosou.shared.feature.group import (
     AptitudeFeatures,
+    HeadToHeadRatingFeatures,
     HorseAbilityFeatures,
     HorseFeatures,
     MarketFeatures,
@@ -31,7 +33,7 @@ from yosou.shared.feature.group import (
     RecentFormFeatures,
     WorkoutFeatures,
 )
-from yosou.shared.repository import MarketRunRepository
+from yosou.shared.repository import HeadToHeadRunRepository, MarketRunRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER
 
 from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_ABILITY_FEATURES, RACE_DAY_CATALOG
@@ -52,8 +54,8 @@ _POOL_FEATURE_GROUPS = (*_FEATURE_GROUPS, PoolSupportFeatures())
 _RACE_DAY_FEATURE_GROUPS = (
     *_POOL_FEATURE_GROUPS, HorseAbilityFeatures(tuple(feature.name for feature in RACE_DAY_ABILITY_FEATURES)),
 )
-#: 馬の力の材料のまとまり（M と J）。G（同じレースの馬との比較）は A〜F の特徴量から作るので、使わない。
-_ABILITY_FEATURE_GROUPS = (HorseAbilityFeatures(), MarketFeatures())
+#: 馬の力の材料のまとまり（M と O と J）。G（同じレースの馬との比較）は A〜F の特徴量から作るので、使わない。
+_ABILITY_FEATURE_GROUPS = (HorseAbilityFeatures(), HeadToHeadRatingFeatures(), MarketFeatures())
 
 
 def _market_runs(con: duckdb.DuckDBPyConnection) -> MarketRunRepository:
@@ -111,15 +113,17 @@ def race_day_dataset_builder(con: duckdb.DuckDBPyConnection, figure_folder: Path
 
 
 def ability_dataset_builder(con: duckdb.DuckDBPyConnection, figure_folder: Path = DEFAULT_FOLDER) -> DatasetBuilder:
-    """馬の力の材料（M の 202個と J の4個）の学習データ・予測用データを作るクラス（木曜・前日のモデル）。
+    """馬の力の材料（M の 202個と O の7個と J の4個）の学習データ・予測用データを作るクラス（木曜・前日のモデル）。
 
-    M の元の記録（過去の全出走・スピード指数・調教のまとめ・セリの取引）は ``AbilitySourcesLoader`` で読む。
+    M の元の記録（過去の全出走・スピード指数・調教のまとめ・セリの取引）は ``AbilitySourcesLoader`` で、O（対戦レーティング）の
+    元の記録（2011年からの平地の全出走の着順）は ``HeadToHeadRunRepository`` で読む。
     ``figure_folder`` はスピード指数をとっておく場所（テストでは一時フォルダを渡す）。
     行の選び方・目的変数・基準は ``dataset_builder`` と同じ（基準はオッズの分かる前日から）。
     """
-    sources = AbilitySourcesLoader(con, figure_folder)
+    sources, runs = AbilitySourcesLoader(con, figure_folder), HeadToHeadRunRepository(con, HISTORY_FIRST_DAY)
     return DatasetBuilder(
-        HistoryRecordsLoader(con, ability_sources=sources), RaceRecordsLoader(con, ability_sources=sources),
+        HistoryRecordsLoader(con, ability_sources=sources, head_to_head_runs=runs),
+        RaceRecordsLoader(con, ability_sources=sources, head_to_head_runs=runs),
         RunnerSelector(), Top3TargetBuilder(), FeatureBuilder(ABILITY_CATALOG, _ABILITY_FEATURE_GROUPS, field_groups=()),
         baseline=Top3Baseline(),
     )

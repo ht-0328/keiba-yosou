@@ -19,6 +19,9 @@
 [unit]
 # 学習データでの1番人気がこれより少ない「芝ダート × 距離」は、同じ芝ダートのいちばん近い距離の単位とまとめる。
 min_rows = 500
+# 単位の分け方。"芝ダートと距離"（芝ダごとに、min_rows 以上の距離を単位にする）か、
+# "なし"（全部を1つの単位にし、芝ダと距離は特徴量として近さに入れる）。
+split = "芝ダートと距離"
 
 [features]
 # どの時点の特徴量で近さを測るか（前日 か 当日）。前日なら、馬体重（当日に分かる）を使わない。
@@ -29,6 +32,11 @@ timing = "当日"
 exclude = ["騎手", "調教師", "父", "父の父", "母の父", "人気順位"]
 # 数の特徴量が欠損値だった行を、0 と 1 の列（欠損値だったか）でも表すか。欠損値は単位の中央値で埋める。
 add_missing_flags = true
+# 数の列のそろえ方。"標準化"（平均 0・標準偏差 1）か、"順位"（学習データの中の順位 0〜1 に直してから、ばらつき 1 にそろえる。
+# 外れ値に引きずられない）。
+scaling = "標準化"
+# カテゴリの列の直し方。"one-hot"（値ごとの 0 と 1 の列）か、"馬券外率"（その値の学習データでの馬券外率を、数の列として標準化する）。
+categorical = "one-hot"
 
 [features.group_weights]
 # まとまりごとの重み。標準化したあとの値に掛ける。大きいほど、そのまとまりの違いが近さに効く。0 なら使わない。
@@ -44,16 +52,25 @@ I = 1.0   # 調教
 J = 1.0   # 人気の履歴（前走の人気と着順の差など。過去のレースの人気なので、今回のオッズではない）
 K = 0.0   # 単勝オッズから見た評価。オッズなしで予想するため使わない（1 にすると、今回の単勝オッズも近さに入る）
 
+[features.column_weighting]
+# 列ごとの重みの決め方。"なし"（まとまりの重みだけ）か、"馬券外とのAUC"（単位の学習データで、距離に使う列ごとに
+# 「馬券外か」との AUC を出し、|2 × AUC − 1|（0〜1）を重みにする。馬券外と関係の弱い列が近さに効かなくなる）。
+# 近さの測り方の見直し（設計書 15 の 14）で、方針を決める年だけで選び、確かめる年で採用の基準を満たした。
+method = "馬券外とのAUC"
+# "馬券外とのAUC" のとき、関係の強い順に何列までを使うか。0 なら全部の列に重みを掛け、1 以上なら、その列数だけを重み 1 で使う。
+keep = 20
+
 [similarity]
 # 近さを測るときに見る、そのグループの中で似ている馬の頭数（k近傍法の k）。
-k = 10
+k = 30
 
 [decision]
 # 馬券外の近さの点数が、馬券内の点数よりこの点数を超えて高ければ消す。0 なら「少しでも馬券外に近ければ消す」で、
-# 1番人気のおよそ半分を消すことになるので、はっきり馬券外に近い馬だけを消すよう 5 にしている。
-fade_margin = 5.0
+# 1番人気のおよそ半分を消す。馬券外と関係の強い列だけで近さを測ると、この線でいちばん回収率が良かった（設計書 15 の 14）。
+fade_margin = 0.0
 # 勝利の近さの点数が、馬券内の点数よりこの点数を超えて高ければ、単勝と複勝を買う。そうでなければ複勝だけ。
-win_margin = 0.0
+# 単勝を足しても当たっていなかったので 10 にして、消さない馬はほとんど複勝だけにしている（設計書 15 の 14）。
+win_margin = 10.0
 
 [stake]
 # 1頭あたりの掛け金（円）。「単勝と複勝」と「複勝だけ」の合計を同じにして、単勝を足したかどうかだけで比べる。
@@ -66,15 +83,18 @@ place_only_place = 300
 train_first_year = 2017
 first_year = 2019
 last_year = 2026
-# 方針を決めるのに見てよい年の最後。first_year からこの年までが「方針を決める年」、その次の年から last_year までが「確かめる年」。
+# 方針（判定の線・k・重みなど）を決めるのに見てよい年の最後。first_year からこの年までが「方針を決める年」、
+# その次の年から last_year までが「確かめる年」。方針を比べるときは「方針を決める年」の行だけを見て決め、
+# 決めた方針のまま「確かめる年」の行で確かめる（設計書 16 の 6）。first_year − 1 にすると、全部が確かめる年になる。
 tune_last_year = 2023
 ```
 
 | 表 | 何を決めるか | 書いてある文書 |
 |---|---|---|
-| `[unit]` | 単位にする距離の、1番人気の頭数の下限（`min_rows`） | [08-training-data.md の「単位の決め方」](08-training-data.md#単位の決め方) |
-| `[features]` | 特徴量の時点（`timing`）、距離に使わない特徴量（`exclude`）、欠損値だったかの列を足すか（`add_missing_flags`） | [07-prediction-timing.md](07-prediction-timing.md)、[12-neighbor-distance.md の「1.」・「2.」](12-neighbor-distance.md#1-距離に使う列の作り方) |
+| `[unit]` | 単位にする距離の、1番人気の頭数の下限（`min_rows`）と、単位の分け方（`split`） | [08-training-data.md の「単位の決め方」](08-training-data.md#単位の決め方) |
+| `[features]` | 特徴量の時点（`timing`）、距離に使わない特徴量（`exclude`）、欠損値だったかの列を足すか（`add_missing_flags`）、数の列のそろえ方（`scaling`）、カテゴリの直し方（`categorical`） | [07-prediction-timing.md](07-prediction-timing.md)、[12-neighbor-distance.md の「1.」〜「3.」](12-neighbor-distance.md#1-距離に使う列の作り方) |
 | `[features.group_weights]` | まとまり A〜K の重み | [12-neighbor-distance.md の「4.」](12-neighbor-distance.md#4-特徴量の重み) |
+| `[features.column_weighting]` | 列ごとの重みの決め方（`method`）と、使う列の数（`keep`） | [12-neighbor-distance.md の「4.」](12-neighbor-distance.md#4-特徴量の重み) |
 | `[similarity]` | 似た馬を何頭探すか（`k`） | [12-neighbor-distance.md の「5.」](12-neighbor-distance.md#5-k近傍で似た馬を探す) |
 | `[decision]` | 判定の線（`fade_margin`・`win_margin`） | [13-closeness-score.md の「4.」](13-closeness-score.md#4-判定) |
 | `[stake]` | 判定ごとの掛け金（円） | [16-evaluation.md の「4.」](16-evaluation.md#4-買い方と掛け金) |
@@ -117,4 +137,4 @@ uv run python -m yosou.favorite_buy_or_fade train --config reports/1番人気を
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-25 |
-| 更新 | 2026-09-25: LightGBM・CatBoost のハイパーパラメータから、k近傍法の設定に作り直した。同日、実装の設定ファイル（`default_settings.toml`）に合わせて書き直した<br>2026-09-30: `[evaluation]` に `tune_last_year`（方針を決める年の最後）を足した |
+| 更新 | 2026-09-25: LightGBM・CatBoost のハイパーパラメータから、k近傍法の設定に作り直した。同日、実装の設定ファイル（`default_settings.toml`）に合わせて書き直した<br>2026-09-30: `[evaluation]` に `tune_last_year`（方針を決める年の最後）を足した<br>2026-10-02: 近さの測り方の見直しで、`split`・`scaling`・`categorical`・`[features.column_weighting]` を足し、初期値を採用した方針（AUC 上位 20列・k 30・消し 0点・単勝 10点）にした |
