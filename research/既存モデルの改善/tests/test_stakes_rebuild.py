@@ -26,7 +26,8 @@ from .test_stakes_walk_forward import _predictions, _synthetic_stakes
 
 def test_the_tables_cover_the_stakes_and_the_form_materials_from_2012():
     names = [table.name for table in REBUILD_TABLES]
-    assert names == ["stakes_ability", "stakes_race_day", "form_ability", "form_race_day"]
+    assert names == ["stakes_ability", "stakes_race_day", "form_ability", "form_race_day",
+                     "stakes_ability_floor", "stakes_race_day_floor"]
     assert all(table.period.train_first_day.year == 2012 for table in REBUILD_TABLES)
     # 重賞だけの表は、同じ材料の全レースの表に K の10個を足したもの
     for stakes, form in (("stakes_ability", "form_ability"), ("stakes_race_day", "form_race_day")):
@@ -36,7 +37,7 @@ def test_the_tables_cover_the_stakes_and_the_form_materials_from_2012():
 
 def test_the_variants_use_the_columns_of_their_timing_and_baseline_from_day_before():
     keys = [variant.key for variant in REBUILD_VARIANTS]
-    assert len(set(keys)) == len(keys) == 11
+    assert len(set(keys)) == len(keys) == 14
     for variant in REBUILD_VARIANTS:
         catalog = rebuild_table_named(variant.model).catalog
         assert set(variant.columns) <= set(catalog.columns_for(variant.timing))
@@ -77,7 +78,8 @@ def test_the_comparison_judges_the_candidate_against_both_references():
     sharper = base * 0.5 + data.label * 0.5
     spec = REBUILD_COMPARISONS[2]
     predictions = {
-        spec.candidate.key: _predictions(data, sharper), spec.without_tendency.key: _predictions(data, sharper * 0.98 + 0.01),
+        spec.candidate.key: _predictions(data, sharper), spec.floor.key: _predictions(data, base),
+        spec.without_tendency.key: _predictions(data, sharper * 0.98 + 0.01),
         spec.general.key: _predictions(data, base), spec.odds_reference.key: _predictions(data, base),
     }
     comparison = StakesRebuildComparison(spec, data, predictions, STAKES_WINDOWS[:2])
@@ -100,8 +102,25 @@ def test_the_comparison_uses_only_the_rows_every_variant_has():
     spec = REBUILD_COMPARISONS[2]
     full = _predictions(data, base)
     partial = full[~((full[PART] == PART_TEST) & (full[WINDOW] == STAKES_WINDOWS[0].name) & (full[HORSE_ID] == "h1"))]
-    predictions = {key: full for key in (spec.candidate.key, spec.without_tendency.key, spec.odds_reference.key)}
+    predictions = {key: full for key in (spec.candidate.key, spec.floor.key, spec.without_tendency.key, spec.odds_reference.key)}
     predictions[spec.general.key] = partial
     pooled = StakesRebuildComparison(spec, data, predictions, STAKES_WINDOWS[:2]).tables()[2]
     heads = [row[1] for row in pooled.rows]
     assert len(set(heads)) == 1 and heads[0] == len(partial[partial[PART] == PART_TEST])
+
+
+def test_the_tendency_floor_zeroes_the_gaps_of_races_with_few_editions():
+    from yosou.shared.dataset import TrainingData
+    from yosou.stakes_tendency_top3.feature import RACE_DAY_CATALOG
+
+    from 既存モデルの改善.analysis.stakes_rebuild import MIN_EDITIONS, TendencyFloor
+
+    names = list(RACE_DAY_CATALOG.names)
+    features = pd.DataFrame(0.05, index=[0, 1], columns=names).assign(**{"重賞の過去開催の数": [MIN_EDITIONS - 1, MIN_EDITIONS]})
+    data = TrainingData(pd.DataFrame({RACE_ID: ["r1", "r2"]}), features, pd.DataFrame({"3着以内": [0, 1]}),
+                        pd.DataFrame(index=[0, 1]), RACE_DAY_CATALOG, "3着以内")
+    floored = TendencyFloor().apply(data).features
+    # 開催が少ないレースは K のずれが 0。過去開催の数と K 以外の列、開催の多いレースはそのまま
+    assert floored.loc[0, "1番人気の信頼度のずれ"] == 0.0 and floored.loc[0, "重賞の過去開催の数"] == MIN_EDITIONS - 1
+    assert floored.loc[0, "単勝オッズ"] == 0.05 and floored.loc[1, "1番人気の信頼度のずれ"] == 0.05
+    assert data.features.loc[0, "1番人気の信頼度のずれ"] == 0.05  # 元の表は変えない
