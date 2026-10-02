@@ -21,6 +21,7 @@
 | 学習データと予測用データは、同じ `DatasetBuilder` と `FeatureBuilder` で作る | 学習と予測で、特徴量の中身がずれないようにする（[11-leak-prevention.md](11-leak-prevention.md) の 4） |
 | フォルダの名前は、中に何があるかが名前だけで分かるようにする。機械学習のモデルを置くフォルダは `ml_model` とし、`model` としない | `model` は、データの形を表す「データモデル」と読める |
 | `Manager`・`Processor` のような、何でも入る名前を付けない | 名前から仕事が分かり、関係の無い仕事が足されにくい |
+| ほかの予想のパッケージは参照しない。例外として、`command/` だけは予想「展開から着順を予想」（`yosou.race_development`）の `PaceForecastHistory`・`DevelopmentPaceWorkflow` を呼ぶ（2026-10-02） | 木曜のモデルの材料 P（展開の予想の結果）を、展開の予想の部品のまま使うため（写すと食い違う）。展開の予想はこの予想の `dataset/` だけを参照するので、読み込みの順が輪にならない。参照する場所を `train_command.py`・`predict_command.py` に集めた |
 
 ## パッケージ構成
 
@@ -87,6 +88,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `TrainCommand` | `train`: 学習する。期間の引数（`--warmup-from` `--train-from` `--ability-train-from` `--valid-from` `--test-from`）から、今の材料と馬の力の材料の2つの `TrainingPeriod` を作る。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `run(引数)` |
 | `PredictCommand` | `predict`: 1レースを予測する。`--odds 馬番:オッズ` で単勝オッズを渡せる。時点で `DatasetBuilder` を選ぶ（木曜・前日は `ability_dataset_builder`、当日は `race_day_dataset_builder`） | `run(引数)` |
 | `FigureCacheArgument` | 2つのサブコマンドに共通の引数 `--figure-cache`（スピード指数をとっておく場所） | `add_to(parser)` |
+| `DevelopmentRootArgument` | 2つのサブコマンドに共通の引数 `--development-root`（予想「展開から着順を予想」の置き場所。木曜のモデルが展開の予想の結果を読む） | `add_to(parser)` |
 | `CommonArguments`（`shared`） | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`）。モデルの既定の置き場所に使う予想の名前を受け取る | `add_to(parser)` |
 | `TrainingReportTables`（`shared`） | 学習の結果を表にする | `tables()` |
 | `PredictionTable`（`shared`） | 予測の結果を、確率の高い順の表にする。確率の列の名前を受け取る | `table()` |
@@ -143,6 +145,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `race_day_dataset_builder()`（この予想） | `pool_dataset_builder()` にさらに M（`HorseAbilityFeatures` に、今の材料と名前の重ならない 200列だけを出させる）を足し、ローダーに `AbilitySourcesLoader` も渡す。当日のモデルの学習データと予測用データ（`RACE_DAY_CATALOG`） | `race_day_dataset_builder(接続, スピード指数の置き場所=省略可)` |
 | `ability_dataset_builder()`（この予想） | M（`HorseAbilityFeatures`）と O（`HeadToHeadRatingFeatures`）と J の `DatasetBuilder`。ローダーに `AbilitySourcesLoader` と `HeadToHeadRunRepository` を渡す。G は使わない。基準はオッズの分かる前日から使う。木曜・前日のモデルの学習データと予測用データ（`ABILITY_CATALOG`）。学習データの始まりは `ABILITY_TRAIN_FIRST_DAY`（2012年1月1日） | `ability_dataset_builder(接続, スピード指数の置き場所=省略可)` |
 | `PoolFreeData`（この予想） | 学習データ・予測用データから N の6列を外し、一覧からも N を除く（券種のオッズが無いときの当日のモデル。279個） | `training(学習データ)`、`prediction(予測用データ)` |
+| `PaceAttachment`（この予想） | 学習データ・予測用データに、展開の予想の結果（P）の 20列を足し、一覧にも P を足す（`PACE_TIMINGS` の時点＝木曜のモデル）。展開の予測は、学習では `PaceForecastHistory`、予測では `DevelopmentPaceWorkflow`（`yosou.race_development`）がコマンドから渡される | `apply(データ, 展開の予測の表)` |
 | `PoolAvailability`（この予想） | 予測用データの N の6列のどれか1列でも全部の馬で欠損値なら「券種のオッズが無い」と答える | `missing(予測用データ)` |
 | `RequiredInfoCheck` | 予測に要る情報（馬番・馬場状態・馬体重・単勝オッズ）が DB にあるかを確かめる | `check(特徴量)` |
 | `PeriodSplitter` | 学習データを時期（`TrainingPeriod` の検証・テストの始まり）で、学習データ・検証データ・テストデータに分ける。分け方は次の設計書で決める（いまは仮の区切り） | `split(学習データ)` |
@@ -159,7 +162,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `EntryRecords` | 特徴量を作る元の記録の入れ物。`market_runs` は、まとまり L の材料の過去の全出走（L を使う予想だけが読む。ほかの予想では空の表）。`ability_sources` はまとまり M の元の記録（`AbilitySources`。M を使うモデルだけ）、`pool_probabilities` は券種ごとの馬の確率（N を使うモデルだけ） | ― |
 | `EntryColumns` | 出走の記録から列を選び、名前を付け直す | `select(出走の行)` |
 | `FeatureGroup` | まとまりのクラスに共通の決まり（インターフェース） | `build(記録)` |
-| `group/` の13クラス | まとまり A〜L ごとに1クラス: `RaceConditionFeatures`（A）、`HorseFeatures`（B）、`PeopleFeatures`（C）、`PreviousRunFeatures`（D）、`RecentFormFeatures`（E）、`AptitudeFeatures`（F）、`FieldComparisonFeatures`（G）、`PedigreeFeatures`（H）、`WorkoutFeatures`（I）、`MarketFeatures`（J。市場の評価の4個。オッズを使う予想が渡す。この予想は使う）、`PopularityHistoryFeatures`（J。人気と人気の履歴。人気を使う予想だけが渡す。この予想は使わない）、`OddsFeatures`（K。この予想は使わない）、`PeopleMarketFeatures`（L。騎手・調教師・血統の市場に対する成績の4個。この予想は使う）、`HorseAbilityFeatures`（M。馬の力の材料の 202個。この予想の木曜・前日のモデルが使う）、`PoolSupportFeatures`（N。券種ごとのオッズから見た支持の6個。この予想の当日のモデルが使う）、`HeadToHeadRatingFeatures`（O。対戦レーティングの7個。部品は `feature/head_to_head/`、元の記録は `HeadToHeadRunRepository`。この予想の木曜・前日のモデルが使う） | `build(記録)` |
+| `group/` の13クラス | まとまり A〜L ごとに1クラス: `RaceConditionFeatures`（A）、`HorseFeatures`（B）、`PeopleFeatures`（C）、`PreviousRunFeatures`（D）、`RecentFormFeatures`（E）、`AptitudeFeatures`（F）、`FieldComparisonFeatures`（G）、`PedigreeFeatures`（H）、`WorkoutFeatures`（I）、`MarketFeatures`（J。市場の評価の4個。オッズを使う予想が渡す。この予想は使う）、`PopularityHistoryFeatures`（J。人気と人気の履歴。人気を使う予想だけが渡す。この予想は使わない）、`OddsFeatures`（K。この予想は使わない）、`PeopleMarketFeatures`（L。騎手・調教師・血統の市場に対する成績の4個。この予想は使う）、`HorseAbilityFeatures`（M。馬の力の材料の 202個。この予想の木曜・前日のモデルが使う）、`PoolSupportFeatures`（N。券種ごとのオッズから見た支持の6個。この予想の当日のモデルが使う）、`HeadToHeadRatingFeatures`（O。対戦レーティングの7個。部品は `feature/head_to_head/`、元の記録は `HeadToHeadRunRepository`。この予想の木曜・前日のモデルが使う）、`PaceForecastFeatures`（P。展開の予想の結果の 20個。部品は `feature/pace_forecast/`、元の予測は `EntryRecords.pace_forecasts`。この予想の木曜のモデルは、同じ部品 `PaceForecastTableBuilder` を `PaceAttachment` から使う） | `build(記録)` |
 | `ability/` の14 | まとまり M を作る部品: `AbilitySources`（元の記録の入れ物）、`AbilityTableBuilder`（入口。下の部品を順に呼ぶ）、`AbilityRunFocus`（予測のとき、対象の出走の材料に要る出走だけに絞る。値は変わらない）、`SpeedFigureHistory`（スピード指数）、`RaceStrength`（レースの強さ）、`RacePace`（ペース）、`PastRunHistory`（過去走）、`CumulativeRecordRates`（通算の成績）、`RecentRecordRates`・`RecentPeopleRates`（直近の成績）、`RaceRelativeColumns`（レース内の比べ）、`RaceLevelColumns`（展開の手がかり）、`SalePriceColumns`（セリの価格）と、列の名前の一覧 `ability_columns.py`。研究「馬の力と展開でオッズに勝つ」の表の作り方を移したもの（[09-features.md の M](09-features.md#m-馬の力の材料202個木曜前日のモデル)） | ― |
 | `history/` の10クラス | 過去の記録から数える部品: `AsOfLookup`（開催日の N 日前までで、いちばん新しい記録を引く）、`DatedRecords`（鍵と日付を持つ記録の表）、`RecentRunSummary`（近5走のまとめ）、`PopularityRunSummary`（近5走の人気のまとめ。まとまり J の材料）、`Top3Rate`（近1年の3着以内の割合）、`PedigreeTop3Rate`（父・母の父の産駒の近1年の3着以内の割合）、`MarketExcessRate`（騎手・調教師・血統の近1年の市場に対する超過3着以内率。まとまり L の材料）、`ConditionUpsetRate`（同じ条件のレースの近1年の中荒れ以上の割合。荒れ具合の予想の材料）、`WorkoutLookup`（14日以内の調教）、`WorkoutCoverage`（調教の記録が DB にある期間。出走ごとに、そのコースの記録があるかを判定する） | ― |
 
@@ -218,6 +221,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 |---|---|---|
 | `--config` | 無し（初期値の設定ファイル `setting/default_settings.toml`） | ハイパーパラメータの設定ファイル（TOML）。書いた項目だけが初期値から置き換わる（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `--warmup-from`・`--train-from`・`--ability-train-from`・`--valid-from`・`--test-from` | [08-training-data.md の「4. 期間の指定」](08-training-data.md#4-期間の指定) の表 | 学習データの期間の区切り。`--train-from` と `--warmup-from` は今の材料（当日）、`--ability-train-from` は馬の力の材料（木曜・前日。ウォームアップはその前の年の1月1日から）。検証データとテストデータの使い方は [16-evaluation.md の「1. 期間の分け方」](16-evaluation.md#1-期間の分け方) |
+| `--development-root` | `reports/展開から着順を予想` | 予想「展開から着順を予想」の置き場所。`train` は年ごとの確かめの予測（`out_of_sample/`）、`predict` は保存した展開のモデル（`models/`）を読む（木曜のモデルだけ） |
 | `--figure-cache` | `reports/能力指数/cache` | スピード指数をとっておく場所（木曜・前日のモデルが使う。道具「能力指数」とファイルを共有する）。`predict` にもある |
 
 `train` が出す表は、学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル（ここまで `TrainingReportTables`）を「今の材料」「券種オッズなし」「馬の力の材料」の3つの学習ごとに出し、最後に複勝の見込みの倍率（`PlacePriceStep`）を出す。表の見方は [16-evaluation.md](16-evaluation.md#2-評価指標) を参照。
@@ -256,3 +260,4 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | 更新 | 2026-10-01: 研究「一番人気を疑う」の2つの直し方を移したのに合わせて、まとまり M（`HorseAbilityFeatures` と `ability/`）・N（`PoolSupportFeatures`）、そのリポジトリとローダー、`pool_dataset_builder`・`ability_dataset_builder`・`PoolFreeData`・`PoolAvailability`・`FigureCacheArgument`、時点ごとのモデルの決めごと、`train` の `--ability-train-from`・`--figure-cache` を足した。券種オッズのリポジトリを custom_binary から `shared` に移した |
 | 更新 | 2026-10-02: 当日のモデルにも馬の力の材料（M。今の材料と名前の重なる2つを除く 200個）を足した（PR #52 の残課題。7つの区切りで基準を満たした）。当日は 285個、券種オッズなしは 279個 |
 | 更新 | 2026-10-02: 対戦レーティング（まとまり O）の `HeadToHeadRatingFeatures`・`feature/head_to_head/`・`HeadToHeadRunRepository`・`EntryRecords.head_to_head_runs` を足し、`ABILITY_CATALOG` と `ability_dataset_builder` に O を足した（木曜・前日のモデル） |
+| 更新 | 2026-10-02: 展開の予想の結果（まとまり P）の `PaceForecastFeatures`・`feature/pace_forecast/`・`EntryRecords.pace_forecasts`、`PaceAttachment`・`DevelopmentRootArgument`・`PACE_TIMINGS` を足し、木曜のモデルの学習と予測で P を足すようにした |
