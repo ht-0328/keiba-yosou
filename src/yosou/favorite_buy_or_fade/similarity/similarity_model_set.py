@@ -9,16 +9,16 @@ import pandas as pd
 
 from ..feature import CATALOG
 from ..setting import BuyOrFadeSettings
-from ..unit import CourseUnitMap
+from ..unit import CourseUnitMap, SingleUnitMap
 from .score_columns import SCORE_COLUMNS, UNIT
 from .unit_similarity import UnitSimilarity
 
 
 @dataclass(frozen=True)
 class SimilarityModelSet:
-    """学習した近さのモデルの一式。単位の決め方、単位の名前 → 3つのモデル、学習に使った方針。"""
+    """学習した近さのモデルの一式。単位の決め方（芝ダート × 距離 か、全部で1つ）、単位の名前 → 3つのモデル、学習に使った方針。"""
 
-    unit_map: CourseUnitMap
+    unit_map: CourseUnitMap | SingleUnitMap
     units: Mapping[str, UnitSimilarity]
     settings: BuyOrFadeSettings
 
