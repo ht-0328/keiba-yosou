@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG as FORM_ABILITY_CATALOG
 from yosou.form_aptitude_top3.feature import RACE_DAY_CATALOG as FORM_RACE_DAY_CATALOG
 from yosou.shared.feature import PredictionTiming
-from yosou.stakes_tendency_top3.feature import ABILITY_CATALOG as STAKES_ABILITY_CATALOG
 from yosou.stakes_tendency_top3.feature import RACE_DAY_CATALOG as STAKES_RACE_DAY_CATALOG
 
 from ..variants import ModelVariant
 from .rebuild_tables import (
+    FORM_ABILITY_CATALOG,
+    STAKES_ABILITY_CATALOG,
     FORM_ABILITY,
     FORM_RACE_DAY,
     STAKES_ABILITY,

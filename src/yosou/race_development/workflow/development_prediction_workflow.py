@@ -11,24 +11,12 @@ import pandas as pd
 from 共通 import db
 
 from yosou.shared.betting import TicketType
-from yosou.shared.dataset import (
-    HORSE_ID,
-    HORSE_NAME,
-    HORSE_NO,
-    RACE_DATE,
-    RACE_ID,
-    OddsInput,
-    OddsResolver,
-    PopularityApplier,
-    PredictionData,
-)
+from yosou.shared.dataset import HORSE_NAME, HORSE_NO, RACE_DATE, OddsInput, PredictionData
 from yosou.shared.dataset.column_names import WIN_ODDS
 from yosou.shared.feature import PredictionTiming
-from yosou.shared.repository import AnnouncedOddsRepository
 
 from ..betting import MarkAssigner, MarkTicketRule
 from ..betting import column_names as bet
-from ..dataset import horse_dataset_builder, race_dataset_builder
 from ..feature import (
     BACK_PROBABILITY,
     TOP3_PROBABILITY,
@@ -50,12 +38,12 @@ from ..feature import (
 )
 from ..ml_model import OrderProbability
 from ..repository import PredictionArchiveRepository
-from ..tendency import TendencyForecaster, TendencyModelStore, TendencySource
+from ..tendency import TendencyForecaster, TendencyModelStore
 from .development_forecast import DevelopmentForecast
 from .forecast_group import ForecastGroup
-from .kind_forecaster import KindForecaster
+from .group_predictor import GroupPredictor
 from .kind_model_store import KindModelStore
-from .kind_stacker import KindStacker
+from .race_inputs import RaceInputs
 
 
 class DevelopmentPredictionWorkflow:
@@ -70,8 +58,7 @@ class DevelopmentPredictionWorkflow:
         self._tendency = TendencyForecaster(TendencyModelStore(models_root))
         self._archive = PredictionArchiveRepository(archive_root)
         self._db_path = db_path
-        self._stacker = KindStacker()
-        self._forecaster = KindForecaster()
+        self._groups = GroupPredictor(self._store)
         self._order = OrderProbability()
 
     def run(self, race_id: str, timing: PredictionTiming, given_odds: OddsInput | None = None) -> DevelopmentForecast:
@@ -81,35 +68,18 @@ class DevelopmentPredictionWorkflow:
         前日・当日の既存の予想は、オッズから見た確率を出発点にするので、オッズが決められなければ ``ValueError``。
         """
         with db.open_db(self._db_path) as con:
-            announced = AnnouncedOddsRepository(con)
-            odds = OddsResolver(announced).resolve(race_id, given_odds)
-            popularity = PopularityApplier(announced).resolve(race_id, None, odds)
-            horses = horse_dataset_builder(con).build_prediction_data(race_id, timing, odds=odds)
-            races = race_dataset_builder(con).build_prediction_data(race_id, timing, odds=odds)
-            tendency_data = {source: source.prediction_data(con, race_id, timing, popularity, odds)
-                             for source in TendencySource if source.predicts_at(timing)}
-        priors = PriorForecasts(self._tendency.predict(tendency_data))
-        priors = priors.with_early(self._group(ForecastGroup.EARLY, horses, races, priors, timing))
-        priors = priors.with_late(self._group(ForecastGroup.LATE, horses, races, priors, timing))
-        finish = self._group(ForecastGroup.FINISH, horses, races, priors, timing)
+            inputs = RaceInputs.read(con, race_id, timing, given_odds)
+        horses, races = inputs.horses, inputs.races
+        priors = PriorForecasts(self._tendency.predict(inputs.tendency))
+        priors = priors.with_early(self._groups.predict(ForecastGroup.EARLY, horses, races, priors, timing))
+        priors = priors.with_late(self._groups.predict(ForecastGroup.LATE, horses, races, priors, timing))
+        finish = self._groups.predict(ForecastGroup.FINISH, horses, races, priors, timing)
         forecast = self._forecast(race_id, timing, horses, races, priors, finish)
         self._archive.save(str(horses.ids[RACE_DATE].iloc[0])[:10], race_id, timing.value, datetime.now(), {
             "horse_features": horses.features, "race_features": races.features,
             "horses": forecast.horses, "race": forecast.race, "tickets": forecast.tickets,
         })
         return forecast
-
-    def _group(self, group: ForecastGroup, horses: PredictionData, races: PredictionData, priors: PriorForecasts,
-               timing: PredictionTiming) -> GroupForecast:
-        """1つの組の予想を、その時点のモデルで予測する。"""
-        horse_parts = [horses.ids[[RACE_ID, HORSE_ID]]]
-        race_parts = [races.ids[[RACE_ID]]]
-        for kind in (kind for kind in group.kinds if kind.spec.for_prediction):
-            base = races if kind.spec.per_race else horses
-            data = self._stacker.apply(kind, base, priors)
-            predicted = self._forecaster.predict(kind, self._store.load(kind, timing), data)
-            (race_parts if kind.spec.per_race else horse_parts).append(predicted)
-        return GroupForecast(pd.concat(horse_parts, axis=1), pd.concat(race_parts, axis=1))
 
     def _forecast(self, race_id: str, timing: PredictionTiming, horses: PredictionData, races: PredictionData,
                   priors: PriorForecasts, finish: GroupForecast) -> DevelopmentForecast:

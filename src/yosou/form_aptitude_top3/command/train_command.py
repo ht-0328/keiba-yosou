@@ -6,6 +6,8 @@ import argparse
 from datetime import date
 from pathlib import Path
 
+import pandas as pd
+
 from 共通 import db
 from 共通.render import Table
 
@@ -17,14 +19,16 @@ from yosou.shared.dataset import (
     TrainingData,
     TrainingPeriod,
 )
+from yosou.race_development.workflow import PaceForecastHistory
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.ml_model import MEMBER_TYPES
 from yosou.shared.repository import ModelRepository
 from yosou.shared.workflow import TrainingWorkflow
 
-from ..dataset import ABILITY_TRAIN_FIRST_DAY, PoolFreeData, ability_dataset_builder, race_day_dataset_builder
+from ..dataset import ABILITY_TRAIN_FIRST_DAY, PaceAttachment, PoolFreeData, ability_dataset_builder, race_day_dataset_builder
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS, POOL_FREE_FOLDER
+from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER
+from .development_root_argument import DevelopmentRootArgument
 from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
 
@@ -35,6 +39,8 @@ class TrainCommand:
     時点によって材料が違う（設計書 07）。木曜・前日は馬の力の材料（2012年からの学習データ）、当日は今の材料に
     券種ごとのオッズから見た支持と馬の力の材料を足したもので学ぶ。当日は、券種のオッズが無いレースのために、支持を使わないモデルも
     学んで ``<置き場所>/券種オッズなし/`` に保存する。
+    展開の予想の結果（P）を採用した時点（``PACE_TIMINGS``。木曜）は、馬の力の材料に、予想「展開から着順を予想」の年ごとの確かめの
+    予測から作った P を足して学ぶ（設計書 15 の 13）。そのため、その時点だけ別に学ぶ。
     学習のあとに、複勝の見込みの倍率（今の材料の学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
     """
 
@@ -48,6 +54,7 @@ class TrainCommand:
         )
         self._add_period_arguments(parser)
         FigureCacheArgument().add_to(parser)
+        DevelopmentRootArgument().add_to(parser)
         CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
@@ -58,6 +65,8 @@ class TrainCommand:
         )
         ability_period = TrainingPeriod.starting(args.ability_train_from, args.valid_from, args.test_from)
         repository = ModelRepository(args.models, MEMBER_TYPES)
+        history = PaceForecastHistory(args.development_root)
+        paces = {timing: history.read(timing) for timing in PACE_TIMINGS}
         with db.open_db(args.db) as con:
             form = TrainingWorkflow(race_day_dataset_builder(con, args.figure_cache), form_period, repository, FORM_TIMINGS,
                                     DEFAULT_SETTINGS_PATH)
@@ -67,8 +76,23 @@ class TrainCommand:
             ability_data = ability.read_training_data() if ABILITY_TIMINGS else None
         tables = self._form_tables(form, form_data, form_period, args)
         if ability_data is not None:
-            tables += TrainingReportTables(ability.train(ability_data, args.config), "馬の力の材料").tables()
+            tables += self._ability_tables(ability_data, ability_period, repository, paces, args)
         return tables
+
+    def _ability_tables(self, data: TrainingData, period: TrainingPeriod, repository: ModelRepository,
+                        paces: dict[PredictionTiming, pd.DataFrame], args: argparse.Namespace) -> list[Table]:
+        """馬の力の材料のモデル（木曜・前日）を学んで、結果の表を返す。P を採用した時点は、その時点の展開の予測から作った P を
+        足した学習データで、時点ごとに学ぶ（``paces`` は 時点 → 展開の予想の元の予測の表）。"""
+        plain = tuple(timing for timing in ABILITY_TIMINGS if timing not in paces)
+        reports = [(self._workflow(period, repository, plain).train(data, args.config), "馬の力の材料")] if plain else []
+        reports += [(self._workflow(period, repository, (timing,)).train(PaceAttachment().apply(data, paces[timing]), args.config),
+                     f"馬の力の材料 ＋ 展開の予想（{timing.label}）") for timing in ABILITY_TIMINGS if timing in paces]
+        return [table for report, subject in reports for table in TrainingReportTables(report, subject).tables()]
+
+    def _workflow(self, period: TrainingPeriod, repository: ModelRepository,
+                  timings: tuple[PredictionTiming, ...]) -> TrainingWorkflow:
+        """読んだ学習データで学ぶだけの学習の流れ（学習データは作らない）。"""
+        return TrainingWorkflow(None, period, repository, timings, DEFAULT_SETTINGS_PATH)
 
     def _form_tables(self, form: TrainingWorkflow, form_data: TrainingData, period: TrainingPeriod,
                      args: argparse.Namespace) -> list[Table]:

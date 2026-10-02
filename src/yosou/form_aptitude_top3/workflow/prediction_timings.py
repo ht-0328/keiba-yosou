@@ -11,5 +11,8 @@ TIMINGS: tuple[PredictionTiming, ...] = tuple(PredictionTiming)
 ABILITY_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE)
 #: 今の材料（A〜L・J と N。``pool_dataset_builder``）のモデルで予測する時点（当日）。
 FORM_TIMINGS: tuple[PredictionTiming, ...] = tuple(timing for timing in TIMINGS if timing not in ABILITY_TIMINGS)
+#: 展開の予想の結果（まとまり P）を足して学ぶ時点。研究「既存モデルの改善」の7つの区切りで、P を足すと今の予想より確率の誤差が
+#: 小さくなり、採用の基準を満たした時点だけ（設計書 15 の 13。前日・当日は満たさなかった）。
+PACE_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.THURSDAY,)
 #: 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（モデルの置き場所の下のフォルダの名前）。
 POOL_FREE_FOLDER = "券種オッズなし"
