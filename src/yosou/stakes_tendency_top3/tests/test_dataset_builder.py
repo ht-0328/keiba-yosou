@@ -35,8 +35,8 @@ def test_the_catalogs_are_the_form_catalogs_plus_the_tendency():
     k_names = tuple(feature.name for feature in K_FEATURES)
     assert ABILITY_CATALOG.names == FORM_ABILITY_CATALOG.names + k_names
     assert RACE_DAY_CATALOG.names == FORM_RACE_DAY_CATALOG.names + k_names
-    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.THURSDAY)) == 192 + 9
-    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 203 + 10
+    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.THURSDAY)) == 199 + 9
+    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 210 + 10
     assert len(RACE_DAY_CATALOG.columns_for(PredictionTiming.RACE_DAY)) == 285 + 10
     assert ABILITY_TIMINGS == (PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE) and FORM_TIMINGS == (PredictionTiming.RACE_DAY,)
 

@@ -78,7 +78,7 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `RunnerSelector` | 入れる行を選ぶ。平地・出走した馬（共通の `FlatRunnerFilter`）のうち、重賞（グレードコード A・B・C）の行だけを残す（[06-flowchart.md の図1](06-flowchart.md#図1-学習データに入れる行の選び方)）。予測では、渡されたレースが重賞でなければ `ValueError` を投げる（コマンドが「エラー:」の1行で見せる）。`keep_samples` はそのまま返す（重賞の全頭がサンプル） | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` | 共通の `FlatRunnerFilter` |
-| `dataset_assembly.py` の `ability_dataset_builder()`・`race_day_dataset_builder()` | この予想の部品（`RunnerSelector`、共通の `Top3TargetBuilder`、一覧、まとまりの並び（手本と同じ並びに `StakesTendencyFeatures`（K）を足したもの）、基準の作り方 `Top3Baseline`、傾向のリポジトリ `StakesTendencyRepository` と、手本と同じ M・L・N の元の記録を読む部品）を渡して、共通の `DatasetBuilder` を組み立てる関数。前者は木曜・前日（M・J・K）、後者は当日（A〜L・N・M・K） | `ability_dataset_builder(接続, スピード指数の置き場所)`・`race_day_dataset_builder(同じ)` | 上のクラスと共通の `DatasetBuilder` |
+| `dataset_assembly.py` の `ability_dataset_builder()`・`race_day_dataset_builder()` | この予想の部品（`RunnerSelector`、共通の `Top3TargetBuilder`、一覧、まとまりの並び（手本と同じ並びに `StakesTendencyFeatures`（K）を足したもの）、基準の作り方 `Top3Baseline`、傾向のリポジトリ `StakesTendencyRepository` と、手本と同じ M・L・N・O の元の記録を読む部品）を渡して、共通の `DatasetBuilder` を組み立てる関数。前者は木曜・前日（M・O・J・K）、後者は当日（A〜L・N・M・K） | `ability_dataset_builder(接続, スピード指数の置き場所)`・`race_day_dataset_builder(同じ)` | 上のクラスと共通の `DatasetBuilder` |
 | `PoolFreeData`・`PoolAvailability` | 当日に券種のオッズが無いとき、N を外して N を使わないモデルに切り替える部品。手本（`form_aptitude_top3`）のものを借りる（`shared` と手本を別の作業が変えていたため。落ち着いたら `shared` に移す） | ― | ― |
 
 ### feature/ — まとまり K と特徴量の一覧
@@ -86,7 +86,7 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `StakesTendencyFeatures`（`stakes_tendency_features.py`） | まとまり K（重賞の傾向）の 10個を作る。`EntryRecords` の `stakes_tendency` の表を、出走の行と `race_id` で突き合わせ、切り口ごとの「縮めたずれ」と、自分が当てはまるかを掛けた列を作る（作り方は [09-features.md の K](09-features.md#k-重賞の傾向10個)）。`FeatureGroup` を守る | `build(記録)` | ― |
-| `ABILITY_CATALOG`・`RACE_DAY_CATALOG`（`feature_catalog.py`） | この予想の特徴量の一覧。手本と同じ材料に K を足したもの（木曜・前日は `ABILITY_FEATURES + MARKET_FEATURES + K_FEATURES`、当日は手本の当日の 285個 + `K_FEATURES` の 295個。[09-features.md](09-features.md)）。K の一覧 `K_FEATURES`（10個。名前・まとまり・型・いつから分かるか）も、このファイルに置く | ―（値） | 共通の `FeatureCatalog` |
+| `ABILITY_CATALOG`・`RACE_DAY_CATALOG`（`feature_catalog.py`） | この予想の特徴量の一覧。手本と同じ材料に K を足したもの（木曜・前日は `ABILITY_FEATURES + HEAD_TO_HEAD_FEATURES + MARKET_FEATURES + K_FEATURES`、当日は手本の当日の 285個 + `K_FEATURES` の 295個。[09-features.md](09-features.md)）。K の一覧 `K_FEATURES`（10個。名前・まとまり・型・いつから分かるか）も、このファイルに置く | ―（値） | 共通の `FeatureCatalog` |
 
 ### workflow/ — 流れを進める
 

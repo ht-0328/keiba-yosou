@@ -1,4 +1,4 @@
-"""重賞の予想を手本の新しい材料で作り直したあと、7つの区切り（1年ずつ）で比べる（研究「既存モデルの改善」の入口⑧）。
+"""重賞の予想を手本の新しい材料で作り直したあと、7つの区切り（1年ずつ）で比べる（研究「既存モデルの改善」の入口⑨）。
 
     uv run python research/既存モデルの改善/stakes_rebuild.py tables                                  # 学習データの表を作る（元DB を開く。1時間ほど）
     uv run python research/既存モデルの改善/stakes_rebuild.py tables --only stakes_ability stakes_race_day

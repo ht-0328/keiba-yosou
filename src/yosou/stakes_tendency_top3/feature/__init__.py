@@ -6,7 +6,7 @@
 | 名前 | 中身 |
 |---|---|
 | ``K_FEATURES`` | まとまり K の10個の一覧 |
-| ``ABILITY_CATALOG`` | 木曜・前日のモデルの一覧（M・J に K を足したもの。木曜 201個・前日 213個） |
+| ``ABILITY_CATALOG`` | 木曜・前日のモデルの一覧（M・O・J に K を足したもの。木曜 208個・前日 220個） |
 | ``RACE_DAY_CATALOG`` | 当日のモデルの一覧（手本の当日の 285個に K を足した 295個） |
 | ``RACE_DAY_ABILITY_FEATURES`` | 当日のモデルが足す M（名前の重なる2つを除いた 200個） |
 | ``StakesTendencyFeatures`` | K を作るクラス（``FeatureGroup`` を守る） |

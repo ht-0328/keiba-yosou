@@ -2,7 +2,7 @@
 
 手本（近走と適性から3着以内を予想）の新しい材料と同じ構成に、K（重賞の傾向）の10個を足す（設計書 15 の 9）。
 
-- 馬の力の材料（木曜・前日）: M（202個）と J（市場の評価。前日から）に K を足す（``ABILITY_CATALOG``）。
+- 馬の力の材料（木曜・前日）: M（202個）・O（対戦レーティング。7個）と J（市場の評価。前日から）に K を足す（``ABILITY_CATALOG``）。
 - 当日の材料: 手本の当日と同じ A〜L（79個）・N（券種ごとの支持。6個）・M のうち名前の重ならない 200個に、K を足す
   （``RACE_DAY_CATALOG``。295個）。
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 from yosou.shared.feature import (
     ABILITY_FEATURES,
     BASE_FEATURES,
+    HEAD_TO_HEAD_FEATURES,
     MARKET_FEATURES,
     PEOPLE_MARKET_FEATURES,
     POOL_SUPPORT_FEATURES,
@@ -50,8 +51,8 @@ RACE_DAY_ABILITY_FEATURES: tuple[Feature, ...] = tuple(
     if feature.name not in {feature.name for feature in _FORM_RACE_DAY_FEATURES}
 )
 
-#: 馬の力の材料の一覧（木曜・前日のモデル。M・J に K を足したもの。木曜は 192 + 9 = 201個、前日は 203 + 10 = 213個）。
-ABILITY_CATALOG = FeatureCatalog(ABILITY_FEATURES + MARKET_FEATURES + K_FEATURES)
+#: 馬の力の材料の一覧（木曜・前日のモデル。手本と同じ M・O・J に K を足したもの。木曜は 199 + 9 = 208個、前日は 210 + 10 = 220個）。
+ABILITY_CATALOG = FeatureCatalog(ABILITY_FEATURES + HEAD_TO_HEAD_FEATURES + MARKET_FEATURES + K_FEATURES)
 
 #: 当日のモデルの一覧（手本の当日の 285個に K の10個を足した 295個）。
 RACE_DAY_CATALOG = FeatureCatalog(_FORM_RACE_DAY_FEATURES + RACE_DAY_ABILITY_FEATURES + K_FEATURES)
