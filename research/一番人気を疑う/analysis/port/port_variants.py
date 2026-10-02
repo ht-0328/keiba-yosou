@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 from 既存モデルの改善.analysis.variants import ModelVariant
 
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG
+from yosou.form_aptitude_top3.feature import CATALOG, POOL_CATALOG
 from yosou.shared.feature import PredictionTiming
 
-from .port_tables import ADDED_ABILITY_FEATURES
+from .port_tables import ABILITY_TABLE_CATALOG, ADDED_ABILITY_FEATURES
 
 _THURSDAY, _DAY_BEFORE, _RACE_DAY = PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE, PredictionTiming.RACE_DAY
 
@@ -22,10 +22,10 @@ def _variant(table: str, key: str, name: str, columns: tuple[str, ...], timing: 
 #: 作り方の一覧。今の予想は、今の本番のモデルと同じ特徴量（A〜L・J の 79個のうち、その時点で分かるもの）。
 PORT_VARIANTS: tuple[ModelVariant, ...] = (
     _variant("form_pool", "current-thursday", "今の予想（木曜）", CATALOG.columns_for(_THURSDAY), _THURSDAY),
-    _variant("form_ability", "ability-thursday", "馬の力の材料（木曜）", ABILITY_CATALOG.columns_for(_THURSDAY), _THURSDAY),
+    _variant("form_ability", "ability-thursday", "馬の力の材料（木曜）", ABILITY_TABLE_CATALOG.columns_for(_THURSDAY), _THURSDAY),
     _variant("form_pool", "current-day_before", "今の予想（前日）", CATALOG.columns_for(_DAY_BEFORE), _DAY_BEFORE),
     _variant("form_ability", "ability-day_before", "馬の力の材料 ＋ 市場の評価（前日）",
-             ABILITY_CATALOG.columns_for(_DAY_BEFORE), _DAY_BEFORE),
+             ABILITY_TABLE_CATALOG.columns_for(_DAY_BEFORE), _DAY_BEFORE),
     _variant("form_pool", "current-race_day", "今の予想（当日）", CATALOG.columns_for(_RACE_DAY), _RACE_DAY),
     _variant("form_pool", "pool-race_day", "今の予想 ＋ 券種の支持（当日）", POOL_CATALOG.columns_for(_RACE_DAY), _RACE_DAY),
     _variant("form_pool_ability", "pool-ability-race_day", "今の予想 ＋ 券種の支持 ＋ 馬の力の材料（当日）",

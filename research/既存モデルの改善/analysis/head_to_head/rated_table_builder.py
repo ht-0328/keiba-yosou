@@ -14,13 +14,15 @@ class RatedTableBuilder:
 
     ``runs`` は 2011年からの中央の平地の全出走（``HeadToHeadRunRepository`` で読んだもの）。レース内の順位・偏差・平均との差は、
     表の同じレースの行（出走した馬）どうしで比べる。特徴量の一覧も7個広げる。ID・目的変数・評価用の列・基準はそのまま。
+    元の表にもう O の列がある（O を採用したあとの組み立て関数で作った表）ときは、その列を作り直した値で置き換え、一覧にも重ねて足さない。
     """
 
     def build(self, base: TrainingData, runs: pd.DataFrame) -> TrainingData:
         entries = pd.DataFrame({"race_id": base.ids[RACE_ID].to_numpy(), "horse_id": base.ids[HORSE_ID].to_numpy()},
                                index=base.features.index)
         rated = RatingTableBuilder().build(entries, runs)
-        features = pd.concat([base.features, rated], axis=1)
-        catalog = FeatureCatalog(base.catalog.features + HEAD_TO_HEAD_FEATURES)
+        features = pd.concat([base.features.drop(columns=list(rated.columns), errors="ignore"), rated], axis=1)
+        kept = tuple(feature for feature in base.catalog.features if feature not in HEAD_TO_HEAD_FEATURES)
+        catalog = FeatureCatalog(kept + HEAD_TO_HEAD_FEATURES)
         return TrainingData(base.ids, features, base.targets, base.evaluation, catalog, base.label_name,
                             base.class_labels, base.baseline)

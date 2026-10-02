@@ -4,14 +4,26 @@ from __future__ import annotations
 
 from yosou.form_aptitude_top3.dataset import ability_dataset_builder as form_ability_builder
 from yosou.form_aptitude_top3.dataset import race_day_dataset_builder as form_race_day_builder
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG as FORM_ABILITY_CATALOG
+from yosou.form_aptitude_top3.feature import ABILITY_CATALOG as FORM_PRODUCTION_ABILITY_CATALOG
 from yosou.form_aptitude_top3.feature import RACE_DAY_CATALOG as FORM_RACE_DAY_CATALOG
 from yosou.stakes_tendency_top3.dataset import ability_dataset_builder as stakes_ability_builder
 from yosou.stakes_tendency_top3.dataset import race_day_dataset_builder as stakes_race_day_builder
-from yosou.stakes_tendency_top3.feature import ABILITY_CATALOG as STAKES_ABILITY_CATALOG
+from yosou.shared.feature import HEAD_TO_HEAD_FEATURES, FeatureCatalog
+from yosou.stakes_tendency_top3.feature import ABILITY_CATALOG as STAKES_PRODUCTION_ABILITY_CATALOG
 from yosou.stakes_tendency_top3.feature import RACE_DAY_CATALOG as STAKES_RACE_DAY_CATALOG
 
 from ..tables import STAKES_TABLE_PERIOD, ModelTableSpec
+
+
+def _without_head_to_head(catalog: FeatureCatalog) -> FeatureCatalog:
+    """対戦レーティング（O）を除いた一覧。"""
+    return FeatureCatalog(tuple(feature for feature in catalog.features if feature not in HEAD_TO_HEAD_FEATURES))
+
+
+#: 木曜・前日の表の一覧。この確かめ（2026-10-02）は、対戦レーティング（O）を予想の一覧に足す前に行ったので、保存した表にも O の列が無い。
+#: 確かめをそのまま回し直せるように、本番の一覧から O を除く。
+FORM_ABILITY_CATALOG = _without_head_to_head(FORM_PRODUCTION_ABILITY_CATALOG)
+STAKES_ABILITY_CATALOG = _without_head_to_head(STAKES_PRODUCTION_ABILITY_CATALOG)
 
 #: 表の名前。重賞だけの表（作り直した専用モデル）と、全レースの表（手本を重賞だけに使ったときの比べ先）。
 STAKES_ABILITY, STAKES_RACE_DAY = "stakes_ability", "stakes_race_day"

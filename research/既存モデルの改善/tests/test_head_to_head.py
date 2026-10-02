@@ -45,6 +45,26 @@ def test_rated_table_adds_the_seven_columns_and_widens_the_catalog():
     assert rated.features.loc[3:5, H2H_NAMES[0]].notna().all() and rated.features.loc[6:, H2H_NAMES[0]].isna().all()
 
 
+def test_rated_table_replaces_rating_columns_the_base_already_has():
+    # O を採用したあとの組み立て関数で作った元の表には、もう O の列がある。重ねて足さず、作り直した値で置き換える
+    plain = _training_data()
+    stale = pd.DataFrame({name: -1.0 for name in H2H_NAMES}, index=plain.features.index)
+    base = TrainingData(plain.ids, pd.concat([plain.features, stale], axis=1), plain.targets, plain.evaluation,
+                        FeatureCatalog(plain.catalog.features + HEAD_TO_HEAD_FEATURES), TOP3)
+    runs = pd.DataFrame({"race_id": ["r0"] * 3, "race_date": pd.to_datetime(["2024-01-05"] * 3),
+                         "horse_id": ["h0", "h1", "h2"], "finish": [1, 2, 3], "is_target": True})
+    rated = RatedTableBuilder().build(base, runs)
+    assert list(rated.features.columns) == list(plain.features.columns) + list(H2H_NAMES)
+    assert rated.catalog.names == plain.catalog.names + H2H_NAMES and not (rated.features[list(H2H_NAMES)] == -1.0).any().any()
+
+
+def test_base_tables_read_without_the_rating_and_the_rated_catalog_adds_it_once():
+    # 本番の木曜・前日の一覧には O が入っているので、元の表の一覧からは除き、対戦レーティングを足した一覧に1回だけ足す
+    for table in BASE_TABLES:
+        assert not set(H2H_NAMES) & set(table.catalog.names)
+        assert table.rated_catalog.names == table.catalog.names + H2H_NAMES
+
+
 def test_variants_pair_the_current_columns_with_the_rated_ones_per_timing():
     assert [spec.timing for spec in H2H_COMPARISONS] == list(PredictionTiming)
     for spec in H2H_COMPARISONS:
