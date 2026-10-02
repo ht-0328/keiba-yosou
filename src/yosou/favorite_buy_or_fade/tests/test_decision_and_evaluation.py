@@ -32,7 +32,9 @@ def test_decision_compares_the_scores():
 
 def test_default_settings_load_and_overrides_apply(tmp_path: Path):
     defaults = BuyOrFadeSettings.load()
-    assert defaults.timing is PredictionTiming.RACE_DAY and defaults.k == 10 and defaults.fade_margin == 5.0
+    assert defaults.timing is PredictionTiming.RACE_DAY and defaults.k == 30 and defaults.fade_margin == 0.0
+    # 近さは、馬券外との AUC で上位 20列だけで測る（設計書 15 の 14）
+    assert (defaults.column_weighting, defaults.column_weighting_keep) == ("馬券外とのAUC", 20)
     # オッズなしで予想する（単勝オッズから見た評価 K は使わない。前走の人気などの人気の履歴 J は使う）
     assert defaults.group_weights["K"] == 0.0 and defaults.group_weights["J"] == 1.0
     override = tmp_path / "mine.toml"
