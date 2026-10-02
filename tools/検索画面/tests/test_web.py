@@ -276,7 +276,7 @@ def test_forecasts_list_saved_and_detail(card_db: Path, tmp_path: Path):
         store.save(sample_forecast(second))
         listed = json.loads(get(base, "/api/forecasts")[2])
         assert list(listed["saved"]) == [second] and listed["saved"][second]["marks"] == "◎3"
-        assert listed["legend"]["marks"]["消"] == "買わない" and "能力" in listed["legend"]["categories"]
+        assert listed["legend"]["marks"]["消"].startswith("買わない") and "能力" in listed["legend"]["categories"]
         detail = json.loads(get(base, "/api/forecast", {"rid": second})[2])
         assert detail["forecast"]["horses"][0]["mark"] == "◎" and detail["title"].startswith("2025-04-19（土） 東京 2R")
         assert json.loads(get(base, "/api/forecast", {"rid": first})[2])["forecast"] is None

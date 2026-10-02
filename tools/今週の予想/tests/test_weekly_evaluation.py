@@ -46,3 +46,11 @@ def test_良い点と悪い点を分類ごとに足して出す() -> None:
     # レースの条件は良い点・悪い点に出さない
     assert all(point["category"] != RACE_CONDITION for point in result["categories"])
     assert "10.0ポイント高く" in result["summary"] and "「能力」" in result["summary"] and "→ ◎" in result["summary"]
+
+
+def test_印に使わない人気帯の危険度は参考として総合の文に出す() -> None:
+    horse = pd.Series({"probability": 0.4, "rank": 2, "mark": "○", "mark_reason": "3着以内に入る確率がレース内2位",
+                       "market_top3": 0.42, "place_value": 0.9, "favorite_band": "2〜3番人気", "danger_score": 0.03,
+                       "is_danger": False})
+    result = HorseEvaluator().evaluate(horse, pd.Series({"指数_前走": 80.0}), pd.Series({"指数_前走": 0.1}))
+    assert "危険度は +3.0ポイント（2〜3番人気" in result["summary"]

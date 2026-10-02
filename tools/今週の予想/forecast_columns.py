@@ -22,3 +22,12 @@ RANK = "rank"
 #: 印（◎○▲△☆注消）と、その印になった理由（1文）。
 MARK = "mark"
 MARK_REASON = "mark_reason"
+#: 危険な人気馬の判定（人気馬だけ。前日・当日だけ。設計書「買うレースと買い目を決める」07 の 3）。
+#: 人気帯・4着以下になる確率（人気馬の予想）・市場から見た4着以下の確率・危険度（その差）・人気帯の線・危険か。
+FAVORITE_BAND = "favorite_band"
+OUT_PROBABILITY = "out_probability"
+MARKET_OUT = "market_out"
+DANGER_SCORE = "danger_score"
+DANGER_LINE = "danger_line"
+IS_DANGER = "is_danger"
+DANGER_COLUMNS: tuple[str, ...] = (FAVORITE_BAND, OUT_PROBABILITY, MARKET_OUT, DANGER_SCORE, DANGER_LINE, IS_DANGER)

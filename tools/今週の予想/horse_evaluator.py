@@ -8,7 +8,17 @@ from typing import Any
 import pandas as pd
 
 from 今週の予想.feature_labels import CATEGORIES, RACE_CONDITION, FeatureLabels
-from 今週の予想.forecast_columns import MARK, MARK_REASON, MARKET_TOP3, PLACE_VALUE, PROBABILITY, RANK
+from 今週の予想.forecast_columns import (
+    DANGER_SCORE,
+    FAVORITE_BAND,
+    IS_DANGER,
+    MARK,
+    MARK_REASON,
+    MARKET_TOP3,
+    PLACE_VALUE,
+    PROBABILITY,
+    RANK,
+)
 
 #: 良い点・悪い点に出す分類の数（それぞれ）。
 POINTS_SHOWN = 3
@@ -20,7 +30,7 @@ MIN_EFFECT_LOGIT = 0.05
 #: 印ごとの役割（設計書「買うレースと買い目を決める」07 の 5）。
 MARK_ROLES: dict[str, str] = {
     "◎": "軸（安心な馬。ワイド・3連複の軸）", "○": "相手", "▲": "相手", "△": "相手（3連複の3列目）",
-    "☆": "美味しい穴馬（複勝で買う候補）", "注": "表示だけ（ワイドの相手の候補）", "消": "買わない",
+    "☆": "美味しい穴馬（複勝で買う候補）", "注": "表示だけ（ワイドの相手の候補）", "消": "買わない（危険な人気馬もここ）",
 }
 
 
@@ -83,6 +93,10 @@ class HorseEvaluator:
             parts.append("押し上げたのは" + "・".join(f"「{point['category']}」" for point in good) + "。")
         if bad:
             parts.append("割り引いたのは" + "・".join(f"「{point['category']}」" for point in bad) + "。")
+        score = horse.get(DANGER_SCORE)
+        if score is not None and pd.notna(score) and not bool(horse.get(IS_DANGER)):
+            parts.append(f"人気馬の予想の危険度は {score * 100:+.1f}ポイント（{horse[FAVORITE_BAND]}。"
+                         "危険の判定を印に使うのは1番人気だけなので、参考）。")
         parts.append(f"→ {horse[MARK]}（{MARK_ROLES.get(horse[MARK], '')}）: {horse[MARK_REASON]}。")
         return "".join(parts)
 
