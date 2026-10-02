@@ -10,6 +10,7 @@
 | ``settlement/`` | 買い目を払戻と照合し、レース × 買い方 の精算表を作る |
 | ``summary/`` | 精算表から回収率などをまとめ、表にする |
 | ``search/`` | しきい値の格子で戦略を回し、採否の基準で絞り、テスト期間で確かめる |
+| ``value_betting/`` | 3回目（入口 ``backtest_round3.py``）: 7つの区切りの予測から、期待値の高い穴馬の複勝を 枠A「馬を選ぶ」→ 枠B「レースを選ぶ」で評価する |
 
-列名の対応は ``column_names.py``、期間は ``periods.py``。
+列名の対応は ``column_names.py``、期間は ``periods.py``（3回目の決まりは ``value_betting/protocol.py``）。
 """
