@@ -76,6 +76,7 @@
 ```powershell
 uv run python research/既存モデルの改善/build_tables.py                                   # ① 学習データ（数分）
 uv run python research/既存モデルの改善/walk_forward.py --model form_aptitude_top3        # ② 全頭（40分ほど）
+uv run python tools/印の成績/mark_stats.py --form form_aptitude_top3/improved                # ②のあと: その予測に今週の予想と同じ印を付けた成績（道具「印の成績」）
 uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3         # ② 穴馬
 uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3 --variants improved --timing 木曜  # ② 時点を替える（既定は当日。予測は improved-thursday.pkl）
 uv run python research/既存モデルの改善/walk_forward.py --model favorites_out_of_top3     # ② 人気馬
