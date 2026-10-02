@@ -7,16 +7,27 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from 共通 import db
+
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.setting import HyperparameterSettings
 from yosou.shared.tests.synthetic_season import CARD_RACE_ID
 
 from yosou.shared.dataset import OddsInput
+from yosou.shared.feature.pace_forecast import SOURCE_COLUMNS
+from yosou.shared.feature.pace_forecast import pace_forecast_columns as pace_names
 
 from ..feature import PriorForecasts
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..tendency import TendencyModelStore, TendencySource
-from ..workflow import DevelopmentModelKind, DevelopmentPredictionWorkflow, ForecastGroup, GroupFitter, KindModelStore
+from ..workflow import (
+    DevelopmentModelKind,
+    DevelopmentPaceWorkflow,
+    DevelopmentPredictionWorkflow,
+    ForecastGroup,
+    GroupFitter,
+    KindModelStore,
+)
 from .conftest import EARLY_PERIOD, FINISH_PERIOD, LATE_PERIOD, TENDENCY_PERIOD
 
 #: 出馬表のレースに手で渡す単勝オッズ（合成DB には、締め切り前のオッズが無いため。``--odds`` の書き方）。
@@ -68,3 +79,12 @@ def test_card_race_is_predicted_with_marks_and_tickets(models: Path, development
     assert forecast.race["大荒れ以上の確率（単勝）"].between(0, 1).all()
     assert set(forecast.tickets["券種"]) == {"単勝", "複勝", "ワイド", "馬連", "馬単", "3連複", "3連単"}
     assert list((tmp_path / "predictions").rglob("*.pkl"))
+
+
+def test_pace_workflow_gives_the_early_and_late_forecasts_for_other_models(models: Path, development_db: Path) -> None:
+    with db.open_db(development_db) as con:
+        table = DevelopmentPaceWorkflow(models).run(con, CARD_RACE_ID, PredictionTiming.RACE_DAY, CARD_ODDS)
+    # 近走と適性の予想のまとまり P の元の予測の表。出走する全頭の行に、前半・後半の予測がそろう
+    assert list(table.columns) == [*pace_names.KEY, *SOURCE_COLUMNS] and len(table) == 7
+    assert table[list(SOURCE_COLUMNS)].notna().all().all()
+    assert np.isclose(table[pace_names.LEADER].sum(), 1.0)

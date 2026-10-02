@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from yosou.form_aptitude_top3.setting import DEFAULT_SETTINGS_PATH  # noqa: E402
 from yosou.race_development.setting import BACKTEST_SETTINGS_PATH  # noqa: E402
+from yosou.race_development.workflow import PaceForecastHistory  # noqa: E402
 from yosou.race_development.setting import DEFAULT_SETTINGS_PATH as DEVELOPMENT_SETTINGS_PATH  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.shared.setting import HyperparameterSettings  # noqa: E402
@@ -39,7 +40,6 @@ from 既存モデルの改善.analysis.pace_forecast import (  # noqa: E402
     PACE_TABLES,
     PACE_VARIANTS,
     ForecastFiller,
-    OutOfSampleReader,
     PaceComparisonSpec,
     PaceTableBuilder,
     pace_table_named,
@@ -75,7 +75,7 @@ def _fill(args: argparse.Namespace) -> None:
 
 def _tables(args: argparse.Namespace) -> None:
     store = TableStore(args.root / "tables")
-    reader = OutOfSampleReader(args.development_root)
+    reader = PaceForecastHistory(args.development_root)
     for table in (table for table in PACE_TABLES if not args.only or table.name in args.only):
         print(f"{table.label}: 展開の予測の年 {reader.years(table.timing)}・{table.base} を読んでいます …", flush=True)
         base = store.read(table.base, table.base_catalog)

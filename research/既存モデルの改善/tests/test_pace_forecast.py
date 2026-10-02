@@ -11,6 +11,7 @@ import pytest
 from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, RACE_DAY_CATALOG
 from yosou.race_development.feature import GroupForecast
 from yosou.race_development.repository import OutOfSampleRepository
+from yosou.race_development.workflow import PaceForecastHistory
 from yosou.shared.dataset import HORSE_ID, RACE_DATE, RACE_ID, TOP3, TrainingData
 from yosou.shared.feature import Feature, FeatureCatalog, FeatureKind, PredictionTiming
 from yosou.shared.feature.pace_forecast import PACE_FORECAST_NAMES, SOURCE_COLUMNS
@@ -20,7 +21,6 @@ from 既存モデルの改善.analysis.pace_forecast import (
     PACE_COMPARISONS,
     PACE_NAMES,
     PACE_TABLES,
-    OutOfSampleReader,
     PaceTableBuilder,
     pace_table_named,
 )
@@ -49,7 +49,7 @@ def development_root(tmp_path: Path) -> Path:
 
 
 def test_reader_joins_early_and_late_forecasts_of_every_year(development_root: Path):
-    reader = OutOfSampleReader(development_root)
+    reader = PaceForecastHistory(development_root)
     table = reader.read(_TIMING)
     assert list(table.columns) == [*names.KEY, *SOURCE_COLUMNS] and len(table) == 4
     assert reader.years(_TIMING) == {"early": [2016, 2017], "late": [2017]}
@@ -63,7 +63,7 @@ def test_reader_joins_early_and_late_forecasts_of_every_year(development_root: P
 
 def test_reader_asks_for_the_backtest_when_nothing_is_stored(tmp_path: Path):
     with pytest.raises(FileNotFoundError, match="backtest"):
-        OutOfSampleReader(tmp_path).read(_TIMING)
+        PaceForecastHistory(tmp_path).read(_TIMING)
 
 
 def test_builder_adds_the_twenty_columns_to_the_same_runs(development_root: Path):
@@ -73,7 +73,7 @@ def test_builder_adds_the_twenty_columns_to_the_same_runs(development_root: Path
     base = TrainingData(ids, pd.DataFrame({"x": [1.0, 2.0, 3.0]}), pd.DataFrame({TOP3: [1, 0, 0]}),
                         pd.DataFrame(index=ids.index), catalog, TOP3)
     paced_catalog = FeatureCatalog(catalog.features + tuple(Feature(name, "P", FeatureKind.NUMERIC) for name in PACE_FORECAST_NAMES))
-    paced = PaceTableBuilder().build(base, OutOfSampleReader(development_root).read(_TIMING), paced_catalog)
+    paced = PaceTableBuilder().build(base, PaceForecastHistory(development_root).read(_TIMING), paced_catalog)
     assert list(paced.features.columns) == ["x", *PACE_FORECAST_NAMES]
     assert paced.features["x"].tolist() == [1.0, 2.0, 3.0] and paced.targets.equals(base.targets)
     assert paced.features.loc[0, names.CORNER4_P] == pytest.approx(0.1) and paced.features.loc[0, names.CORNER4_RANK] == 1

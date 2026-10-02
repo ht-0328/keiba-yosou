@@ -2,11 +2,10 @@
 
 元の表は、対戦レーティングの確かめ（``head_to_head``）が作った今の本番と同じ材料の学習データ。そこに、予想「展開から着順を予想」の
 年ごとの確かめの予測（その年より前だけで学習した展開のモデルの予測）から、予想のパッケージと同じ部品
-（``yosou.shared.feature.pace_forecast``）で作った P の 20列を足す。区切り・区切りごとの学習・比べ方はこの研究のもの。
+（``yosou.shared.feature.pace_forecast``）で作った P の 20列を足す。展開の年ごとの予測は、予想のパッケージの ``PaceForecastHistory``（``yosou.race_development``）で読む。区切り・区切りごとの学習・比べ方はこの研究のもの。
 
 | 名前 | 仕事 |
 |---|---|
-| ``OutOfSampleReader`` | 展開の予想の年ごとの確かめの予測を、時点ごとに P の元の予測の表にして読む |
 | ``ForecastFiller`` | 展開の予想の年ごとの確かめで、まだ作っていない年（2026年の木曜など）の予測を作り足す |
 | ``PaceTable``・``PACE_TABLES`` | P を足す元の表と、時点ごとの足した表の名前 |
 | ``PaceTableBuilder`` | 元の表に P の 20列を足す |
@@ -14,12 +13,11 @@
 """
 
 from .forecast_filler import ForecastFiller
-from .out_of_sample_reader import OutOfSampleReader
 from .pace_table_builder import PaceTableBuilder
 from .pace_tables import PACE_TABLES, PaceTable, pace_table_named
 from .pace_variants import PACE_COMPARISONS, PACE_NAMES, PACE_VARIANTS, PaceComparisonSpec, variant_keyed
 
 __all__ = [
-    "OutOfSampleReader", "ForecastFiller", "PaceTable", "PACE_TABLES", "pace_table_named", "PaceTableBuilder",
+    "ForecastFiller", "PaceTable", "PACE_TABLES", "pace_table_named", "PaceTableBuilder",
     "PACE_COMPARISONS", "PACE_NAMES", "PACE_VARIANTS", "PaceComparisonSpec", "variant_keyed",
 ]

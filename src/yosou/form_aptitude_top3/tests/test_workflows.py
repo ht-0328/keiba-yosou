@@ -24,7 +24,7 @@ from yosou.shared.workflow import AVERAGE, ModelSegments, SegmentedPrediction, T
 from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.tests import synthetic_season as season
 
-from ..command import CommandLine
+from ..command import CommandLine, predict_command
 from ..dataset import (
     OddsInput,
     OddsResolver,
@@ -61,8 +61,9 @@ def test_training_saves_the_settings_it_used(trained: tuple[Path, str]):
 
 def test_training_reports_each_model_group(trained: tuple[Path, str]):
     _, text = trained
-    # 当日（今の材料・券種の支持・馬の力の材料）・券種オッズなし（当日）・馬の力の材料（木曜・前日）の3つの学習の結果を出す
-    for subject in ("今の材料", "券種オッズなし", "馬の力の材料"):
+    # 当日（今の材料・券種の支持・馬の力の材料）・券種オッズなし（当日）・馬の力の材料（前日）・展開の予想を足した馬の力の材料（木曜）の
+    # 4つの学習の結果を出す
+    for subject in ("今の材料", "券種オッズなし", "馬の力の材料", "馬の力の材料 ＋ 展開の予想（木曜）"):
         assert f"{subject}: 検証データでの当たり具合" in text and f"{subject}: 保存したモデル" in text
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     assert "複勝の見込みの倍率" in text
@@ -97,11 +98,16 @@ def _workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
     )
 
 
-def _thursday_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path) -> PredictionWorkflow:
-    """木曜の予測の流れ（馬の力の材料）。"""
+def _thursday_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
+                       asked: list[tuple[str, PredictionTiming]]) -> PredictionWorkflow:
+    """木曜の予測の流れ（馬の力の材料と展開の予想の結果）。展開の予測は、聞かれたレースと時点を ``asked`` に書き足し、
+    予測の無い表を返す（展開のモデルは合成DB では学べないため。P は欠損値になる）。"""
+    def pace(race_id: str, timing: PredictionTiming, given) -> pd.DataFrame:
+        asked.append((race_id, timing))
+        return pd.DataFrame()
     return PredictionWorkflow(
         ability_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
-        OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(None),
+        OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(None), pace=pace,
     )
 
 
@@ -122,9 +128,12 @@ def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path
 def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
     models, _ = trained
     with db.open_db(season_db) as con:
-        workflow = _thursday_workflow(con, models, figure_cache)
+        asked: list[tuple[str, PredictionTiming]] = []
+        workflow = _thursday_workflow(con, models, figure_cache, asked)
         prediction = workflow.run(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY)
     assert len(prediction) == 8 and WIN_ODDS not in prediction.columns
+    # 木曜のモデルは展開の予想の結果（P）を足して学んだので、そのレースの木曜の展開の予測を聞く
+    assert asked == [(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY)]
     # 木曜はオッズが無いので、オッズから見た3着以内率と複勝の期待値も出さない
     assert TOP3_RATE not in prediction.columns and PLACE_VALUE not in prediction.columns
 
@@ -160,8 +169,11 @@ def _run_command(argv: list[str]) -> int:
     return stopped.value.code
 
 
-def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, trained, figure_cache: Path, capsys):
+def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, trained, figure_cache: Path, capsys,
+                                                          monkeypatch: pytest.MonkeyPatch):
     models, _ = trained
+    # 展開のモデルは合成DB では学べないので、展開の予測は予測の無い表にする（P は欠損値）
+    monkeypatch.setattr(predict_command.DevelopmentPaceWorkflow, "run", lambda self, con, race_id, timing, given: pd.DataFrame())
     code = _run_command([
         "predict", "--date", "2025-01-11", "--venue", "東京", "--race", "2", "--timing", "木曜",
         "--figure-cache", str(figure_cache), "--db", str(season_db), "--models", str(models), "--format", "csv",

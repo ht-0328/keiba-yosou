@@ -19,6 +19,10 @@
 | ``DatasetLoader`` | 元DB から1頭ごと・1レースごと・既存の予想ごとの学習データを作る（前に作ったものがあれば読む） |
 | ``KindModelStore`` | 予想ごと・時点ごとの学習済みモデル（⑦ は λ も）を読み書きする |
 | ``DevelopmentTrainingWorkflow``・``SavedModel`` | 学習の流れ。予測に使う最新の年のモデルを、時点ごとに学習して保存する |
+| ``RaceInputs`` | 1レースの予測用データ（1頭ごと・1レースごと・既存の予想ごと）を元DB から作る |
+| ``GroupPredictor`` | 1レースの1つの組の予想を、保存したモデルで予測する |
+| ``DevelopmentPaceWorkflow`` | 1レースの前半・後半を予測し、近走と適性の予想に渡す元の予測の表（まとまり P の元）にする |
+| ``PaceForecastHistory`` | 年ごとの確かめの前半・後半の予測を、近走と適性の予想の学習データの材料（まとまり P の元）として読む |
 | ``DevelopmentPredictionWorkflow``・``DevelopmentForecast`` | 予測の流れと、1レースの予測の入れ物（印と印どおりの買い目まで） |
 | ``BacktestWorkflow``・``BacktestReport`` | 年ごとの確かめの流れと、その結果の入れ物 |
 """
@@ -28,17 +32,21 @@ from .backtest_workflow import DEFAULT_TIMING, BacktestWorkflow
 from .dataset_loader import DatasetLoader
 from .development_forecast import DevelopmentForecast
 from .development_model_kind import DevelopmentModelKind, KindSpec
+from .development_pace_workflow import DevelopmentPaceWorkflow
 from .development_prediction_workflow import DevelopmentPredictionWorkflow
 from .development_training_workflow import DevelopmentTrainingWorkflow, SavedModel
 from .forecast_group import ForecastGroup
 from .group_fitter import ORDER_LAMBDA, GroupFitter
+from .group_predictor import GroupPredictor
 from .kind_datasets import KindDatasets
 from .kind_forecaster import KindForecaster
 from .kind_model_store import KindModelStore
 from .kind_stacker import KindStacker
 from .kind_trainer import KindTrainer
 from .model_family import ModelFamily
+from .pace_forecast_history import PaceForecastHistory
 from .race_betting import RaceBetting
+from .race_inputs import RaceInputs
 from .walk_forward_predictor import WalkForwardPredictor
 from .walk_forward_schedule import WalkForwardSchedule, YearPeriod
 from .year_betting import YearBetting
@@ -49,5 +57,6 @@ __all__ = [
     "KindDatasets", "KindTrainer", "KindForecaster", "GroupFitter", "WalkForwardPredictor", "RaceBetting",
     "YearBetting", "YearMarket", "BacktestWorkflow", "BacktestReport", "ORDER_LAMBDA", "DEFAULT_TIMING",
     "KindStacker", "DatasetLoader", "KindModelStore", "DevelopmentTrainingWorkflow", "SavedModel",
-    "DevelopmentPredictionWorkflow", "DevelopmentForecast",
+    "DevelopmentPredictionWorkflow", "DevelopmentForecast", "DevelopmentPaceWorkflow", "PaceForecastHistory",
+    "GroupPredictor", "RaceInputs",
 ]
