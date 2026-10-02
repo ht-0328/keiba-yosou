@@ -30,8 +30,8 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 ├── workflow/                       学習・1年ごとの評価・予測の流れ（ほかを順に呼ぶだけ）
 ├── evaluation/                     掛け金と、年ごと・判定ごと・単位ごとの成績の表
 ├── decision/                       3つの点数から判定する
-├── similarity/                     近さのモデル（特徴量の行列・グループごとの近さ・単位ごとの一式）
-├── unit/                           芝ダート × 距離の単位の決め方
+├── similarity/                     近さのモデル（特徴量の行列とその部品・グループごとの近さ・単位ごとの一式）
+├── unit/                           芝ダート × 距離の単位の決め方（単位で分けない形も）
 ├── dataset/                        1番人気の行の選び方・グループの列と、共通の DatasetBuilder の組み立て
 ├── feature/                        この予想の特徴量の一覧（CATALOG）
 ├── setting/                        方針の初期値のファイルと、それを読むクラス
@@ -71,12 +71,17 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 | 名前 | 仕事 | 主な public メソッド |
 |---|---|---|
 | `CourseUnitMap` | 芝ダ → 単位にする距離の並びを持つ。学習データで1番人気が `min_rows` 頭以上いる距離を単位にし、少ない距離は同じ芝ダのいちばん近い単位にまとめる（差が同じなら長いほう）。その芝ダにどれも足りなければ、いちばん頭数の多い距離1つにまとめる（[06-flowchart.md](06-flowchart.md#図3-使う単位を決める)）。単位の名前は「芝2000m」の形 | `from_rows(特徴量, min_rows)`、`unit_of(芝ダ, 距離)`、`units_of(特徴量)`、`members(特徴量)` |
+| `SingleUnitMap` | 単位で分けない（方針の `split = "なし"`）ときの単位の決め方。全部を1つの単位「全部」にする。`CourseUnitMap` と同じ呼び方で使え、芝ダと距離は特徴量として距離に入る | `unit_of(芝ダ, 距離)`、`units_of(特徴量)`、`members(特徴量)` |
 
 ### similarity/ — 近さのモデル
 
 | 名前 | 仕事 | 主な public メソッド |
 |---|---|---|
-| `FeatureMatrix` | 特徴量の表を、距離を測れる数の行列にする。数の列は単位の中央値で埋めて標準化し、どの行も同じ値の列は使わない。欠損値だったかの 0/1 の列を足す。カテゴリの列は one-hot にする。0/1 の列は標準化せず 1/√2 を掛ける。まとまり A〜K の重みを掛ける。重み 0 と除く特徴量は使わない（[12-neighbor-distance.md](12-neighbor-distance.md)） | `fit(特徴量)`、`transform(特徴量)`、`column_names` |
+| `MatrixOptions` | 行列の作り方の方針（除く特徴量・まとまりの重み・欠損値の列を足すか・数の列のそろえ方・カテゴリの直し方・列ごとの重みの決め方）。方針の名前から、下の部品を作る | `from_settings(方針)`、`new_scaling()`、`new_encoding()`、`new_weighting()` |
+| `FeatureMatrix` | 特徴量の表を、距離を測れる数の行列にする。数の列は単位の中央値で埋めてそろえ、どの行も同じ値の列は使わない。欠損値だったかの 0/1 の列（1/√2 を掛ける）を足す。カテゴリの列を数の列に直す。どの列にも、まとまり A〜K の重みと列ごとの重みを掛ける。重み 0 と除く特徴量は使わない（[12-neighbor-distance.md](12-neighbor-distance.md)） | `fit(特徴量, 馬券外か)`、`transform(特徴量)`、`column_names`、`weights` |
+| `StandardScaling`・`RankScaling` | 数の列のそろえ方。標準化（平均 0・標準偏差 1）か、学習データの中の順位（0〜1）に直してばらつき 1 にそろえるか（[12-neighbor-distance.md の「3.」](12-neighbor-distance.md#3-尺度をそろえる)） | `fit(数の列)`、`transform(数の列)` |
+| `OneHotEncoding`・`OutRateEncoding` | カテゴリの列の直し方。値ごとの 0/1 の列（1/√2 を掛ける）か、その値の学習データでの馬券外率（数の列として標準化）か（[12-neighbor-distance.md の「1.」](12-neighbor-distance.md#1-距離に使う列の作り方)） | `fit(カテゴリの列, 馬券外か)`、`transform(カテゴリの列)`、`column_names`、`sources` |
+| `EqualWeighting`・`AucWeighting` | 列ごとの重みの決め方。どの列も 1 か、列ごとの「馬券外か」との AUC から \|2 × AUC − 1\| を重みにする（上位の列数で絞れる）か（[12-neighbor-distance.md の「4.」](12-neighbor-distance.md#4-特徴量の重み)） | `fit(行列, 馬券外か)`、`weights` |
 | `GroupSimilarity` | 1つのグループの馬だけを覚え（k近傍法）、対象の馬の近さの点数を出す。点数は、同じ単位の1番人気全員と比べた順位（[13-closeness-score.md](13-closeness-score.md#2-点数のそろえ方)） | `fit(単位の行列, グループの馬か)`、`distances(行列)`、`scores(行列)`、`k` |
 | `UnitSimilarity` | 1つの単位の、共通の `FeatureMatrix` 1つと、3つの `GroupSimilarity` | `fit(特徴量, グループの列)`、`scores(特徴量)`、`group_rows()` |
 | `SimilarityModelSet` | 学習したモデルの一式。単位の決め方（`CourseUnitMap`）・単位の名前 → `UnitSimilarity`・学習に使った方針 | `scores(特徴量)` |
@@ -112,14 +117,15 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 | 名前 | 仕事 | 主な public メソッド |
 |---|---|---|
 | `default_settings.toml` | 方針の初期値（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） | ―（ファイル） |
-| `BuyOrFadeSettings` | 方針の値。初期値に `--config` のファイルを重ねて作る。知らない名前はエラー。時点に木曜を書いたらエラー | `load(パス)`、`to_dict()`・`from_dict()`・`to_json()` |
+| `BuyOrFadeSettings` | 方針の値。初期値に `--config` のファイルを重ねて作る。知らない名前はエラー。時点に木曜を書いたら、名前で選ぶ項目に書けない値を書いたらエラー。あとから足した項目の無い古い `settings.json` は、足す前と同じ作り方になる値で読む | `load(パス)`、`to_dict()`・`from_dict()`・`to_json()` |
+| `option_names.py` | 名前で選ぶ項目（単位の分け方・数の列のそろえ方・カテゴリの直し方・列ごとの重みの決め方）に書ける値 | ―（値） |
 
 ### workflow/ — 流れを進める
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `TrainingDataReader` | 方針の「学習の最初の年」の1月1日から、元DB の最後の開催日までの1番人気の学習データを読む（その前の年はウォームアップ）。締め切り前の1番人気を渡すと、その馬の行も入れる | `read(接続)` | `dataset_builder()`、共通の `TrainingPeriod` |
-| `SimilarityTraining` | 学習の流れ。方針の時点の列にする → 単位を決める → 単位ごとに3つのモデルを作る | `train(学習データ)` | `CourseUnitMap`・`FeatureMatrix`・`UnitSimilarity`・`SimilarityModelSet` |
+| `SimilarityTraining` | 学習の流れ。方針の時点の列にする → 単位を決める（方針の分け方で `CourseUnitMap` か `SingleUnitMap`）→ 単位ごとに3つのモデルを作る | `train(学習データ)` | `CourseUnitMap`・`SingleUnitMap`・`MatrixOptions`・`FeatureMatrix`・`UnitSimilarity`・`SimilarityModelSet` |
 | `FavoriteJudgement` | 学習した一式で、1番人気ごとの単位・3つの点数・判定を出す（評価と予測で同じもの） | `judge(特徴量)` | `SimilarityModelSet`・`BuyDecision` |
 | `YearlyEvaluation` | 1年ごとの評価。評価する年ごとに、学習の最初の年からその前年までの確定の1番人気で学習し直し、その年の1番人気を、選び方ごとに判定する | `run(学習データ)` | `FavoritePicks`・`SimilarityTraining`・`FavoriteJudgement` |
 | `PredictionWorkflow` | 予測の流れ。オッズと人気を決め、学習した方針の時点で予測用データを作り、1番人気を判定する | `run(レースID, 渡された人気=省略可, 渡されたオッズ=省略可)` | 共通の `OddsResolver`・`PopularityApplier`・`DatasetBuilder`、`FavoriteJudgement` |
@@ -142,3 +148,4 @@ src/yosou/favorite_buy_or_fade/     1番人気を買うか消すかを予想す�
 | 作成日 | 2026-09-25 |
 | 更新 | 2026-09-25: k近傍法の設計に作り直した。同日、実装したクラスとフォルダに合わせて書き直した<br>2026-09-30: 方針を決める年と確かめる年を分けるクラス（`EvaluationPeriods`）と、締め切り前の1番人気で評価するクラス（`PreDeadlineFavoriteRepository`・`PreDeadlineFavorites`・`FavoritePicks`・`PickComparison`）を足した |
 | 更新 | 2026-09-30: 「人気馬が4着以下になるかを予想」が、まとまり L（騎手・調教師・血統の市場に対する成績）を足して 82個になったので、「同じ 78個」と書いていたところを、L を除いた一覧だと直した（この予想の 78個は変わらない） |
+| 更新 | 2026-10-02: 近さの測り方の見直しで、行列の作り方の方針（`MatrixOptions`）とその部品（そろえ方・カテゴリの直し方・列ごとの重み）、単位で分けない `SingleUnitMap`、名前で選ぶ項目の値（`option_names.py`）を足した |

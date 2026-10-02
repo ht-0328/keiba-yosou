@@ -12,11 +12,24 @@ from yosou.shared.tests import synthetic_season as season
 from ..command import CommandLine
 from ..decision import BET_KINDS, DECISION
 from ..repository import MODEL_FILE, SETTINGS_FILE
+from ..setting import BuyOrFadeSettings
 from ..similarity import SCORE_COLUMNS, UNIT
+from ..unit import WHOLE_UNIT
 from ..workflow import YEAR, SimilarityTraining, YearlyEvaluation
+from .conftest import SMALL_SETTINGS
 
 #: 確定前の 1R で、利用者が渡す全頭の単勝オッズ（馬番 3 が1番人気）。
 GIVEN_ODDS = ["3:2.2", "5:3.4", "1:4.5", "2:9.0", "4:12.0", "6:20.0", "7:30.0"]
+#: 近さの測り方を全部変えた方針（単位なし・順位・馬券外率・馬券外との AUC で上位 10列）。
+OTHER_WAYS = SMALL_SETTINGS.replace("[unit]\nmin_rows = 20", '[unit]\nmin_rows = 20\nsplit = "なし"') + """
+[features]
+scaling = "順位"
+categorical = "馬券外率"
+
+[features.column_weighting]
+method = "馬券外とのAUC"
+keep = 10
+"""
 
 
 def test_training_makes_three_models_per_unit(training_data, small_settings):
@@ -26,6 +39,19 @@ def test_training_makes_three_models_per_unit(training_data, small_settings):
     rows = models.units["芝1600m"].group_rows()
     assert rows["勝利"] <= rows["馬券内"] and rows["馬券内"] + rows["馬券外"] > 0
     scores = models.scores(training_data.features)
+    assert scores[list(SCORE_COLUMNS.values())].stack().between(0, 100).all()
+
+
+def test_training_with_the_other_ways_of_measuring_closeness(training_data, tmp_path: Path):
+    path = tmp_path / "other.toml"
+    path.write_text(OTHER_WAYS, encoding="utf-8")
+    settings = BuyOrFadeSettings.load(path)
+    assert settings.unit_split == "なし" and settings.column_weighting_keep == 10
+    models = SimilarityTraining(settings).train(training_data)
+    # 単位で分けないので、単位は1つ。点数は今までどおり 0〜100
+    assert set(models.units) == {WHOLE_UNIT}
+    scores = models.scores(training_data.features)
+    assert (scores[UNIT] == WHOLE_UNIT).all()
     assert scores[list(SCORE_COLUMNS.values())].stack().between(0, 100).all()
 
 
