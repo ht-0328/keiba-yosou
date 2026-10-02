@@ -132,6 +132,8 @@ def _confirm(args, stage: Stage) -> list[Table]:
     """確認: 探索で選んだ戦略だけを 2025年の2区切りで評価し、採用を adopted.json に書く（1回だけ）。"""
     strategies = StrategyListFile(args.out_dir / Stage.SEARCH.folder / _CHOSEN).read()
     _guard_once(args, stage, _ADOPTED)
+    if not strategies:
+        return _nothing_to_confirm(args, stage)
     materials, evaluator, out = _prepare(args, stage)
     rule = ConfirmAdoptionRule()
     results = [evaluator.evaluate(strategy, stage.window_names) for strategy in strategies]
@@ -152,6 +154,20 @@ def _confirm(args, stage: Stage) -> list[Table]:
     ]
     _write_all(produced, results, out)
     return produced
+
+
+def _nothing_to_confirm(args, stage: Stage) -> list[Table]:
+    """探索で候補が無かったとき: 確認期間の数値は見ずに、採用なしの adopted.json と、その旨の表だけを書く。"""
+    out = args.out_dir / stage.folder
+    out.mkdir(parents=True, exist_ok=True)
+    rule = ConfirmAdoptionRule()
+    StrategyListFile(out / _ADOPTED).write([], meta={"stage": stage.value, "windows": list(stage.window_names), "rule": rule.describe(),
+                                                      "verdicts": {}, "note": "探索で候補が無かったので、確認する戦略が無い"})
+    table = Table(["結果"], [["探索で採否の基準を満たす戦略が無かったので、確認する戦略が無い。確認期間の数値は見ていない（docs/05-round3-protocol.md）"]],
+                  title="確認")
+    (out / _RESULT_MD).write_text(render.render([table], "markdown"), encoding="utf-8")
+    _say(f"確認: 探索の候補が無いので評価しない → {out / _ADOPTED}")
+    return [table]
 
 
 def _final(args, stage: Stage) -> list[Table]:
