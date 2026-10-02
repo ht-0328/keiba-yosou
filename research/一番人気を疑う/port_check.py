@@ -119,13 +119,22 @@ def _with_threads(settings: HyperparameterSettings, threads: int) -> Hyperparame
 
 
 def _pin_to_p_cores() -> None:
-    """Windows では、このプロセスを P コアだけで動かす（学習のスレッドも従う）。ほかの OS では何もしない。"""
+    """Windows では、このプロセスを P コアだけで動かす（学習のスレッドも従う）。ほかの OS では何もしない。
+
+    ハンドルとマスクは 64 ビットなので、ctypes に型を教えてから呼ぶ（教えないと 32 ビットに切られ、黙って失敗する）。
+    失敗したら止める（全コアで走ると、同じマシンのほかの学習とぶつかる）。
+    """
     if sys.platform != "win32":
         return
     import ctypes
+    from ctypes import wintypes
 
     kernel = ctypes.windll.kernel32
-    kernel.SetProcessAffinityMask(kernel.GetCurrentProcess(), _P_CORES)
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.SetProcessAffinityMask.argtypes = [wintypes.HANDLE, ctypes.c_size_t]
+    kernel.SetProcessAffinityMask.restype = wintypes.BOOL
+    if not kernel.SetProcessAffinityMask(kernel.GetCurrentProcess(), _P_CORES):
+        raise OSError(f"P コアへの割り当てに失敗しました（エラー {ctypes.get_last_error()}）")
 
 
 def _parser() -> argparse.ArgumentParser:

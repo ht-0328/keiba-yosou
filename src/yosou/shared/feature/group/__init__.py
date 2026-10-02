@@ -17,12 +17,14 @@
 | ``PeopleMarketFeatures`` | L. 騎手・調教師・血統の市場に対する成績（4個）。全頭の3着以内・穴馬・人気馬の予想が渡す |
 | ``HorseAbilityFeatures`` | M. 馬の力の材料（202個。部品は ``feature/ability/``）。全頭の3着以内の予想の木曜（と前日）のモデルが渡す |
 | ``PoolSupportFeatures`` | N. 券種ごとのオッズから見た支持（6個）。全頭の3着以内の予想の当日のモデルが渡す |
+| ``HeadToHeadRatingFeatures`` | O. 対戦レーティング（7個。部品は ``feature/head_to_head/``）。全頭の3着以内の予想で、採用の基準を満たした時点のモデルが渡す |
 
 ``POPULARITY_RANK`` は特徴量「人気順位」、``WIN_ODDS`` は「単勝オッズ」の名前。予測の結果の表にも出すので、外にも見せる。
 """
 
 from .aptitude_features import AptitudeFeatures
 from .field_comparison_features import FieldComparisonFeatures
+from .head_to_head_rating_features import HeadToHeadRatingFeatures
 from .horse_ability_features import HorseAbilityFeatures
 from .horse_features import HorseFeatures
 from .market_features import MARKET_WIN_RATE, MarketFeatures
@@ -43,4 +45,5 @@ __all__ = [
     "WorkoutFeatures", "PopularityHistoryFeatures", "POPULARITY_RANK",
     "MarketFeatures", "OddsFeatures", "WIN_ODDS", "MARKET_WIN_RATE",
     "PeopleMarketFeatures", "PEOPLE_MARKET_COLUMNS", "HorseAbilityFeatures", "PoolSupportFeatures",
+    "HeadToHeadRatingFeatures",
 ]

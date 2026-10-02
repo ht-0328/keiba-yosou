@@ -38,6 +38,7 @@
 | `backtest.py` | 入口⑤: 直した予想から馬の期待値と役割を決め、券種で期待値を積んで買う買い方を、過去のレースで確かめる。勝負するレースの選び方（1日3レースまで・軸の確率の帯 など）ごとにも比べる |
 | `build_experiments.py` | 入口⑥: 材料を1つずつ足す実験の表を作る（能力指数・当日の馬場傾向 など） |
 | `calibration.py` | 入口⑦: 穴馬の予想の確率のずれを、7つの区切り × 3つの時点で確かめ、較正（Platt scaling・isotonic regression）と比べる（issue #31） |
+| `h2h_check.py` | 入口⑧: 対戦レーティング（全頭の予想のまとまり O）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`tables` → `run` → `summary` の3段） |
 | `analysis/` | 部品（下の表） |
 | `docs/` | 進め方（`01-進め方.md`）と結果の読み方（`02-結果の読み方.md`） |
 | `tests/` | 部品のテスト（合成データだけ） |
@@ -61,6 +62,7 @@
 | `betting/` | 買い方の検証（確率の補正・賭け金・券種で期待値を積む・勝負するレースを検証期間で決める・勝負するレースの選び方を比べる） |
 | `experiments/`・`repository/` | 材料を1つずつ足す実験（と、そのための元DB の読み出し） |
 | `calibration/` | 確率のずれを測る材料の表と、較正の方法の比べ方 |
+| `head_to_head/` | 対戦レーティングを足した比べ（元の表に7列を足す・時点ごとの作り方・区切りごとの採否） |
 
 ## 動かし方
 
@@ -84,12 +86,19 @@ uv run python research/既存モデルの改善/build_experiments.py            
 uv run python research/既存モデルの改善/walk_forward.py --model form_experiments          # ⑥ 材料の実験（2時間ほど）
 uv run python research/既存モデルの改善/compare.py --only form_experiments                # ⑥ 材料の実験の採否の表
 uv run python research/既存モデルの改善/calibration.py                                   # ⑦ 穴馬の確率のずれ（先に ② の穴馬を --timing 木曜・前日 でも回す）
+uv run python research/既存モデルの改善/h2h_check.py tables                              # ⑧ 対戦レーティングを足した表（元DB を開く。数分）
+uv run python research/既存モデルの改善/h2h_check.py run                                 # ⑧ 時点ごとに今の予想と足した作り方を学習（1つ 30〜60分。済んだものは飛ばす）
+uv run python research/既存モデルの改善/h2h_check.py summary                             # ⑧ 時点ごとの採否と、◎と1番人気の表
 uv run python -m pytest -q research/既存モデルの改善                                       # 部品のテスト
 ```
 
 出るもの（どれも `reports/既存モデルの改善/`）: `tables/`（学習データ）、`predictions/`（予測）、`compare/<予想>.md`（比べ方の表）、
 `backtest/結果.md`（買い方の検証の表）と買い目の CSV、`backtest/勝負するレースの選び方.md`（選び方ごとの比べ方）。⑦ だけは、穴馬の予想の報告の置き場所
 `reports/穴馬が3着以内に入るかを予想/calibration-walk-forward.md` に出す（本番のモデルの `calibration` コマンドの結果と並べて読むため）。
+⑧ の元の表は、研究「一番人気を疑う」の移したあとの確かめ（`port_check.py tables`）が予想のパッケージの組み立て関数で作った今の本番と同じ学習データで、
+`reports/一番人気を疑う/移したあとの確かめ/tables/` にあればそれを読み、無ければ同じ組み立て関数でここに作る。「今の予想」の作り方はその確かめと同じ表・同じ列・同じ設定なので、
+同じ予測になる（同じ作り方を同じ表で回し直すと予測は一致する）。その予測を `predictions/h2h_*/current-<時点>.pkl` に写してあれば、`run` は足した作り方だけを学習する。
+結果は `compare/対戦レーティング-<日付>.md`。
 
 ## 注意
 
