@@ -50,8 +50,9 @@ class MarkAssigner:
     def _with_chui(self, runners: pd.DataFrame, marks: pd.Series) -> pd.Series:
         """注: 印の無い馬のうち、上げ下げが最も大きい馬。"""
         unmarked = runners[marks == ""]
-        lift = self._logit(unmarked[c.FORM_PROB]) - self._logit(unmarked[c.MARKET_TOP3])
-        best = lift.groupby([unmarked[key] for key in _RACE_KEY]).idxmax().dropna()
+        lift = (self._logit(unmarked[c.FORM_PROB]) - self._logit(unmarked[c.MARKET_TOP3])).dropna()
+        unmarked = unmarked.loc[lift.index]
+        best = lift.groupby([unmarked[key] for key in _RACE_KEY]).idxmax()
         marks = marks.copy()
         marks[best.to_numpy()] = CHUI
         return marks

@@ -55,5 +55,6 @@ def default_sources(reports_root: Path) -> MaterialSources:
         longshots=PredictionSource(reports_root / "穴馬が3着以内に入るかを予想" / "複勝オッズの比べ" / "predictions",
                                    "longshots_in_top3", "place_odds-race_day"),
         favorites=PredictionSource(reports_root / "既存モデルの改善" / "predictions", "favorites_out_of_top3", "people_market"),
-        upset=PredictionSource(reports_root / "既存モデルの改善" / "predictions", "upset_level", "current"),
+        # 荒れ具合は、今の予想と同じ 2012年からの学習データで、この研究の置き場に作り直したもの
+        upset=PredictionSource(reports_root / "馬券の買い方の検証" / "round3" / "materials" / "predictions", "upset_level", "current"),
     )
