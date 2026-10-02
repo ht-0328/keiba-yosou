@@ -70,6 +70,28 @@
   td.w4 { background: #2f6fd0; color: #fff; } td.w5 { background: #e8d33a; color: #111; } td.w6 { background: #2f9d57; color: #fff; }
   td.w7 { background: #e88a2c; color: #111; } td.w8 { background: #ee9ab8; color: #111; }
   .card ul { margin: 4px 0 8px; padding-left: 22px; }
+  /* 今週の予想 */
+  .mark { display: inline-block; min-width: 24px; text-align: center; font-family: var(--sans); font-weight: 700; font-size: 16px; }
+  .m1 { color: #f0c96e; } .m2 { color: #e6e0d4; } .m3 { color: #8fb8e0; } .m4 { color: #8fc9a0; }
+  .m5 { color: #e8a0c8; } .m6 { color: #e0b080; } .m7 { color: var(--muted-2); font-weight: 500; }
+  tr.out td { color: var(--muted); }
+  tr.fc-row { cursor: pointer; }
+  tr.fc-detail td { white-space: normal; background: var(--panel-2); font-family: var(--sans); font-size: 13px; padding: 10px 14px 14px; }
+  .pbar { display: inline-block; width: 90px; height: 8px; background: var(--chip); border-radius: 4px; margin-right: 6px; vertical-align: middle; }
+  .pbar > span { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chip { font-family: var(--sans); font-size: 12px; padding: 0 7px; border-radius: 10px; border: 1px solid var(--chip-line); white-space: nowrap; }
+  .chip.good { color: var(--green); border-color: #3d5c46; } .chip.bad { color: var(--red); border-color: #6b3a30; }
+  .why { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px 22px; margin-top: 8px; }
+  .why h4 { margin: 0 0 4px; font-size: 13px; }
+  .why ul { margin: 0; padding-left: 18px; } .why li { margin: 2px 0; }
+  .why .det { color: var(--muted); font-size: 12px; }
+  .summary { line-height: 1.8; }
+  .cats { display: grid; grid-template-columns: 7em 1fr 1fr 4.5em; gap: 2px 6px; align-items: center; font-size: 12px; }
+  .cats .neg { display: flex; justify-content: flex-end; } .cats .bar { height: 9px; border-radius: 2px; }
+  .cats .neg .bar { background: var(--red); } .cats .pos .bar { background: var(--green); }
+  .cats .val { text-align: right; font-family: var(--mono); color: var(--muted); }
+  .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--fg-2); }
 </style>
 </head>
 <body>
@@ -83,22 +105,23 @@
 <script src="/static/trend.js"></script>
 <script>
 "use strict";
-const VIEWS = ["db", "tables", "cards", "trend", "ability", "stakes", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
-const TAB_LABELS = {db: "DB", tables: "テーブル", cards: "出馬表", trend: "傾向スコア", ability: "能力指数", stakes: "重賞攻略", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
+const VIEWS = ["db", "tables", "cards", "forecast", "trend", "ability", "stakes", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
+const TAB_LABELS = {db: "DB", tables: "テーブル", cards: "出馬表", forecast: "今週の予想", trend: "傾向スコア", ability: "能力指数", stakes: "重賞攻略", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
 const FLAG_ONLY = ["by_popularity", "pairs"];
 //: サーバー（server.py の APP_VERSION）と合わせる。違えば古いサーバーが動いている。
-const PAGE_VERSION = "7";
+const PAGE_VERSION = "8";
 const RESTART_HINT = "画面とサーバーの版が違います（画面 " + PAGE_VERSION + "）。サーバーの黒い窓を閉じるか Ctrl+C で止めて、run.bat（または web.py）をもう一度実行してください。新しい版の起動が古い版を自動で止めます。";
 const DETAIL_TAB = {table: "tables", card: "cards", race: "races", horse: "horses"};
 const TOOLS = {
   races: "tools/レース一覧/races.py", runners: "tools/出走検索/runners.py", perf: "tools/成績集計/perf.py", explore: "tools/回収率探索/explore.py",
   lost: "tools/人気馬が負けたレース/lost_favorites.py", longshot: "tools/穴馬が勝ったレース/longshot_wins.py",
-  card: "tools/今週の出馬表/card.py", trend: "tools/傾向スコア/trend_score.py", ability: "tools/能力指数/ability.py", stakes: "tools/重賞攻略/stakes.py", horse: "tools/馬の過去走/horse.py", race: "tools/レース詳細/race.py", table: "tools/テーブル閲覧/table.py", sql: "tools/任意SQL/sql.py",
+  card: "tools/今週の出馬表/card.py", forecast: "tools/今週の予想/forecast.py", trend: "tools/傾向スコア/trend_score.py", ability: "tools/能力指数/ability.py", stakes: "tools/重賞攻略/stakes.py", horse: "tools/馬の過去走/horse.py", race: "tools/レース詳細/race.py", table: "tools/テーブル閲覧/table.py", sql: "tools/任意SQL/sql.py",
 };
 const HELP = {
   db: "元DB の状態。期間・件数・途中から入っている表・同期の記録。",
   tables: "元DB の表を1つずつ見る。列名は JV-Data 仕様書の日本語のまま、値は文字列。",
   cards: "これから走るレース（今週の出馬表）。レースを押すと、出走馬と各馬の近走が見られる。木曜の出走馬名表の間は枠番・馬番が空で、金・土の出馬表で決まる。過去の日付も開始日を変えれば見られる。",
+  forecast: "今のモデル（近走と適性から3着以内を予想）で今週のレースを予想し、全頭を「3着以内に入る確率」の高い順に並べて印（◎○▲△☆注消）を付ける。馬の行を押すと、何が良くて何が悪いのか（モデルが確率を上げた・下げた材料）と、総合でなぜその印になったのかが見られる。時点（木曜・前日・当日）は DB に入っている情報から自動で選ぶ。予想は1レース数十秒かかるので、先に tools/今週の予想/run.bat（または forecast.py）でまとめて作っておく。オッズや馬体重を取り込み直したら「予想し直す」。",
   trend: "レースを選ぶと、条件が同じ過去レース（同レース → 競馬場・コース・距離・馬場状態の4つ一致 → 3つ以上 → 2つ以上）の傾向を出し、出走馬を項目ごとに +1 / −1 で採点して順位を付ける。発走前の DB に無い馬場状態・人気・馬体重は手で入れる（入れなければその項目は 0 点）。終わったレースを選ぶと、着順と見比べられる。項目の説明は tools/傾向スコア/score-items.md。",
   ability: "レースを選ぶと、出走馬を能力指数の高い順に並べる。能力指数は、近8走の走破タイムを、コースの基準タイム・その日の馬場差・斤量・ペース（展開の得・損）で補正したスピード指数を、新しい走ほど・今回の条件（距離・競馬場・芝ダと馬場）に近い走ほど重く見て平均したもの。80 が1勝クラスの古馬のふつうの走、10点で1%速い。着順・人気・オッズは使わない。発表前の馬場状態は手で入れる。終わったレースを選ぶと、その走のスピード指数と着順も並ぶ。DB に新しい確定成績が入ったあとの最初の1回は、過去の全部の走の指数を作り直すので1〜2分かかる。",
   stakes: "重賞（G1・G2・G3）ごとの攻略ポイント。どのレースでも成り立つ一般論（1番人気や前に行く馬が走る）ではなく、そのレースならではのずれを出す。人気は同じグレードの重賞全体と、脚質の前・枠の内はそのコースの全クラスと、年齢・ローテなどはそのレースのほかの出走馬と比べ、ずれの大きさ・検定の印（◎ p<0.05、○ p<0.10）・回収率を添える。同じレースは特別競走番号で見分けるので、競走名が変わっても過去の開催をたどれる。「この日より前」を入れると、その日より前の開催だけで数える。はじめの1回は事実表を作るので時間がかかる。",
@@ -319,7 +342,7 @@ renderers.cards = async (main, {params}) => {
 };
 
 // レースの一覧を、日ごと・競馬場ごとの箱に並べる。レースを押すと view の画面へ。
-function appendRaceDays(main, table, view) {
+function appendRaceDays(main, table, view, extra = () => null) {
   const races = recordsOf(table);
   table.meta.days.forEach((day) => {
     const ofDay = races.filter((r) => r["日付"] === day);
@@ -329,12 +352,128 @@ function appendRaceDays(main, table, view) {
       ofDay.filter((r) => r["場"] === venue).forEach((r) => box.append(el("div", {class: "tbl", onclick: () => go(view, {}, r.rid)},
         el("span", {class: "no"}, r["R"] + "R"), el("span", {class: "post"}, r["発走"] || ""),
         el("span", {class: "name"}, [r["レース名"], r["クラス"]].filter(Boolean).join(" ")),
-        el("span", {class: "sub"}, `${r["コース"]} ${r["距離"]}m ${r["頭数"] ?? "-"}頭 · ${r["状態"]}`))));
+        el("span", {class: "sub"}, `${r["コース"]} ${r["距離"]}m ${r["頭数"] ?? "-"}頭 · ${r["状態"]}`), extra(r))));
       venues.append(box);
     });
     main.append(el("div", {class: "card"}, el("h2", {}, `${day}（${ofDay[0]["曜"]}）`), venues));
   });
 }
+
+// ---------------------------------------------------------------- 今週の予想
+const MARK_CLASS = {"◎": "m1", "○": "m2", "▲": "m3", "△": "m4", "☆": "m5", "注": "m6", "消": "m7"};
+function markEl(mark) { return el("span", {class: "mark " + (MARK_CLASS[mark] || "")}, mark); }
+function percent(v) { return v === null || v === undefined ? "" : (v * 100).toFixed(1) + "%"; }
+function points(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1); }
+function forecastLegend(legend) {
+  const marks = el("div", {class: "legend"}, ...Object.entries(legend.marks).map(([mark, role]) => el("span", {}, markEl(mark), " ", role)));
+  const cats = el("details", {}, el("summary", {}, "良い点・悪い点の分類の中身"),
+    el("ul", {}, ...Object.entries(legend.categories).map(([name, note]) => el("li", {}, el("b", {}, name), "：", note))));
+  return el("div", {}, marks, el("div", {class: "note"}, "◎○▲ は3着以内に入る確率の1〜3位、△ は4〜6位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。ほかは 消。"), cats);
+}
+async function forecastRaceList(main, params) {
+  const venueField = META.filters.find((field) => field.name === "venue");
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("forecast", formValues(form)); }},
+    labeled("開催日（開始。空なら今日）", el("input", {type: "date", name: "from", value: params.from || ""})),
+    labeled("開催日（終了）", el("input", {type: "date", name: "to", value: params.to || ""})),
+    labeled("競馬場", fieldInput(venueField, params.venue)),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"),
+      el("button", {type: "button", onclick: () => go("forecast", {})}, "今日以降に戻す")));
+  main.append(el("div", {class: "card"}, el("div", {class: "note"}, "予想を見るレースを選んでください。右に「予想済み」と出ているレースは、すぐに見られます。"), form));
+  const data = await api("/api/forecasts", params);
+  main.append(el("div", {class: "card"}, el("h2", {}, data.cards.title), el("div", {class: "note"}, data.cards.note),
+    forecastLegend(data.legend), cliBlock(cliLine(TOOLS.forecast, {date: params.from, venue: params.venue}) + " --skip-saved")));
+  appendRaceDays(main, data.cards, "forecast", (r) => {
+    const saved = data.saved[r.rid];
+    return saved ? el("span", {class: "sub", title: "作成 " + saved.made_at}, "予想済み（" + saved.timing + "） " + saved.marks)
+                 : el("span", {class: "sub"}, "未予想");
+  });
+}
+async function runForecast(rid, timing) {
+  const response = await fetch("/api/forecast/run", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({rid, timing})});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+  return data;
+}
+function forecastControls(rid, forecast, rerender) {
+  const timing = el("select", {}, ...[["", "自動（DB の情報から選ぶ）"], ["木曜", "木曜"], ["前日", "前日"], ["当日", "当日"]].map(([v, t]) => el("option", {value: v}, t)));
+  const status = el("span", {class: "hint"});
+  const button = el("button", {type: "button", class: "primary", onclick: async () => {
+    button.disabled = true;
+    status.textContent = "予想しています…（1レース数十秒。新しい成績が入ったあとの初回は数分）";
+    try { rerender(await runForecast(rid, timing.value)); } catch (err) { status.textContent = ""; status.append(errorBlock(err)); button.disabled = false; }
+  }}, forecast ? "予想し直す" : "このレースを予想する");
+  return el("div", {class: "toolbar"}, labeled("時点", timing), button, status);
+}
+function horseDetail(horse) {
+  const pointList = (items, kind) => items.length
+    ? el("ul", {}, ...items.map((p) => el("li", {}, el("span", {class: "chip " + kind}, p.category), " " + points(p.effect) + "ポイント ",
+        el("div", {class: "det"}, p.details.map((d) => d.name + ": " + d.value).join(" ／ ")))))
+    : el("div", {class: "det"}, "目立つものはない");
+  const max = Math.max(0.5, ...horse.categories.map((c) => Math.abs(c.effect)));
+  const cats = el("div", {class: "cats"});
+  horse.categories.forEach((c) => {
+    const width = (Math.abs(c.effect) / max * 100).toFixed(0) + "%";
+    cats.append(el("span", {}, c.category),
+      el("span", {class: "neg"}, c.effect < 0 ? el("span", {class: "bar", style: "width:" + width}) : ""),
+      el("span", {class: "pos"}, c.effect > 0 ? el("span", {class: "bar", style: "width:" + width}) : ""),
+      el("span", {class: "val"}, points(c.effect)));
+  });
+  return el("div", {},
+    el("div", {class: "summary"}, el("b", {}, "総合："), horse.summary),
+    el("div", {class: "why"},
+      el("div", {}, el("h4", {}, "良い点（確率を上げた材料）"), pointList(horse.good, "good")),
+      el("div", {}, el("h4", {}, "悪い点（確率を下げた材料）"), pointList(horse.bad, "bad")),
+      el("div", {}, el("h4", {}, "分類ごとの上げ下げ（ポイント）"), cats)));
+}
+function forecastTable(forecast) {
+  const heads = ["順位", "印", "馬番", "馬名", "3着以内の確率", "単勝", "人気", "市場の見立て", "差", "複勝の期待値", "良い点", "悪い点"];
+  const body = el("tbody");
+  const openAll = [];
+  forecast.horses.forEach((h) => {
+    const diff = h.market_top3 === null ? null : (h.probability - h.market_top3) * 100;
+    const detail = el("tr", {class: "fc-detail", style: "display:none"}, el("td", {colspan: heads.length}, horseDetail(h)));
+    const toggle = () => { detail.style.display = detail.style.display === "none" ? "" : "none"; };
+    openAll.push((show) => { detail.style.display = show ? "" : "none"; });
+    body.append(el("tr", {class: "fc-row" + (h.mark === "消" ? " out" : ""), onclick: toggle, title: "押すと理由を開く"},
+      el("td", {class: "num"}, String(h.rank)), el("td", {}, markEl(h.mark)), el("td", {class: "num"}, h.horse_no ?? ""),
+      el("td", {}, h.horse_name),
+      el("td", {}, el("span", {class: "pbar"}, el("span", {style: "width:" + (h.probability * 100).toFixed(0) + "%"})), percent(h.probability)),
+      el("td", {class: "num"}, h.win_odds ?? ""), el("td", {class: "num"}, h.popularity === null ? "" : String(h.popularity)),
+      el("td", {class: "num"}, percent(h.market_top3)), el("td", {class: "num"}, diff === null ? "" : points(diff)),
+      el("td", {class: "num"}, h.place_value === null ? "" : h.place_value.toFixed(2)),
+      el("td", {}, el("div", {class: "chips"}, ...h.good.map((p) => el("span", {class: "chip good"}, p.category)))),
+      el("td", {}, el("div", {class: "chips"}, ...h.bad.map((p) => el("span", {class: "chip bad"}, p.category))))), detail);
+  });
+  const bar = el("div", {class: "toolbar"}, el("button", {type: "button", onclick: () => openAll.forEach((f) => f(true))}, "全頭の理由を開く"),
+    el("button", {type: "button", onclick: () => openAll.forEach((f) => f(false))}, "閉じる"),
+    el("span", {class: "hint"}, "馬の行を押すと、その馬の理由が開く。差 = 3着以内の確率 − 市場の見立て（ポイント）。"));
+  return el("div", {}, bar, el("div", {class: "gridwrap", style: "max-height:none"},
+    el("table", {}, el("thead", {}, el("tr", {}, ...heads.map((t) => el("th", {}, t)))), body)));
+}
+function showForecast(main, data) {
+  main.querySelectorAll(".fc-card").forEach((node) => node.remove());
+  const rid = data.rid, forecast = data.forecast;
+  const day = rid.slice(0, 4) + "-" + rid.slice(4, 6) + "-" + rid.slice(6, 8);
+  const nav = el("div", {class: "toolbar racenav"}, el("a", {href: hashFor("forecast", {from: day, to: day})}, "← この日の一覧"),
+    ...data.races.map(([no, other]) => el("a", {href: hashFor("forecast", {}, other)}, el("button", {type: "button", class: other === rid ? "sel" : ""}, no + "R"))),
+    el("a", {href: hashFor("card", {}, rid)}, "出馬表を見る"), el("a", {href: hashFor("ability", {}, rid)}, "能力指数を見る"));
+  const head = el("div", {class: "card fc-card"}, nav, el("h2", {}, data.title));
+  if (!forecast) head.append(el("div", {class: "note"}, "このレースはまだ予想していません。下のボタンで予想できます（1レース数十秒）。"));
+  else {
+    head.append(el("div", {class: "note"}, "時点: " + forecast.timing + "（" + forecast.timing_reason + "）。予想: " + forecast.model + "。作成: " + forecast.made_at + "。"
+      + (forecast.pool_free ? " 券種のオッズが無いので、券種オッズなしのモデルで予想した。" : "")
+      + (forecast.timing === "木曜" ? " 木曜はオッズを使わないので、市場の見立て・期待値・☆・注は出ない。" : "")));
+  }
+  head.append(forecastControls(rid, forecast, (fresh) => showForecast(main, fresh)), forecastLegend(data.legend),
+    cliBlock(cliLine(TOOLS.forecast, {}, rid) + " --detail"));
+  main.append(head);
+  if (forecast) main.append(el("div", {class: "card fc-card"}, forecastTable(forecast)));
+}
+renderers.forecast = async (main, {id, params}) => {
+  main.append(el("div", {class: "help"}, HELP.forecast));
+  if (!id) return forecastRaceList(main, params);
+  showForecast(main, await api("/api/forecast", {rid: id}));
+};
 
 // ---------------------------------------------------------------- 傾向スコア
 // "3:1,7:2" を {3: ["1"], 7: ["2"]} にする（馬番 → 値の並び）。
