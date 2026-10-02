@@ -58,8 +58,8 @@ sequenceDiagram
     participant NN as NearestNeighbors
     participant J as FavoriteJudgement
     T->>US: fit（その単位の特徴量、グループの列）
-    US->>FM: fit（単位の1番人気全員の特徴量）
-    FM-->>US: 中央値・物差し・カテゴリの値の一覧を覚えた
+    US->>FM: fit（単位の1番人気全員の特徴量、馬券外か）
+    FM-->>US: 中央値・そろえ方・カテゴリの直し方・列ごとの重みを覚えた
     US->>FM: transform（単位の1番人気全員の特徴量）
     FM-->>US: 単位の行列（12-neighbor-distance.md の 1.〜4.）
     loop 3つのグループ（勝利・馬券内・馬券外）ごと
@@ -84,7 +84,7 @@ sequenceDiagram
     US-->>J: 勝利・馬券内・馬券外の点数
 ```
 
-**説明。** 物差し（`FeatureMatrix`）は、3つのグループを合わせた単位の全頭で1つだけ作り、3つのグループで同じものを使う（[12-neighbor-distance.md の「3.」](12-neighbor-distance.md#3-尺度をそろえる標準化)）。グループごとに分かれるのは `GroupSimilarity` からである。`FavoriteJudgement` は、評価（`YearlyEvaluation`）と予測（`PredictionWorkflow`）の両方から呼ばれる（[05-sequence.md](05-sequence.md)）。実際には `FavoriteJudgement` は `SimilarityModelSet.scores()` を呼び、`SimilarityModelSet` が単位を決めてから、その単位の `UnitSimilarity` を呼ぶ。
+**説明。** 物差し（`FeatureMatrix`）は、3つのグループを合わせた単位の全頭で1つだけ作り、3つのグループで同じものを使う（[12-neighbor-distance.md の「3.」](12-neighbor-distance.md#3-尺度をそろえる)）。「馬券外か」も渡すのは、カテゴリを馬券外率に直す方針と、列ごとの重みを馬券外との AUC で決める方針のためで、グループの馬を覚えるのは `GroupSimilarity` からである。グループごとに分かれるのは `GroupSimilarity` からである。`FavoriteJudgement` は、評価（`YearlyEvaluation`）と予測（`PredictionWorkflow`）の両方から呼ばれる（[05-sequence.md](05-sequence.md)）。実際には `FavoriteJudgement` は `SimilarityModelSet.scores()` を呼び、`SimilarityModelSet` が単位を決めてから、その単位の `UnitSimilarity` を呼ぶ。
 
 ## 4. 判定
 
@@ -117,4 +117,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-25 |
-| 更新 | 2026-09-25: CatBoost の設計から、点数のそろえ方と判定に作り直した。同日、実装に合わせて、点数を「単位の1番人気全員と比べた順位」にし、判定の線を足した |
+| 更新 | 2026-09-25: CatBoost の設計から、点数のそろえ方と判定に作り直した。同日、実装に合わせて、点数を「単位の1番人気全員と比べた順位」にし、判定の線を足した<br>2026-10-02: 近さの測り方の見直しで、物差しの `fit` に「馬券外か」を渡すようにしたことを図に反映した |
