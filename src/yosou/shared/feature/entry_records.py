@@ -31,6 +31,10 @@ class EntryRecords:
       近走と適性の予想の木曜（と前日）のモデルだけが読む。ほかの予想では None。
     - ``pool_probabilities``: 対象のレースの、券種ごとのオッズから見た馬ごとの確率（1行 = 1頭。race_id・horse_no と
       ``POOLS`` の列）。券種ごとのオッズから見た支持（まとまり N）を使う近走と適性の予想の当日版だけが読む。ほかの予想では空の表。
+    - ``head_to_head_runs``: 過去の平地の全出走と対象の出走（1行 = 1頭の出走。race_id・race_date・horse_id・finish・is_target）。
+      対戦レーティング（まとまり O）を使う予想だけが読む。ほかの予想では空の表。
+    - ``pace_forecasts``: 対象の出走の、展開の予想の予測（1行 = 1頭。race_id・horse_id と ``pace_forecast.SOURCE_COLUMNS``）。
+      展開の予想の結果（まとまり P）を使う予想だけが入れる。ほかの予想では空の表。
     """
 
     entries: pd.DataFrame
@@ -46,6 +50,8 @@ class EntryRecords:
     market_runs: pd.DataFrame = field(default_factory=pd.DataFrame)
     ability_sources: AbilitySources | None = None
     pool_probabilities: pd.DataFrame = field(default_factory=pd.DataFrame)
+    head_to_head_runs: pd.DataFrame = field(default_factory=pd.DataFrame)
+    pace_forecasts: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def with_entries(self, entries: pd.DataFrame) -> EntryRecords:
         """出走の行だけを差し替えた記録。入れる行を選んだあとや、速報を反映したあとに使う。"""

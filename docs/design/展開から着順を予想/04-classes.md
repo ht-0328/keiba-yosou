@@ -66,7 +66,7 @@
 
 | 決まり | 理由 |
 |---|---|
-| `shared` のクラスは、予想のパッケージを参照しない。予想のパッケージどうしも参照しない。**例外として、`race_development/tendency/` だけは、既存の4つの予想の `dataset_builder`・区分（`SEGMENTS`）・時点・券種を参照する**（向きは `race_development` → 既存の予想の一方向。既存の予想からは `race_development` を参照しない） | 手本と同じ。片方の予想の都合が、もう片方に入り込まない。例外は、既存の予想の作り方を写さずにそのまま使うため（写すと、既存の予想を直したときに食い違う）。参照する場所を `tendency/tendency_source.py` の1か所に集めた（[15-decisions.md の 23](15-decisions.md#23-既存の予想のモデルをどう作るか)） |
+| `shared` のクラスは、予想のパッケージを参照しない。予想のパッケージどうしも参照しない。**例外として、`race_development/tendency/` だけは、既存の4つの予想の `dataset_builder`・区分（`SEGMENTS`）・時点・券種を参照する**（向きは `race_development` → 既存の予想の一方向。既存の予想からは `race_development` を参照しない）。**もう1つの例外として、近走と適性の予想の `command/` だけは、この予想の `PaceForecastHistory`・`DevelopmentPaceWorkflow` を呼ぶ**（展開の予想の結果を、近走と適性の予想の木曜のモデルの材料 P にするため。2026-10-02。近走と適性の [15-decisions.md の 13](../近走と適性から3着以内を予想/15-decisions.md#13-展開の予想の結果を特徴量に足すか)）。この予想が参照するのは近走と適性の予想の `dataset/` だけなので、読み込みの順が輪にならない | 手本と同じ。片方の予想の都合が、もう片方に入り込まない。例外は、既存の予想の作り方を写さずにそのまま使うため（写すと、既存の予想を直したときに食い違う）。参照する場所を `tendency/tendency_source.py` の1か所に集めた（[15-decisions.md の 23](15-decisions.md#23-既存の予想のモデルをどう作るか)） |
 | 1頭ごとの特徴量 A〜I は、共通の `FeatureBuilder` のまとまりをそのまま使い、この予想では書き直さない | 直す場所が1か所で済む |
 | 前半・後半タイムの基準は `PaceBaseline` の1か所で作り、目的変数（`RaceLabeler`）と特徴量（Q・U）の両方がそれを使う | 基準を変えたとき、目的変数と特徴量が食い違わない |
 | 順位を 0〜1 に直す計算（序盤・4コーナー・上がり・着順）は、`RelativeRank` の1か所で行う。序盤の位置の区分は `EarlyPosition` の1か所 | 過去の走と今回の走で、同じ物差しになる |
@@ -83,7 +83,11 @@
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `DevelopmentTrainingWorkflow` | 学習の流れ。時点ごとに、傾向・前半・後半の組の「学習に使っていない予測」（前の年まで）と、指定の年のモデルを学習して保存する（傾向の組は `TendencyModelStore` に）。着順の組は、指定の年のモデルだけを学習する | `run(年, 時点の並び, 設定ファイルのパス)` → 保存したモデルの並び（`SavedModel`） |
-| `DevelopmentPredictionWorkflow` | 予測の流れ。単勝オッズと人気を決め（`OddsResolver`・`PopularityApplier`）、1頭ごと・1レースと既存の予想ごとの予測用データを作り、傾向 → 前半 → 後半 → 着順の順に、その時点のモデルで予測して、前の組の予測を次の組の特徴量に足す。印と印どおりの買い目まで出し、`PredictionArchiveRepository` に残す | `run(レースID, 時点, 渡されたオッズ=省略可)` → `DevelopmentForecast` |
+| `RaceInputs` | 1レースの予測用データ（1頭ごと・1レースごと・その時点で予測を出す既存の予想ごと）を、開いた元DB から作る。単勝オッズと人気を決める（`OddsResolver`・`PopularityApplier`） | `read(接続, レースID, 時点, 渡されたオッズ=省略可)` → `RaceInputs` |
+| `GroupPredictor` | 1レースの1つの組の、予測に使う予想を、その時点の保存したモデルで予測する（`KindStacker` で前の組の予測の列を足し、`KindForecaster` で平均する） | `predict(組, 1頭ごとのデータ, 1レースごとのデータ, 前の組の予測の束, 時点)` → `GroupForecast` |
+| `DevelopmentPaceWorkflow` | 1レースを傾向 → 前半 → 後半の順に予測し、前半・後半の予測を、近走と適性の予想の材料 P の元の予測の表（`PaceSourceTable`）にして返す（着順は予測しない）。呼ぶ側が開いた元DB の接続を受け取る | `run(接続, レースID, 時点, 渡されたオッズ=省略可)` → 表 |
+| `PaceForecastHistory` | 年ごとの確かめの前半・後半の予測（`OutOfSampleRepository.stored`）を全部つなぎ、近走と適性の予想の学習データの材料 P の元の予測の表にする | `read(時点)`・`years(時点)` |
+| `DevelopmentPredictionWorkflow` | 予測の流れ。単勝オッズと人気を決め（`OddsResolver`・`PopularityApplier`）、1頭ごと・1レースと既存の予想ごとの予測用データを作り（`RaceInputs`）、傾向 → 前半 → 後半 → 着順の順に、その時点のモデルで予測して、前の組の予測を次の組の特徴量に足す。印と印どおりの買い目まで出し、`PredictionArchiveRepository` に残す | `run(レースID, 時点, 渡されたオッズ=省略可)` → `DevelopmentForecast` |
 | `BacktestWorkflow` | 年ごとの確かめの流れ（[16-evaluation.md の 7.](16-evaluation.md#7-年ごとの的中率と回収率)）。学習データを作り、4つの組の予測を年ごとに作り、年ごとに印と買い目を作って精算し、表にする | `run(年の並び, 設定ファイルのパス)` → `BacktestReport` |
 | `DatasetLoader` | 1頭ごと・1レースごとと、既存の4つの予想の学習データを作る（2014年1月から。ウォームアップは 2013年）。作ったものは `DatasetRepository` に残し、元DB が変わっていなければ読むだけ | `load(最後の年)` → `KindDatasets` |
 | `DevelopmentModelKind`・`KindSpec` | 7つの予想と比べるためだけの予想（列挙）と、その決めごと（目的変数の列・1行が1レースか・モデルの種類・特徴量の一覧・予測の列・クラスの並び・予測に使うか・どの時点から学習するか）。値はモデルを保存するフォルダの名前（`leader`・`position`・`pace_class`・`pace_time`・`corner4`・`closing`・`late_pace_time`・`finish`。比べるためだけの `finish_plain`・`finish_no_early`・`finish_no_late`・`finish_with_odds` は保存しない） | `spec`・`folder`・`parse(書き方)` |
@@ -148,6 +152,7 @@
 | `TendencyFeatures` | V（1頭ごと 16個・1レースごと 11個） | 傾向の組（既存の予想）の結果から、V の列を作る |
 | `StackedColumns` | ― | 特徴量の表を予想ごとの一覧の列に合わせ、V・S・T の列を足す。学習データでは、呼ぶ側が渡した「前の組の予測がそろっている行」だけを残す |
 | `PriorForecasts` | ― | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
+| `PaceSourceTable` | ― | 前半・後半の組の予測を、近走と適性の予想の材料 P の元の予測の表（1行 = 1頭）にする |
 | `GroupForecast` | ― | 1つの組の予測の入れ物（1頭ごとの表と1レースごとの表）と、予測の列の名前。予想ごとの表を ID 列で横に1つにする（`joined`） |
 | `RaceOrderStatistic` | ― | 同じレースの馬の値の、何番目に大きい（小さい）値。レースごとに関数を呼ばず、1回の並べ替えで出す |
 | `feature_catalog.py` | ― | 特徴量の一覧。1回で作る `HORSE_CATALOG`（111個）・`RACE_CATALOG`（34個）と、予想ごとの一覧（[09-features.md](09-features.md) の表の写し） |
@@ -229,7 +234,7 @@
 | クラス | 読む・書くもの | 主な public メソッド |
 |---|---|---|
 | `DatasetRepository` | 1頭ごと・1レースごと・既存の予想ごとの学習データ（`reports/展開から着順を予想/datasets/`）。作った条件（元DB の更新日時と期間）と一緒に残す | `load(名前, 条件)`・`save(名前, 条件, データ)` |
-| `OutOfSampleRepository` | 前の組の「学習に使っていない予測」（`reports/展開から着順を予想/out_of_sample/<組>/<時点>/<年>.pkl`）。作った条件と一緒に残す | `load(組, 時点, 年, 条件)`・`save(…)` |
+| `OutOfSampleRepository` | 前の組の「学習に使っていない予測」（`reports/展開から着順を予想/out_of_sample/<組>/<時点>/<年>.pkl`）。作った条件と一緒に残す 作った条件を問わずに読む `stored` は、ほかの予想の材料にするとき（P）に使う | `load(組, 時点, 年, 条件)`・`stored(組, 時点, 年)`・`years(組, 時点)`・`save(…)` |
 | `BacktestArtifactRepository` | 年ごとの確かめの、年ごとの精算の表と、結果の表（`reports/展開から着順を予想/backtest/`） | `exists`・`load`・`save`・`save_text` |
 | `PredictionArchiveRepository` | 予測のたびに、予測用データ（特徴量）と予測を書き足す（`reports/展開から着順を予想/predictions/<開催日>/`）。上書きしない | `save(開催日, レースID, 時点, 予測した時刻, 表)` |
 
@@ -309,3 +314,4 @@ src/yosou/race_development/         既存の予想の傾向と、展開（前�
 | 更新 | 2026-09-26 後半・着順・年ごとの確かめのクラスと、`betting/` を足した。`WithinRaceLeaderModel` を `WithinRaceModel` に改名した |
 | 更新 | 2026-09-26 プログラムに合わせて書き直した（「作りながら変えたところ」） |
 | 更新 | 2026-09-27 傾向の組（`tendency/`）と、V・`PriorForecasts` を足した。予想のパッケージどうしを参照しない決まりの例外を書いた |
+| 更新 | 2026-10-02 展開の予想の結果を近走と適性の予想に渡すための `RaceInputs`・`GroupPredictor`・`DevelopmentPaceWorkflow`・`PaceForecastHistory`・`PaceSourceTable`・`OutOfSampleRepository.stored`・`years` を足し、参照の決まりの2つ目の例外を書いた |

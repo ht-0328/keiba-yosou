@@ -11,6 +11,7 @@ from ..repository import (
     AnnouncedGoingRepository,
     AnnouncedWeightRepository,
     FactTableRepository,
+    HeadToHeadRunRepository,
     MarketRunRepository,
     RaceEarlyRecordRepository,
     RaceEntryTableRepository,
@@ -30,10 +31,10 @@ class RaceRecordsLoader:
 
     その時点で DB に速報（馬場状態・馬体重・出走取消）があれば、出走の行に反映する。
     予測に使う人気・オッズが渡されれば、それも出走の行に反映する。
-    ``race_history``・``stakes_tendency``・``market_runs``・``ability_sources``・``pool_probabilities`` は
+    ``race_history``・``stakes_tendency``・``market_runs``・``ability_sources``・``pool_probabilities``・``head_to_head_runs`` は
     ``EntryRecordsLoader`` にそのまま渡す
     （レースごとの序盤と後半の記録・重賞のレースごとの傾向・過去の全出走のオッズと着順・馬の力の材料の元の記録・
-    券種ごとのオッズから見た確率。省略すると読まない）。
+    券種ごとのオッズから見た確率・対戦レーティングの元になる過去の全出走の着順。省略すると読まない）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
@@ -41,14 +42,15 @@ class RaceRecordsLoader:
                  stakes_tendency: StakesTendencyRepository | None = None,
                  market_runs: MarketRunRepository | None = None,
                  ability_sources: AbilitySourcesLoader | None = None,
-                 pool_probabilities: PoolProbabilityLoader | None = None) -> None:
+                 pool_probabilities: PoolProbabilityLoader | None = None,
+                 head_to_head_runs: HeadToHeadRunRepository | None = None) -> None:
         self._fact_table = FactTableRepository(con)
         self._race_entry_table = RaceEntryTableRepository(con)
         self._announced_going = AnnouncedGoingRepository(con)
         self._announced_weights = AnnouncedWeightRepository(con)
         self._scratches = ScratchRepository(con)
         self._records_loader = EntryRecordsLoader(
-            con, race_history, stakes_tendency, market_runs, ability_sources, pool_probabilities,
+            con, race_history, stakes_tendency, market_runs, ability_sources, pool_probabilities, head_to_head_runs,
         )
         self._weight_applier = AnnouncedWeightApplier()
         self._scratch_applier = ScratchApplier()

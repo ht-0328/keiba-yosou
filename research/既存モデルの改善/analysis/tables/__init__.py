@@ -7,7 +7,7 @@
 | 名前 | 仕事 |
 |---|---|
 | ``ModelTableSpec`` | 1つの予想の、学習データの作り方（``dataset_builder``）と特徴量の一覧 |
-| ``MODEL_TABLES`` | 5つの予想の ``ModelTableSpec`` の並び。``spec_named`` で名前から引く |
+| ``MODEL_TABLES`` | 4つの予想の ``ModelTableSpec`` の並び。``spec_named`` で名前から引く（重賞の直す前の表と材料の実験の表も引ける） |
 | ``TableStore`` | 学習データ（``TrainingData``）を pickle に書く・読む |
 | ``TABLE_PERIOD`` | 学習データを作る期間（ウォームアップ 2016年・サンプル 2017年から） |
 | ``STAKES_TABLE_PERIOD`` | 重賞の予想の学習データを作る期間（ウォームアップ 2011年・サンプル 2012年から） |

@@ -11,6 +11,7 @@ from 共通 import db, race
 from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, PredictionTable
+from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import DatasetBuilder
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE
@@ -20,7 +21,8 @@ from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
 from ..dataset import OddsInput, OddsResolver, ability_dataset_builder, race_day_dataset_builder
 from ..feature import WIN_ODDS
-from ..workflow import ABILITY_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, PredictionWorkflow
+from ..workflow import ABILITY_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, PaceSource, PredictionWorkflow
+from .development_root_argument import DevelopmentRootArgument
 from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
 
@@ -46,6 +48,7 @@ class PredictCommand:
                  "省略すると、締め切り前のオッズか、元DB の単勝オッズ（終わったレースの確定オッズ）を使う",
         )
         FigureCacheArgument().add_to(parser)
+        DevelopmentRootArgument().add_to(parser)
         CommonArguments(YOSOU_NAME).add_to(parser)
         parser.set_defaults(handler=self.run)
 
@@ -56,6 +59,7 @@ class PredictCommand:
                 self._dataset_builder(con, args), SegmentedPrediction(ModelSegments(), args.models),
                 OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
                 pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER),
+                pace=self._pace(con, args),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
@@ -65,6 +69,13 @@ class PredictCommand:
         if args.timing in ABILITY_TIMINGS:
             return ability_dataset_builder(con, args.figure_cache)
         return race_day_dataset_builder(con, args.figure_cache)
+
+    def _pace(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> PaceSource | None:
+        """展開の予想の結果（P）を足して学んだ時点（木曜）なら、保存した展開のモデルでそのレースを予測する関数。ほかの時点は None。"""
+        if args.timing not in PACE_TIMINGS:
+            return None
+        workflow = DevelopmentPaceWorkflow(args.development_root / "models")
+        return lambda race_id, timing, given: workflow.run(con, race_id, timing, given)
 
     def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
         """``--odds`` で渡されたオッズ。渡されなければ None。"""

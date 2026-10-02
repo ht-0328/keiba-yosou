@@ -3,9 +3,9 @@
     uv run python research/既存モデルの改善/compare.py                          # 5つの予想の表を全部
     uv run python research/既存モデルの改善/compare.py --only longshots_in_top3  # 1つだけ
     uv run python research/既存モデルの改善/compare.py --only form_experiments   # 材料の実験（base と比べた採否）
-    uv run python research/既存モデルの改善/compare.py --only stakes_tendency_top3  # 重賞（既定・傾向を外す・オッズだけ）
+    uv run python research/既存モデルの改善/compare.py --only stakes_tendency_top3  # 重賞（直す前の作り方と、作り直したあとの時点ごとの比べ方）
 
-先に walk_forward.py（と、荒れ具合は upset_calc.py）で予測を作っておく。
+先に walk_forward.py（と、荒れ具合は upset_calc.py、重賞の作り直しは stakes_rebuild.py）で予測を作っておく。
 出すもの: reports/既存モデルの改善/compare/<予想の名前>.md（予想ごとの比べ方の表）。
 材料の実験（form_experiments）は、省略時には出さない（--only で名前を指定したときだけ。終わった作り方だけで比べる）。
 """
@@ -30,24 +30,35 @@ from 既存モデルの改善.analysis.comparison import (  # noqa: E402
     LongshotComparison,
     UpsetComparison,
 )
+from 既存モデルの改善.analysis.stakes_rebuild import (  # noqa: E402
+    REBUILD_COMPARISONS,
+    STAKES_RACE_DAY,
+    RebuildComparisonSpec,
+    StakesRebuildComparison,
+    StakesRowFilter,
+    rebuild_table_named,
+)
 from 既存モデルの改善.analysis.tables import TableStore, spec_named  # noqa: E402
 from 既存モデルの改善.analysis.variants import variants_of  # noqa: E402
 from 既存モデルの改善.analysis.walk_forward import PredictionStore  # noqa: E402
-from 既存モデルの改善.analysis.windows import windows_of  # noqa: E402
+from 既存モデルの改善.analysis.windows import STAKES_WINDOWS, windows_of  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_TABLES = _REPO_ROOT / "reports" / "既存モデルの改善" / "tables"
 _DEFAULT_PREDICTIONS = _REPO_ROOT / "reports" / "既存モデルの改善" / "predictions"
 _DEFAULT_COMPARE = _REPO_ROOT / "reports" / "既存モデルの改善" / "compare"
+#: 重賞の予想の名前（直す前の作り方の表と予測の名前。作り直したあとの表は ``analysis/stakes_rebuild/``）。
+_STAKES = "stakes_tendency_top3"
 #: 1頭ごとの予想の比べ方のクラス。
 _HORSE_COMPARISONS = {
     "form_aptitude_top3": FormComparison,
     "longshots_in_top3": LongshotComparison,
     "favorites_out_of_top3": FavoriteComparison,
     "form_experiments": ExperimentComparison,
-    # 重賞は、全頭と同じ比べ方で、オッズだけと比べる作り方を「既定」にする（区切りは1年ずつの7つ）
-    "stakes_tendency_top3": partial(FormComparison, subject="重賞", candidate="default", candidate_label="既定",
-                                    value_keys=("default", "without_tendency", "odds_only")),
+    # 重賞（直す前の作り方）は、全頭と同じ比べ方で、オッズだけと比べる作り方を「既定」にする（区切りは1年ずつの7つ）。
+    # 作り直したあとの表（時点ごとに、オッズだけと手本の両方と比べる）は、そのあとに続けて出す（_rebuild_tables）
+    _STAKES: partial(FormComparison, subject="重賞", candidate="default", candidate_label="既定",
+                     value_keys=("default", "without_tendency", "odds_only")),
 }
 #: 時点を替えた予測（walk_forward.py の --timing）も比べる予想: 時点の保存の名前 → （表の題の名前, 比べる相手の作り方の鍵）。
 #: 重賞の木曜はオッズが無くオッズだけのモデルを作れないので、当日のオッズだけ（締め切りの市場の見立て）と比べる。
@@ -81,7 +92,22 @@ def _tables_of(name: str, store: PredictionStore, tables: TableStore) -> list[Ta
     base = _HORSE_COMPARISONS[name](data, predictions, labels, windows_of(name)).tables()
     timed = [_timing_tables(name, suffix, subject, reference, data, store)
              for suffix, (subject, reference) in _TIMING_COMPARISONS.get(name, {}).items()]
-    return [*base, *(table for group in timed for table in group)]
+    rebuilt = [_rebuild_tables(spec, store, tables) for spec in REBUILD_COMPARISONS] if name == _STAKES else []
+    return [*base, *(table for group in (*timed, *rebuilt) for table in group)]
+
+
+def _rebuild_tables(spec: RebuildComparisonSpec, store: PredictionStore, tables: TableStore) -> list[Table]:
+    """重賞を手本の新しい材料で作り直したあとの、1つの時点の比べ方の表（重賞の設計書 15 の 9）。予測が1つでも無ければ空。
+
+    作り直し・傾向を外したもの・オッズだけは重賞だけの表の予測、手本は全レースの表の予測から重賞の行だけを取り出したもの。
+    答えと評価用の列は、重賞だけの当日の表（``stakes_race_day``）で突き合わせる。
+    """
+    if not all(store.exists(variant.model, variant.key) for variant in spec.variants):
+        return []
+    stakes = tables.read(STAKES_RACE_DAY, rebuild_table_named(STAKES_RACE_DAY).catalog)
+    stakes_rows = StakesRowFilter(stakes.ids)
+    predictions = {variant.key: stakes_rows.apply(store.read(variant.model, variant.key)) for variant in spec.variants}
+    return StakesRebuildComparison(spec, stakes, predictions, STAKES_WINDOWS).tables()
 
 
 def _timing_tables(name: str, suffix: str, subject: str, reference: str, data, store: PredictionStore) -> list[Table]:

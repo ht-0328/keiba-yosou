@@ -16,6 +16,7 @@
 | ``LateForecastFeatures`` | T. 後半の予想の結果（7個） |
 | ``OddsComparisonFeatures`` | W. オッズ（2個。着順の予想の比べるためだけ。予測では使わない） |
 | ``GroupForecast`` | 1つの組（傾向・前半・後半・着順）の予測の入れ物と、その列の名前 |
+| ``PaceSourceTable`` | 前半・後半の組の予測を、ほかの予想に渡す元の予測の表（近走と適性の予想のまとまり P の元）にする |
 | ``PriorForecasts`` | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
 | ``StackedColumns`` | 特徴量を予想ごとの一覧に合わせ、前の組の予測の列（V・S・T）を足す |
 | ``RaceOrderStatistic`` | 同じレースの馬の値の、何番目に大きい（小さい）値 |
@@ -74,6 +75,7 @@ from .late_material_features import LateMaterialFeatures
 from .odds_comparison_features import OddsComparisonFeatures
 from .pace_baseline_features import PaceBaselineFeatures
 from .pace_material_features import PaceMaterialFeatures
+from .pace_source_table import PaceSourceTable
 from .prior_forecasts import PriorForecasts
 from .stacked_columns import StackedColumns
 from .tendency_features import REQUIRED_HORSE_FEATURES, REQUIRED_RACE_FEATURES, TendencyFeatures
@@ -82,7 +84,7 @@ __all__ = [
     "EarlyHistoryFeatures", "EarlyFieldComparisonFeatures", "CourseShapeFeatures", "ClosingHistoryFeatures",
     "ClosingFieldComparisonFeatures", "PaceMaterialFeatures", "PaceBaselineFeatures", "LateMaterialFeatures",
     "EarlyForecastFeatures", "LateForecastFeatures", "OddsComparisonFeatures", "GroupForecast", "StackedColumns",
-    "PriorForecasts",
+    "PriorForecasts", "PaceSourceTable",
     "TendencyFeatures", "REQUIRED_HORSE_FEATURES", "REQUIRED_RACE_FEATURES",
     "TOP3_PROBABILITY", "FAVORITE_OUT_PROBABILITY", "LONGSHOT_TOP3_PROBABILITY", "UPSET_BETS", "calm_probability",
     "big_upset_probability",

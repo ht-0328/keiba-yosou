@@ -32,6 +32,23 @@ class OutOfSampleRepository:
             return None
         return GroupForecast(saved["horses"], saved["races"])
 
+    def stored(self, group: str, timing: PredictionTiming, year: int) -> GroupForecast | None:
+        """作った条件を問わず、残っている予測を返す。無ければ None。
+
+        ほかの予想の研究が、年ごとの確かめで作った予測をそのまま材料として読むときに使う（条件が今と違っても、
+        その年より前だけで学習した予測であることは変わらない）。
+        """
+        path = self._path(group, timing, year)
+        if not path.exists():
+            return None
+        saved = pd.read_pickle(path)
+        return GroupForecast(saved["horses"], saved["races"])
+
+    def years(self, group: str, timing: PredictionTiming) -> list[int]:
+        """予測が残っている年（古い順）。"""
+        folder = self._root / group / timing.value
+        return sorted(int(path.stem) for path in folder.glob("*.pkl") if path.stem.isdigit())
+
     def save(self, group: str, timing: PredictionTiming, year: int, signature: str, forecast: GroupForecast) -> Path:
         path = self._path(group, timing, year)
         path.parent.mkdir(parents=True, exist_ok=True)

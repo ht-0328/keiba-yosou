@@ -9,7 +9,7 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.place_value import PlaceValueColumns
 from yosou.shared.workflow import AVERAGE, SegmentedPrediction
 
-from ..dataset import OddsInput, OddsResolver
+from ..dataset import OddsInput, OddsResolver, PoolAvailability, PoolFreeData
 from ..feature import WIN_ODDS
 
 #: 予測の結果の、アンサンブルの確率の列の名前。
@@ -19,17 +19,24 @@ PROBABILITY = "3着以内に入る確率"
 class PredictionWorkflow:
     """予測の流れ（設計書 05 の図2）。手本（近走と適性）と同じ形で、対象が重賞だけ。
 
-    オッズを決める → 予測用データを作る（重賞でなければここで止まる）→ その時点のモデルで
-    2つのモデルの予測確率を出して平均する → オッズが分かる時点なら、オッズから見た3着以内率（基準）と、
-    複勝を買う期待値を足す。
+    オッズを決める → 予測用データを作る（重賞でなければここで止まる）→ 当日に券種のオッズが無ければ、N を外して
+    N を使わないモデルに切り替える → その時点のモデルで2つのモデルの予測確率を出して平均する → オッズが分かる時点なら、
+    オッズから見た3着以内率（基準）と、複勝を買う期待値を足す。
+
+    ``dataset_builder`` は、予測する時点のモデルの材料の組み立て（木曜・前日は ``ability_dataset_builder``、
+    当日は ``race_day_dataset_builder``。コマンドが時点で選ぶ）。``pool_free`` は、当日に券種のオッズが無いときに使う、
+    N を使わないモデルでの予測。
     """
 
     def __init__(self, dataset_builder: DatasetBuilder, predictor: SegmentedPrediction,
-                 odds_resolver: OddsResolver, place_value: PlaceValueColumns) -> None:
+                 odds_resolver: OddsResolver, place_value: PlaceValueColumns,
+                 pool_free: SegmentedPrediction | None = None) -> None:
         self._dataset_builder = dataset_builder
         self._predictor = predictor
         self._odds_resolver = odds_resolver
         self._place_value = place_value
+        self._pool_free = pool_free
+        self._pools = PoolAvailability()
 
     def run(self, race_id: str, timing: PredictionTiming,
             given: OddsInput | None = None) -> pd.DataFrame:
@@ -42,7 +49,10 @@ class PredictionWorkflow:
         """
         odds = self._odds_resolver.resolve(race_id, given)
         data = self._dataset_builder.build_prediction_data(race_id, timing, odds=odds)
-        predicted = self._predictor.predict(data)
+        predictor = self._predictor
+        if self._pool_free is not None and self._pools.missing(data):
+            data, predictor = PoolFreeData().prediction(data), self._pool_free
+        predicted = predictor.predict(data)
         probability = predicted[AVERAGE].rename(PROBABILITY)
         members = predicted.drop(columns=[AVERAGE])
         extra = self._place_value.of(probability, data)

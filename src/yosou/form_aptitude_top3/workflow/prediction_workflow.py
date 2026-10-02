@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pandas as pd
 
 from yosou.shared.dataset import DatasetBuilder, PredictionData
@@ -9,11 +11,13 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.place_value import PlaceValueColumns
 from yosou.shared.workflow import AVERAGE, SegmentedPrediction
 
-from ..dataset import OddsInput, OddsResolver, PoolAvailability, PoolFreeData
+from ..dataset import OddsInput, OddsResolver, PaceAttachment, PoolAvailability, PoolFreeData
 from ..feature import WIN_ODDS
 
 #: 予測の結果の、アンサンブルの確率の列の名前。
 PROBABILITY = "3着以内に入る確率"
+#: 1レースの展開の予想の予測（まとまり P の元の予測の表）を返す関数（レースID, 時点, 利用者が渡したオッズ）。
+PaceSource = Callable[[str, PredictionTiming, OddsInput | None], pd.DataFrame]
 
 
 class PredictionWorkflow:
@@ -25,16 +29,19 @@ class PredictionWorkflow:
 
     ``dataset_builder`` は、予測する時点のモデルの材料の組み立て（木曜・前日は馬の力の材料、当日は今の材料。
     コマンドが時点で選ぶ）。``pool_free`` は、当日に券種のオッズが無いときに使う、N を使わないモデルでの予測。
+    ``pace`` は、展開の予想の結果（P）を足して学んだ時点のモデルで予測するときに渡す、そのレースの展開の予測を返す関数
+    （コマンドが、P を採用した時点でだけ渡す。設計書 15 の 13）。
     """
 
     def __init__(self, dataset_builder: DatasetBuilder, predictor: SegmentedPrediction,
                  odds_resolver: OddsResolver, place_value: PlaceValueColumns,
-                 pool_free: SegmentedPrediction | None = None) -> None:
+                 pool_free: SegmentedPrediction | None = None, pace: PaceSource | None = None) -> None:
         self._dataset_builder = dataset_builder
         self._predictor = predictor
         self._odds_resolver = odds_resolver
         self._place_value = place_value
         self._pool_free = pool_free
+        self._pace = pace
         self._pools = PoolAvailability()
 
     def run(self, race_id: str, timing: PredictionTiming,
@@ -49,6 +56,8 @@ class PredictionWorkflow:
         """
         odds = self._odds_resolver.resolve(race_id, given)
         data = self._dataset_builder.build_prediction_data(race_id, timing, odds=odds)
+        if self._pace is not None:
+            data = PaceAttachment().apply(data, self._pace(race_id, timing, given))
         predictor = self._predictor
         if self._pool_free is not None and self._pools.missing(data):
             data, predictor = PoolFreeData().prediction(data), self._pool_free
