@@ -5,8 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from 印の成績.mark_tickets import RULE
-from 印の成績.ticket_payouts import ODDS
+from 今週の予想.mark_tickets import ODDS, RULE
 
 #: 外した理由の列（空なら買う）。
 DROPPED = "dropped"

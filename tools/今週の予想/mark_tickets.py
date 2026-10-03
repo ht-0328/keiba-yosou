@@ -21,8 +21,8 @@ from 今週の予想.forecast_columns import (
 )
 from 今週の予想.mark_rule import TOP_MARK
 
-from 印の成績.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
-from 印の成績.ticket_rules import (
+from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
+from 今週の予想.ticket_rules import (
     BET_RULES,
     PLACE_LABEL,
     PLACE_MAX_POINTS,
@@ -35,6 +35,8 @@ from 印の成績.ticket_rules import (
 #: 買い目の表の列。``rule`` は買い方の名前（表の行）、``ticket_type`` は券種の名前（払戻とオッズを読む表）、``value`` は組の期待値
 #: （3連複・3連単だけ。ほかは欠損値）。
 RULE, VALUE = "rule", "value"
+#: 買い目のオッズの列（複勝・ワイドは最低オッズ。今週の予想は締め切り前、印の成績は確定）。買えない組（無投票・取消）は欠損値。
+ODDS = "odds"
 COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", EXPECTATION, RULE, "ticket_type", "combo", "stake_units", VALUE)
 #: レースから写す列。
 _RACE_COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", EXPECTATION)

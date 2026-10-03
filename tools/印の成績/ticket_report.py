@@ -13,10 +13,11 @@ from 共通.render import Table
 
 from 今週の予想.forecast_columns import EXPECTATION
 
-from 印の成績.mark_tickets import RULE, VALUE
-from 印の成績.ticket_payouts import ODDS, PAYOUT
-from 印の成績.ticket_rules import COMBO_VALUE_LINE, POINT_YEN, RULE_LABELS, TOTAL_GROUPS, TOTAL_MEMBERS, UNIT_YEN
-from 印の成績.torigami_filter import DROPPED, NO_ODDS, TORIGAMI
+from 今週の予想.mark_tickets import ODDS, RULE, VALUE
+from 今週の予想.ticket_rules import COMBO_VALUE_LINE, POINT_YEN, RULE_LABELS, TOTAL_GROUPS, TOTAL_MEMBERS, UNIT_YEN
+from 今週の予想.torigami_filter import DROPPED, NO_ODDS, TORIGAMI
+
+from 印の成績.ticket_payouts import PAYOUT
 
 #: 対象の名前（全レースと、期待度が高のレースだけ）。
 ALL_RACES, HIGH_RACES = "全レース", f"期待度 {HIGH}"

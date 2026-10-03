@@ -30,6 +30,7 @@
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
 | ``AnnouncedWeightRepository`` | 速報の馬体重 |
 | ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気かオッズを使う予想が使う |
+| ``AnnouncedTicketOddsRepository`` | 締め切り前の、1つの券種の全部の組のオッズ（いちばん新しい断面）。今週の予想が買い目の期待値とトリガミに使う |
 | ``PlaceOddsRepository`` | 複勝オッズ（最低・最高）。終わったレースは確定、これから走るレースは締め切り前のいちばん新しい断面 |
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
@@ -45,6 +46,7 @@ from .ability_run_repository import RUN_COLUMNS, AbilityRunRepository
 from .all_horses_pool_repository import AllHorsesPoolRepository
 from .announced_going_repository import AnnouncedGoingRepository
 from .announced_odds_repository import AnnouncedOddsRepository
+from .announced_ticket_odds_repository import AnnouncedTicketOddsRepository
 from .announced_weight_repository import AnnouncedWeightRepository
 from .career_count_repository import CareerCountRepository
 from .entry_repository import EntryRepository
@@ -80,7 +82,7 @@ __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
     "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository", "MarketRunRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
-    "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "PlaceOddsRepository",
+    "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "AnnouncedTicketOddsRepository", "PlaceOddsRepository",
     "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository",
     "RaceDayRange", "FinalOddsRepository", "TicketOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
     "AbilityRunRepository", "RUN_COLUMNS", "SpeedFigureRepository", "WorkoutSummaryRepository", "SalePriceRepository",
