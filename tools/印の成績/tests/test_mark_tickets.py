@@ -56,7 +56,7 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     # 元の3連複: ◎ − ○▲☆ − ○▲△△△☆ で、同じ馬を含まない組（順不同）。元の3連単: ◎→(○▲☆)→残り5頭
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
                                              "030506", "030508", "030608"]
-    assert len(by_rule["3連単（◎→○▲☆→○▲△☆。設計書に無い）"]) == 3 * 5
+    assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
     assert set(by_rule) == set(RULE_LABELS)
 
 
@@ -156,12 +156,13 @@ def test_買い方ごとの表は全レースと期待度が高の2つの対象�
     assert rows[("単勝", ALL_RACES)][2:8] == ["2", "2", "1.0", "200円", "500円", "250.0%"]
     assert rows[("単勝", HIGH_RACES)][2:8] == ["1", "1", "1.0", "100円", "500円", "500.0%"]
     assert rows[("馬単（設計書に無い）", ALL_RACES)][3] == "6"
-    # 合計（元の3連複・3連単）は、元の形の合計: 単勝1 + 複勝2 + ワイド2 + 馬連3 + 馬単3 + 3連複12 + 3連単15
-    assert rows[(total_label("元の3連複・3連単"), HIGH_RACES)][3] == f"{1 + 2 + 2 + 3 + 3 + 12 + 15}"
+    # 合計（元の買い目だけ）: 単勝1 + 複勝2 + ワイド2 + 馬連3 + 馬単3 + 元の3連複12 + 元の3連単15
+    base = 1 + 2 + 2 + 3 + 3 + 12 + 15
+    assert rows[(total_label("元の買い目だけ"), HIGH_RACES)][3] == f"{base}"
     assert rows[("3連単（◎軸・マルチ）", ALL_RACES)][3] == "180" and rows[("3連複（軸馬・流し）", HIGH_RACES)][3] == "15"
-    # 合計（◎軸）は 単勝1 + 複勝2 + ワイド2 + 馬連3 + 馬単3 + 3連複（◎軸・流し）15 + 3連単（◎軸・マルチ・期待値）の点数
+    # 合計（◎軸）は、元の買い目は必ず入れ、3連複（◎軸・流し）15 と 3連単（◎軸・マルチ・期待値）の点数を足したもの
     priced = int((tickets[RULE] == "3連単（◎軸・マルチ・期待値 1.0 以上）").sum() / 2)
-    assert rows[(total_label("◎軸"), HIGH_RACES)][3] == f"{1 + 2 + 2 + 3 + 3 + 15 + priced}"
+    assert rows[(total_label("◎軸"), HIGH_RACES)][3] == f"{base + 15 + priced}"
     assert (total_label("軸馬"), ALL_RACES) in rows
     assert [row[0] for row in tables[1].rows[:2]] == ["単勝", "複勝"]
     csv = TicketReport().csv_frame(tickets)

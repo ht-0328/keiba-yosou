@@ -19,8 +19,9 @@ PLACE_MAX_POINTS = 3
 PLACE_STAKE_UNITS = 1.0
 #: 3連複・3連単の、軸から流す買い目の期待値の線（固定。検証期間では決めない。08 の 2）。
 COMBO_VALUE_LINE = 1.0
-#: 合計の行の組。元の3連複・3連単（◎−○▲☆−○▲△☆ と ◎→○▲☆→○▲△☆）と、軸から流す形の2パターン（◎軸・軸馬）。
-ORIGINAL = "元の3連複・3連単"
+#: 合計の行の組。元の買い目だけ（軸から流す3連複・3連単を足す前）と、それに軸から流す形を足した2パターン（◎軸・軸馬）。
+#: 元の3連複・3連単（◎−○▲☆−○▲△☆ と ◎→○▲☆→○▲△☆）は必ず買う買い目なので、どの合計にも入る（利用者の決定）。
+ORIGINAL = "元の買い目だけ"
 TOTAL_GROUPS: tuple[str, ...] = (ORIGINAL, TOP_AXIS, HORSE_AXIS)
 #: 複勝の買い方の名前（複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る）。
 PLACE_LABEL = TicketType.PLACE.label
@@ -56,16 +57,17 @@ class TicketRule:
         return sorted(combos)
 
 
-#: 印で組む買い方のルール（08 の 2 の表の順）。馬単と元の3連単は、全券種をそろえるために ◎ を1着に固定した形で足したもので、設計書には無い。
-#: 元の3連複・3連単（印の位置で組む）はそのまま残し、軸から流す3連複・3連単（軸の2パターン × 期待値で絞る・絞らない）を足してある。
+#: 印で組む買い方のルール（08 の 2 の表の順）。馬単は、全券種をそろえるために ◎ を1着に固定した形で足したもので、設計書には無い。
+#: 元の3連複・3連単（印の位置で組む）は必ず買う買い目で、どの合計にも入る。軸から流す3連複・3連単（軸の2パターン × 期待値で絞る・絞らない）は、
+#: その軸のパターンの合計にだけ入る（期待値で絞らない3連単・絞った3連複は、比べるための行で、どの合計にも入らない）。
 #: 複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る。
 BET_RULES: tuple[TicketRule | AxisTicketRule, ...] = (
     TicketRule(TicketType.WIN, (("◎",),), 1.0, "単勝"),
     TicketRule(TicketType.WIDE, (("◎",), ("☆", "注")), 1.0, "ワイド"),
     TicketRule(TicketType.QUINELLA, (("◎",), ("○", "▲", "☆")), 0.5, "馬連"),
     TicketRule(TicketType.EXACTA, (("◎",), ("○", "▲", "☆")), 0.5, "馬単（設計書に無い）"),
-    TicketRule(TicketType.TRIO, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.3, "3連複（◎−○▲☆−○▲△☆）", (ORIGINAL,)),
-    TicketRule(TicketType.TRIFECTA, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.1, "3連単（◎→○▲☆→○▲△☆。設計書に無い）", (ORIGINAL,)),
+    TicketRule(TicketType.TRIO, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.3, "3連複（◎−○▲☆−○▲△☆）"),
+    TicketRule(TicketType.TRIFECTA, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.1, "3連単（◎→○▲☆→○▲△☆）"),
     AxisTicketRule(TicketType.TRIO, TOP_AXIS, None, 0.3, (TOP_AXIS,)),
     AxisTicketRule(TicketType.TRIO, TOP_AXIS, COMBO_VALUE_LINE, 0.3, ()),
     AxisTicketRule(TicketType.TRIO, HORSE_AXIS, None, 0.3, (HORSE_AXIS,)),
