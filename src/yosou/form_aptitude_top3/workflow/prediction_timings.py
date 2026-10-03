@@ -16,3 +16,6 @@ FORM_TIMINGS: tuple[PredictionTiming, ...] = tuple(timing for timing in TIMINGS 
 PACE_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.THURSDAY,)
 #: 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（モデルの置き場所の下のフォルダの名前）。
 POOL_FREE_FOLDER = "券種オッズなし"
+#: 1着のモデル（目的変数「1着」。設計書 10・15 の 14）の置き場所（3着以内のモデルの置き場所の下のフォルダの名前。
+#: 券種オッズなしの1着のモデルは ``券種オッズなし/1着/``）。
+WIN_FOLDER = "1着"

@@ -249,7 +249,8 @@ class Backend:
             forecast = self._forecasts.load(row[rid_at])
             if forecast is not None:
                 marks = " ".join(f"{horse['mark']}{horse['horse_no'] or ''}" for horse in forecast["horses"] if horse["mark"] != "消")
-                saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": marks}
+                saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": marks,
+                                      "expectation": forecast.get("expectation")}
         return {"cards": table_dict(cards), "saved": saved, "legend": self._forecast_legend()}
 
     def forecast(self, query: dict[str, list[str]]) -> dict[str, Any]:

@@ -8,7 +8,7 @@ from 共通.render import Table
 
 #: 表の見出し。
 HEADERS: tuple[str, ...] = (
-    "順位", "印", "馬番", "馬名", "3着以内の確率", "単勝", "人気", "市場の見立て", "複勝の期待値", "良い点", "悪い点",
+    "順位", "印", "馬番", "馬名", "3着以内の確率", "単勝", "人気", "市場の見立て", "複勝の期待値", "1着の確率", "単勝の期待値", "良い点", "悪い点",
 )
 
 
@@ -18,6 +18,8 @@ class ForecastTable:
     def table(self, forecast: dict[str, Any]) -> Table:
         rows = [self._row(horse) for horse in forecast["horses"]]
         note = f"時点: {forecast['timing']}（{forecast['timing_reason']}）。予想: {forecast['model']}。"
+        if forecast.get("expectation"):
+            note += f" レースの期待度: {forecast['expectation']}（◎の単勝の期待値が 1.00 以上なら高）。"
         if forecast.get("pool_free"):
             note += " 券種のオッズが無いので、券種オッズなしのモデルで予想した。"
         return Table(title=forecast["title"], columns=list(HEADERS), rows=rows, note=note)
@@ -26,6 +28,7 @@ class ForecastTable:
         return [
             horse["rank"], horse["mark"], horse["horse_no"], horse["horse_name"], _percent(horse["probability"]),
             horse["win_odds"], _whole(horse["popularity"]), _percent(horse["market_top3"]), _number(horse["place_value"]),
+            _percent(horse.get("win_probability")), _number(horse.get("win_value")),
             "・".join(point["category"] for point in horse["good"]), "・".join(point["category"] for point in horse["bad"]),
         ]
 

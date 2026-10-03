@@ -21,7 +21,7 @@
 | 学習データと予測用データは、同じ `DatasetBuilder` と `FeatureBuilder` で作る | 学習と予測で、特徴量の中身がずれないようにする（[11-leak-prevention.md](11-leak-prevention.md) の 4） |
 | フォルダの名前は、中に何があるかが名前だけで分かるようにする。機械学習のモデルを置くフォルダは `ml_model` とし、`model` としない | `model` は、データの形を表す「データモデル」と読める |
 | `Manager`・`Processor` のような、何でも入る名前を付けない | 名前から仕事が分かり、関係の無い仕事が足されにくい |
-| ほかの予想のパッケージは参照しない。例外として、`command/` だけは予想「展開から着順を予想」（`yosou.race_development`）の `PaceForecastHistory`・`DevelopmentPaceWorkflow` を呼ぶ（2026-10-02） | 木曜のモデルの材料 P（展開の予想の結果）を、展開の予想の部品のまま使うため（写すと食い違う）。展開の予想はこの予想の `dataset/` だけを参照するので、読み込みの順が輪にならない。参照する場所を `train_command.py`・`predict_command.py` に集めた |
+| ほかの予想のパッケージは参照しない。例外として、`command/` だけは予想「展開から着順を予想」（`yosou.race_development`）の `PaceForecastHistory`・`DevelopmentPaceWorkflow` を呼ぶ | 木曜のモデルの材料 P（展開の予想の結果）を、展開の予想の部品のまま使うため（写すと食い違う）。展開の予想はこの予想の `dataset/` だけを参照するので、読み込みの順が輪にならない。参照する場所を `train_command.py`・`predict_command.py` に集めた |
 
 ## パッケージ構成
 
@@ -41,6 +41,8 @@ src/yosou/shared/               両方の予想から使う部品
 │   └── history/                過去の記録から数える部品
 ├── repository/                 データの読み書き。1 SQL につき 1 リポジトリ
 ├── setting/                    ハイパーパラメータの設定ファイルを読む（初期値のファイルは予想ごと）
+├── place_value/                複勝の期待値（3着以内の確率 × 見込みの払戻倍率）
+├── win_value/                  単勝の期待値（1着になる確率 × 単勝オッズ）・期待度（高・低）
 ├── workflow/                   学習の流れ（TrainingWorkflow）
 └── tests/                      共通の部品のテストと、テスト用の合成DB（synthetic_season/）
 
@@ -48,13 +50,13 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 ├── __main__.py                 コマンドの入口（command/ を呼ぶだけ）
 ├── command/                    コマンド（train・predict）の引数。入口
 ├── workflow/                   予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点
-├── dataset/                    入れる行の選び方・目的変数（3着以内）・予測に使うオッズの決め方と、DatasetBuilder の組み立て（3つ）・券種の支持を外す部品
+├── dataset/                    入れる行の選び方・目的変数（3着以内）・予測に使うオッズの決め方と、DatasetBuilder の組み立て（3つ）・券種の支持を外す部品・1着のモデル用に目的変数と基準を持ち替える部品
 ├── feature/                    この予想の特徴量の一覧（今の材料 CATALOG・券種の支持を足した POOL_CATALOG・馬の力の材料 ABILITY_CATALOG）
 ├── setting/                    ハイパーパラメータの初期値のファイル
 └── tests/                      この予想の組み立てのテスト。合成DB だけを使う（keiba-yosou の決まり）
 ```
 
-各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`TrainingWorkflow` → `training_workflow.py`）。学習したモデルは、Git の対象外の `reports/近走と適性から3着以内を予想/models/` に、時点ごとに保存する。
+各フォルダには `__init__.py` を置き、その先頭に「クラス → 仕事」の表を書く。ファイルの名前は、クラスの名前を小文字と `_` にしたもの（`TrainingWorkflow` → `training_workflow.py`）。学習したモデルは、Git の対象外の `reports/近走と適性から3着以内を予想/models/` に、時点ごとに保存する。3着以内のモデルは `models/<時点>/`、1着のモデルは `models/1着/<時点>/`（当日の券種オッズなしは、それぞれ `models/券種オッズなし/race_day/`・`models/券種オッズなし/1着/race_day/`）。
 
 | 決まり | 理由 |
 |---|---|
@@ -76,8 +78,9 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `TrainingWorkflow` | 学習の流れを進める。設定を読み、渡された期間（`TrainingPeriod`）で学習データを作り、期間で分け、渡された時点ごとに2つのモデルを学習して保存し、検証データで当たり具合を確かめる。この予想は、材料ごとに3回使う（馬の力の材料で木曜・前日、今の材料で当日、券種の支持を外した学習データで当日の「券種オッズなし」。[05-sequence.md の図1](05-sequence.md#図1-学習)）。**中身が2つ目の予想と同じなので `shared/workflow/` にある。** 学習する時点の並びとハイパーパラメータの初期値のファイルは、作られるときに受け取る。元DB が要るのは学習データを読む段だけなので、読む段と学習する段を分けて呼べる | `run(設定ファイルのパス)`、`read_training_data()`、`train(学習データ, 設定ファイルのパス)` |
-| `PredictionWorkflow` | 予測の流れを進める。予測に使うオッズを決め、予測用データを作り、当日に券種のオッズが無ければ券種の支持を外して「券種オッズなし」のモデルに切り替え（[06-flowchart.md の図3](06-flowchart.md#図3-当日のモデルの選び方)）、その時点のモデルを読み込み、2つの予測確率を平均する。予測用データを作る `DatasetBuilder` は、時点に合わせてコマンドが選んで渡す | `run(レースID, 時点, 渡されたオッズ=省略可)` |
-| `TIMINGS`・`ABILITY_TIMINGS`・`FORM_TIMINGS`・`POOL_FREE_FOLDER` | 予測を出す時点（3つ）、馬の力の材料のモデルで予測する時点（木曜・前日）、今の材料のモデルで予測する時点（当日）、券種のオッズが無いときの当日のモデルの置き場所（`券種オッズなし`）（`prediction_timings.py`） | ― |
+| `PredictionWorkflow` | 予測の流れを進める。予測に使うオッズを決め、予測用データを作り、当日に券種のオッズが無ければ券種の支持を外して「券種オッズなし」のモデルに切り替え（[06-flowchart.md の図3](06-flowchart.md#図3-当日のモデルの選び方)）、その時点の3着以内のモデルと1着のモデルを読み込み、それぞれ2つの予測確率を平均する。1着の予測には、`WinTargetData` で基準を「オッズから見た勝率」に持ち替えた予測用データを渡す。前日・当日は、複勝の期待値（`PlaceValueColumns`）と単勝の期待値（`WinValueColumns`）の列を足す。予測用データを作る `DatasetBuilder` は、時点に合わせてコマンドが選んで渡す | `run(レースID, 時点, 渡されたオッズ=省略可)`、`explain(…)`（同じ予測に、特徴量の値と寄与を添える） |
+| `TIMINGS`・`ABILITY_TIMINGS`・`FORM_TIMINGS`・`POOL_FREE_FOLDER`・`WIN_FOLDER` | 予測を出す時点（3つ）、馬の力の材料のモデルで予測する時点（木曜・前日）、今の材料のモデルで予測する時点（当日）、券種のオッズが無いときの当日のモデルの置き場所（`券種オッズなし`）、1着のモデルの置き場所（`1着`。券種オッズなしの1着は `券種オッズなし/1着`）（`prediction_timings.py`） | ― |
+| `PROBABILITY`・`WIN_PROBABILITY` | 予測の結果の確率の列の名前（「3着以内に入る確率」「1着になる確率」）（`prediction_workflow.py`） | ― |
 | `TrainingReport` | 学習の結果の入れ物（使った期間・期間ごとのデータ・当たり具合・保存したフォルダ）。予想で変わらないので `shared/evaluation/` にある | ― |
 
 ### command/ — コマンド（入口はこの予想、部品は `shared`）
@@ -85,7 +88,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `CommandLine` | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | `train`: 学習する。期間の引数（`--warmup-from` `--train-from` `--ability-train-from` `--valid-from` `--test-from`）から、今の材料と馬の力の材料の2つの `TrainingPeriod` を作る。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `run(引数)` |
+| `TrainCommand` | `train`: 学習する。期間の引数（`--warmup-from` `--train-from` `--ability-train-from` `--valid-from` `--test-from`）から、今の材料と馬の力の材料の2つの `TrainingPeriod` を作る。学習データごとに、3着以内のモデルと、`WinTargetData` で持ち替えた1着のモデル（`<置き場所>/1着/`）を学ぶ。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `run(引数)` |
 | `PredictCommand` | `predict`: 1レースを予測する。`--odds 馬番:オッズ` で単勝オッズを渡せる。時点で `DatasetBuilder` を選ぶ（木曜・前日は `ability_dataset_builder`、当日は `race_day_dataset_builder`） | `run(引数)` |
 | `FigureCacheArgument` | 2つのサブコマンドに共通の引数 `--figure-cache`（スピード指数をとっておく場所） | `add_to(parser)` |
 | `DevelopmentRootArgument` | 2つのサブコマンドに共通の引数 `--development-root`（予想「展開から着順を予想」の置き場所。木曜のモデルが展開の予想の結果を読む） | `add_to(parser)` |
@@ -137,7 +140,9 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `ScratchApplier` | 速報の出走取消・競走除外を、出走の行に反映する | `apply(出走の行, 馬番)` |
 | `AnnouncedOddsApplier` | 予測に使う単勝オッズ（手で渡したものか、締め切り前のもの）を、出走の行に反映する。無ければ行はそのまま | `apply(出走の行, 馬番→オッズ)` |
 | `RunnerSelector`（この予想） | 入れる行を選ぶ（[06-flowchart.md](06-flowchart.md) の図1）。この予想は全頭を入れるので、`keep_samples` はそのまま返す | `training_samples(出走の行, 学習データの始まり)`、`prediction_runners(出走の行, レースID)`、`keep_samples(特徴量の付いた行)` |
-| `Top3TargetBuilder` | 目的変数を付ける（[10-target.md](10-target.md)）。当てさせる列は「3着以内」で、「1着」の列も付ける。穴馬の予想（`docs/design/穴馬が3着以内に入るかを予想/`）も同じ目的変数を使うので、2026-09-23 に `shared` へ移した（元の名前は `TargetBuilder`） | `build(サンプルの行)`、`label_name` |
+| `Top3TargetBuilder` | 目的変数を付ける（[10-target.md](10-target.md)）。当てさせる列は「3着以内」で、「1着」の列も付ける。穴馬の予想（`docs/design/穴馬が3着以内に入るかを予想/`）も同じ目的変数を使うので、`shared` に置く | `build(サンプルの行)`、`label_name` |
+| `Top3Baseline`・`WinBaseline` | 目的変数の基準（ロジット）。`Top3Baseline` はオッズから見た3着以内率（3着以内のモデル）、`WinBaseline` はオッズから見た勝率（1着のモデル）。どちらも前日から使え、オッズの無い馬は頭数から見た割合（3 ÷ 頭数、1 ÷ 頭数）にする。`TargetBaseline` の決まりを守る | `build(同じレースの全頭の行)`、`known_from` |
+| `WinTargetData`（この予想） | 3着以内のモデル用に作った学習データ・予測用データを、1着のモデル用に持ち替える。目的変数を「1着」に、基準を評価用の列（学習）か `market`（予測）の「確定の単勝オッズ」から作った `WinBaseline` に替える。特徴量はそのまま | `training(学習データ)`、`prediction(予測用データ)` |
 | `OddsInput`（この予想） | 利用者が `--odds 馬番:オッズ` で渡した「馬番 → 単勝オッズ」を表す値。書き方が違えばエラー | `of(引数の文字列)`、`as_mapping()` |
 | `OddsResolver`（この予想） | 予測に使う「馬番 → 単勝オッズ」を決める。渡されたオッズ → 元DB の締め切り前のオッズ → 無し（元DB の出走の行のオッズ）の順（[06-flowchart.md](06-flowchart.md#図2-予測に使うオッズの決め方)） | `resolve(レースID, 渡されたオッズ)` |
 | `dataset_builder()`（この予想） | `RunnerSelector`・共通の `Top3TargetBuilder`・特徴量の一覧（`CATALOG`）とまとまりの並び（`_FEATURE_GROUPS`。L の `PeopleMarketFeatures` を含む）を渡して、共通の `DatasetBuilder` を組み立てる関数（`dataset_assembly.py`）。ローダーには `MarketRunRepository(接続, PEOPLE_WINDOW_DAYS)` を渡す。今の材料の 79個で、展開の予想と研究もこれを使う | `dataset_builder(接続)` |
@@ -189,6 +194,15 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `SettingsNameCheck` | 書かれた名前が、初期値のファイルにあるかを確かめる | `check(書かれた設定, 場所)` |
 | `SettingsOverlay` | 初期値に、利用者が書いた項目を重ねる | `apply(書かれた設定)` |
 
+### place_value/・win_value/ — 期待値（`shared`）
+
+| クラス | 仕事 | 主な public メソッド |
+|---|---|---|
+| `PlaceValueColumns` | 予測の結果に足す、オッズから見た3着以内率と複勝の期待値の列（前日・当日だけ）。複勝の見込みの倍率（`PlacePriceEstimator`。`train` が `PlacePriceStep` で保存）を使う | `of(3着以内の確率, 予測用データ)` |
+| `WinExpectedValue` | 単勝の期待値 = 1着になる確率 × 単勝オッズ。オッズの無い馬は欠損値 | `of(1着になる確率, 単勝オッズ)` |
+| `WinValueColumns` | 予測の結果に足す、1着になる確率と単勝の期待値の列（前日・当日だけ。木曜は確率だけ）。単勝オッズは予測用データの `market` から取る | `of(1着になる確率, 予測用データ)` |
+| `ExpectationLevel` | レースの期待度（高・低）を、◎ の単勝の期待値から決める。高は 1.00 以上、低は 1.00 未満（線は固定。[16-evaluation.md の 6.](16-evaluation.md#6--の単勝回収率の確かめ期待度)）。期待値が無ければ（木曜）欠損値 | `of(◎の期待値)` |
+
 ### evaluation/ — 当たり具合を測る（`shared`）
 
 評価指標は [穴馬の 16 の「2. 評価指標」](../穴馬が3着以内に入るかを予想/16-evaluation.md#2-評価指標) で決めた（どの予想でも同じ）。ログ損失・AUC・Brier スコアと、各レースで確率がいちばん高い馬の3着以内率・複勝回収率、人気がいちばん上の馬（この予想では 1番人気）の同じ値、同じ人気の中での AUC を出す。
@@ -224,7 +238,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `--development-root` | `reports/展開から着順を予想` | 予想「展開から着順を予想」の置き場所。`train` は年ごとの確かめの予測（`out_of_sample/`）、`predict` は保存した展開のモデル（`models/`）を読む（木曜のモデルだけ） |
 | `--figure-cache` | `reports/能力指数/cache` | スピード指数をとっておく場所（木曜・前日のモデルが使う。道具「能力指数」とファイルを共有する）。`predict` にもある |
 
-`train` が出す表は、学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル（ここまで `TrainingReportTables`）を「今の材料」「券種オッズなし」「馬の力の材料」の3つの学習ごとに出し、最後に複勝の見込みの倍率（`PlacePriceStep`）を出す。表の見方は [16-evaluation.md](16-evaluation.md#2-評価指標) を参照。
+`train` が出す表は、学習データの期間・検証データでの当たり具合・人気の基準との比べ方・保存したモデル（ここまで `TrainingReportTables`）を「今の材料」「券種オッズなし」「馬の力の材料」「馬の力の材料 ＋ 展開の予想（木曜）」の学習ごとに、3着以内のモデルと1着のモデル（題に「1着:」が付く）の両方で出し、最後に複勝の見込みの倍率（`PlacePriceStep`）を出す。表の見方は [16-evaluation.md](16-evaluation.md#2-評価指標) を参照。
 
 ### predict の引数
 
@@ -237,7 +251,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 
 当日に券種のオッズ（速報の全券種のオッズ `0B30`）が無いレースは、券種の支持を使わない「券種オッズなし」のモデルで予測する（止まらない）。
 
-`predict` が出す表は、1レースの出走馬を「3着以内に入る確率」（LightGBM と CatBoost の平均）の高い順に並べた1つである。列は、順位・馬番・馬名と、前日・当日なら単勝オッズ・オッズから見た3着以内率・複勝的中の確率・複勝の期待値、そのあとに 3着以内に入る確率（平均）・LightGBM・CatBoost の確率が続く。木曜はオッズを使わないので、オッズの4列は出ない。複勝の期待値は、`train` で保存した複勝の見込みの倍率があるときだけ出る。
+`predict` が出す表は、1レースの出走馬を「3着以内に入る確率」（LightGBM と CatBoost の平均）の高い順に並べた1つである。列は、順位・馬番・馬名と、前日・当日なら単勝オッズ・オッズから見た3着以内率・複勝的中の確率・複勝の期待値・1着になる確率・単勝の期待値、そのあとに 3着以内に入る確率（平均）・LightGBM・CatBoost の確率が続く。木曜はオッズを使わないので、オッズの列と期待値の列は出ず、1着になる確率だけが出る。複勝の期待値は、`train` で保存した複勝の見込みの倍率があるときだけ出る。1着になる確率と単勝の期待値は、1着のモデル（`models/1着/`）があるときだけ出る（前の版で学習したモデルでは出ない）。
 
 ### 引数の決まり
 
@@ -261,3 +275,4 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | 更新 | 2026-10-02: 当日のモデルにも馬の力の材料（M。今の材料と名前の重なる2つを除く 200個）を足した（PR #52 の残課題。7つの区切りで基準を満たした）。当日は 285個、券種オッズなしは 279個 |
 | 更新 | 2026-10-02: 対戦レーティング（まとまり O）の `HeadToHeadRatingFeatures`・`feature/head_to_head/`・`HeadToHeadRunRepository`・`EntryRecords.head_to_head_runs` を足し、`ABILITY_CATALOG` と `ability_dataset_builder` に O を足した（木曜・前日のモデル） |
 | 更新 | 2026-10-02: 展開の予想の結果（まとまり P）の `PaceForecastFeatures`・`feature/pace_forecast/`・`EntryRecords.pace_forecasts`、`PaceAttachment`・`DevelopmentRootArgument`・`PACE_TIMINGS` を足し、木曜のモデルの学習と予測で P を足すようにした |
+| 更新 | 2026-10-03: 1着のモデル（15 の 14）のために、`WinBaseline`・`WinTargetData`・`WIN_FOLDER`・`WIN_PROBABILITY`、`win_value/`（`WinExpectedValue`・`WinValueColumns`・`ExpectationLevel`）を足した。`train`・`predict` の出力に1着のモデルの行と列を足した |

@@ -20,17 +20,28 @@ from yosou.shared.dataset import (
     TrainingPeriod,
 )
 from yosou.race_development.workflow import PaceForecastHistory
+from yosou.shared.evaluation import TrainingReport
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.ml_model import MEMBER_TYPES
 from yosou.shared.repository import ModelRepository
 from yosou.shared.workflow import TrainingWorkflow
 
-from ..dataset import ABILITY_TRAIN_FIRST_DAY, PaceAttachment, PoolFreeData, ability_dataset_builder, race_day_dataset_builder
+from ..dataset import (
+    ABILITY_TRAIN_FIRST_DAY,
+    PaceAttachment,
+    PoolFreeData,
+    WinTargetData,
+    ability_dataset_builder,
+    race_day_dataset_builder,
+)
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER
+from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER, WIN_FOLDER
 from .development_root_argument import DevelopmentRootArgument
 from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
+
+#: 1着のモデルの表の題に付ける言葉。
+_WIN_SUBJECT = "1着"
 
 
 class TrainCommand:
@@ -41,6 +52,8 @@ class TrainCommand:
     学んで ``<置き場所>/券種オッズなし/`` に保存する。
     展開の予想の結果（P）を採用した時点（``PACE_TIMINGS``。木曜）は、馬の力の材料に、予想「展開から着順を予想」の年ごとの確かめの
     予測から作った P を足して学ぶ（設計書 15 の 13）。そのため、その時点だけ別に学ぶ。
+    どの学習データでも、3着以内のモデルと、目的変数を「1着」に・基準をオッズから見た勝率に持ち替えた1着のモデル（``WinTargetData``）を
+    別々に学び、1着のモデルは ``<置き場所>/1着/`` に保存する（設計書 10・15 の 14）。
     学習のあとに、複勝の見込みの倍率（今の材料の学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
     """
 
@@ -64,47 +77,47 @@ class TrainCommand:
             args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
         )
         ability_period = TrainingPeriod.starting(args.ability_train_from, args.valid_from, args.test_from)
-        repository = ModelRepository(args.models, MEMBER_TYPES)
         history = PaceForecastHistory(args.development_root)
         paces = {timing: history.read(timing) for timing in PACE_TIMINGS}
         with db.open_db(args.db) as con:
-            form = TrainingWorkflow(race_day_dataset_builder(con, args.figure_cache), form_period, repository, FORM_TIMINGS,
-                                    DEFAULT_SETTINGS_PATH)
-            ability = TrainingWorkflow(ability_dataset_builder(con, args.figure_cache), ability_period, repository, ABILITY_TIMINGS,
-                                       DEFAULT_SETTINGS_PATH)
-            form_data = form.read_training_data()
-            ability_data = ability.read_training_data() if ABILITY_TIMINGS else None
-        tables = self._form_tables(form, form_data, form_period, args)
+            form_data = race_day_dataset_builder(con, args.figure_cache).build_training_data(form_period)
+            ability_data = (ability_dataset_builder(con, args.figure_cache).build_training_data(ability_period)
+                            if ABILITY_TIMINGS else None)
+        tables = self._form_tables(form_data, form_period, args)
         if ability_data is not None:
-            tables += self._ability_tables(ability_data, ability_period, repository, paces, args)
+            tables += self._ability_tables(ability_data, ability_period, paces, args)
         return tables
 
-    def _ability_tables(self, data: TrainingData, period: TrainingPeriod, repository: ModelRepository,
+    def _form_tables(self, data: TrainingData, period: TrainingPeriod, args: argparse.Namespace) -> list[Table]:
+        """今の材料のモデル（当日）と、券種のオッズが無いときの当日のモデルを学んで、結果の表を返す。"""
+        tables, report = self._both(data, period, args.models, FORM_TIMINGS, "今の材料", args.config)
+        pool_free, _ = self._both(PoolFreeData().training(data), period, args.models / POOL_FREE_FOLDER,
+                                  (PredictionTiming.RACE_DAY,), "券種オッズなし", args.config)
+        return [*tables, *pool_free, PlacePriceStep().run(report.split.train, args.models)]
+
+    def _ability_tables(self, data: TrainingData, period: TrainingPeriod,
                         paces: dict[PredictionTiming, pd.DataFrame], args: argparse.Namespace) -> list[Table]:
         """馬の力の材料のモデル（木曜・前日）を学んで、結果の表を返す。P を採用した時点は、その時点の展開の予測から作った P を
         足した学習データで、時点ごとに学ぶ（``paces`` は 時点 → 展開の予想の元の予測の表）。"""
         plain = tuple(timing for timing in ABILITY_TIMINGS if timing not in paces)
-        reports = [(self._workflow(period, repository, plain).train(data, args.config), "馬の力の材料")] if plain else []
-        reports += [(self._workflow(period, repository, (timing,)).train(PaceAttachment().apply(data, paces[timing]), args.config),
-                     f"馬の力の材料 ＋ 展開の予想（{timing.label}）") for timing in ABILITY_TIMINGS if timing in paces]
-        return [table for report, subject in reports for table in TrainingReportTables(report, subject).tables()]
+        tables = self._both(data, period, args.models, plain, "馬の力の材料", args.config)[0] if plain else []
+        for timing in ABILITY_TIMINGS:
+            if timing in paces:
+                tables += self._both(PaceAttachment().apply(data, paces[timing]), period, args.models, (timing,),
+                                     f"馬の力の材料 ＋ 展開の予想（{timing.label}）", args.config)[0]
+        return tables
 
-    def _workflow(self, period: TrainingPeriod, repository: ModelRepository,
-                  timings: tuple[PredictionTiming, ...]) -> TrainingWorkflow:
+    def _both(self, data: TrainingData, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...],
+              subject: str, config: Path | None) -> tuple[list[Table], TrainingReport]:
+        """同じ学習データで、3着以内のモデル（``root``）と1着のモデル（``root/1着``）を学んで保存する。結果の表と、3着以内の学習の結果を返す。"""
+        top3 = self._workflow(period, root, timings).train(data, config)
+        win = self._workflow(period, root / WIN_FOLDER, timings).train(WinTargetData().training(data), config)
+        tables = [*TrainingReportTables(top3, subject).tables(), *TrainingReportTables(win, f"{_WIN_SUBJECT}: {subject}").tables()]
+        return tables, top3
+
+    def _workflow(self, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...]) -> TrainingWorkflow:
         """読んだ学習データで学ぶだけの学習の流れ（学習データは作らない）。"""
-        return TrainingWorkflow(None, period, repository, timings, DEFAULT_SETTINGS_PATH)
-
-    def _form_tables(self, form: TrainingWorkflow, form_data: TrainingData, period: TrainingPeriod,
-                     args: argparse.Namespace) -> list[Table]:
-        """今の材料のモデル（当日）と、券種のオッズが無いときの当日のモデルを学んで、結果の表を返す。"""
-        report = form.train(form_data, args.config)
-        pool_free = TrainingWorkflow(
-            None, period, ModelRepository(args.models / POOL_FREE_FOLDER, MEMBER_TYPES), (PredictionTiming.RACE_DAY,),
-            DEFAULT_SETTINGS_PATH,
-        ).train(PoolFreeData().training(form_data), args.config)
-        place_price = PlacePriceStep().run(report.split.train, args.models)
-        return [*TrainingReportTables(report, "今の材料").tables(),
-                *TrainingReportTables(pool_free, "券種オッズなし").tables(), place_price]
+        return TrainingWorkflow(None, period, ModelRepository(root, MEMBER_TYPES), timings, DEFAULT_SETTINGS_PATH)
 
     def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
         """学習データの期間の区切り（設計書 08 の 3）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""

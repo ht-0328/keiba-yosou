@@ -24,6 +24,7 @@
 | ``StakesTendencyRepository`` | 重賞のレースごとの傾向（それより前の開催の数え上げと基準。``tools/共通/stakes.py`` の SQL）。1行 = 1レース。重賞の傾向と近走から3着以内を予想する予想が使う |
 | ``RacePayoutRepository`` | レースごとの4券種（単勝・馬連・3連複・3連単）の払戻と、成立したか。レース単位の予想が使う |
 | ``FinalOddsRepository`` | 1つの券種の確定オッズを、期間の全レースぶん 1組番1行で読む（o1〜o6。親の確定の断面と発表月日時分で結ぶ） |
+| ``TicketOddsRepository`` | 1つの券種の、指定した買い目（レースID と組番）だけの確定オッズを読む（道具「印の成績」のトリガミの確かめ） |
 | ``PayoutRepository`` | 1つの券種の払戻の明細を、期間の全レースぶん 1組番1行で読む（hr__<券種>払戻。複勝・ワイド・同着の複数行はそのまま） |
 | ``PayoutFlagRepository`` | 払戻の親（hr）から、7券種の不成立・特払と、返還の有無を、期間の全レースぶん 1レース1行で読む |
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
@@ -49,6 +50,7 @@ from .career_count_repository import CareerCountRepository
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
 from .final_odds_repository import FinalOddsRepository
+from .ticket_odds_repository import TicketOddsRepository
 from .first_horse_pool_repository import FirstHorsePoolRepository
 from .head_to_head_run_repository import HeadToHeadRunRepository
 from .market_run_repository import MarketRunRepository
@@ -80,7 +82,7 @@ __all__ = [
     "PeopleDayRepository", "PedigreeDayRepository", "MarketRunRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "PlaceOddsRepository",
     "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository",
-    "RaceDayRange", "FinalOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
+    "RaceDayRange", "FinalOddsRepository", "TicketOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
     "AbilityRunRepository", "RUN_COLUMNS", "SpeedFigureRepository", "WorkoutSummaryRepository", "SalePriceRepository",
     "FirstHorsePoolRepository", "AllHorsesPoolRepository", "POOLS", "PoolSpec", "HeadToHeadRunRepository",
 ]

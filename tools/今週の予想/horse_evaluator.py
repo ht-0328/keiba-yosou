@@ -18,6 +18,8 @@ from 今週の予想.forecast_columns import (
     PLACE_VALUE,
     PROBABILITY,
     RANK,
+    WIN_PROBABILITY,
+    WIN_VALUE,
 )
 
 #: 良い点・悪い点に出す分類の数（それぞれ）。
@@ -29,7 +31,8 @@ DETAILS_SHOWN = 2
 MIN_EFFECT_LOGIT = 0.05
 #: 印ごとの役割（設計書「買うレースと買い目を決める」07 の 5）。
 MARK_ROLES: dict[str, str] = {
-    "◎": "軸（安心な馬。ワイド・3連複の軸）", "○": "相手", "▲": "相手", "△": "相手（3連複の3列目）",
+    "◎": "勝ってほしい馬（単勝の期待値が1位。期待度が高のレースで単勝を買う候補）", "○": "相手（3着以内の確率が ◎ より高ければ、ワイド・3連複の軸）",
+    "▲": "相手", "△": "相手（3連複の3列目）",
     "☆": "美味しい穴馬（複勝で買う候補）", "注": "表示だけ（ワイドの相手の候補）", "消": "買わない（危険な人気馬もここ）",
 }
 
@@ -89,6 +92,10 @@ class HorseEvaluator:
         value = horse.get(PLACE_VALUE)
         if value is not None and pd.notna(value):
             parts.append(f"複勝の期待値は {value:.2f}。")
+        win = horse.get(WIN_PROBABILITY)
+        if win is not None and pd.notna(win):
+            win_value = horse.get(WIN_VALUE)
+            parts.append(f"1着になる確率は {win:.1%}" + (f"、単勝の期待値は {win_value:.2f}。" if win_value is not None and pd.notna(win_value) else "。"))
         if good:
             parts.append("押し上げたのは" + "・".join(f"「{point['category']}」" for point in good) + "。")
         if bad:
