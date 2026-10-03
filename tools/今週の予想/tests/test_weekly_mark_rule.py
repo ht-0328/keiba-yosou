@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from 今週の予想.forecast_columns import MARK, PROBABILITY, RANK, WIN_PROBABILITY, WIN_VALUE
+from 今週の予想.forecast_columns import AXIS, MARK, PROBABILITY, RANK, WIN_PROBABILITY, WIN_VALUE
 from 今週の予想.mark_rule import MarkRule, OUT_MARK
 
 
@@ -32,6 +32,17 @@ def test_単勝の期待値が1位の馬を二重丸にして残りは3着以内
     assert [marked.loc[no, MARK] for no in (1, 3, 4, 5, 6)] == ["○", "▲", "△", "△", "△"]
     assert "◎を除いて、3着以内に入る確率が1位（全頭ではレース内1位）" in marked.loc[1, "mark_reason"]
     assert marked.loc[7, MARK] == OUT_MARK and "単勝の期待値" in marked.loc[7, "mark_reason"]
+    # 軸は ◎○▲ のうち3着以内の確率が1位の馬（1番の ○。◎ の 2番ではない）で、1頭だけ
+    assert marked.loc[1, AXIS] and marked[AXIS].sum() == 1
+
+
+def test_軸は二重丸の3着以内の確率が1位なら二重丸と同じ馬() -> None:
+    probabilities = [0.70, 0.45, 0.52, 0.30, 0.25]
+    wins = [0.42, 0.21, 0.20, 0.08, 0.05]
+    race = _race(probabilities, [2.0, 6.0, 4.0, 8.0, 10.0], [0.72, 0.40, 0.50, 0.30, 0.25], [0.9] * 5).assign(**{WIN_PROBABILITY: wins})
+    race[WIN_VALUE] = [1.5, 1.26, 0.8, 0.64, 0.5]  # 1番が期待値でも1位
+    marked = MarkRule().assign(race).set_index("horse_no")
+    assert marked.loc[1, MARK] == "◎" and marked.loc[1, AXIS] and marked[AXIS].sum() == 1
 
 
 def test_単勝30倍を超える馬は期待値が1位でも二重丸にしない() -> None:
