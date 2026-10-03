@@ -34,6 +34,23 @@ def test_単勝の期待値が1位の馬を二重丸にして残りは3着以内
     assert marked.loc[7, MARK] == OUT_MARK and "単勝の期待値" in marked.loc[7, "mark_reason"]
 
 
+def test_単勝30倍を超える馬は期待値が1位でも二重丸にしない() -> None:
+    # 7番は期待値 1.5（0.01 × 150倍）で1位だが、30倍を超えるので候補にしない。30倍以下では 2番（0.21 × 6.0 = 1.26）
+    probabilities = [0.70, 0.45, 0.52, 0.30, 0.25, 0.20, 0.02]
+    odds = [2.0, 6.0, 4.0, 8.0, 10.0, 15.0, 150.0]
+    wins = [0.42, 0.21, 0.20, 0.08, 0.05, 0.03, 0.01]
+    race = _race(probabilities, odds, [0.72, 0.40, 0.50, 0.30, 0.25, 0.20, 0.03], [0.9] * 7).assign(**{WIN_PROBABILITY: wins})
+    race[WIN_VALUE] = race[WIN_PROBABILITY] * race["win_odds"]
+    marked = MarkRule().assign(race).set_index("horse_no")
+    assert marked.loc[2, MARK] == "◎" and "30倍以下の馬の中で" in marked.loc[2, "mark_reason"]
+    assert marked.loc[7, MARK] == OUT_MARK and "候補の上限" in marked.loc[7, "mark_reason"]
+    # 30倍以下の馬が1頭もいなければ、1着になる確率が1位の馬
+    all_longshots = race.assign(win_odds=[40.0, 60.0, 50.0, 80.0, 100.0, 150.0, 150.0])
+    all_longshots[WIN_VALUE] = all_longshots[WIN_PROBABILITY] * all_longshots["win_odds"]
+    fallback = MarkRule().assign(all_longshots).set_index("horse_no")
+    assert fallback.loc[1, MARK] == "◎" and "30倍以下の馬がいない" in fallback.loc[1, "mark_reason"]
+
+
 def test_木曜はオッズが無いので1着になる確率が1位の馬を二重丸にする() -> None:
     race = _race([0.5, 0.4, 0.3, 0.2]).assign(**{WIN_PROBABILITY: [0.20, 0.25, 0.10, 0.05]})
     marked = MarkRule().assign(race).set_index("horse_no")

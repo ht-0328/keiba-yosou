@@ -94,7 +94,7 @@ class MarkReport:
         add("消のうち 印が付かなかった馬", marked[(marked[MARK] == OUT_MARK) & ~marked["is_danger"]])
         add("1番人気 全体", marked[favorite], with_baseline=False)
         add("全頭", marked, with_baseline=False)
-        note = (summary + " ◎は、1着の予想があれば単勝の期待値（1着になる確率 × 確定の単勝オッズ）が1位の馬、無ければ3着以内の確率が1位の馬。"
+        note = (summary + " ◎は、1着の予想があれば単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 確定の単勝オッズ）が1位の馬、無ければ3着以内の確率が1位の馬。"
                 f"期待度は、◎の単勝の期待値が {LINE:.2f} 以上なら高、未満なら低（表6）。"
                 f" 「{BASELINE_LABEL}」は、印の馬と同じ人気の馬全体の成績を、印の馬の人気の内訳で重み付けして平均したもの"
                 "（人気どおりに同じ頭数を買った場合）。回収率は確定オッズの払戻で数えた。競走中止など着順の付かない馬は着外に数える。")

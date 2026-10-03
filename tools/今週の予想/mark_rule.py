@@ -36,6 +36,9 @@ OUT_MARK = "消"
 MARK_ORDER: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK)
 #: ☆ を付ける複勝の期待値の下限（設計書「買うレースと買い目を決める」07 の 2。研究「回収率100超」で決めた買う線）。
 VALUE_LINE = 1.25
+#: ◎ の候補にする単勝オッズの上限（利用者の決定。設計書 07 の 5）。これより高い大穴は、単勝の期待値が1位でも ◎ にしない
+#: （期待値の高い大穴は当たりが少なく成績が運で振れるうえ、3着以内の確率が最下位の馬が ◎ になることがあった）。
+TOP_ODDS_LIMIT = 30.0
 #: 人気馬の範囲を広げる頭数（13頭以下は1〜3番人気、14頭以上は1〜5番人気。設計書 07 の 3）。
 WIDE_FIELD = 14
 _FAVORITES_SMALL = 3
@@ -51,8 +54,9 @@ class MarkRule:
 
     - 消（危険な人気馬）: 人気馬の予想で「危険」と判定された馬（07 の 3。前日・当日だけ。今は1番人気だけ。``DangerFinder``）。
       先に消にして、ほかの印の候補から外す。
-    - ◎: 消を除いて、単勝の期待値（1着になる確率 × 単勝オッズ）がいちばん高い馬。全レースに1頭付ける。
-      オッズの無い木曜は、1着になる確率が1位の馬。1着の予想が無ければ（前の版のモデル）、3着以内の確率が1位の馬。
+    - ◎: 消を除いた単勝 ``TOP_ODDS_LIMIT``（30倍）以下の馬の中で、単勝の期待値（1着になる確率 × 単勝オッズ）がいちばん高い馬。
+      全レースに1頭付ける。30倍以下の馬がいないか、オッズの無い木曜は、1着になる確率が1位の馬。1着の予想が無ければ（前の版のモデル）、
+      3着以内の確率が1位の馬。
     - ○▲△: 消と ◎ を除いて、3着以内の確率の 1〜5位（○・▲と、△の3頭）。
     - ☆: 穴馬（人気馬の範囲より下の人気）のうち、印の付いていない馬で、複勝の期待値がいちばん高い馬。
       期待値が ``VALUE_LINE``（1.25）以上のときだけ。オッズの無い時点（木曜）は、期待値が無いので付かない。
@@ -104,19 +108,22 @@ class MarkRule:
                                            f"（全頭ではレース内{table.loc[row, RANK]:.0f}位）")
 
     def _top_pick(self, table: pd.DataFrame, candidates: list[int]) -> int:
-        """◎ の行。単勝の期待値 → 1着になる確率 → 3着以内の確率 の順に、使える値で決める（同じ値なら3着以内の確率の高いほう）。"""
-        values = table.loc[candidates, WIN_VALUE].dropna()
+        """◎ の行。単勝 30倍以下の馬の単勝の期待値 → 1着になる確率 → 3着以内の確率 の順に、使える値で決める（同じ値なら3着以内の確率の高いほう）。"""
+        priced = table.loc[candidates]
+        values = priced[WIN_VALUE][priced[WIN_ODDS] <= TOP_ODDS_LIMIT].dropna()
         if not values.empty:
             row = values.idxmax()
             table.loc[row, MARK] = TOP_MARK
-            table.loc[row, MARK_REASON] = (f"単勝の期待値がレース内1位（1着になる確率 {table.loc[row, WIN_PROBABILITY]:.1%} × "
-                                           f"単勝 {table.loc[row, WIN_ODDS]:.1f}倍 = {values[row]:.2f}）")
+            table.loc[row, MARK_REASON] = (f"単勝 {TOP_ODDS_LIMIT:.0f}倍以下の馬の中で単勝の期待値がレース内1位（1着になる確率 "
+                                           f"{table.loc[row, WIN_PROBABILITY]:.1%} × 単勝 {table.loc[row, WIN_ODDS]:.1f}倍 = {values[row]:.2f}）")
             return row
         wins = table.loc[candidates, WIN_PROBABILITY].dropna()
         if not wins.empty:
             row = wins.idxmax()
             table.loc[row, MARK] = TOP_MARK
-            table.loc[row, MARK_REASON] = f"1着になる確率がレース内1位（{wins[row]:.1%}。オッズが無いので単勝の期待値は出せない）"
+            why = (f"単勝 {TOP_ODDS_LIMIT:.0f}倍以下の馬がいないので、期待値では選ばない" if table.loc[candidates, WIN_ODDS].notna().any()
+                   else "オッズが無いので単勝の期待値は出せない")
+            table.loc[row, MARK_REASON] = f"1着になる確率がレース内1位（{wins[row]:.1%}。{why}）"
             return row
         row = candidates[0]
         table.loc[row, MARK] = TOP_MARK
@@ -155,7 +162,9 @@ class MarkRule:
         """印が付かず消になった理由。"""
         within = f"◎と危険な人気馬を除いて{len(RANK_MARKS)}位まで" if any_danger else f"◎を除いて{len(RANK_MARKS)}位まで"
         reason = f"3着以内に入る確率がレース内{row[RANK]:.0f}位で、○〜△（{within}）に入らない"
-        if pd.notna(row[WIN_VALUE]):
+        if pd.notna(row[WIN_VALUE]) and pd.notna(row[WIN_ODDS]) and row[WIN_ODDS] > TOP_ODDS_LIMIT:
+            reason += f"。単勝 {row[WIN_ODDS]:.1f}倍は◎の候補の上限（{TOP_ODDS_LIMIT:.0f}倍）を超える"
+        elif pd.notna(row[WIN_VALUE]):
             reason += f"。単勝の期待値 {row[WIN_VALUE]:.2f} も◎ではない"
         if pd.notna(row[PLACE_VALUE]):
             reason += f"。複勝の期待値 {row[PLACE_VALUE]:.2f} も☆の条件に当たらない"
