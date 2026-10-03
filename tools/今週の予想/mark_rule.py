@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from 今週の予想.forecast_columns import (
+    AXIS,
     DANGER_LINE,
     DANGER_SCORE,
     HORSE_NO,
@@ -63,6 +64,8 @@ class MarkRule:
     - 注: 印の付いていない馬のうち、上げ下げ（logit(予想) − logit(市場の見立て)）がいちばん大きい馬。上げ下げが正（市場より来ると見る）のときだけ。
       オッズの無い時点（木曜）は、市場の見立てが無いので付かない。
     - 消: ほかの全部の馬（買わない馬）。
+    - 軸（列 ``axis``。印ではない）: ◎○▲ のうち3着以内の確率がいちばん高い馬。◎ と同じ馬のことも ○ のこともある（軸と ◎ が同じでも、
+      軸を別の馬に替えない）。3連複・3連単の「軸馬」のパターンで軸にする（設計書 08 の 2）。
     レースの期待度（◎ の単勝の期待値の3段階）は、この表の ◎ の単勝の期待値から ``ExpectationLevel`` が決める。
     """
 
@@ -70,7 +73,7 @@ class MarkRule:
         """``race`` は1レースの表（列 ``horse_no``・``probability``。前日・当日は ``win_odds``・``market_top3``・``place_value`` と、
         1着の予想の ``win_probability``・``win_value``、人気馬には危険の判定の列 ``is_danger`` など）。
 
-        戻り値は ``race`` に列 ``rank``・``popularity``・``updown``・``mark``・``mark_reason`` を足し、3着以内の確率の高い順
+        戻り値は ``race`` に列 ``rank``・``popularity``・``updown``・``mark``・``mark_reason``・``axis`` を足し、3着以内の確率の高い順
         （同じなら馬番の小さい順）に並べた表。``rank`` は全頭の中での順位。
         """
         table = race.copy()
@@ -88,6 +91,7 @@ class MarkRule:
         for row in dangers:
             table.loc[row, MARK_REASON] = self._danger_reason(table.loc[row])
         self._mark_top_and_ranks(table, any_danger=len(dangers) > 0)
+        self._mark_axis(table)
         self._mark_value(table)
         self._mark_note(table)
         for row in table.index[(table[MARK] == OUT_MARK) & ~table[IS_DANGER]]:
@@ -106,6 +110,13 @@ class MarkRule:
             table.loc[row, MARK] = mark
             table.loc[row, MARK_REASON] = (f"{excluded}を除いて、3着以内に入る確率が{order}位"
                                            f"（全頭ではレース内{table.loc[row, RANK]:.0f}位）")
+
+    def _mark_axis(self, table: pd.DataFrame) -> None:
+        """◎○▲ のうち3着以内の確率がいちばん高い馬を軸にする（表は確率の高い順なので、最初の1頭）。"""
+        table[AXIS] = False
+        rows = table.index[table[MARK].isin((TOP_MARK, *RANK_MARKS[:2]))]
+        if len(rows):
+            table.loc[rows[0], AXIS] = True
 
     def _top_pick(self, table: pd.DataFrame, candidates: list[int]) -> int:
         """◎ の行。単勝 30倍以下の馬の単勝の期待値 → 1着になる確率 → 3着以内の確率 の順に、使える値で決める（同じ値なら3着以内の確率の高いほう）。"""

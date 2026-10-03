@@ -59,13 +59,13 @@ class TicketType(Enum):
 
 
 _SPECS: dict[TicketType, TicketTypeSpec] = {
-    TicketType.WIN: TicketTypeSpec("win", 1, False, "hr__単勝払戻", "馬番", "o1", "o1__単勝オッズ", False),
-    TicketType.PLACE: TicketTypeSpec("place", 1, False, "hr__複勝払戻", "馬番", "o1", "o1__複勝オッズ", True),
-    TicketType.QUINELLA: TicketTypeSpec("quinella", 2, False, "hr__馬連払戻", "組番", "o2", "o2__馬連オッズ", False),
-    TicketType.EXACTA: TicketTypeSpec("exacta", 2, True, "hr__馬単払戻", "組番", "o4", "o4__馬単オッズ", False),
-    TicketType.WIDE: TicketTypeSpec("wide", 2, False, "hr__ワイド払戻", "組番", "o3", "o3__ワイドオッズ", True),
-    TicketType.TRIO: TicketTypeSpec("trio", 3, False, "hr__3連複払戻", "組番", "o5", "o5__3連複オッズ", False),
-    TicketType.TRIFECTA: TicketTypeSpec("trifecta", 3, True, "hr__3連単払戻", "組番", "o6", "o6__3連単オッズ", False),
+    TicketType.WIN: TicketTypeSpec("win", 1, False, "hr__単勝払戻", "馬番", "o1", "o1__単勝オッズ", False, 0.8),
+    TicketType.PLACE: TicketTypeSpec("place", 1, False, "hr__複勝払戻", "馬番", "o1", "o1__複勝オッズ", True, 0.8),
+    TicketType.QUINELLA: TicketTypeSpec("quinella", 2, False, "hr__馬連払戻", "組番", "o2", "o2__馬連オッズ", False, 0.775),
+    TicketType.EXACTA: TicketTypeSpec("exacta", 2, True, "hr__馬単払戻", "組番", "o4", "o4__馬単オッズ", False, 0.75),
+    TicketType.WIDE: TicketTypeSpec("wide", 2, False, "hr__ワイド払戻", "組番", "o3", "o3__ワイドオッズ", True, 0.775),
+    TicketType.TRIO: TicketTypeSpec("trio", 3, False, "hr__3連複払戻", "組番", "o5", "o5__3連複オッズ", False, 0.75),
+    TicketType.TRIFECTA: TicketTypeSpec("trifecta", 3, True, "hr__3連単払戻", "組番", "o6", "o6__3連単オッズ", False, 0.725),
 }
 #: 券種の書き方の案内（コマンドの説明と、誤りの文面に使う）。
 TICKET_TYPE_CHOICES = " / ".join(ticket_type.label for ticket_type in TicketType)

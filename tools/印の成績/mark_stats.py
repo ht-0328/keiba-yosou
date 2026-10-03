@@ -10,11 +10,14 @@ reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切�
 テスト期間（学習にも線にも使っていない期間）の行だけを数える。新しいモデル（作り方）を作ったら、予測を作って --form・--win にその名前を渡すと、
 いつも同じ形の表が出る。
 
-出す表は8つ。1. 印ごとの成績（成績7つと、同じ人気の馬全体との比べ。◎ は1番人気かどうかと期待度でも分け、消は内訳も）、
+出す表は9つ。1. 印ごとの成績（成績7つと、同じ人気の馬全体との比べ。◎ は1番人気かどうかと期待度でも分け、消は内訳も）、
 2. ◎○▲の3頭のうち3着以内に来た頭数（1〜3番人気と比べる）、3. 2頭とも3着以内の組、4. 年ごと、5. 区切りごとの危険の線、
 6. ◎の期待度ごとの単勝の成績（回収率と 90% の幅。設計書「近走と適性から3着以内を予想」の 16 の 6 の採用の基準を見る表）、
-7. 印のルールの買い目（設計書「買うレースと買い目を決める」08 の 2。全券種）の券種ごとの成績（点数・投資・払戻・回収率・90% の幅。トリガミは外す）、
-8. 券種ごとの年ごとの回収率。買い目は reports/印の成績/買い目/<全頭の予想の名前>.csv にも書く（1行 = 1点）。
+7. 印のルールの買い目（設計書「買うレースと買い目を決める」08 の 2。全券種。3連複・3連単は元の形（◎−○▲☆−○▲△☆・◎→○▲☆→○▲△☆）に加えて、
+軸の1頭から ○▲△☆ への流し（3連複）とマルチ（3連単。組の期待値が 1.0 以上の買い目だけ）を、◎軸・軸馬の2パターンで出す）の買い方ごとの成績
+（点数・投資・払戻・回収率・90% の幅。トリガミは外す。合計は元の形・◎軸・軸馬の3つ）、
+8. 買い方ごとの年ごとの回収率、9. 期待値の線を動かしたときの 3連複・3連単の成績（参考）。
+買い目は reports/印の成績/買い目/<全頭の予想の名前>.csv にも書く（1行 = 1点。3連複・3連単は組の期待値と確率も）。
 ◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 確定の単勝オッズ）が1位の馬、期待度はその期待値が 1.00 以上なら高、未満なら低。
 オッズは確定オッズ（過去のレースには締め切り前のオッズが無い）。危険な人気馬は --danger の予測で、区切りごとに検証期間で線を決め直す。
 --timing 木曜 にすると、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝と単勝の期待値・危険な人気馬）を使わずに印を付ける
@@ -41,6 +44,7 @@ from yosou.shared.repository import PlacePriceRepository  # noqa: E402
 
 from 印の成績.backtest_marker import BacktestMarker  # noqa: E402
 from 印の成績.favorite_danger_judge import COLUMNS as DANGER_COLUMNS, FavoriteDangerJudge  # noqa: E402
+from 印の成績.line_sensitivity_report import LineSensitivityReport  # noqa: E402
 from 印の成績.mark_report import MarkReport  # noqa: E402
 from 印の成績.mark_tickets import MarkTickets  # noqa: E402
 from 印の成績.prediction_file import TEST, PredictionFile  # noqa: E402
@@ -91,6 +95,7 @@ def main(args) -> None:
         tickets = TorigamiFilter().apply(TicketPayouts(con).attach(tickets))
     report = TicketReport()
     tables += report.tables(tickets, marked["race_id"].nunique(), marked["race_date"].nunique())
+    tables.append(LineSensitivityReport().table(tickets))
     cli.emit(tables, args)
     saved = Path(args.out_dir) / f"{form.label()}.md"
     saved.parent.mkdir(parents=True, exist_ok=True)

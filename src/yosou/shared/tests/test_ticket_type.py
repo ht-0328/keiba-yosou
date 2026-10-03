@@ -11,6 +11,8 @@ def test_specs_follow_the_bet_rules():
     assert TicketType.WIN.spec.horse_count == 1 and TicketType.TRIO.spec.horse_count == 3
     assert TicketType.EXACTA.spec.payout_table == "hr__馬単払戻" and TicketType.EXACTA.spec.combo_column == "組番"
     assert not TicketType.WIN.is_combination and TicketType.QUINELLA.is_combination
+    # 払戻率は JRA の券種ごとの決まり（単勝・複勝 80%、馬連・ワイド 77.5%、馬単・3連複 75%、3連単 72.5%）
+    assert TicketType.WIN.spec.payout_rate == 0.8 and TicketType.TRIO.spec.payout_rate == 0.75 and TicketType.TRIFECTA.spec.payout_rate == 0.725
 
 
 def test_parse_reads_the_label():

@@ -14,6 +14,8 @@ class TicketTypeSpec:
     - ``is_ordered``: 着順を区別するか（馬単・3連単は True）。
     - ``payout_table``・``combo_column``: 払戻の子の表と、馬番か組番の列。
     - ``odds_parent``・``odds_table``・``has_odds_range``: オッズの親と子の表。複勝・ワイドは最低と最高の2つのオッズを持つ。
+    - ``payout_rate``: 払戻率（売上のうち払戻に回る割合。1 − 控除率。単勝・複勝 0.8、3連単 0.725）。組のオッズの逆数の合計はおよそ
+      この逆数になるので、市場が見た組の確率は「払戻率 ÷ オッズ」で近似できる。
 
     荒れ具合の予想の券種との対応は、予想のパッケージの側に置く（``shared`` は予想のパッケージを参照しない）。
     """
@@ -26,3 +28,4 @@ class TicketTypeSpec:
     odds_parent: str
     odds_table: str
     has_odds_range: bool
+    payout_rate: float

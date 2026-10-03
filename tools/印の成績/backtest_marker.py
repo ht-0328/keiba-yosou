@@ -6,11 +6,11 @@ import numpy as np
 import pandas as pd
 
 from yosou.shared.dataset.column_names import FIELD_SIZE, PLACE_ODDS_HIGH, PLACE_ODDS_LOW
-from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE, MarketPlaces
+from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE, WIN_RATE, MarketPlaces
 from yosou.shared.place_value import PLACE_VALUE, PlaceExpectedValue, PlacePriceEstimator
 from yosou.shared.win_value import ExpectationLevel
 
-from 今週の予想.forecast_columns import EXPECTATION, MARK, WIN_VALUE
+from 今週の予想.forecast_columns import EXPECTATION, MARK, MARKET_TOP3, MARKET_WIN, WIN_VALUE
 from 今週の予想.mark_rule import TOP_MARK, MarkRule
 
 #: 印を付けた表に残す、結果の列。
@@ -21,7 +21,7 @@ class BacktestMarker:
     """全頭の予想の予測（3着以内に入る確率）と、1着の予想の予測（1着になる確率と単勝の期待値）、レースの結果・確定オッズ・危険な人気馬の判定から、
     レースごとに ◎○▲△☆注消 とレースの期待度を付ける。
 
-    市場の見立て（オッズから見た3着以内率）と複勝の期待値は、今週の予想と同じ部品で、確定オッズから出す。
+    市場の見立て（オッズから見た勝率・3着以内率）と複勝の期待値は、今週の予想と同じ部品で、確定オッズから出す。
     ``estimator`` は複勝の見込みの倍率（全頭の予想の学習済みモデルと一緒に保存した ``place_price.json``）。無ければ期待値は出さず、☆ は付かない。
     期待度は、◎ の単勝の期待値から ``ExpectationLevel``（線は 1.00 で固定）で決める。
     ``odds_known`` を偽にすると（木曜の予測）、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝の期待値・単勝の期待値・危険な人気馬）を
@@ -51,7 +51,7 @@ class BacktestMarker:
         table = table.merge(dangers.drop(columns=["horse_no"], errors="ignore"), on=["race_id", "horse_id"], how="left")
         if wins is not None:
             table = table.merge(wins, on=["race_id", "horse_id"], how="left")
-        table = table.rename(columns={TOP3_RATE: "market_top3"})
+        table = table.rename(columns={TOP3_RATE: MARKET_TOP3, WIN_RATE: MARKET_WIN})
         table["is_danger"] = table["is_danger"].astype("boolean").fillna(False).astype(bool)
         marked = [self._mark_race(race) for _, race in table.groupby("race_id", sort=False)]
         return pd.concat(marked, ignore_index=True)
@@ -71,7 +71,7 @@ class BacktestMarker:
         table = race.drop(columns=["popularity"])
         if self._odds_known:
             return table
-        blank = {column: np.nan for column in ("win_odds", "market_top3", "place_value", WIN_VALUE) if column in table.columns}
+        blank = {column: np.nan for column in ("win_odds", MARKET_TOP3, MARKET_WIN, "place_value", WIN_VALUE) if column in table.columns}
         return table.assign(**blank, is_danger=False)
 
     def _place_value(self, table: pd.DataFrame) -> pd.Series:

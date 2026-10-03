@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import product
 
 from yosou.shared.betting import TicketType
+
+from 印の成績.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
 
 #: 1単位の金額（円）。08 の 2 の「1点の額」は単位で書いてあるので、合計を金額で出すときに使う。
 UNIT_YEN = 1000
@@ -14,54 +17,70 @@ POINT_YEN = 100
 PLACE_VALUE_LINE = 1.25
 PLACE_MAX_POINTS = 3
 PLACE_STAKE_UNITS = 1.0
+#: 3連複・3連単の、軸から流す買い目の期待値の線（固定。検証期間では決めない。08 の 2）。
+COMBO_VALUE_LINE = 1.0
+#: 合計の行の組。元の3連複・3連単（◎−○▲☆−○▲△☆ と ◎→○▲☆→○▲△☆）と、軸から流す形の2パターン（◎軸・軸馬）。
+ORIGINAL = "元の3連複・3連単"
+TOTAL_GROUPS: tuple[str, ...] = (ORIGINAL, TOP_AXIS, HORSE_AXIS)
+#: 複勝の買い方の名前（複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る）。
+PLACE_LABEL = TicketType.PLACE.label
 
 
 @dataclass(frozen=True)
 class TicketRule:
-    """1つの券種の印のルール。``positions`` は組の1頭目・2頭目・3頭目に置く印（券種の馬の数だけ）。
+    """印の位置で組む券種のルール。``positions`` は組の1頭目・2頭目・3頭目に置く印（券種の馬の数だけ）。
 
-    ``△`` は3頭全部を指す。``in_design`` は設計書 08 の 2 の表にある券種か（馬単・3連単は、全券種をそろえるために
-    ◎ を1着に固定した形で足したもので、設計書には無い）。
+    ``△`` は3頭全部を指す。``label`` は表に出す買い方の名前（設計書 08 の 2 に無い券種は、そう分かるように書く）。
+    ``totals`` は、この買い方を入れる合計の組（``TOTAL_GROUPS``）。
     """
 
     ticket_type: TicketType
     positions: tuple[tuple[str, ...], ...]
     stake_units: float
-    in_design: bool
+    label: str
+    totals: tuple[str, ...] = TOTAL_GROUPS
 
     @property
-    def label(self) -> str:
-        """表に出す券種の名前。設計書に無い券種は、そう分かるように書く。"""
-        return self.ticket_type.label if self.in_design else f"{self.ticket_type.label}（設計書に無い）"
+    def value_line(self) -> float | None:
+        """期待値では絞らない。"""
+        return None
+
+    def combos(self, by_mark: dict[str, list[int]], axes: dict[str, int]) -> list[tuple[int, ...]]:
+        """印の組み合わせを全部作り、同じ馬が2回入る組と、順不同の券種で並びだけが違う組は1点にまとめる。
+        印の付いた馬がいない位置（☆ の無いレースのワイドなど）は、その印を飛ばす。"""
+        choices = [[horse for mark in position for horse in by_mark.get(mark, [])] for position in self.positions]
+        if any(not choice for choice in choices):
+            return []
+        ordered = self.ticket_type.spec.is_ordered
+        combos = {tuple(combo) if ordered else tuple(sorted(combo)) for combo in product(*choices) if len(set(combo)) == len(combo)}
+        return sorted(combos)
 
 
-#: 印で組む券種のルール（08 の 2 の表の順に、馬単・3連単を足したもの）。複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る。
-TICKET_RULES: tuple[TicketRule, ...] = (
-    TicketRule(TicketType.WIN, (("◎",),), 1.0, True),
-    TicketRule(TicketType.WIDE, (("◎",), ("☆", "注")), 1.0, True),
-    TicketRule(TicketType.QUINELLA, (("◎",), ("○", "▲", "☆")), 0.5, True),
-    TicketRule(TicketType.EXACTA, (("◎",), ("○", "▲", "☆")), 0.5, False),
-    TicketRule(TicketType.TRIO, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.3, True),
-    TicketRule(TicketType.TRIFECTA, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.1, False),
+#: 印で組む買い方のルール（08 の 2 の表の順）。馬単と元の3連単は、全券種をそろえるために ◎ を1着に固定した形で足したもので、設計書には無い。
+#: 元の3連複・3連単（印の位置で組む）はそのまま残し、軸から流す3連複・3連単（軸の2パターン × 期待値で絞る・絞らない）を足してある。
+#: 複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る。
+BET_RULES: tuple[TicketRule | AxisTicketRule, ...] = (
+    TicketRule(TicketType.WIN, (("◎",),), 1.0, "単勝"),
+    TicketRule(TicketType.WIDE, (("◎",), ("☆", "注")), 1.0, "ワイド"),
+    TicketRule(TicketType.QUINELLA, (("◎",), ("○", "▲", "☆")), 0.5, "馬連"),
+    TicketRule(TicketType.EXACTA, (("◎",), ("○", "▲", "☆")), 0.5, "馬単（設計書に無い）"),
+    TicketRule(TicketType.TRIO, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.3, "3連複（◎−○▲☆−○▲△☆）", (ORIGINAL,)),
+    TicketRule(TicketType.TRIFECTA, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.1, "3連単（◎→○▲☆→○▲△☆。設計書に無い）", (ORIGINAL,)),
+    AxisTicketRule(TicketType.TRIO, TOP_AXIS, None, 0.3, (TOP_AXIS,)),
+    AxisTicketRule(TicketType.TRIO, TOP_AXIS, COMBO_VALUE_LINE, 0.3, ()),
+    AxisTicketRule(TicketType.TRIO, HORSE_AXIS, None, 0.3, (HORSE_AXIS,)),
+    AxisTicketRule(TicketType.TRIO, HORSE_AXIS, COMBO_VALUE_LINE, 0.3, ()),
+    AxisTicketRule(TicketType.TRIFECTA, TOP_AXIS, None, 0.1, ()),
+    AxisTicketRule(TicketType.TRIFECTA, TOP_AXIS, COMBO_VALUE_LINE, 0.1, (TOP_AXIS,)),
+    AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, None, 0.1, ()),
+    AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, COMBO_VALUE_LINE, 0.1, (HORSE_AXIS,)),
 )
-#: 表に並べる券種の順（複勝は単勝の次）。
-TICKET_ORDER: tuple[TicketType, ...] = (
-    TicketType.WIN, TicketType.PLACE, TicketType.WIDE, TicketType.QUINELLA, TicketType.EXACTA, TicketType.TRIO, TicketType.TRIFECTA,
-)
-
-
-def rule_label(ticket_type: TicketType) -> str:
-    """券種の表に出す名前（複勝は期待値のルール）。"""
-    if ticket_type is TicketType.PLACE:
-        return TicketType.PLACE.label
-    return next(rule.label for rule in TICKET_RULES if rule.ticket_type is ticket_type)
-
-
-def stake_units_of(ticket_type: TicketType) -> float:
-    """券種の1点の額（単位）。"""
-    if ticket_type is TicketType.PLACE:
-        return PLACE_STAKE_UNITS
-    return next(rule.stake_units for rule in TICKET_RULES if rule.ticket_type is ticket_type)
+#: 表に並べる買い方の名前の順（複勝は単勝の次）。
+RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in BET_RULES[1:]))
+#: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。
+TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {
+    group: (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in BET_RULES[1:] if group in rule.totals)) for group in TOTAL_GROUPS
+}
 
 
 def combo_text(horses: tuple[int, ...]) -> str:

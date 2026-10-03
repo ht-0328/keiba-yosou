@@ -98,12 +98,16 @@ def test_確定オッズから市場の見立てを出して印を付ける() ->
     marked = marker.mark(predictions, marker.places(results), dangers, wins).set_index("horse_id")
     assert marked.loc["c", "mark"] == "◎" and marked.loc["b", "mark"] == "○"
     assert (marked["expectation"] == "高").all()
+    # 市場の見立て（オッズから見た勝率）はレースで合計 1。軸は ◎○▲ のうち3着以内の確率が1位の b（○）
+    assert marked["market_win"].sum() == pytest.approx(1.0)
+    assert marked.loc["b", "axis"] and marked["axis"].sum() == 1
     low = marker.mark(predictions, marker.places(results), dangers, wins.assign(win_value=[0.5, 0.9, 0.8, 0.4])).set_index("horse_id")
     assert low.loc["b", "mark"] == "◎" and (low["expectation"] == "低").all()
     # 木曜（オッズが無い）は、期待値も危険な人気馬も使わず、◎ は1着になる確率の1位（a）。期待度は付かない。成績の人気・払戻は確定の値のまま
     thursday = BacktestMarker(None, odds_known=False).mark(predictions, marker.places(results), dangers, wins).set_index("horse_id")
     assert thursday.loc["a", "mark"] == "◎" and "1着になる確率がレース内1位" in thursday.loc["a", "mark_reason"]
     assert thursday["expectation"].isna().all() and not thursday["is_danger"].any()
+    assert thursday["market_win"].isna().all() and thursday["market_top3"].isna().all()
     assert thursday.loc["a", "popularity"] == 1.0 and thursday.loc["b", "win_payout"] == 300
 
 
