@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>U: 確かめた結果
 ```
 
-**説明。** この図は、1つの材料の学習である。`train`（`TrainCommand`）は、当日の材料（`race_day_dataset_builder`。今の材料・N・M。期間は `--train-from` から）と馬の力の材料（`ability_dataset_builder`。期間は `--ability-train-from`、既定は 2012年1月から。木曜・前日）の2つの `TrainingWorkflow` で学習データを読み、元DB を閉じてから、それぞれ学習する。木曜のモデルは、馬の力の材料の学習データに、展開の予想の年ごとの確かめの予測（`PaceForecastHistory`）から作った展開の予想の結果（P）を足したもの（`PaceAttachment`）で、前日とは別に学ぶ（[15-decisions.md の 13](15-decisions.md#13-展開の予想の結果を特徴量に足すか)）。さらに、今の材料の学習データから券種の支持（N）を外したもの（`PoolFreeData`）で、当日の「券種オッズなし」のモデルを学び、`models/券種オッズなし/race_day/` に保存する。利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量の全部で作る（単勝オッズと券種オッズは確定オッズ）。各時点のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。時点ごとに2つのモデルを学習させ、`ModelRepository` で保存する。モデルは、3つの時点と「券種オッズなし」の当日で、合わせて8つになる。
+**説明。** この図は、1つの材料・1つの目的変数の学習である。`train` は、同じ学習データで、目的変数「3着以内」の `TrainingWorkflow` と、`WinTargetData` で目的変数を「1着」に・基準を「オッズから見た勝率」に持ち替えた学習データの `TrainingWorkflow` を順に動かす（1着のモデルの `ModelRepository` の置き場所は `models/1着/`）。`train`（`TrainCommand`）は、当日の材料（`race_day_dataset_builder`。今の材料・N・M。期間は `--train-from` から）と馬の力の材料（`ability_dataset_builder`。期間は `--ability-train-from`、既定は 2012年1月から。木曜・前日）の2つの `TrainingWorkflow` で学習データを読み、元DB を閉じてから、それぞれ学習する。木曜のモデルは、馬の力の材料の学習データに、展開の予想の年ごとの確かめの予測（`PaceForecastHistory`）から作った展開の予想の結果（P）を足したもの（`PaceAttachment`）で、前日とは別に学ぶ（[15-decisions.md の 13](15-decisions.md#13-展開の予想の結果を特徴量に足すか)）。さらに、今の材料の学習データから券種の支持（N）を外したもの（`PoolFreeData`）で、当日の「券種オッズなし」のモデルを学び、`models/券種オッズなし/race_day/` に保存する。利用者が設定ファイルのパスを付けて `TrainingWorkflow.run()` を呼ぶ。`TrainingWorkflow` は、`HyperparameterSettings` で設定を読み（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)）、作られたときに渡された期間（`TrainingPeriod`。[08-training-data.md](08-training-data.md) の 4）で `DatasetBuilder` に学習データを作らせ、`PeriodSplitter` で時期に分ける。`DatasetBuilder` は、記録を集める（`HistoryRecordsLoader`。図3）・入れる行を選ぶ（`RunnerSelector`）・特徴量を作る（`FeatureBuilder`）・目的変数を付ける（共通の `Top3TargetBuilder`）を順に呼ぶだけである。学習データは、当日の時点の特徴量の全部で作る（単勝オッズと券種オッズは確定オッズ）。各時点のモデルには、そのうち、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。時点ごとに2つのモデルを学習させ、`ModelRepository` で保存する。モデルは、3つの時点と「券種オッズなし」の当日で、合わせて8つになる。
 
 ## 図2. 予測
 
@@ -132,7 +132,9 @@ sequenceDiagram
     W->>E: predict_proba（予測用データ）
     E->>E: 2つのモデルの予測確率を出して平均する（12-lightgbm.md・13-catboost.md の 5.）
     E-->>W: 1頭ずつの予測確率
-    W-->>U: 1頭ずつの「3着以内に入る確率」
+    W->>W: 1着のモデル（models/1着/）でも同じ手順で予測する（予測用データは WinTargetData で基準を持ち替える）
+    W->>W: 前日・当日なら、複勝の期待値（PlaceValueColumns）と単勝の期待値（WinValueColumns）を足す
+    W-->>U: 1頭ずつの「3着以内に入る確率」「1着になる確率」と期待値
 ```
 
 **説明。** 利用者は、まず jvdata-store の `jvstore sync` で、出走馬名表（木曜）か出馬表（前日から）と、出走別着度数・調教を取り込む。前日と当日は、`jvstore realtime` で速報（締め切り前のオッズを含む）も取り込む。次に、レースIDと時点（前日・当日なら、必要に応じて `--odds` のオッズも）を付けて `PredictionWorkflow.run()` を呼ぶ。`PredictionWorkflow` は、まず `OddsResolver` に予測に使うオッズを決めさせる（渡されたオッズ → `AnnouncedOddsRepository` が読む締め切り前のオッズ → 無し、の順。[07-prediction-timing.md](07-prediction-timing.md#予測のときのオッズの与え方)）。次に `DatasetBuilder` に予測用データを作らせ（木曜・前日は馬の力の材料の `ability_dataset_builder`、当日は今の材料・N・M の `race_day_dataset_builder`。コマンドが時点で選んで渡す）、木曜は、予想「展開から着順を予想」の保存した木曜のモデルでそのレースの前半・後半を予測し（`DevelopmentPaceWorkflow`）、P を足す。当日に券種のオッズが無ければ券種の支持を外して「券種オッズなし」のモデルに切り替え、`ModelRepository` からその時点のモデル2つを読み込み、`EnsembleModel` で予測確率を平均する。予測用データも、学習と同じ `DatasetBuilder` と `FeatureBuilder` で作る（[11-leak-prevention.md](11-leak-prevention.md) の 4）。木曜は馬番が決まっていないので、馬番ではなく馬ごとに返す。
@@ -265,3 +267,4 @@ sequenceDiagram
 | 更新 | 2026-10-01: 研究「一番人気を疑う」の直し方を移したのに合わせて、図1を材料ごとの学習に、図2に当日の券種オッズの取り込みとモデルの切り替えを、図3に `AbilitySourcesLoader`・`PoolProbabilityLoader` を足した |
 | 更新 | 2026-10-02: 当日のモデルにも馬の力の材料（M。今の材料と名前の重なる2つを除く 200個）を足した（PR #52 の残課題。7つの区切りで基準を満たした）。当日は 285個、券種オッズなしは 279個 |
 | 更新 | 2026-10-02: 木曜のモデルの学習と予測で、展開の予想の結果（P）を足す段を書いた（15 の 13） |
+| 更新 | 2026-10-03: 図1の説明に1着のモデルの学習を、図2に1着のモデルの予測と単勝の期待値を足した（15 の 14） |

@@ -19,6 +19,7 @@ from 印の成績.backtest_marker import BacktestMarker
 from 印の成績.favorite_danger_judge import FavoriteDangerJudge
 from 印の成績.prediction_file import PredictionFile
 from 印の成績.race_results import RaceResults
+from 印の成績.win_value_attacher import WinValueAttacher
 
 
 def _prediction_rows(rows: list[dict]) -> pd.DataFrame:
@@ -61,6 +62,20 @@ def test_危険の線は区切りの検証期間で決め1番人気だけを危�
     assert bool(flagged["T1番人気"]) and not bool(flagged["T2〜3番人気"])  # 2〜3番人気は印に使わない
 
 
+def test_テスト期間の行に単勝の期待値を付ける() -> None:
+    rows = [{"race": "V", "horse": "v1", "no": 1, "p": 0.3, "period": "検証"},
+            {"race": "T", "horse": "t1", "no": 1, "p": 0.3}, {"race": "T", "horse": "t2", "no": 2, "p": 0.1}]
+    table = _prediction_rows(rows).rename(columns={"レースID": "race_id", "開催日": "race_date", "馬ID": "horse_id", "馬番": "horse_no",
+                                                    "確率": "probability", "区切り": "fold", "期間": "period", "区分": "segment"})
+    table = table.astype({"race_id": str, "horse_id": str})
+    places = table[["race_id", "horse_id"]].assign(win_odds=[5.0, 5.0, 15.0])
+    wins = WinValueAttacher().attach(table, places)
+    by_horse = wins.set_index("horse_id")
+    assert set(wins["race_id"]) == {"T"}  # 検証期間の行は返さない
+    assert by_horse.loc["t1", "win_value"] == pytest.approx(1.5) and by_horse.loc["t1", "win_probability"] == pytest.approx(0.3)
+    assert by_horse.loc["t2", "win_value"] == pytest.approx(1.5)  # 0.1 × 15
+
+
 def test_確定オッズから市場の見立てを出して印を付ける() -> None:
     predictions = pd.DataFrame({"race_id": ["R"] * 4, "race_date": pd.Timestamp("2025-01-05"), "horse_id": ["a", "b", "c", "d"],
                                 "probability": [0.7, 0.5, 0.3, 0.1], "fold": "2025年前半"})
@@ -76,6 +91,20 @@ def test_確定オッズから市場の見立てを出して印を付ける() ->
     assert marked.loc["b", "finish"] == 1.0 and marked.loc["b", "win_payout"] == 300
     assert marked["market_top3"].sum() == pytest.approx(3.0)
     assert marked["place_value"].isna().all()  # 見込みの倍率が無ければ期待値は出さない
+    assert marked["expectation"].isna().all()  # 1着の予想が無ければ期待度は付かない
+    # 1着の予想があれば、◎ は単勝の期待値の1位（c: 0.2 × 6.0 = 1.2）で、期待度は 1.00 以上なので「高」
+    wins = pd.DataFrame({"race_id": ["R"] * 4, "horse_id": ["a", "b", "c", "d"], "win_probability": [0.5, 0.3, 0.2, 0.02],
+                         "win_value": [1.0, 0.9, 1.2, 0.4]})
+    marked = marker.mark(predictions, marker.places(results), dangers, wins).set_index("horse_id")
+    assert marked.loc["c", "mark"] == "◎" and marked.loc["b", "mark"] == "○"
+    assert (marked["expectation"] == "高").all()
+    low = marker.mark(predictions, marker.places(results), dangers, wins.assign(win_value=[0.5, 0.9, 0.8, 0.4])).set_index("horse_id")
+    assert low.loc["b", "mark"] == "◎" and (low["expectation"] == "低").all()
+    # 木曜（オッズが無い）は、期待値も危険な人気馬も使わず、◎ は1着になる確率の1位（a）。期待度は付かない。成績の人気・払戻は確定の値のまま
+    thursday = BacktestMarker(None, odds_known=False).mark(predictions, marker.places(results), dangers, wins).set_index("horse_id")
+    assert thursday.loc["a", "mark"] == "◎" and "1着になる確率がレース内1位" in thursday.loc["a", "mark_reason"]
+    assert thursday["expectation"].isna().all() and not thursday["is_danger"].any()
+    assert thursday.loc["a", "popularity"] == 1.0 and thursday.loc["b", "win_payout"] == 300
 
 
 def test_合成DBから出走の結果を読む(synth_db: Path) -> None:

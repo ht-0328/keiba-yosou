@@ -121,7 +121,7 @@ const HELP = {
   db: "元DB の状態。期間・件数・途中から入っている表・同期の記録。",
   tables: "元DB の表を1つずつ見る。列名は JV-Data 仕様書の日本語のまま、値は文字列。",
   cards: "これから走るレース（今週の出馬表）。レースを押すと、出走馬と各馬の近走が見られる。木曜の出走馬名表の間は枠番・馬番が空で、金・土の出馬表で決まる。過去の日付も開始日を変えれば見られる。",
-  forecast: "今のモデル（近走と適性から3着以内を予想）で今週のレースを予想し、全頭を「3着以内に入る確率」の高い順に並べて印（◎○▲△☆注消）を付ける。馬の行を押すと、何が良くて何が悪いのか（モデルが確率を上げた・下げた材料）と、総合でなぜその印になったのかが見られる。時点（木曜・前日・当日）は DB に入っている情報から自動で選ぶ。予想は1レース数十秒かかるので、先に tools/今週の予想/run.bat（または forecast.py）でまとめて作っておく。オッズや馬体重を取り込み直したら「予想し直す」。",
+  forecast: "今のモデル（近走と適性から3着以内を予想。3着以内のモデルと1着のモデル）で今週のレースを予想し、全頭を「3着以内に入る確率」の高い順に並べて印（◎○▲△☆注消）を付ける。◎ は単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、レースの期待度（◎の期待値が 1.00 以上なら高）も出す。馬の行を押すと、何が良くて何が悪いのか（モデルが確率を上げた・下げた材料）と、総合でなぜその印になったのかが見られる。時点（木曜・前日・当日）は DB に入っている情報から自動で選ぶ。予想は1レース数十秒かかるので、先に tools/今週の予想/run.bat（または forecast.py）でまとめて作っておく。オッズや馬体重を取り込み直したら「予想し直す」。",
   trend: "レースを選ぶと、条件が同じ過去レース（同レース → 競馬場・コース・距離・馬場状態の4つ一致 → 3つ以上 → 2つ以上）の傾向を出し、出走馬を項目ごとに +1 / −1 で採点して順位を付ける。発走前の DB に無い馬場状態・人気・馬体重は手で入れる（入れなければその項目は 0 点）。終わったレースを選ぶと、着順と見比べられる。項目の説明は tools/傾向スコア/score-items.md。",
   ability: "レースを選ぶと、出走馬を能力指数の高い順に並べる。能力指数は、近8走の走破タイムを、コースの基準タイム・その日の馬場差・斤量・ペース（展開の得・損）で補正したスピード指数を、新しい走ほど・今回の条件（距離・競馬場・芝ダと馬場）に近い走ほど重く見て平均したもの。80 が1勝クラスの古馬のふつうの走、10点で1%速い。着順・人気・オッズは使わない。発表前の馬場状態は手で入れる。終わったレースを選ぶと、その走のスピード指数と着順も並ぶ。DB に新しい確定成績が入ったあとの最初の1回は、過去の全部の走の指数を作り直すので1〜2分かかる。",
   stakes: "重賞（G1・G2・G3）ごとの攻略ポイント。どのレースでも成り立つ一般論（1番人気や前に行く馬が走る）ではなく、そのレースならではのずれを出す。人気は同じグレードの重賞全体と、脚質の前・枠の内はそのコースの全クラスと、年齢・ローテなどはそのレースのほかの出走馬と比べ、ずれの大きさ・検定の印（◎ p<0.05、○ p<0.10）・回収率を添える。同じレースは特別競走番号で見分けるので、競走名が変わっても過去の開催をたどれる。「この日より前」を入れると、その日より前の開催だけで数える。はじめの1回は事実表を作るので時間がかかる。",
@@ -368,7 +368,7 @@ function forecastLegend(legend) {
   const marks = el("div", {class: "legend"}, ...Object.entries(legend.marks).map(([mark, role]) => el("span", {}, markEl(mark), " ", role)));
   const cats = el("details", {}, el("summary", {}, "良い点・悪い点の分類の中身"),
     el("ul", {}, ...Object.entries(legend.categories).map(([name, note]) => el("li", {}, el("b", {}, name), "：", note))));
-  return el("div", {}, marks, el("div", {class: "note"}, "◎○▲ は3着以内に入る確率の1〜3位、△ は4〜6位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。危険な人気馬（人気馬の予想で4着以下になる確率が市場の見立てより線以上に高い1番人気。前日・当日だけ）は 消 にして、◎〜△ は残りの馬に付ける。ほかは 消。"), cats);
+  return el("div", {}, marks, el("div", {class: "note"}, "◎ は単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬（木曜はオッズが無いので1着になる確率が1位）。○▲ は ◎ を除いた3着以内に入る確率の1〜2位、△ は3〜5位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。危険な人気馬（人気馬の予想で4着以下になる確率が市場の見立てより線以上に高い1番人気。前日・当日だけ）は 消 にして、◎〜△ は残りの馬に付ける。ほかは 消。レースの期待度は、◎ の単勝の期待値が 1.00 以上なら「高」、未満なら「低」（単勝を買うかの目安。確かめ中で、まだ買う根拠にはしない）。"), cats);
 }
 async function forecastRaceList(main, params) {
   const venueField = META.filters.find((field) => field.name === "venue");
@@ -384,7 +384,7 @@ async function forecastRaceList(main, params) {
     forecastLegend(data.legend), cliBlock(cliLine(TOOLS.forecast, {date: params.from, venue: params.venue}) + " --skip-saved")));
   appendRaceDays(main, data.cards, "forecast", (r) => {
     const saved = data.saved[r.rid];
-    return saved ? el("span", {class: "sub", title: "作成 " + saved.made_at}, "予想済み（" + saved.timing + "） " + saved.marks)
+    return saved ? el("span", {class: "sub", title: "作成 " + saved.made_at}, "予想済み（" + saved.timing + (saved.expectation ? "・期待度 " + saved.expectation : "") + "） " + saved.marks)
                  : el("span", {class: "sub"}, "未予想");
   });
 }
@@ -426,7 +426,7 @@ function horseDetail(horse) {
       el("div", {}, el("h4", {}, "分類ごとの上げ下げ（ポイント）"), cats)));
 }
 function forecastTable(forecast) {
-  const heads = ["順位", "印", "馬番", "馬名", "3着以内の確率", "単勝", "人気", "市場の見立て", "差", "複勝の期待値", "良い点", "悪い点"];
+  const heads = ["順位", "印", "馬番", "馬名", "3着以内の確率", "単勝", "人気", "市場の見立て", "差", "複勝の期待値", "1着の確率", "単勝の期待値", "良い点", "悪い点"];
   const body = el("tbody");
   const openAll = [];
   forecast.horses.forEach((h) => {
@@ -441,6 +441,7 @@ function forecastTable(forecast) {
       el("td", {class: "num"}, h.win_odds ?? ""), el("td", {class: "num"}, h.popularity === null ? "" : String(h.popularity)),
       el("td", {class: "num"}, percent(h.market_top3)), el("td", {class: "num"}, diff === null ? "" : points(diff)),
       el("td", {class: "num"}, h.place_value === null ? "" : h.place_value.toFixed(2)),
+      el("td", {class: "num"}, percent(h.win_probability)), el("td", {class: "num"}, h.win_value === null || h.win_value === undefined ? "" : h.win_value.toFixed(2)),
       el("td", {}, el("div", {class: "chips"}, ...h.good.map((p) => el("span", {class: "chip good"}, p.category)))),
       el("td", {}, el("div", {class: "chips"}, ...(h.is_danger ? [el("span", {class: "chip bad", title: h.mark_reason}, "危険な人気馬")] : []),
         ...h.bad.map((p) => el("span", {class: "chip bad"}, p.category))))), detail);
@@ -462,6 +463,7 @@ function showForecast(main, data) {
   if (!forecast) head.append(el("div", {class: "note"}, "このレースはまだ予想していません。下のボタンで予想できます（1レース数十秒）。"));
   else {
     head.append(el("div", {class: "note"}, "時点: " + forecast.timing + "（" + forecast.timing_reason + "）。予想: " + forecast.model + "。作成: " + forecast.made_at + "。"
+      + (forecast.expectation ? " レースの期待度: " + forecast.expectation + "（◎の単勝の期待値が 1.00 以上なら高）。" : "")
       + (forecast.pool_free ? " 券種のオッズが無いので、券種オッズなしのモデルで予想した。" : "")
       + (forecast.timing === "木曜" ? " 木曜はオッズも人気もまだ無いので、市場の見立て・期待値・☆・注・危険な人気馬は出ない。" : "")));
   }

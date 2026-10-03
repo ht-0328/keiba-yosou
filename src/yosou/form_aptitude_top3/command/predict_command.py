@@ -17,22 +17,32 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE
 from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
+from yosou.shared.win_value import WIN_VALUE
 from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
 from ..dataset import OddsInput, OddsResolver, ability_dataset_builder, race_day_dataset_builder
 from ..feature import WIN_ODDS
-from ..workflow import ABILITY_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, PaceSource, PredictionWorkflow
+from ..workflow import (
+    ABILITY_TIMINGS,
+    PACE_TIMINGS,
+    POOL_FREE_FOLDER,
+    PROBABILITY,
+    WIN_FOLDER,
+    WIN_PROBABILITY,
+    PaceSource,
+    PredictionWorkflow,
+)
 from .development_root_argument import DevelopmentRootArgument
 from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
 
 
 class PredictCommand:
-    """``predict``: 1レースの出走馬ごとの「3着以内に入る確率」を出す。"""
+    """``predict``: 1レースの出走馬ごとの「3着以内に入る確率」と「1着になる確率」（と、前日・当日は複勝・単勝の期待値）を出す。"""
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
-            "predict", help="1レースの出走馬ごとの「3着以内に入る確率」を出す", allow_abbrev=False,
+            "predict", help="1レースの出走馬ごとの「3着以内に入る確率」と「1着になる確率」を出す", allow_abbrev=False,
         )
         parser.add_argument("rid", nargs="?", help="レースの rid（16桁）")
         parser.add_argument("--date", help="開催日 YYYY-MM-DD（rid を省くとき）")
@@ -60,6 +70,8 @@ class PredictCommand:
                 OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
                 pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER),
                 pace=self._pace(con, args),
+                win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
+                win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
@@ -85,8 +97,10 @@ class PredictCommand:
 
     def _extra_columns(self, prediction: pd.DataFrame) -> list[str]:
         """馬名のあとに出す列。前日・当日は単勝オッズ・オッズから見た3着以内率・複勝的中の確率・複勝の期待値
-        （見込みの倍率を保存してあれば）を出し、木曜（オッズを使わない）は出さない。"""
-        return [column for column in (WIN_ODDS, TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE) if column in prediction.columns]
+        （見込みの倍率を保存してあれば）・1着になる確率・単勝の期待値を出し、木曜（オッズを使わない）は1着になる確率だけ。
+        1着になる確率と単勝の期待値は、1着のモデルがあるときだけ（設計書 15 の 14）。"""
+        shown = (WIN_ODDS, TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE, WIN_PROBABILITY, WIN_VALUE)
+        return [column for column in shown if column in prediction.columns]
 
     def _place_price(self, args: argparse.Namespace) -> PlacePriceEstimator | None:
         """学習のときに保存した複勝の見込みの倍率。無ければ（前の版で学習したモデル）None で、期待値は出さない。"""

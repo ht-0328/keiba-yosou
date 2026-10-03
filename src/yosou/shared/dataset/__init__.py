@@ -19,6 +19,7 @@
 | ``TargetBaseline`` | 目的変数の基準（ロジット）の作り方の決まり（インターフェース）。渡すと、モデルは基準からの上げ下げを学ぶ |
 | ``BaselineLogit`` | 目的変数の基準（ロジット）の値と、それが分かる最初の時点 |
 | ``Top3Baseline`` | 3着以内の基準 = オッズから見た3着以内率（Harville の式）。近走と適性の予想と穴馬の予想が使う |
+| ``WinBaseline`` | 1着の基準 = オッズから見た勝率。近走と適性の予想の1着のモデルが使う |
 | ``RaceResultSource`` | レースごとの結果の読み方の決まり（インターフェース）。荒れ具合は払戻、展開は前半・後半タイムと基準 |
 | ``RaceTargetLabeler`` | 目的変数の付け方の決まり（インターフェース。レース単位。列は複数でよい） |
 | ``Top3TargetBuilder`` | 目的変数「3着以内なら 1」（「1着」「複勝的中」の列も付ける）。近走と適性の予想と穴馬の予想が使う |
@@ -78,6 +79,7 @@ from .target_baseline import TargetBaseline
 from .target_labeler import TargetLabeler
 from .top3_baseline import Top3Baseline
 from .top3_target_builder import PLACE_HIT, TOP3, WIN, Top3TargetBuilder
+from .win_baseline import WinBaseline
 from .training_data import BINARY_LABELS, TrainingData
 from .training_period import (
     DEFAULT_TEST_FIRST_DAY,
@@ -93,6 +95,7 @@ __all__ = [
     "PoolProbabilityLoader", "POOL_KEY", "SampleSelector", "TargetLabeler", "RaceTargetLabeler",
     "Top3TargetBuilder", "TOP3", "WIN", "PLACE_HIT", "RaceResultSummary", "RaceResultSource",
     "TargetBaseline", "BaselineLogit", "Top3Baseline",
+    "WinBaseline",
     "PopularityInput", "PopularityApplier", "OddsInput", "OddsResolver",
     "RequiredInfoCheck", "FieldOddsCheck", "FlatRunnerFilter", "JUMP", "LARGE_FIELD_FROM",
     "DEFAULT_TRAIN_FIRST_DAY", "DEFAULT_VALID_FIRST_DAY", "DEFAULT_TEST_FIRST_DAY",

@@ -22,6 +22,7 @@ from yosou.shared.repository import AnnouncedOddsRepository, ModelRepository
 from yosou.shared.repository.place_price_repository import FILE_NAME as PLACE_PRICE_FILE
 from yosou.shared.workflow import AVERAGE, ModelSegments, SegmentedPrediction, TrainingWorkflow
 from yosou.shared.repository.model_repository import SETTINGS_FILE
+from yosou.shared.win_value import WIN_VALUE
 from yosou.shared.tests import synthetic_season as season
 
 from ..command import CommandLine, predict_command
@@ -35,7 +36,7 @@ from ..dataset import (
 )
 from ..feature import WIN_ODDS
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import FORM_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, PredictionWorkflow
+from ..workflow import FORM_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, WIN_FOLDER, WIN_PROBABILITY, PredictionWorkflow
 from .test_dataset_builder import CARD_ODDS
 
 #: 出馬表のレースに手で渡す単勝オッズ（``--odds`` の書き方）。
@@ -49,6 +50,10 @@ def test_training_saves_two_models_for_each_timing(trained: tuple[Path, str]):
         assert {path.name for path in (models / timing.value).iterdir()} == expected_files
     # 当日に券種のオッズが無いレースのための、券種の支持を使わないモデルも置く
     assert {path.name for path in (models / POOL_FREE_FOLDER / "race_day").iterdir()} == expected_files
+    # 1着のモデル（目的変数「1着」）も、同じ時点と券種オッズなしで置く（設計書 15 の 14）
+    for timing in PredictionTiming:
+        assert {path.name for path in (models / WIN_FOLDER / timing.value).iterdir()} == expected_files
+    assert {path.name for path in (models / POOL_FREE_FOLDER / WIN_FOLDER / "race_day").iterdir()} == expected_files
 
 
 def test_training_saves_the_settings_it_used(trained: tuple[Path, str]):
@@ -65,6 +70,7 @@ def test_training_reports_each_model_group(trained: tuple[Path, str]):
     # 4つの学習の結果を出す
     for subject in ("今の材料", "券種オッズなし", "馬の力の材料", "馬の力の材料 ＋ 展開の予想（木曜）"):
         assert f"{subject}: 検証データでの当たり具合" in text and f"{subject}: 保存したモデル" in text
+        assert f"1着: {subject}: 検証データでの当たり具合" in text  # 1着のモデルも、同じ学習ごとに出す
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     assert "複勝の見込みの倍率" in text
 
@@ -95,6 +101,8 @@ def _workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
         race_day_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
         OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(place_price),
         pool_free=SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER),
+        win_predictor=SegmentedPrediction(ModelSegments(), models / WIN_FOLDER),
+        win_pool_free=SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER / WIN_FOLDER),
     )
 
 
@@ -108,6 +116,7 @@ def _thursday_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cach
     return PredictionWorkflow(
         ability_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
         OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(None), pace=pace,
+        win_predictor=SegmentedPrediction(ModelSegments(), models / WIN_FOLDER),
     )
 
 
@@ -123,6 +132,9 @@ def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path
     # 渡したオッズが、結果の表にそのまま出る
     shown = prediction.set_index(HORSE_NO)[WIN_ODDS].to_dict()
     assert shown == {horse_no: CARD_ODDS[horse_no] for horse_no in range(1, 8)}
+    # 1着になる確率（1着のモデル）と、単勝の期待値 = 1着になる確率 × 渡したオッズ
+    assert prediction[WIN_PROBABILITY].between(0, 1, inclusive="neither").all()
+    np.testing.assert_allclose(prediction[WIN_VALUE], prediction[WIN_PROBABILITY] * prediction[WIN_ODDS])
 
 
 def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
@@ -134,8 +146,9 @@ def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[
     assert len(prediction) == 8 and WIN_ODDS not in prediction.columns
     # 木曜のモデルは展開の予想の結果（P）を足して学んだので、そのレースの木曜の展開の予測を聞く
     assert asked == [(season.ENTRY_LIST_RACE_ID, PredictionTiming.THURSDAY)]
-    # 木曜はオッズが無いので、オッズから見た3着以内率と複勝の期待値も出さない
+    # 木曜はオッズが無いので、オッズから見た3着以内率と複勝の期待値も出さない。1着になる確率は出るが、単勝の期待値は出ない
     assert TOP3_RATE not in prediction.columns and PLACE_VALUE not in prediction.columns
+    assert WIN_PROBABILITY in prediction.columns and WIN_VALUE not in prediction.columns
 
 
 def test_race_day_prediction_without_pool_odds_uses_the_pool_free_models(season_db: Path, trained: tuple[Path, str],
@@ -180,7 +193,7 @@ def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, train
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 8
-    assert lines[0] == f"順位,馬番,馬名,{PROBABILITY},LightGBM,CatBoost"
+    assert lines[0] == f"順位,馬番,馬名,{WIN_PROBABILITY},{PROBABILITY},LightGBM,CatBoost"
 
 
 def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, capsys):
@@ -192,8 +205,8 @@ def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, ca
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 7
     # 学習のときに複勝の見込みの倍率を保存してあるので、複勝的中の確率と複勝の期待値の列も出る
-    assert lines[0] == (f"順位,馬番,馬名,{WIN_ODDS},{TOP3_RATE},{PLACE_PROBABILITY},{PLACE_VALUE},{PROBABILITY},"
-                        "LightGBM,CatBoost")
+    assert lines[0] == (f"順位,馬番,馬名,{WIN_ODDS},{TOP3_RATE},{PLACE_PROBABILITY},{PLACE_VALUE},{WIN_PROBABILITY},{WIN_VALUE},"
+                        f"{PROBABILITY},LightGBM,CatBoost")
 
 
 def test_command_asks_for_odds_when_the_database_has_none(season_db: Path, trained, capsys):

@@ -21,22 +21,29 @@ from 今週の予想.forecast_columns import (
     RANK,
     UPDOWN,
     WIN_ODDS,
+    WIN_PROBABILITY,
+    WIN_VALUE,
 )
 
-#: 3着以内の確率の順位で付ける印（1位から順）。△は 4〜6位の3頭（利用者の指示「白三角は3点で」）。
-RANK_MARKS: tuple[str, ...] = ("◎", "○", "▲", "△", "△", "△")
+#: ◎ のあとに、3着以内の確率の順で付ける印（○・▲と、△は3頭。利用者の指示「白三角は3点で」）。
+TOP_MARK = "◎"
+RANK_MARKS: tuple[str, ...] = ("○", "▲", "△", "△", "△")
 VALUE_MARK = "☆"
 NOTE_MARK = "注"
-#: 印の付かなかった馬（買わない馬）と、危険な人気馬の印。利用者の決定（2026-10-03）。
+#: 印の付かなかった馬（買わない馬）と、危険な人気馬の印。利用者の決定。
 OUT_MARK = "消"
 #: 印の並び（画面の凡例と、並べ替えに使う）。
-MARK_ORDER: tuple[str, ...] = ("◎", "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK)
+MARK_ORDER: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK)
 #: ☆ を付ける複勝の期待値の下限（設計書「買うレースと買い目を決める」07 の 2。研究「回収率100超」で決めた買う線）。
 VALUE_LINE = 1.25
 #: 人気馬の範囲を広げる頭数（13頭以下は1〜3番人気、14頭以上は1〜5番人気。設計書 07 の 3）。
 WIDE_FIELD = 14
 _FAVORITES_SMALL = 3
 _FAVORITES_WIDE = 5
+#: 表に無ければ欠損値で足す列。
+_OPTIONAL_COLUMNS: tuple[str, ...] = (
+    WIN_ODDS, MARKET_TOP3, PLACE_VALUE, WIN_PROBABILITY, WIN_VALUE, OUT_PROBABILITY, MARKET_OUT, DANGER_SCORE, DANGER_LINE,
+)
 
 
 class MarkRule:
@@ -44,23 +51,26 @@ class MarkRule:
 
     - 消（危険な人気馬）: 人気馬の予想で「危険」と判定された馬（07 の 3。前日・当日だけ。今は1番人気だけ。``DangerFinder``）。
       先に消にして、ほかの印の候補から外す。
-    - ◎○▲: 消を除いて、3着以内の確率の 1〜3位。△: 同じく 4〜6位の3頭。
+    - ◎: 消を除いて、単勝の期待値（1着になる確率 × 単勝オッズ）がいちばん高い馬。全レースに1頭付ける。
+      オッズの無い木曜は、1着になる確率が1位の馬。1着の予想が無ければ（前の版のモデル）、3着以内の確率が1位の馬。
+    - ○▲△: 消と ◎ を除いて、3着以内の確率の 1〜5位（○・▲と、△の3頭）。
     - ☆: 穴馬（人気馬の範囲より下の人気）のうち、印の付いていない馬で、複勝の期待値がいちばん高い馬。
       期待値が ``VALUE_LINE``（1.25）以上のときだけ。オッズの無い時点（木曜）は、期待値が無いので付かない。
     - 注: 印の付いていない馬のうち、上げ下げ（logit(予想) − logit(市場の見立て)）がいちばん大きい馬。上げ下げが正（市場より来ると見る）のときだけ。
       オッズの無い時点（木曜）は、市場の見立てが無いので付かない。
     - 消: ほかの全部の馬（買わない馬）。
+    レースの期待度（◎ の単勝の期待値の3段階）は、この表の ◎ の単勝の期待値から ``ExpectationLevel`` が決める。
     """
 
     def assign(self, race: pd.DataFrame) -> pd.DataFrame:
         """``race`` は1レースの表（列 ``horse_no``・``probability``。前日・当日は ``win_odds``・``market_top3``・``place_value`` と、
-        人気馬には危険の判定の列 ``is_danger`` など）。
+        1着の予想の ``win_probability``・``win_value``、人気馬には危険の判定の列 ``is_danger`` など）。
 
         戻り値は ``race`` に列 ``rank``・``popularity``・``updown``・``mark``・``mark_reason`` を足し、3着以内の確率の高い順
         （同じなら馬番の小さい順）に並べた表。``rank`` は全頭の中での順位。
         """
         table = race.copy()
-        for column in (WIN_ODDS, MARKET_TOP3, PLACE_VALUE, OUT_PROBABILITY, MARKET_OUT, DANGER_SCORE, DANGER_LINE):
+        for column in _OPTIONAL_COLUMNS:
             if column not in table.columns:
                 table[column] = np.nan
         table[IS_DANGER] = table[IS_DANGER].fillna(False).astype(bool) if IS_DANGER in table.columns else False
@@ -73,23 +83,45 @@ class MarkRule:
         dangers = table.index[table[IS_DANGER]]
         for row in dangers:
             table.loc[row, MARK_REASON] = self._danger_reason(table.loc[row])
-        self._mark_ranks(table, any_danger=len(dangers) > 0)
+        self._mark_top_and_ranks(table, any_danger=len(dangers) > 0)
         self._mark_value(table)
         self._mark_note(table)
         for row in table.index[(table[MARK] == OUT_MARK) & ~table[IS_DANGER]]:
             table.loc[row, MARK_REASON] = self._out_reason(table.loc[row], any_danger=len(dangers) > 0)
         return table
 
-    def _mark_ranks(self, table: pd.DataFrame, *, any_danger: bool) -> None:
-        """危険な人気馬を除いた3着以内の確率の順に ◎○▲△。"""
-        candidates = table.index[~table[IS_DANGER]]
-        for order, (row, mark) in enumerate(zip(candidates, RANK_MARKS, strict=False), start=1):
+    def _mark_top_and_ranks(self, table: pd.DataFrame, *, any_danger: bool) -> None:
+        """危険な人気馬を除いて ◎ を決め、残りに3着以内の確率の順で ○▲△。"""
+        candidates = list(table.index[~table[IS_DANGER]])
+        if not candidates:
+            return
+        top = self._top_pick(table, candidates)
+        rest = [row for row in candidates if row != top]
+        excluded = "◎と危険な人気馬" if any_danger else "◎"
+        for order, (row, mark) in enumerate(zip(rest, RANK_MARKS, strict=False), start=1):
             table.loc[row, MARK] = mark
-            if any_danger and order != table.loc[row, RANK]:
-                table.loc[row, MARK_REASON] = (f"危険な人気馬を除いて、3着以内に入る確率が{order}位"
-                                               f"（全頭ではレース内{table.loc[row, RANK]:.0f}位）")
-            else:
-                table.loc[row, MARK_REASON] = f"3着以内に入る確率がレース内{order}位"
+            table.loc[row, MARK_REASON] = (f"{excluded}を除いて、3着以内に入る確率が{order}位"
+                                           f"（全頭ではレース内{table.loc[row, RANK]:.0f}位）")
+
+    def _top_pick(self, table: pd.DataFrame, candidates: list[int]) -> int:
+        """◎ の行。単勝の期待値 → 1着になる確率 → 3着以内の確率 の順に、使える値で決める（同じ値なら3着以内の確率の高いほう）。"""
+        values = table.loc[candidates, WIN_VALUE].dropna()
+        if not values.empty:
+            row = values.idxmax()
+            table.loc[row, MARK] = TOP_MARK
+            table.loc[row, MARK_REASON] = (f"単勝の期待値がレース内1位（1着になる確率 {table.loc[row, WIN_PROBABILITY]:.1%} × "
+                                           f"単勝 {table.loc[row, WIN_ODDS]:.1f}倍 = {values[row]:.2f}）")
+            return row
+        wins = table.loc[candidates, WIN_PROBABILITY].dropna()
+        if not wins.empty:
+            row = wins.idxmax()
+            table.loc[row, MARK] = TOP_MARK
+            table.loc[row, MARK_REASON] = f"1着になる確率がレース内1位（{wins[row]:.1%}。オッズが無いので単勝の期待値は出せない）"
+            return row
+        row = candidates[0]
+        table.loc[row, MARK] = TOP_MARK
+        table.loc[row, MARK_REASON] = f"3着以内に入る確率がレース内{table.loc[row, RANK]:.0f}位（1着の予想が無いので、3着以内の確率で選んだ）"
+        return row
 
     def _mark_value(self, table: pd.DataFrame) -> None:
         """穴馬で、複勝の期待値がいちばん高い馬に ☆（線以上のときだけ）。"""
@@ -121,8 +153,10 @@ class MarkRule:
 
     def _out_reason(self, row: pd.Series, *, any_danger: bool) -> str:
         """印が付かず消になった理由。"""
-        within = f"危険な人気馬を除いて{len(RANK_MARKS)}位まで" if any_danger else f"{len(RANK_MARKS)}位まで"
-        reason = f"3着以内に入る確率がレース内{row[RANK]:.0f}位で、◎〜△（{within}）に入らない"
+        within = f"◎と危険な人気馬を除いて{len(RANK_MARKS)}位まで" if any_danger else f"◎を除いて{len(RANK_MARKS)}位まで"
+        reason = f"3着以内に入る確率がレース内{row[RANK]:.0f}位で、○〜△（{within}）に入らない"
+        if pd.notna(row[WIN_VALUE]):
+            reason += f"。単勝の期待値 {row[WIN_VALUE]:.2f} も◎ではない"
         if pd.notna(row[PLACE_VALUE]):
             reason += f"。複勝の期待値 {row[PLACE_VALUE]:.2f} も☆の条件に当たらない"
         return reason
