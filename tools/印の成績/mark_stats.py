@@ -42,16 +42,17 @@ from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.shared.place_value import PlacePriceEstimator  # noqa: E402
 from yosou.shared.repository import PlacePriceRepository  # noqa: E402
 
+from 今週の予想.mark_tickets import MarkTickets  # noqa: E402
+from 今週の予想.torigami_filter import TorigamiFilter  # noqa: E402
+
 from 印の成績.backtest_marker import BacktestMarker  # noqa: E402
 from 印の成績.favorite_danger_judge import COLUMNS as DANGER_COLUMNS, FavoriteDangerJudge  # noqa: E402
 from 印の成績.line_sensitivity_report import LineSensitivityReport  # noqa: E402
 from 印の成績.mark_report import MarkReport  # noqa: E402
-from 印の成績.mark_tickets import MarkTickets  # noqa: E402
 from 印の成績.prediction_file import TEST, PredictionFile  # noqa: E402
 from 印の成績.race_results import RaceResults  # noqa: E402
 from 印の成績.ticket_payouts import TicketPayouts  # noqa: E402
 from 印の成績.ticket_report import TicketReport  # noqa: E402
-from 印の成績.torigami_filter import TorigamiFilter  # noqa: E402
 from 印の成績.win_value_attacher import WinValueAttacher  # noqa: E402
 
 #: 既定の予測。全頭の予想は今の本番の前日のモデルと同じ作り（馬の力の材料 + 対戦レーティング）、1着の予想はその同じ材料で目的変数を1着にしたもの、

@@ -8,12 +8,13 @@ from 共通.bootstrap_interval import BootstrapInterval
 from 共通.perf import percent
 from 共通.render import Table
 
-from 印の成績.axis_ticket_rule import AxisTicketRule
-from 印の成績.mark_tickets import RULE, VALUE
+from 今週の予想.axis_ticket_rule import AxisTicketRule
+from 今週の予想.mark_tickets import RULE, VALUE
+from 今週の予想.ticket_rules import BET_RULES, COMBO_VALUE_LINE, POINT_YEN
+from 今週の予想.torigami_filter import DROPPED, NO_ODDS
+
 from 印の成績.ticket_payouts import PAYOUT
 from 印の成績.ticket_report import TARGETS
-from 印の成績.ticket_rules import BET_RULES, COMBO_VALUE_LINE, POINT_YEN
-from 印の成績.torigami_filter import DROPPED, NO_ODDS
 
 #: 動かす線。
 LINES: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3, 1.5, 2.0)

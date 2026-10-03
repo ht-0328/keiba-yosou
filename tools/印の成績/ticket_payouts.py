@@ -12,8 +12,10 @@ from yosou.shared.repository import PayoutRepository, RaceDayRange
 from yosou.shared.repository.payout_repository import COMBO, YEN
 from yosou.shared.repository.ticket_odds_repository import TicketOddsRepository
 
-#: 付ける列（100円あたりの払戻。外れは 0。確定オッズ。買えない組（無投票・取消）は欠損値）。
-PAYOUT, ODDS = "payout", "odds"
+from 今週の予想.mark_tickets import ODDS
+
+#: 付ける列（100円あたりの払戻。外れは 0。確定オッズは ``ODDS``。買えない組（無投票・取消）は欠損値）。
+PAYOUT = "payout"
 
 
 class TicketPayouts:

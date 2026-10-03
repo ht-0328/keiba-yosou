@@ -279,6 +279,7 @@ def test_forecasts_list_saved_and_detail(card_db: Path, tmp_path: Path):
         assert listed["legend"]["marks"]["消"].startswith("買わない") and "能力" in listed["legend"]["categories"]
         detail = json.loads(get(base, "/api/forecast", {"rid": second})[2])
         assert detail["forecast"]["horses"][0]["mark"] == "◎" and detail["title"].startswith("2025-04-19（土） 東京 2R")
+        assert detail["forecast"]["tickets"][1]["label"] == "3→1→8"  # 買い目もそのまま渡す
         assert json.loads(get(base, "/api/forecast", {"rid": first})[2])["forecast"] is None
         # 予想し直すのは、この画面からの POST だけ
         status, _ = post(base, "/api/forecast/run", {"rid": first}, headers={"Origin": "http://evil.example"})
