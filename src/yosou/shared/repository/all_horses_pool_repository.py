@@ -1,5 +1,7 @@
 """馬連・ワイド・3連複・複勝のオッズから、馬ごとの「組に入る確率」を読む。"""
 
+from collections.abc import Sequence
+
 import duckdb
 import pandas as pd
 
@@ -16,10 +18,10 @@ class AllHorsesPoolRepository:
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         self._con = con
 
-    def read(self, spec: PoolSpec, scope_relation: str) -> pd.DataFrame:
-        """1行 = 1頭。列は ``race_id``・``horse_no``・``spec.column``。"""
+    def read(self, spec: PoolSpec, scope_relation: str, years: Sequence[str] = ()) -> pd.DataFrame:
+        """1行 = 1頭。列は ``race_id``・``horse_no``・``spec.column``。``years`` は読む開催年（``PoolOddsRowsSql``。省略すると全部）。"""
         sql = f"""
-        WITH {PoolOddsRowsSql(self._con).with_clause(spec, scope_relation)}, split AS (
+        WITH {PoolOddsRowsSql(self._con).with_clause(spec, scope_relation, years)}, split AS (
             SELECT odds.race_id,
                    TRY_CAST(substr(odds.combo, (place.i - 1) * 2 + 1, 2) AS INTEGER) AS horse_no, odds.inverse
             FROM odds CROSS JOIN (SELECT unnest(range(1, {spec.horses} + 1)) AS i) AS place

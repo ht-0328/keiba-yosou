@@ -1,5 +1,7 @@
 """券種オッズの SQL に共通の前半。対象のレースの、確定（無ければ最新）の断面の買い目ごとの 1/オッズ。"""
 
+from collections.abc import Sequence
+
 import duckdb
 
 from 共通 import facts, keys
@@ -19,16 +21,19 @@ class PoolOddsRowsSql:
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         self._con = con
 
-    def with_clause(self, spec: PoolSpec, scope_relation: str) -> str:
+    def with_clause(self, spec: PoolSpec, scope_relation: str, years: Sequence[str] = ()) -> str:
         """``WITH`` の中身。``odds``（race_id・combo・inverse）と ``totals``（race_id・total）を作る。
 
         ``scope_relation`` は ``race_id`` の列を持つ関係。表が無い DB では空になる。
+        ``years`` を渡すと、子の表（買い目ごとのオッズ。3連単は1億行を超える）をその開催年の行だけ読む。対象のレースの年がはじめから
+        分かっているとき（道具「印の成績」の7つの区切りなど）に、全期間の走査を省くためのもので、結果は変わらない。
         """
         child_columns = (*keys.RACE_KEY, _ANNOUNCED, spec.combo, "オッズ", "最低オッズ", "最高オッズ")
         header = facts.optional_relation(self._con, spec.header, _HEADER_COLUMNS)
         child = facts.optional_relation(self._con, spec.table, child_columns)
         join = " AND ".join(f"{keys.col(name, 'o')} = {keys.col(name, 'h')}" for name in (*keys.RACE_KEY, _ANNOUNCED))
         is_final = f"{keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)}"
+        year_filter = f"AND {keys.col('開催年', 'o')} IN {keys.sql_list(years)}" if years else ""
         return f"""
         wanted AS (
             SELECT DISTINCT race_id FROM {scope_relation}
@@ -44,7 +49,7 @@ class PoolOddsRowsSql:
             SELECT h.race_id, {keys.col(spec.combo, 'o')} AS combo, 1.0 / ({spec.price}) AS inverse
             FROM {child} AS o
             JOIN latest AS h ON {join}
-            WHERE ({spec.price}) > 0
+            WHERE ({spec.price}) > 0 {year_filter}
         ), totals AS (
             SELECT race_id, sum(inverse) AS total FROM odds GROUP BY race_id
         )"""

@@ -99,7 +99,7 @@ WH_WEIGHT_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "_連番", "馬番", "馬名
 AV_COLUMNS: tuple[str, ...] = (*_HEADER, *KEY_COLUMNS, "発表月日時分", "馬番", "馬名", "事由区分")
 #: オッズの親（``o1``〜``o6``）と子。親にはデータ区分と発表月日時分があり、子には無い（実DB と同じ）。
 #: 確定オッズはデータ区分 4・5 で、5（月曜）の発表月日時分は ``'00000000'``。子は親の発表月日時分で結ぶ。
-ODDS_HEADER_COLUMNS: tuple[str, ...] = (*_HEADER, *KEY_COLUMNS, "発表月日時分", "登録頭数", "出走頭数")
+ODDS_HEADER_COLUMNS: tuple[str, ...] = (*_HEADER, *KEY_COLUMNS, "発表月日時分", "登録頭数", "出走頭数", "単勝票数合計")
 ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "馬番", "オッズ", "人気順")
 RANGE_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "馬番", "最低オッズ", "最高オッズ", "人気順")
 COMBO_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "組番", "オッズ", "人気順")
@@ -248,17 +248,19 @@ def payout_header(race_row: dict[str, str], *, void: Sequence[str] = (), special
     return _row(HR_COLUMNS, values)
 
 
-def odds_header(race_row: dict[str, str], parent: str, *, stage: str = "5", announced: str = "00000000") -> dict[str, str]:
+def odds_header(race_row: dict[str, str], parent: str, *, stage: str = "5", announced: str = "00000000",
+                win_votes: str = "") -> dict[str, str]:
     """オッズの親（``o1``〜``o6``）1件。確定オッズはデータ区分 5（月曜。発表月日時分は ``'00000000'``）か 4。
 
     締め切り前の断面（データ区分 1〜3）を入れるなら ``announced`` に発表月日時分（``'07061200'``）を渡す。子は同じ値で結ぶ。
+    ``win_votes`` は単勝の票数合計（``o1`` の確定の断面に入る。1票 = 100円）。
     """
     if parent not in ODDS_PARENTS:
         raise ValueError(f"オッズの親の表ではありません: {parent}（{ODDS_PARENTS}）")
     key = {name: race_row[name] for name in KEY_COLUMNS}
     return _row(ODDS_HEADER_COLUMNS, {
         "レコード種別ID": parent.upper(), "データ区分": stage, "データ作成年月日": race_row["開催年"] + race_row["開催月日"],
-        **key, "発表月日時分": announced, "登録頭数": race_row["登録頭数"], "出走頭数": race_row["出走頭数"],
+        **key, "発表月日時分": announced, "登録頭数": race_row["登録頭数"], "出走頭数": race_row["出走頭数"], "単勝票数合計": win_votes,
     })
 
 
