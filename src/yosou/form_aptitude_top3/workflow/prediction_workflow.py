@@ -13,7 +13,7 @@ from yosou.shared.place_value import PlaceValueColumns
 from yosou.shared.win_value import WinValueColumns
 from yosou.shared.workflow import AVERAGE, SegmentedPrediction
 
-from ..dataset import OddsInput, OddsResolver, PaceAttachment, PoolAvailability, PoolFreeData, WinTargetData
+from ..dataset import FinishPowerFreeData, OddsInput, OddsResolver, PaceAttachment, PoolAvailability, PoolFreeData, WinTargetData
 from ..feature import WIN_ODDS
 from .explained_prediction import ExplainedPrediction
 
@@ -37,7 +37,8 @@ class PredictionWorkflow:
     """予測の流れ（設計書 05 の図2）。
 
     オッズを決める → 予測用データを作る → 券種のオッズが無ければ、N を外して N を使わないモデルに切り替える →
-    その時点の3着以内のモデルで2つのモデルの予測確率を出して平均する → 1着のモデルでも同じ手順で予測する →
+    その時点の3着以内のモデルで2つのモデルの予測確率を出して平均する（当日の勝ち切る材料 Q は外して渡す） →
+    1着のモデルでも同じ手順で予測する（Q は渡したまま。設計書 15 の 15） →
     オッズが分かる時点なら、オッズから見た3着以内率（基準）と複勝の期待値、単勝の期待値を足す（既存モデルの修正計画の 1、設計書 15 の 14）。
 
     ``dataset_builder`` は、予測する時点のモデルの材料の組み立て（木曜・前日は馬の力の材料、当日は今の材料。
@@ -62,6 +63,7 @@ class PredictionWorkflow:
         self._pools = PoolAvailability()
         self._win_target = WinTargetData()
         self._win_value = WinValueColumns()
+        self._finish_free = FinishPowerFreeData()
 
     def run(self, race_id: str, timing: PredictionTiming,
             given: OddsInput | None = None) -> pd.DataFrame:
@@ -80,9 +82,10 @@ class PredictionWorkflow:
                 given: OddsInput | None = None) -> ExplainedPrediction:
         """``run`` と同じ予測に、3着以内のモデルに渡した特徴量の値と、特徴量ごとの寄与（理由を見せる材料）を添える。"""
         prepared = self._prepared(race_id, timing, given)
+        top3_data = self._finish_free.prediction(prepared.data)
         return ExplainedPrediction(
-            table=self._table(prepared), features=prepared.data.features,
-            contributions=prepared.predictor.contributions(prepared.data), timing=timing,
+            table=self._table(prepared), features=top3_data.features,
+            contributions=prepared.predictor.contributions(top3_data), timing=timing,
             pool_free=prepared.predictor is not self._predictor,
         )
 
@@ -99,7 +102,7 @@ class PredictionWorkflow:
     def _table(self, prepared: _Prepared) -> pd.DataFrame:
         """予測の結果の表。"""
         data = prepared.data
-        predicted = prepared.predictor.predict(data)
+        predicted = prepared.predictor.predict(self._finish_free.prediction(data))
         probability = predicted[AVERAGE].rename(PROBABILITY)
         members = predicted.drop(columns=[AVERAGE])
         extra = self._place_value.of(probability, data)

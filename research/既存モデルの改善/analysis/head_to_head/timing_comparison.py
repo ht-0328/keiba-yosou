@@ -26,7 +26,11 @@ class TimingComparison:
 
     採用の基準は研究の材料の実験と同じ: テスト期間のログ損失が今の予想より小さい区切りが 7つのうち 5つ以上あり、
     全期間を合わせても小さいこと。ログ損失の差は小さいので 1000倍して出す。人気別 AUC（同じ人気の馬どうしの見分けやすさ）も添える。
+    ``label`` は答えの列（既定は3着以内。1着のモデルどうしを比べるときは ``WIN``）。
     """
+
+    def __init__(self, label: str = TOP3) -> None:
+        self._label = label
 
     def common(self, current: pd.DataFrame, rated: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """両方にある行だけにした2つの表（並びは同じ）。"""
@@ -56,4 +60,4 @@ class TimingComparison:
         }
 
     def _scores(self, frame: pd.DataFrame) -> dict[str, float]:
-        return BinaryScores().of(frame[TOP3], frame[SCORE], frame[POPULARITY])
+        return BinaryScores().of(frame[self._label], frame[SCORE], frame[POPULARITY])

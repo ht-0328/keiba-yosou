@@ -11,6 +11,8 @@ from yosou.shared.betting import TicketType
 TOP_AXIS, HORSE_AXIS = "◎軸", "軸馬"
 #: 軸から流す相手の印（注は表示だけの印なので入れない）。軸の馬は除くので、軸が ○ のときは ◎ が相手に回る。
 PARTNER_MARKS: tuple[str, ...] = ("◎", "○", "▲", "△", "☆")
+#: 2モデル一致で絞る買い方の名前に付ける言葉。
+AGREE_SUFFIX = "・2モデル一致"
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,8 @@ class AxisTicketRule:
     - 3連複: 1頭軸流し（軸 − 相手2頭の組。相手6頭なら 15点）。
     - 3連単: 1頭軸マルチ（軸と相手2頭の並びを全部。相手6頭なら 90点）。
     ``value_line`` があれば、組の期待値（``ComboExpectedValue``）がその線以上の買い目だけにする。無ければ全点。
+    ``agreement`` なら、さらに LightGBM と CatBoost のそれぞれの確率で出した組の期待値も線以上の買い目だけにする（2モデル一致。
+    研究「回収率100超の施策」の施策2。線が無いルールには付けない）。
     ``totals`` は、この買い方を入れる合計の組（``TOP_AXIS``・``HORSE_AXIS``）。
     """
 
@@ -28,13 +32,19 @@ class AxisTicketRule:
     value_line: float | None
     stake_units: float
     totals: tuple[str, ...]
+    agreement: bool = False
+
+    def __post_init__(self) -> None:
+        if self.agreement and self.value_line is None:
+            raise ValueError("2モデル一致で絞るルールには、期待値の線が要ります")
 
     @property
     def label(self) -> str:
         """表に出す買い方の名前。例: ``3連単（◎軸・マルチ・期待値 1.0 以上）``。"""
         shape = "マルチ" if self.ticket_type.spec.is_ordered else "流し"
         line = f"・期待値 {self.value_line:.1f} 以上" if self.value_line is not None else ""
-        return f"{self.ticket_type.label}（{self.axis}・{shape}{line}）"
+        agree = AGREE_SUFFIX if self.agreement else ""
+        return f"{self.ticket_type.label}（{self.axis}・{shape}{line}{agree}）"
 
     def combos(self, by_mark: dict[str, list[int]], axes: dict[str, int]) -> list[tuple[int, ...]]:
         """``axes`` はパターン → 軸の馬番。軸がいない（印が無い）レースは組まない。期待値の線はここでは見ない（``MarkTickets`` が絞る）。"""

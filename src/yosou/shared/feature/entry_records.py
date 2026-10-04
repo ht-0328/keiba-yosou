@@ -35,6 +35,8 @@ class EntryRecords:
       対戦レーティング（まとまり O）を使う予想だけが読む。ほかの予想では空の表。
     - ``pace_forecasts``: 対象の出走の、展開の予想の予測（1行 = 1頭。race_id・horse_id と ``pace_forecast.SOURCE_COLUMNS``）。
       展開の予想の結果（まとまり P）を使う予想だけが入れる。ほかの予想では空の表。
+    - ``finish_records``: 対象の出走の、勝ち切る材料（1行 = 1頭。race_id・horse_id と ``FINISH_POWER_NAMES``）。
+      勝ち切る材料（まとまり Q）を1着のモデルに使う近走と適性の予想の当日版だけが読む。ほかの予想では空の表。
     """
 
     entries: pd.DataFrame
@@ -52,6 +54,7 @@ class EntryRecords:
     pool_probabilities: pd.DataFrame = field(default_factory=pd.DataFrame)
     head_to_head_runs: pd.DataFrame = field(default_factory=pd.DataFrame)
     pace_forecasts: pd.DataFrame = field(default_factory=pd.DataFrame)
+    finish_records: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def with_entries(self, entries: pd.DataFrame) -> EntryRecords:
         """出走の行だけを差し替えた記録。入れる行を選んだあとや、速報を反映したあとに使う。"""

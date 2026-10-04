@@ -10,13 +10,15 @@ from 共通.render import Table
 
 from 印の成績.axis_ticket_rule import AxisTicketRule
 from 印の成績.mark_tickets import RULE, VALUE
+from 印の成績.race_filters import ALL_RACES, HIGH_RACES
 from 印の成績.ticket_payouts import PAYOUT
-from 印の成績.ticket_report import TARGETS
 from 印の成績.ticket_rules import BET_RULES, COMBO_VALUE_LINE, POINT_YEN
 from 印の成績.torigami_filter import DROPPED, NO_ODDS
 
 #: 動かす線。
 LINES: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3, 1.5, 2.0)
+#: この表の対象（全レースと期待度「高」。ほかの絞り込みは表7 で見る）。
+TARGETS = (ALL_RACES, HIGH_RACES)
 
 
 class LineSensitivityReport:
@@ -34,10 +36,9 @@ class LineSensitivityReport:
                 if not isinstance(rule, AxisTicketRule) or rule.value_line is not None:
                     continue
                 chosen = base[base[RULE] == rule.label]
-                if target != TARGETS[0]:
-                    chosen = chosen[chosen["expectation"] == target.split()[-1]]
+                chosen = chosen[target.select(chosen)]
                 for line in LINES:
-                    rows.append(self._row(rule.label, target, line, chosen[chosen[VALUE] >= line]))
+                    rows.append(self._row(rule.label, target.label, line, chosen[chosen[VALUE] >= line]))
         note = (f"表7 の全点の買い目（3連複の流し・3連単のマルチ）を、組の期待値が線以上のものだけにしたときの成績（1点 100円）。本番の線は {COMBO_VALUE_LINE:.1f} で固定。"
                 "この表は線を選ぶためではなく、線を動かすと点数と回収率がどう変わるかを見る参考（テスト期間の結果を見て線を選び直すと、採用の証拠にならない）。"
                 "トリガミは外していない（線ごとに外す買い目が変わるため）。オッズ無しの組は外す。")

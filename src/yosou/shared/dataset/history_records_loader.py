@@ -16,6 +16,7 @@ from ..repository import (
     TargetScope,
 )
 from .ability_sources_loader import AbilitySourcesLoader
+from .finish_records_loader import FinishRecordsLoader
 from .entry_records_loader import EntryRecordsLoader
 from .pool_probability_loader import PoolProbabilityLoader
 
@@ -26,7 +27,7 @@ class HistoryRecordsLoader:
     ``race_history``・``stakes_tendency``・``market_runs``・``ability_sources``・``pool_probabilities``・``head_to_head_runs`` は
     ``EntryRecordsLoader`` にそのまま渡す
     （レースごとの序盤と後半の記録・重賞のレースごとの傾向・過去の全出走のオッズと着順・馬の力の材料の元の記録・
-    券種ごとのオッズから見た確率・対戦レーティングの元になる過去の全出走の着順。省略すると読まない）。
+    券種ごとのオッズから見た確率・対戦レーティングの元になる過去の全出走の着順。``finish_records`` は勝ち切る材料の元の記録。省略すると読まない）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
@@ -35,10 +36,11 @@ class HistoryRecordsLoader:
                  market_runs: MarketRunRepository | None = None,
                  ability_sources: AbilitySourcesLoader | None = None,
                  pool_probabilities: PoolProbabilityLoader | None = None,
-                 head_to_head_runs: HeadToHeadRunRepository | None = None) -> None:
+                 head_to_head_runs: HeadToHeadRunRepository | None = None,
+                 finish_records: FinishRecordsLoader | None = None) -> None:
         self._fact_table = FactTableRepository(con)
         self._records_loader = EntryRecordsLoader(
-            con, race_history, stakes_tendency, market_runs, ability_sources, pool_probabilities, head_to_head_runs,
+            con, race_history, stakes_tendency, market_runs, ability_sources, pool_probabilities, head_to_head_runs, finish_records,
         )
 
     def load(self, first_day: date) -> EntryRecords:

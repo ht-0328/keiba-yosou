@@ -23,8 +23,10 @@ COMBO_VALUE_LINE = 1.0
 #: 元の3連複・3連単（◎−○▲☆−○▲△☆ と ◎→○▲☆→○▲△☆）は必ず買う買い目なので、どの合計にも入る（利用者の決定）。
 ORIGINAL = "元の買い目だけ"
 TOTAL_GROUPS: tuple[str, ...] = (ORIGINAL, TOP_AXIS, HORSE_AXIS)
-#: 複勝の買い方の名前（複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る）。
+#: 複勝の買い方の名前（複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る）。2モデル一致の行は、複勝の買い目のうち
+#: LightGBM と CatBoost のそれぞれの確率で出した期待値も線以上の馬だけ（比べるための行。合計には入らない）。
 PLACE_LABEL = TicketType.PLACE.label
+PLACE_AGREE_LABEL = f"{PLACE_LABEL}（2モデル一致）"
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,8 @@ class TicketRule:
 #: 印で組む買い方のルール（08 の 2 の表の順）。馬単は、全券種をそろえるために ◎ を1着に固定した形で足したもので、設計書には無い。
 #: 元の3連複・3連単（印の位置で組む）は必ず買う買い目で、どの合計にも入る。軸から流す3連複・3連単（軸の2パターン × 期待値で絞る・絞らない）は、
 #: その軸のパターンの合計にだけ入る（期待値で絞らない3連単・絞った3連複は、比べるための行で、どの合計にも入らない）。
+#: 期待値で絞る行には、2モデル一致（LightGBM と CatBoost のそれぞれの確率で出した組の期待値も線以上）で絞った行も添える
+#: （研究「回収率100超の施策」の施策2。比べるための行で、どの合計にも入らない）。
 #: 複勝は印ではなく期待値で選ぶので、``MarkTickets`` が別に作る。
 BET_RULES: tuple[TicketRule | AxisTicketRule, ...] = (
     TicketRule(TicketType.WIN, (("◎",),), 1.0, "単勝"),
@@ -70,15 +74,19 @@ BET_RULES: tuple[TicketRule | AxisTicketRule, ...] = (
     TicketRule(TicketType.TRIFECTA, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.1, "3連単（◎→○▲☆→○▲△☆）"),
     AxisTicketRule(TicketType.TRIO, TOP_AXIS, None, 0.3, (TOP_AXIS,)),
     AxisTicketRule(TicketType.TRIO, TOP_AXIS, COMBO_VALUE_LINE, 0.3, ()),
+    AxisTicketRule(TicketType.TRIO, TOP_AXIS, COMBO_VALUE_LINE, 0.3, (), agreement=True),
     AxisTicketRule(TicketType.TRIO, HORSE_AXIS, None, 0.3, (HORSE_AXIS,)),
     AxisTicketRule(TicketType.TRIO, HORSE_AXIS, COMBO_VALUE_LINE, 0.3, ()),
+    AxisTicketRule(TicketType.TRIO, HORSE_AXIS, COMBO_VALUE_LINE, 0.3, (), agreement=True),
     AxisTicketRule(TicketType.TRIFECTA, TOP_AXIS, None, 0.1, ()),
     AxisTicketRule(TicketType.TRIFECTA, TOP_AXIS, COMBO_VALUE_LINE, 0.1, (TOP_AXIS,)),
+    AxisTicketRule(TicketType.TRIFECTA, TOP_AXIS, COMBO_VALUE_LINE, 0.1, (), agreement=True),
     AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, None, 0.1, ()),
     AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, COMBO_VALUE_LINE, 0.1, (HORSE_AXIS,)),
+    AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, COMBO_VALUE_LINE, 0.1, (), agreement=True),
 )
-#: 表に並べる買い方の名前の順（複勝は単勝の次）。
-RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in BET_RULES[1:]))
+#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行は単勝の次）。
+RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in BET_RULES[1:]))
 #: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。
 TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {
     group: (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in BET_RULES[1:] if group in rule.totals)) for group in TOTAL_GROUPS

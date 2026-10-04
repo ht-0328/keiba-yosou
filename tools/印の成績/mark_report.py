@@ -17,6 +17,7 @@ from 今週の予想.mark_rule import NOTE_MARK, OUT_MARK, TOP_MARK, VALUE_MARK
 
 from 印の成績.perf_rows import perf_row_of
 from 印の成績.popularity_baseline import RATE_NAMES, PopularityBaseline
+from 印の成績.race_filters import TOP_FILTERS
 
 #: 印ごとの表に並べる印（今週の予想の印の並び）。
 MARKS: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK)
@@ -57,6 +58,7 @@ class MarkReport:
     4. 年ごとの印の成績。
     5. 区切りごとのレース数と、危険な人気馬の線と、期待度「高」のレース数。
     6. ◎ の期待度ごとの単勝の成績（レース数・1開催日あたり・成績・単勝回収率の 90% の幅。設計書「近走と適性から3着以内を予想」の 16 の 6 の採用の基準を見る表）。
+       「高」の内訳として、絞り込み（2モデル一致・3連単の支持あり。``TOP_FILTERS``）ごとの行も出す（研究「回収率100超の施策」の施策 2・1-A）。
     ``conditions`` は表の注に書く条件（予測のファイル・期間 など）。
     """
 
@@ -151,7 +153,9 @@ class MarkReport:
         headers = ["◎の期待度", "レース数", "1開催日あたり", "着別度数", "勝率", "単勝回収率", "単勝回収率の90%の幅", "同じ人気の馬全体の単勝回収率",
                    "複勝回収率"]
         rows = []
-        for label, chosen in [(level, tops[tops[EXPECTATION] == level]) for level in EXPECTATION_LEVELS] + [(ALL_TOP_LABEL, tops)]:
+        picks = [(level, tops[tops[EXPECTATION] == level]) for level in EXPECTATION_LEVELS] + [(ALL_TOP_LABEL, tops)]
+        picks += [(f"{HIGH}（{top_filter.label.split('・', 1)[1]}）", tops[top_filter.select(tops)]) for top_filter in TOP_FILTERS]
+        for label, chosen in picks:
             if chosen.empty:
                 rows.append([label, "0", "0.00", "0-0-0-0", "—", "—", "—", "—", "—"])
                 continue
@@ -164,7 +168,10 @@ class MarkReport:
         return Table(headers, rows, title="6. ◎の期待度ごとの単勝の成績",
                      note=f"開催日 {days:,}日。期待度は、◎の単勝の期待値が {LINE:.2f} 以上なら高、未満なら低。"
                           "90% の幅は、開催日を単位にしたブートストラップ。採用の基準は、「高」の単勝回収率と幅の下の端が"
-                          "どちらも 100% を超えること（設計書「近走と適性から3着以内を予想」の 16 の 6）。確定オッズでの検証なので、実際に買うときより良く出る。")
+                          "どちらも 100% を超えること（設計書「近走と適性から3着以内を予想」の 16 の 6）。"
+                          "「高（2モデル一致）」は、◎ の単勝の期待値が LightGBM と CatBoost のそれぞれの確率でも 1.00 以上のレース、"
+                          "「高（3連単の支持あり）」は、◎ の 3連単から見た勝率が単勝から見た勝率以上（比 1.0 以上）のレース"
+                          "（研究「回収率100超の施策」の施策 2・1-A。同じ採用の基準で見る）。確定オッズでの検証なので、実際に買うときより良く出る。")
 
     def _top3_by(self, rows: pd.DataFrame, key: str) -> pd.DataFrame:
         """レース × （印か人気）→ 3着以内に来たか。"""

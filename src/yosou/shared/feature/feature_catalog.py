@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from ..repository import POOLS
+from ..repository import HORSE_FINISH_NAMES, PEOPLE_FINISH_NAMES, POOLS
 from .ability import DAY_BEFORE_COLUMNS, RACE_DAY_COLUMNS, ability_columns
 from .feature import Feature
 from .head_to_head import HEAD_TO_HEAD_NAMES
@@ -175,6 +175,13 @@ POOL_SUPPORT_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "N", _N, _RACE_
 #: 更新して作る。過去のレースの結果だけから作るので、木曜から分かる。作るのは ``group/head_to_head_rating_features.py``
 #: （部品は ``head_to_head/``）。研究「既存モデルの改善」で、近走と適性の予想に足して時点ごとに7つの区切りで比べる。
 HEAD_TO_HEAD_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "O", _N) for name in HEAD_TO_HEAD_NAMES)
+
+#: Q. 勝ち切る材料（10個。どれも数値）。馬の近10走の1着数・2着数・勝ち切り率（1着 ÷ 連対）・惜敗数・勝ったときの着差の平均・
+#: 人気で負けた数と、騎手・調教師の近1年の勝ち切り率と1番人気のときの勝率。過去のレースの結果だけから作るので、木曜から分かる。
+#: 読むのは ``repository/horse_finish_repository.py``・``people_finish_repository.py``、作るのは ``group/finish_power_features.py``。
+#: 研究「回収率100超の施策」で、近走と適性の予想の当日の1着のモデルに足して採用の基準を満たした（3着以内のモデルは満たさず、使わない）。
+FINISH_POWER_NAMES: tuple[str, ...] = HORSE_FINISH_NAMES + PEOPLE_FINISH_NAMES
+FINISH_POWER_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "Q", _N) for name in FINISH_POWER_NAMES)
 
 #: P. 展開の予想の結果（20個。どれも数値）。予想「展開から着順を予想」の前半・後半の展開の予想と、そのレース内の順位・偏差。
 #: その時点の展開のモデルの予測から作るので、どの時点でも分かる（木曜から）。作るのは ``group/pace_forecast_features.py``
