@@ -1,5 +1,7 @@
 """馬単・3連単のオッズから、馬ごとの「1着になる確率」を読む。"""
 
+from collections.abc import Sequence
+
 import duckdb
 import pandas as pd
 
@@ -16,10 +18,10 @@ class FirstHorsePoolRepository:
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         self._con = con
 
-    def read(self, spec: PoolSpec, scope_relation: str) -> pd.DataFrame:
-        """1行 = 1頭。列は ``race_id``・``horse_no``・``spec.column``。"""
+    def read(self, spec: PoolSpec, scope_relation: str, years: Sequence[str] = ()) -> pd.DataFrame:
+        """1行 = 1頭。列は ``race_id``・``horse_no``・``spec.column``。``years`` は読む開催年（``PoolOddsRowsSql``。省略すると全部）。"""
         sql = f"""
-        WITH {PoolOddsRowsSql(self._con).with_clause(spec, scope_relation)}
+        WITH {PoolOddsRowsSql(self._con).with_clause(spec, scope_relation, years)}
         SELECT odds.race_id, TRY_CAST(substr(odds.combo, 1, 2) AS INTEGER) AS horse_no,
                sum(odds.inverse) / max(totals.total) * {spec.scale} AS {spec.column}
         FROM odds JOIN totals USING (race_id)

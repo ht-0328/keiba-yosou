@@ -10,6 +10,7 @@
 | ``pool_dataset_builder()`` | 今の材料に N（券種ごとのオッズから見た支持）を足した ``DatasetBuilder``（``POOL_CATALOG``。研究の比べに使う） |
 | ``race_day_dataset_builder()`` | 今の材料に N と M を足した ``DatasetBuilder``（``RACE_DAY_CATALOG``。当日のモデル） |
 | ``PoolFreeData`` | 学習データ・予測用データから N を外す（当日に券種のオッズが無いときのモデル） |
+| ``FinishPowerFreeData`` | 学習データ・予測用データから Q（勝ち切る材料）を外す（3着以内のモデルに渡すとき。Q は1着のモデルだけが使う） |
 | ``WinTargetData`` | 学習データ・予測用データを1着のモデル用に持ち替える（目的変数を「1着」に、基準をオッズから見た勝率に。設計書 10・15 の 14） |
 | ``PaceAttachment`` | 学習データ・予測用データに、展開の予想の結果（まとまり P）の 20列を足す（採用した時点のモデル） |
 | ``PoolAvailability`` | 予測するレースの券種のオッズがあるかを確かめる |
@@ -30,6 +31,7 @@ from .dataset_assembly import (
     pool_dataset_builder,
     race_day_dataset_builder,
 )
+from .finish_power_free_data import FinishPowerFreeData
 from .pace_attachment import PaceAttachment
 from .pool_availability import PoolAvailability
 from .pool_free_data import PoolFreeData
@@ -37,4 +39,4 @@ from .runner_selector import RunnerSelector
 from .win_target_data import WinTargetData
 
 __all__ = ["dataset_builder", "pool_dataset_builder", "race_day_dataset_builder", "ability_dataset_builder", "ABILITY_TRAIN_FIRST_DAY",
-           "PoolFreeData", "WinTargetData", "PoolAvailability", "PaceAttachment", "RunnerSelector", "OddsInput", "OddsResolver", "TOP3", "WIN"]
+           "PoolFreeData", "FinishPowerFreeData", "WinTargetData", "PoolAvailability", "PaceAttachment", "RunnerSelector", "OddsInput", "OddsResolver", "TOP3", "WIN"]

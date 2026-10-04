@@ -52,7 +52,8 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
                                              "030506", "030508", "030608"]
     assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
-    assert set(by_rule) == set(RULE_LABELS)
+    # モデルごとの確率の無い表では、2モデル一致の行は出ない
+    assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label}
 
 
 def test_3連複は軸の1頭から相手6頭に流して15点で軸馬のときは二重丸が相手に回る() -> None:

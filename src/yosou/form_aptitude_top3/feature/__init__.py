@@ -10,12 +10,14 @@
 | ``CATALOG`` | 今の材料の一覧（``BASE_FEATURES`` + J + L。当日は 79個）。当日に券種のオッズが無いときのモデルの一覧でもある |
 | ``POOL_CATALOG`` | 今の材料に N を足した一覧（当日は 85個。前日は N を使わない） |
 | ``RACE_DAY_CATALOG`` | 当日のモデルの一覧（``POOL_CATALOG`` に M のうち今の材料と名前の重ならない 200個を足した 285個。``RACE_DAY_ABILITY_FEATURES``） |
+| ``RACE_DAY_WIN_CATALOG`` | 当日の1着のモデルの一覧（``RACE_DAY_CATALOG`` に Q（勝ち切る材料）の 10個を足した 295個。3着以内のモデルは Q を使わない） |
+| ``FINISH_POWER_NAMES`` | まとまり Q の 10個の名前（3着以内のモデルに渡す前に外すのに使う） |
 | ``ABILITY_CATALOG`` | 馬の力の材料の一覧（M + O + J。木曜は M のうち木曜に分かる 192個と O の7個） |
 | ``POOL_SUPPORT_NAMES`` | まとまり N の6個の名前（券種のオッズが無いかを確かめるのに使う） |
 | ``WIN_ODDS`` | 特徴量「単勝オッズ」の名前。予測の結果の表にも出すので、外にも見せる |
 """
 
-from yosou.shared.feature import POOL_SUPPORT_NAMES
+from yosou.shared.feature import FINISH_POWER_NAMES, POOL_SUPPORT_NAMES
 from yosou.shared.feature.group import WIN_ODDS
 
 from .feature_catalog import (
@@ -25,6 +27,8 @@ from .feature_catalog import (
     POOL_CATALOG,
     RACE_DAY_ABILITY_FEATURES,
     RACE_DAY_CATALOG,
+    RACE_DAY_WIN_CATALOG,
 )
 
-__all__ = ["CATALOG", "POOL_CATALOG", "RACE_DAY_CATALOG", "RACE_DAY_ABILITY_FEATURES", "ABILITY_CATALOG", "J_FEATURES", "POOL_SUPPORT_NAMES", "WIN_ODDS"]
+__all__ = ["CATALOG", "POOL_CATALOG", "RACE_DAY_CATALOG", "RACE_DAY_WIN_CATALOG", "RACE_DAY_ABILITY_FEATURES", "ABILITY_CATALOG", "J_FEATURES",
+           "POOL_SUPPORT_NAMES", "FINISH_POWER_NAMES", "WIN_ODDS"]

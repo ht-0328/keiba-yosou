@@ -54,7 +54,8 @@ def test_区切りごとの危険の線と期待度が高のレース数() -> No
 def test_二重丸の期待度ごとの単勝の成績() -> None:
     table = MarkReport().tables(_marked(), "条件。")[5]
     rows = {row[0]: row for row in table.rows}
-    assert list(rows) == ["高", "低", "◎ 全体"]
+    assert list(rows)[:3] == ["高", "低", "◎ 全体"]
+    assert "高（2モデル一致）" in rows and "高（3連単の支持あり）" in rows and rows["高（2モデル一致）"][1] == "0"  # 旗の列が無ければ 0
     # 高: A の ◎（1着・払戻 500円）が1頭。開催日は2日なので 1開催日あたり 0.50
     assert rows["高"][1:6] == ["1", "0.50", "1-0-0-0", "100.0%", "500.0%"]
     assert rows["低"][1] == "1" and rows["低"][5] == "0.0%"
