@@ -28,6 +28,7 @@ from yosou.shared.workflow import TrainingWorkflow
 
 from ..dataset import (
     ABILITY_TRAIN_FIRST_DAY,
+    FinishPowerFreeData,
     PaceAttachment,
     PoolFreeData,
     WinTargetData,
@@ -53,7 +54,8 @@ class TrainCommand:
     展開の予想の結果（P）を採用した時点（``PACE_TIMINGS``。木曜）は、馬の力の材料に、予想「展開から着順を予想」の年ごとの確かめの
     予測から作った P を足して学ぶ（設計書 15 の 13）。そのため、その時点だけ別に学ぶ。
     どの学習データでも、3着以内のモデルと、目的変数を「1着」に・基準をオッズから見た勝率に持ち替えた1着のモデル（``WinTargetData``）を
-    別々に学び、1着のモデルは ``<置き場所>/1着/`` に保存する（設計書 10・15 の 14）。
+    別々に学び、1着のモデルは ``<置き場所>/1着/`` に保存する（設計書 10・15 の 14）。当日の学習データにある勝ち切る材料（Q）は
+    1着のモデルだけが使い、3着以内のモデルには ``FinishPowerFreeData`` で外して渡す（設計書 15 の 15）。
     学習のあとに、複勝の見込みの倍率（今の材料の学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
     """
 
@@ -109,8 +111,8 @@ class TrainCommand:
 
     def _both(self, data: TrainingData, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...],
               subject: str, config: Path | None) -> tuple[list[Table], TrainingReport]:
-        """同じ学習データで、3着以内のモデル（``root``）と1着のモデル（``root/1着``）を学んで保存する。結果の表と、3着以内の学習の結果を返す。"""
-        top3 = self._workflow(period, root, timings).train(data, config)
+        """同じ学習データで、3着以内のモデル（``root``。Q は外す）と1着のモデル（``root/1着``。Q も使う）を学んで保存する。結果の表と、3着以内の学習の結果を返す。"""
+        top3 = self._workflow(period, root, timings).train(FinishPowerFreeData().training(data), config)
         win = self._workflow(period, root / WIN_FOLDER, timings).train(WinTargetData().training(data), config)
         tables = [*TrainingReportTables(top3, subject).tables(), *TrainingReportTables(win, f"{_WIN_SUBJECT}: {subject}").tables()]
         return tables, top3

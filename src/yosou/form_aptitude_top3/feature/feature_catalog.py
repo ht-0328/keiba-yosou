@@ -16,6 +16,7 @@ from __future__ import annotations
 from yosou.shared.feature import (
     ABILITY_FEATURES,
     BASE_FEATURES,
+    FINISH_POWER_FEATURES,
     HEAD_TO_HEAD_FEATURES,
     MARKET_FEATURES,
     PEOPLE_MARKET_FEATURES,
@@ -42,6 +43,11 @@ RACE_DAY_ABILITY_FEATURES: tuple[Feature, ...] = tuple(
 #: 当日のモデルの特徴量の一覧（今の材料 79個・N 6個・M 200個の 285個）。研究「一番人気を疑う」の直し方を移したあと、
 #: 当日に M も足す作り方が、7つの区切りで N だけの作り方より確率の誤差が小さかった（設計書 15 の 11）。
 RACE_DAY_CATALOG = FeatureCatalog(POOL_CATALOG.features + RACE_DAY_ABILITY_FEATURES)
+
+#: 当日の1着のモデルの特徴量の一覧（当日の 285個に、Q（勝ち切る材料）の 10個を足した 295個）。3着以内のモデルは Q を使わない
+#: （研究「回収率100超の施策」で、1着のモデルに足すと確率の誤差が小さくなり、3着以内のモデルでは小さくならなかった。設計書 15 の 15）。
+#: 学習データ・予測用データはこの一覧で作り、3着以内のモデルに渡す前に ``FinishPowerFreeData`` で Q を外す。
+RACE_DAY_WIN_CATALOG = FeatureCatalog(RACE_DAY_CATALOG.features + FINISH_POWER_FEATURES)
 
 #: 馬の力の材料の予想の特徴量の一覧（まとまり M と O と J。木曜は M のうち木曜に分かる 192個と O の7個の 199個）。
 #: O（対戦レーティング）は、7つの区切りで木曜・前日に採用の基準を満たしたので足した（当日は満たさず、足していない。設計書 15 の 12）。

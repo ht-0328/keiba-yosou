@@ -7,6 +7,7 @@ import pandas as pd
 
 from ..feature import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS, EntryRecords, WorkoutCoverage
 from .ability_sources_loader import AbilitySourcesLoader
+from .finish_records_loader import FinishRecordsLoader
 from .pool_probability_loader import PoolProbabilityLoader
 from ..repository import (
     CareerCountRepository,
@@ -41,7 +42,8 @@ class EntryRecordsLoader:
     ``ability_sources`` も同じ形で、馬の力の材料（まとまり M）の元の記録を集める部品（近走と適性の予想の木曜・前日の
     モデルだけが渡す）。``pool_probabilities`` も同じ形で、券種ごとのオッズから見た馬ごとの確率を読む部品（近走と適性の
     予想の当日のモデルだけが渡す）。``head_to_head_runs`` も同じ形で、対戦レーティング（まとまり O）の元になる過去の全出走の
-    着順を読むリポジトリ（対戦レーティングを使う予想だけが渡す）。
+    着順を読むリポジトリ（対戦レーティングを使う予想だけが渡す）。``finish_records`` も同じ形で、勝ち切る材料（まとまり Q）の元の記録を
+    読む部品（近走と適性の予想の当日の1着のモデルだけが使う）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
@@ -50,7 +52,8 @@ class EntryRecordsLoader:
                  market_runs: MarketRunRepository | None = None,
                  ability_sources: AbilitySourcesLoader | None = None,
                  pool_probabilities: PoolProbabilityLoader | None = None,
-                 head_to_head_runs: HeadToHeadRunRepository | None = None) -> None:
+                 head_to_head_runs: HeadToHeadRunRepository | None = None,
+                 finish_records: FinishRecordsLoader | None = None) -> None:
         self._entries = EntryRepository(con)
         self._place_odds = PlaceOddsRepository(con)
         self._career_counts = CareerCountRepository(con)
@@ -67,6 +70,7 @@ class EntryRecordsLoader:
         self._ability_sources = ability_sources
         self._pool_probabilities = pool_probabilities
         self._head_to_head_runs = head_to_head_runs
+        self._finish_records = finish_records
 
     def load(self, scope: TargetScope) -> EntryRecords:
         """``scope`` の出走の記録。"""
@@ -89,6 +93,7 @@ class EntryRecordsLoader:
             pool_probabilities=(self._pool_probabilities.read(scope.relation)
                                 if self._pool_probabilities is not None else pd.DataFrame()),
             head_to_head_runs=self._head_to_head_runs.read(scope) if self._head_to_head_runs is not None else pd.DataFrame(),
+            finish_records=self._finish_records.read(scope) if self._finish_records is not None else pd.DataFrame(),
         )
 
     def _with_career_counts(self, entries: pd.DataFrame, career_counts: pd.DataFrame) -> pd.DataFrame:

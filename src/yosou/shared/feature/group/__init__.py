@@ -19,12 +19,14 @@
 | ``PoolSupportFeatures`` | N. 券種ごとのオッズから見た支持（6個）。全頭の3着以内の予想の当日のモデルが渡す |
 | ``PaceForecastFeatures`` | P. 展開の予想の結果（20個。部品は ``feature/pace_forecast/``）。研究で比べるための材料 |
 | ``HeadToHeadRatingFeatures`` | O. 対戦レーティング（7個。部品は ``feature/head_to_head/``）。全頭の3着以内の予想で、採用の基準を満たした時点のモデルが渡す |
+| ``FinishPowerFeatures`` | Q. 勝ち切る材料（10個）。全頭の予想の当日の1着のモデルだけが使う（3着以内のモデルには渡さない） |
 
 ``POPULARITY_RANK`` は特徴量「人気順位」、``WIN_ODDS`` は「単勝オッズ」の名前。予測の結果の表にも出すので、外にも見せる。
 """
 
 from .aptitude_features import AptitudeFeatures
 from .field_comparison_features import FieldComparisonFeatures
+from .finish_power_features import FinishPowerFeatures
 from .head_to_head_rating_features import HeadToHeadRatingFeatures
 from .horse_ability_features import HorseAbilityFeatures
 from .horse_features import HorseFeatures
@@ -47,5 +49,5 @@ __all__ = [
     "WorkoutFeatures", "PopularityHistoryFeatures", "POPULARITY_RANK",
     "MarketFeatures", "OddsFeatures", "WIN_ODDS", "MARKET_WIN_RATE",
     "PeopleMarketFeatures", "PEOPLE_MARKET_COLUMNS", "HorseAbilityFeatures", "PoolSupportFeatures",
-    "HeadToHeadRatingFeatures", "PaceForecastFeatures",
+    "HeadToHeadRatingFeatures", "PaceForecastFeatures", "FinishPowerFeatures",
 ]
