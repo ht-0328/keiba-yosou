@@ -14,11 +14,11 @@ from 共通.render import Table
 from 今週の予想.forecast_columns import EXPECTATION, MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_PROBABILITY
 from 今週の予想.mark_rule import TOP_MARK
 
-from 印の成績.mark_tickets import RULE
+from 今週の予想.mark_tickets import RULE
 from 印の成績.scene_bands import AXES, BANDS, UNKNOWN
 from 印の成績.ticket_payouts import PAYOUT
-from 印の成績.ticket_rules import PLACE_LABEL, POINT_YEN
-from 印の成績.torigami_filter import DROPPED
+from 今週の予想.ticket_rules import PLACE_LABEL, POINT_YEN
+from 今週の予想.torigami_filter import DROPPED
 
 #: 確率の端の丸め（ログ損失が無限大にならないように）。
 _EDGE = 1e-6

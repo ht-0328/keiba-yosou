@@ -82,6 +82,8 @@
   .chips { display: flex; gap: 4px; flex-wrap: wrap; }
   .chip { font-family: var(--sans); font-size: 12px; padding: 0 7px; border-radius: 10px; border: 1px solid var(--chip-line); white-space: nowrap; }
   .chip.good { color: var(--green); border-color: #3d5c46; } .chip.bad { color: var(--red); border-color: #6b3a30; }
+  .chip.out { color: var(--muted); text-decoration: line-through; }
+  .tk-head { margin: 10px 0 4px; }
   .why { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px 22px; margin-top: 8px; }
   .why h4 { margin: 0 0 4px; font-size: 13px; }
   .why ul { margin: 0; padding-left: 18px; } .why li { margin: 2px 0; }
@@ -121,7 +123,7 @@ const HELP = {
   db: "元DB の状態。期間・件数・途中から入っている表・同期の記録。",
   tables: "元DB の表を1つずつ見る。列名は JV-Data 仕様書の日本語のまま、値は文字列。",
   cards: "これから走るレース（今週の出馬表）。レースを押すと、出走馬と各馬の近走が見られる。木曜の出走馬名表の間は枠番・馬番が空で、金・土の出馬表で決まる。過去の日付も開始日を変えれば見られる。",
-  forecast: "今のモデル（近走と適性から3着以内を予想。3着以内のモデルと1着のモデル）で今週のレースを予想し、全頭を「3着以内に入る確率」の高い順に並べて印（◎○▲△☆注消）を付ける。◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、レースの期待度（◎の期待値が 1.00 以上なら高）も出す。馬の行を押すと、何が良くて何が悪いのか（モデルが確率を上げた・下げた材料）と、総合でなぜその印になったのかが見られる。時点（木曜・前日・当日）は DB に入っている情報から自動で選ぶ。予想は1レース数十秒かかるので、先に tools/今週の予想/run.bat（または forecast.py）でまとめて作っておく。オッズや馬体重を取り込み直したら「予想し直す」。",
+  forecast: "今のモデル（近走と適性から3着以内を予想。3着以内のモデルと1着のモデル）で今週のレースを予想し、全頭を「3着以内に入る確率」の高い順に並べて印（◎○▲△☆注消）を付ける。◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、レースの期待度（◎の期待値が 1.00 以上なら高）も出す。馬の行を押すと、何が良くて何が悪いのか（モデルが確率を上げた・下げた材料）と、総合でなぜその印になったのかが見られる。時点（木曜・前日・当日）は DB に入っている情報から自動で選ぶ。予想は1レース数十秒かかるので、先に tools/今週の予想/run.bat（または forecast.py）でまとめて作っておく。オッズや馬体重を取り込み直したら「予想し直す」。印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（単勝・複勝・ワイド・馬連・馬単・3連複・3連単。3連複・3連単は前からの形と、◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す。今の決まりで実際に買うのは複勝だけで、ほかの券種は確かめ中（参考）。",
   trend: "レースを選ぶと、条件が同じ過去レース（同レース → 競馬場・コース・距離・馬場状態の4つ一致 → 3つ以上 → 2つ以上）の傾向を出し、出走馬を項目ごとに +1 / −1 で採点して順位を付ける。発走前の DB に無い馬場状態・人気・馬体重は手で入れる（入れなければその項目は 0 点）。終わったレースを選ぶと、着順と見比べられる。項目の説明は tools/傾向スコア/score-items.md。",
   ability: "レースを選ぶと、出走馬を能力指数の高い順に並べる。能力指数は、近8走の走破タイムを、コースの基準タイム・その日の馬場差・斤量・ペース（展開の得・損）で補正したスピード指数を、新しい走ほど・今回の条件（距離・競馬場・芝ダと馬場）に近い走ほど重く見て平均したもの。80 が1勝クラスの古馬のふつうの走、10点で1%速い。着順・人気・オッズは使わない。発表前の馬場状態は手で入れる。終わったレースを選ぶと、その走のスピード指数と着順も並ぶ。DB に新しい確定成績が入ったあとの最初の1回は、過去の全部の走の指数を作り直すので1〜2分かかる。",
   stakes: "重賞（G1・G2・G3）ごとの攻略ポイント。どのレースでも成り立つ一般論（1番人気や前に行く馬が走る）ではなく、そのレースならではのずれを出す。人気は同じグレードの重賞全体と、脚質の前・枠の内はそのコースの全クラスと、年齢・ローテなどはそのレースのほかの出走馬と比べ、ずれの大きさ・検定の印（◎ p<0.05、○ p<0.10）・回収率を添える。同じレースは特別競走番号で見分けるので、競走名が変わっても過去の開催をたどれる。「この日より前」を入れると、その日より前の開催だけで数える。はじめの1回は事実表を作るので時間がかかる。",
@@ -452,6 +454,25 @@ function forecastTable(forecast) {
   return el("div", {}, bar, el("div", {class: "gridwrap", style: "max-height:none"},
     el("table", {}, el("thead", {}, el("tr", {}, ...heads.map((t) => el("th", {}, t)))), body)));
 }
+function ticketSection(forecast) {
+  const tickets = forecast.tickets || [];
+  const box = el("div", {}, el("h3", {}, "買い目（印のルール。設計書「買うレースと買い目を決める」08 の 2）"));
+  box.append(el("div", {class: "note"}, (forecast.odds_known ? "締め切り前のオッズ（取り込んだ時点のもの）で、期待値・組の確率・トリガミを付けた。" : "オッズが無いので、期待値とトリガミは出ない（複勝と、期待値で絞る3連単・3連複は0点）。")
+    + " 3連複・3連単の期待値は、市場が見た組の確率 × 3頭の「モデル ÷ 市場」の比。線を引いた買い目は外したもの（トリガミ・オッズ無し）。今の決まりで実際に買うのは複勝だけで、ほかの券種は確かめ中（参考）。"));
+  if (!tickets.length) { box.append(el("div", {class: "note"}, "買い目は無い（◎ が無い、または複勝の期待値が線に届かない）。")); return box; }
+  const groups = new Map();
+  tickets.forEach((t) => { if (!groups.has(t.rule)) groups.set(t.rule, []); groups.get(t.rule).push(t); });
+  groups.forEach((list, rule) => {
+    const bought = list.filter((t) => !t.dropped);
+    box.append(el("div", {class: "tk-head"}, el("b", {}, rule), " " + bought.length + " 点 × " + list[0].stake_units + "単位"
+      + (bought.length < list.length ? "（" + (list.length - bought.length) + " 点を外した）" : "")));
+    box.append(el("div", {class: "chips"}, ...list.map((t) => el("span", {class: "chip" + (t.dropped ? " out" : ""),
+      title: t.ticket_type + " " + t.label + (t.odds !== null ? " / オッズ " + t.odds + "倍" : "") + (t.value !== null ? " / 期待値 " + t.value.toFixed(2) : "")
+        + (t.probability !== null ? " / 組の確率 " + percent(t.probability) : "") + (t.dropped ? " / " + t.dropped : "")},
+      t.label + (t.odds !== null ? " " + t.odds + "倍" : "") + (t.value !== null ? " ⟨" + t.value.toFixed(2) + "⟩" : "")))));
+  });
+  return box;
+}
 function showForecast(main, data) {
   main.querySelectorAll(".fc-card").forEach((node) => node.remove());
   const rid = data.rid, forecast = data.forecast;
@@ -471,6 +492,7 @@ function showForecast(main, data) {
     cliBlock(cliLine(TOOLS.forecast, {}, rid) + " --detail"));
   main.append(head);
   if (forecast) main.append(el("div", {class: "card fc-card"}, forecastTable(forecast)));
+  if (forecast && forecast.tickets !== undefined) main.append(el("div", {class: "card fc-card"}, ticketSection(forecast)));
 }
 renderers.forecast = async (main, {id, params}) => {
   main.append(el("div", {class: "help"}, HELP.forecast));

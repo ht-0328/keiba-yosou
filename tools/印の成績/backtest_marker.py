@@ -13,7 +13,7 @@ from yosou.shared.win_value import LINE, ExpectationLevel
 from 今週の予想.forecast_columns import EXPECTATION, MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_VALUE
 from 今週の予想.mark_rule import TOP_MARK, MarkRule
 
-from 印の成績.filter_columns import (
+from 今週の予想.filter_columns import (
     AGREEMENT,
     MEMBERS,
     ODDS_EVENING,

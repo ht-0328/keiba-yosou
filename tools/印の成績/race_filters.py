@@ -10,7 +10,7 @@ from yosou.shared.win_value import HIGH
 
 from 今週の予想.forecast_columns import EXPECTATION
 
-from 印の成績.filter_columns import AGREEMENT, POOL_BACKED
+from 今週の予想.filter_columns import AGREEMENT, POOL_BACKED
 
 #: 絞り込みの名前に使う言葉。
 AGREE_LABEL, DISAGREE_LABEL = "2モデル一致", "2モデル不一致"

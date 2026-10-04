@@ -8,7 +8,7 @@ from yosou.shared.win_value import WinExpectedValue
 
 from 今週の予想.forecast_columns import WIN_PROBABILITY, WIN_VALUE
 
-from 印の成績.filter_columns import MEMBERS, member_column
+from 今週の予想.filter_columns import MEMBERS, member_column
 from 印の成績.prediction_file import TEST
 
 #: 結果の列（今週の予想の ``forecast_columns`` の列と同じ名前）。

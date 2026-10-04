@@ -7,7 +7,7 @@ from itertools import product
 
 from yosou.shared.betting import TicketType
 
-from 印の成績.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
+from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
 
 #: 1単位の金額（円）。08 の 2 の「1点の額」は単位で書いてあるので、合計を金額で出すときに使う。
 UNIT_YEN = 1000

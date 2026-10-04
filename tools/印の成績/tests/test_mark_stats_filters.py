@@ -16,8 +16,8 @@ from 共通 import keys
 from 合成DB import synth
 
 from 印の成績.backtest_marker import BacktestMarker
-from 印の成績.filter_columns import AGREEMENT, ODDS_MOVE, POOL_BACKED, POOL_SUPPORT, POOL_WIN
-from 印の成績.mark_tickets import RULE, VALUE, MarkTickets
+from 今週の予想.filter_columns import AGREEMENT, ODDS_MOVE, POOL_BACKED, POOL_SUPPORT, POOL_WIN
+from 今週の予想.mark_tickets import RULE, VALUE, MarkTickets
 from 印の成績.movement_report import ALL_LABEL, MovementReport
 from 印の成績.odds_snapshot_repository import OddsSnapshotRepository
 from 印の成績.pool_win_reader import PoolWinReader
@@ -27,8 +27,8 @@ from 印の成績.race_scene_repository import RaceSceneRepository
 from 印の成績.scene_bands import CLASS_AXIS, FIELD_AXIS, POOL_AXIS, SURFACE_AXIS, VENUE_AXIS, SceneBands
 from 印の成績.scene_report import SceneReport
 from 印の成績.ticket_payouts import ODDS, PAYOUT
-from 印の成績.ticket_rules import PLACE_AGREE_LABEL, PLACE_LABEL
-from 印の成績.torigami_filter import DROPPED
+from 今週の予想.ticket_rules import PLACE_AGREE_LABEL, PLACE_LABEL
+from 今週の予想.torigami_filter import DROPPED
 from 印の成績.win_pool_size_repository import WIN_POOL, WinPoolSizeRepository
 from 印の成績.win_value_attacher import WinValueAttacher
 

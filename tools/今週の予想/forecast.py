@@ -13,6 +13,8 @@
 前日・当日は、危険な1番人気を「人気馬が4着以下になるかを予想」の学習済みモデルで判定して「消」にし、残りの馬に ◎〜△ を付ける。
 印の付かなかった馬も「消」。時点（木曜・前日・当日）は、DB に入っている情報（オッズ・馬番・馬体重）から自動で選ぶ。
 先に jvdata-store で今週の出馬表（jvstore sync）と速報（jvstore realtime --date <開催日>）を取り込んでおく。
+印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（単勝・複勝・ワイド・馬連・馬単・3連複・3連単。3連複・3連単は前からの形と、
+◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す（今の決まりで実際に買うのは複勝だけ。ほかは参考）。
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
 1レースに数十秒かかる（はじめの1レースは、事実表とスピード指数を作るので数分）。
 """
@@ -36,6 +38,7 @@ from yosou.shared.feature import PredictionTiming  # noqa: E402
 from 今週の予想.forecast_store import DEFAULT_FOLDER, ForecastStore  # noqa: E402
 from 今週の予想.forecast_table import ForecastTable  # noqa: E402
 from 今週の予想.race_forecaster import FORECAST_VERSION, RaceForecaster  # noqa: E402
+from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
 
 #: 学習済みモデルの既定の置き場所。
@@ -63,6 +66,7 @@ def main(args) -> None:
                 continue
             store.save(forecast)
             tables.append(ForecastTable().table(forecast))
+            tables.append(TicketTable().table(forecast))
             if args.detail:
                 tables.append(_detail_table(forecast))
     cli.emit(tables, args)

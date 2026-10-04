@@ -7,7 +7,7 @@ import pandas as pd
 
 from yosou.shared.repository import POOLS, FirstHorsePoolRepository
 
-from 印の成績.filter_columns import POOL_WIN
+from 今週の予想.filter_columns import POOL_WIN
 
 #: 読むレースIDを入れる一時表。
 _WANTED = "mark_stats_pool_races"

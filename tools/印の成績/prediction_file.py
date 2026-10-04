@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from 印の成績.filter_columns import MEMBER_SOURCES, member_column
+from 今週の予想.filter_columns import MEMBER_SOURCES, member_column
 
 #: keiba-yosou のリポジトリ直下（tools/印の成績/ から2つ上）。
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]

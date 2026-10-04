@@ -7,7 +7,7 @@ import pandas as pd
 
 from 共通 import facts, keys
 
-from 印の成績.filter_columns import ODDS_EVENING, ODDS_MORNING
+from 今週の予想.filter_columns import ODDS_EVENING, ODDS_MORNING
 
 #: オッズ1（単複枠）の親と、馬番ごとの単勝オッズの子。
 _HEADER_TABLE = "o1"

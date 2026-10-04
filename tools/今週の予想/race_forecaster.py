@@ -27,7 +27,7 @@ from yosou.form_aptitude_top3.workflow import (
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import column_names as ids
 from yosou.shared.feature import PredictionTiming
-from yosou.shared.feature.odds import TOP3_RATE
+from yosou.shared.feature.odds import TOP3_RATE, WIN_RATE, MarketPlaces
 from yosou.shared.place_value import PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER as FIGURE_CACHE
@@ -36,6 +36,7 @@ from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
 from 今週の予想 import forecast_columns as columns
 from 今週の予想.danger_finder import DangerFinder
+from 今週の予想.forecast_tickets import ForecastTickets
 from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.mark_rule import MarkRule
 from 今週の予想.timing_chooser import TimingChooser
@@ -50,12 +51,12 @@ _RENAMES: dict[str, str] = {
 _HORSE_COLUMNS: tuple[str, ...] = (
     columns.RANK, columns.MARK, columns.MARK_REASON, columns.HORSE_NO, columns.HORSE_NAME, columns.HORSE_ID,
     columns.PROBABILITY, columns.WIN_ODDS, columns.POPULARITY, columns.MARKET_TOP3, columns.PLACE_VALUE, columns.UPDOWN,
-    columns.WIN_PROBABILITY, columns.WIN_VALUE, *columns.DANGER_COLUMNS,
+    columns.WIN_PROBABILITY, columns.WIN_VALUE, columns.MARKET_WIN, columns.AXIS, *columns.DANGER_COLUMNS,
 )
 #: 予想の名前（画面に出す）。
 MODEL_NAME = "近走と適性から3着以内を予想（3着以内と1着のモデル。危険な人気馬は 人気馬が4着以下になるかを予想）"
-#: 結果の作り方の版。印の決め方や理由の作り方、モデルの材料を変えたら上げる（``forecast.py --skip-saved`` は、版の違う結果を作り直す）。
-#: 5: 当日の1着のモデルに勝ち切る材料（Q）を足した（設計書「近走と適性から3着以内を予想」の 15 の 15）。
+#: 結果の作り方の版。印の決め方や理由の作り方、買い目、モデルの材料を変えたら上げる（``forecast.py --skip-saved`` は、版の違う結果を作り直す）。
+#: 5: 印から組んだ買い目（tickets）を足し、当日の1着のモデルに勝ち切る材料（Q）を足した（設計書「近走と適性から3着以内を予想」の 15 の 15）。
 FORECAST_VERSION = 5
 
 
@@ -68,6 +69,8 @@ class RaceForecaster:
     前日・当日は、危険な1番人気を予想「人気馬が4着以下になるかを予想」で判定して、印を付ける前に消にする（``DangerFinder``）。
     ◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、レースの期待度（◎ の期待値が 1.00 以上なら高）も出す
     （設計書「近走と適性から3着以内を予想」の 16 の 6。木曜は期待値が無いので期待度も無い）。
+    印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（全券種）を組み、締め切り前のオッズで組の確率とトリガミを付ける（``ForecastTickets``。
+    結果の ``tickets``。木曜はオッズが無いので期待値とトリガミは付かない）。
     ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所。結果は JSON にできる辞書。
     """
 
@@ -81,6 +84,7 @@ class RaceForecaster:
         self._marks = MarkRule()
         self._evaluator = HorseEvaluator()
         self._expectation = ExpectationLevel()
+        self._tickets = ForecastTickets()
 
     def forecast(self, con: duckdb.DuckDBPyConnection, race_id: str,
                  timing: PredictionTiming | None = None) -> dict[str, Any]:
@@ -91,12 +95,15 @@ class RaceForecaster:
         chosen = timing or choice.timing
         reason = choice.reason if timing is None else f"{chosen.label}のモデル（指定）"
         explained = self._workflow(con, chosen).explain(race_id, chosen)
-        horses = self._horses(explained, self._dangers.find(con, race_id, chosen))
+        horses, marked = self._horses(explained, self._dangers.find(con, race_id, chosen))
+        expectation = self._race_expectation(horses)
+        odds_known = chosen is not PredictionTiming.THURSDAY
         return {
             "version": FORECAST_VERSION, "rid": race_id, "title": card.header_title(header), "header": header, "model": MODEL_NAME,
             "timing": chosen.label, "timing_reason": reason, "pool_free": explained.pool_free,
-            "expectation": self._race_expectation(horses),
+            "expectation": expectation, "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
+            "tickets": self._tickets.build(con, race_id, marked, expectation, odds_known),
         }
 
     def _race_expectation(self, horses: list[dict[str, Any]]) -> str | None:
@@ -104,11 +111,13 @@ class RaceForecaster:
         tops = [horse for horse in horses if horse[columns.MARK] == "◎"]
         return self._expectation.of(tops[0].get(columns.WIN_VALUE)) if tops else None
 
-    def _horses(self, explained: ExplainedPrediction, dangers: pd.DataFrame) -> list[dict[str, Any]]:
-        """全頭の結果（3着以内の確率の高い順）。``dangers`` は人気馬の危険の判定（``DangerFinder``。木曜は空）。"""
+    def _horses(self, explained: ExplainedPrediction, dangers: pd.DataFrame) -> tuple[list[dict[str, Any]], pd.DataFrame]:
+        """全頭の結果（3着以内の確率の高い順）と、印を付けた表（買い目を組むのに使う）。``dangers`` は人気馬の危険の判定（``DangerFinder``。木曜は空）。"""
         table = explained.table.rename(columns=_RENAMES)
         table = table[[column for column in _RENAMES.values() if column in table.columns]]
         table = table.assign(**{"_row": table.index, columns.HORSE_ID: table[columns.HORSE_ID].astype(str)})
+        if columns.WIN_ODDS in table.columns:
+            table[columns.MARKET_WIN] = self._market_win(table[columns.WIN_ODDS])
         dangers = dangers.assign(**{columns.HORSE_ID: dangers[columns.HORSE_ID].astype(str)})
         table = table.merge(dangers, on=columns.HORSE_ID, how="left").set_index(table.index)
         marked = self._marks.assign(table)
@@ -117,7 +126,12 @@ class RaceForecaster:
             row = horse["_row"]
             evaluation = self._evaluator.evaluate(horse, explained.features.loc[row], explained.contributions.loc[row])
             horses.append({**{column: _plain(horse.get(column)) for column in _HORSE_COLUMNS}, **evaluation})
-        return horses
+        return horses, marked
+
+    def _market_win(self, win_odds: pd.Series) -> pd.Series:
+        """オッズから見た勝率（市場の見立て。組の期待値の「1着の比」の分母）。印の成績と同じ部品で出す。"""
+        entries = pd.DataFrame({"race_id": "race", "win_odds": win_odds}, index=win_odds.index)
+        return MarketPlaces().of(entries)[WIN_RATE]
 
     def _workflow(self, con: duckdb.DuckDBPyConnection, timing: PredictionTiming) -> PredictionWorkflow:
         """その時点の予測の流れ（``PredictCommand`` と同じ組み立て）。"""

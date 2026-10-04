@@ -14,7 +14,7 @@ from 共通.render import Table
 from 今週の予想.forecast_columns import EXPECTATION, MARK
 from 今週の予想.mark_rule import TOP_MARK
 
-from 印の成績.filter_columns import ODDS_MOVE
+from 今週の予想.filter_columns import ODDS_MOVE
 from 印の成績.odds_snapshot_repository import MORNING_CUTOFF
 from 印の成績.perf_rows import perf_row_of
 
