@@ -73,7 +73,7 @@
   /* 今週の予想 */
   .mark { display: inline-block; min-width: 24px; text-align: center; font-family: var(--sans); font-weight: 700; font-size: 16px; }
   .m1 { color: #f0c96e; } .m2 { color: #e6e0d4; } .m3 { color: #8fb8e0; } .m4 { color: #8fc9a0; }
-  .m5 { color: #e8a0c8; } .m6 { color: #e0b080; } .m7 { color: var(--muted-2); font-weight: 500; }
+  .m5 { color: #e8a0c8; } .m6 { color: #e0b080; } .m7 { color: #e07070; } .m8 { color: var(--muted-2); font-weight: 500; }
   tr.out td { color: var(--muted); }
   tr.fc-row { cursor: pointer; }
   tr.fc-detail td { white-space: normal; background: var(--panel-2); font-family: var(--sans); font-size: 13px; padding: 10px 14px 14px; }
@@ -362,7 +362,7 @@ function appendRaceDays(main, table, view, extra = () => null) {
 }
 
 // ---------------------------------------------------------------- 今週の予想
-const MARK_CLASS = {"◎": "m1", "○": "m2", "▲": "m3", "△": "m4", "☆": "m5", "注": "m6", "消": "m7"};
+const MARK_CLASS = {"◎": "m1", "○": "m2", "▲": "m3", "△": "m4", "☆": "m5", "注": "m6", "消": "m7", "－": "m8"};
 function markEl(mark) { return el("span", {class: "mark " + (MARK_CLASS[mark] || "")}, mark); }
 function percent(v) { return v === null || v === undefined ? "" : (v * 100).toFixed(1) + "%"; }
 function points(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1); }
@@ -370,7 +370,7 @@ function forecastLegend(legend) {
   const marks = el("div", {class: "legend"}, ...Object.entries(legend.marks).map(([mark, role]) => el("span", {}, markEl(mark), " ", role)));
   const cats = el("details", {}, el("summary", {}, "良い点・悪い点の分類の中身"),
     el("ul", {}, ...Object.entries(legend.categories).map(([name, note]) => el("li", {}, el("b", {}, name), "：", note))));
-  return el("div", {}, marks, el("div", {class: "note"}, "◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬（30倍以下の馬がいないか、木曜でオッズが無いときは1着になる確率が1位）。○▲ は ◎ を除いた3着以内に入る確率の1〜2位、△ は3〜5位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。危険な人気馬（人気馬の予想で4着以下になる確率が市場の見立てより線以上に高い1番人気。前日・当日だけ）は 消 にして、◎〜△ は残りの馬に付ける。ほかは 消。レースの期待度は、◎ の単勝の期待値が 1.00 以上なら「高」、未満なら「低」（単勝を買うかの目安。確かめ中で、まだ買う根拠にはしない）。"), cats);
+  return el("div", {}, marks, el("div", {class: "note"}, "◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬（30倍以下の馬がいないか、木曜でオッズが無いときは1着になる確率が1位）。○▲ は ◎ を除いた3着以内に入る確率の1〜2位、△ は3〜5位の3頭。☆ は穴馬のうち複勝の期待値が1位（1.25以上のとき）、注 は印の無い馬のうち市場の見立てより来ると見る度合いが最大の馬（☆と注はオッズのある前日・当日だけ）。危険な人気馬（人気馬の予想で4着以下になる確率が市場の見立てより線以上に高い人気馬。1レース1頭まで。1番人気が危険ならその馬、そうでなければ 2〜5番人気で線をいちばん大きく超えた馬。前日・当日だけ）は 消 にして、◎〜△ は残りの馬に付ける。ほかは無印（－）。レースの期待度は、◎ の単勝の期待値が 1.00 以上なら「高」、未満なら「低」（単勝を買うかの目安。確かめ中で、まだ買う根拠にはしない）。"), cats);
 }
 async function forecastRaceList(main, params) {
   const venueField = META.filters.find((field) => field.name === "venue");
@@ -436,7 +436,7 @@ function forecastTable(forecast) {
     const detail = el("tr", {class: "fc-detail", style: "display:none"}, el("td", {colspan: heads.length}, horseDetail(h)));
     const toggle = () => { detail.style.display = detail.style.display === "none" ? "" : "none"; };
     openAll.push((show) => { detail.style.display = show ? "" : "none"; });
-    body.append(el("tr", {class: "fc-row" + (h.mark === "消" ? " out" : ""), onclick: toggle, title: "押すと理由を開く"},
+    body.append(el("tr", {class: "fc-row" + ((h.mark === "消" || h.mark === "－") ? " out" : ""), onclick: toggle, title: "押すと理由を開く"},
       el("td", {class: "num"}, String(h.rank)), el("td", {}, markEl(h.mark)), el("td", {class: "num"}, h.horse_no ?? ""),
       el("td", {}, h.horse_name),
       el("td", {}, el("span", {class: "pbar"}, el("span", {style: "width:" + (h.probability * 100).toFixed(0) + "%"})), percent(h.probability)),

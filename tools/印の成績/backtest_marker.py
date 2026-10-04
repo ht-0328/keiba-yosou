@@ -40,7 +40,7 @@ _ODDS_COLUMNS: tuple[str, ...] = (
 
 class BacktestMarker:
     """全頭の予想の予測（3着以内に入る確率）と、1着の予想の予測（1着になる確率と単勝の期待値）、レースの結果・確定オッズ・危険な人気馬の判定から、
-    レースごとに ◎○▲△☆注消 とレースの期待度を付ける。
+    レースごとに ◎○▲△☆注消（と無印）とレースの期待度を付ける。
 
     市場の見立て（オッズから見た勝率・3着以内率）と複勝の期待値は、今週の予想と同じ部品で、確定オッズから出す。
     ``estimator`` は複勝の見込みの倍率（全頭の予想の学習済みモデルと一緒に保存した ``place_price.json``）。無ければ期待値は出さず、☆ は付かない。
@@ -88,6 +88,8 @@ class BacktestMarker:
         table = self._with_pools(table, pools)
         table = self._with_movements(table, movements)
         table["is_danger"] = table["is_danger"].astype("boolean").fillna(False).astype(bool)
+        if "over_line" in table.columns:
+            table["over_line"] = table["over_line"].astype("boolean").fillna(False).astype(bool)
         marked = [self._mark_race(race) for _, race in table.groupby("race_id", sort=False)]
         return pd.concat(marked, ignore_index=True)
 

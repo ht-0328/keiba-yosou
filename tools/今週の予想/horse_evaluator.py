@@ -9,6 +9,7 @@ import pandas as pd
 
 from 今週の予想.feature_labels import CATEGORIES, RACE_CONDITION, FeatureLabels
 from 今週の予想.forecast_columns import (
+    DANGER_LINE,
     DANGER_SCORE,
     FAVORITE_BAND,
     IS_DANGER,
@@ -33,7 +34,7 @@ MIN_EFFECT_LOGIT = 0.05
 MARK_ROLES: dict[str, str] = {
     "◎": "勝ってほしい馬（単勝の期待値が1位。期待度が高のレースで単勝を買う候補）", "○": "相手（3着以内の確率が ◎ より高ければ、ワイド・3連複の軸）",
     "▲": "相手", "△": "相手（3連複の3列目）",
-    "☆": "美味しい穴馬（複勝で買う候補）", "注": "表示だけ（ワイドの相手の候補）", "消": "買わない（危険な人気馬もここ）",
+    "☆": "美味しい穴馬（複勝で買う候補）", "注": "表示だけ（ワイドの相手の候補）", "消": "危険な人気馬（1レース1頭まで。買わない）", "－": "無印（印の付かなかった馬。買わない）",
 }
 
 
@@ -102,10 +103,19 @@ class HorseEvaluator:
             parts.append("割り引いたのは" + "・".join(f"「{point['category']}」" for point in bad) + "。")
         score = horse.get(DANGER_SCORE)
         if score is not None and pd.notna(score) and not bool(horse.get(IS_DANGER)):
-            parts.append(f"人気馬の予想の危険度は {score * 100:+.1f}ポイント（{horse[FAVORITE_BAND]}。"
-                         "危険の判定を印に使うのは1番人気だけなので、参考）。")
+            parts.append(self._danger_note(score, horse))
         parts.append(f"→ {horse[MARK]}（{MARK_ROLES.get(horse[MARK], '')}）: {horse[MARK_REASON]}。")
         return "".join(parts)
+
+    def _danger_note(self, score: float, horse: pd.Series) -> str:
+        """消にしなかった人気馬の、人気馬の予想の危険度（参考）。線以上なのに消でないのは、1レース1頭だけを消にするため。"""
+        line = horse.get(DANGER_LINE)
+        if line is None or pd.isna(line):
+            return f"人気馬の予想の危険度は {score * 100:+.1f}ポイント（{horse[FAVORITE_BAND]}。線が無いので判定しない）。"
+        if score >= line:
+            return (f"人気馬の予想の危険度は {score * 100:+.1f}ポイントで、{horse[FAVORITE_BAND]}の線（{line * 100:.1f}ポイント）以上。"
+                    "消は1レース1頭なので、1番人気か、線をもっと大きく超えた馬を消にした（参考）。")
+        return f"人気馬の予想の危険度は {score * 100:+.1f}ポイント（{horse[FAVORITE_BAND]}の線 {line * 100:.1f}ポイント未満。危険ではない）。"
 
 
 def _slope(probability: float) -> float:

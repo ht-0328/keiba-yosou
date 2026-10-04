@@ -1,4 +1,4 @@
-"""MarkRule（全頭に ◎○▲△☆注消 を付ける）のテスト。値は架空。"""
+"""MarkRule（全頭に ◎○▲△☆注消と無印を付ける）のテスト。値は架空。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from 今週の予想.forecast_columns import AXIS, MARK, PROBABILITY, RANK, WIN_PROBABILITY, WIN_VALUE
-from 今週の予想.mark_rule import MarkRule, OUT_MARK
+from 今週の予想.mark_rule import NO_MARK, MarkRule, OUT_MARK
 
 
 def _race(probabilities, odds=None, market=None, values=None) -> pd.DataFrame:
@@ -31,7 +31,7 @@ def test_単勝の期待値が1位の馬を二重丸にして残りは3着以内
     # ○▲△ は ◎ を除いた3着以内の確率の順（1番 → 3番 → 4・5・6番）
     assert [marked.loc[no, MARK] for no in (1, 3, 4, 5, 6)] == ["○", "▲", "△", "△", "△"]
     assert "◎を除いて、3着以内に入る確率が1位（全頭ではレース内1位）" in marked.loc[1, "mark_reason"]
-    assert marked.loc[7, MARK] == OUT_MARK and "単勝の期待値" in marked.loc[7, "mark_reason"]
+    assert marked.loc[7, MARK] == NO_MARK and "単勝の期待値" in marked.loc[7, "mark_reason"]
     # 軸は ◎○▲ のうち3着以内の確率が1位の馬（1番の ○。◎ の 2番ではない）で、1頭だけ
     assert marked.loc[1, AXIS] and marked[AXIS].sum() == 1
 
@@ -54,7 +54,7 @@ def test_単勝30倍を超える馬は期待値が1位でも二重丸にしな�
     race[WIN_VALUE] = race[WIN_PROBABILITY] * race["win_odds"]
     marked = MarkRule().assign(race).set_index("horse_no")
     assert marked.loc[2, MARK] == "◎" and "30倍以下の馬の中で" in marked.loc[2, "mark_reason"]
-    assert marked.loc[7, MARK] == OUT_MARK and "候補の上限" in marked.loc[7, "mark_reason"]
+    assert marked.loc[7, MARK] == NO_MARK and "候補の上限" in marked.loc[7, "mark_reason"]
     # 30倍以下の馬が1頭もいなければ、1着になる確率が1位の馬
     all_longshots = race.assign(win_odds=[40.0, 60.0, 50.0, 80.0, 100.0, 150.0, 150.0])
     all_longshots[WIN_VALUE] = all_longshots[WIN_PROBABILITY] * all_longshots["win_odds"]
@@ -69,10 +69,10 @@ def test_木曜はオッズが無いので1着になる確率が1位の馬を二
     assert [marked.loc[no, MARK] for no in (1, 3, 4)] == ["○", "▲", "△"]
 
 
-def test_木曜は確率の順に6頭へ印を付け残りは消() -> None:
+def test_木曜は確率の順に6頭へ印を付け残りは無印() -> None:
     marked = MarkRule().assign(_race([0.1, 0.5, 0.3, 0.2, 0.4, 0.05, 0.15, 0.02]))
     assert marked["horse_no"].tolist() == [2, 5, 3, 4, 7, 1, 6, 8]
-    assert marked[MARK].tolist() == ["◎", "○", "▲", "△", "△", "△", OUT_MARK, OUT_MARK]
+    assert marked[MARK].tolist() == ["◎", "○", "▲", "△", "△", "△", NO_MARK, NO_MARK]
     assert marked[RANK].tolist() == [1, 2, 3, 4, 5, 6, 7, 8]
     assert "1着の予想が無い" in marked["mark_reason"].iloc[0]  # 1着の予想が無ければ、前の決め方（3着以内の確率の1位）
 
@@ -104,7 +104,7 @@ def test_注は市場より来ると見る度合いが最大の馬() -> None:
     values = [0.9, 0.9, 0.9, 1.0, 1.0, 1.0, 0.8, 1.1]
     marked = MarkRule().assign(_race(probabilities, odds, market, values)).set_index("horse_no")
     assert marked.loc[8, MARK] == "注"
-    assert marked.loc[7, MARK] == OUT_MARK
+    assert marked.loc[7, MARK] == NO_MARK
 
 
 def test_注は市場より低く見ている馬には付けない() -> None:
@@ -113,7 +113,7 @@ def test_注は市場より低く見ている馬には付けない() -> None:
     market = [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.2]
     values = [0.9, 0.9, 0.9, 1.0, 1.0, 1.0, np.nan]
     marked = MarkRule().assign(_race(probabilities, odds, market, values))
-    assert marked[MARK].tolist()[-1] == OUT_MARK
+    assert marked[MARK].tolist()[-1] == NO_MARK
     assert all(reason for reason in marked["mark_reason"])
 
 
@@ -135,7 +135,8 @@ def test_危険な人気馬は消にして残りの馬に二重丸から付け�
     assert marked.loc[1, MARK] == OUT_MARK and "危険な人気馬" in marked.loc[1, "mark_reason"]
     assert [marked.loc[no, MARK] for no in range(2, 8)] == ["◎", "○", "▲", "△", "△", "△"]
     assert "レース内2位" in marked.loc[2, "mark_reason"]  # ◎ は危険な人気馬を除いた1位（全頭では2位）
-    assert marked.loc[8, MARK] in (OUT_MARK, "注")
+    assert marked.loc[8, MARK] in (NO_MARK, "注")
+    assert (marked[MARK] == OUT_MARK).sum() == 1  # 消は危険な人気馬だけ
 
 
 def test_危険な人気馬には星も注も付けない() -> None:
@@ -148,3 +149,12 @@ def test_危険な人気馬には星も注も付けない() -> None:
     marked = MarkRule().assign(race)
     assert marked.set_index("horse_no").loc[1, MARK] == OUT_MARK
     assert marked[MARK].tolist().count("◎") == 1
+
+
+def test_2番人気を消にしたときは理由に1番人気が危険でないことを書く() -> None:
+    probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2, 0.1]
+    odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 30.0, 40.0]
+    race = _with_danger(_race(probabilities, odds, [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.1, 0.05], [0.9] * 8), {1: False, 2: True})
+    marked = MarkRule().assign(race).set_index("horse_no")
+    assert marked.loc[2, MARK] == OUT_MARK and "1番人気は危険でない" in marked.loc[2, "mark_reason"]
+    assert marked.loc[1, MARK] == "◎"

@@ -31,6 +31,7 @@ from 重賞攻略.guide import StakesGuide  # noqa: E402
 from 今週の予想.feature_labels import CATEGORY_NOTES  # noqa: E402
 from 今週の予想.forecast_store import ForecastStore  # noqa: E402
 from 今週の予想.horse_evaluator import MARK_ROLES  # noqa: E402
+from 今週の予想.mark_rule import NO_MARK  # noqa: E402
 from 検索画面.session import DbSession  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -248,7 +249,7 @@ class Backend:
         for row in cards.rows:
             forecast = self._forecasts.load(row[rid_at])
             if forecast is not None:
-                marks = " ".join(f"{horse['mark']}{horse['horse_no'] or ''}" for horse in forecast["horses"] if horse["mark"] != "消")
+                marks = " ".join(f"{horse['mark']}{horse['horse_no'] or ''}" for horse in forecast["horses"] if horse["mark"] != NO_MARK)
                 saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": marks,
                                       "expectation": forecast.get("expectation")}
         return {"cards": table_dict(cards), "saved": saved, "legend": self._forecast_legend()}

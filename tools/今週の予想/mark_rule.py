@@ -1,4 +1,4 @@
-"""1レースの全頭に印（◎○▲△☆注消）を付ける。"""
+"""1レースの全頭に印（◎○▲△☆注消と無印）を付ける。"""
 
 from __future__ import annotations
 
@@ -31,10 +31,12 @@ TOP_MARK = "◎"
 RANK_MARKS: tuple[str, ...] = ("○", "▲", "△", "△", "△")
 VALUE_MARK = "☆"
 NOTE_MARK = "注"
-#: 印の付かなかった馬（買わない馬）と、危険な人気馬の印。利用者の決定。
+#: 危険な人気馬の印（1レース1頭まで）。利用者の決定で、消は危険な人気馬だけに使う。
 OUT_MARK = "消"
+#: 印の付かなかった馬（無印。買わない馬）。利用者の決定で、消と分ける。
+NO_MARK = "－"
 #: 印の並び（画面の凡例と、並べ替えに使う）。
-MARK_ORDER: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK)
+MARK_ORDER: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK, NO_MARK)
 #: ☆ を付ける複勝の期待値の下限（設計書「買うレースと買い目を決める」07 の 2。研究「回収率100超」で決めた買う線）。
 VALUE_LINE = 1.25
 #: ◎ の候補にする単勝オッズの上限（利用者の決定。設計書 07 の 5）。これより高い大穴は、単勝の期待値が1位でも ◎ にしない
@@ -51,10 +53,10 @@ _OPTIONAL_COLUMNS: tuple[str, ...] = (
 
 
 class MarkRule:
-    """1レースの全頭に印を付ける（設計書「買うレースと買い目を決める」07 の 5。印の無い馬は利用者の決定で「消」）。
+    """1レースの全頭に印を付ける（設計書「買うレースと買い目を決める」07 の 5。印の無い馬は利用者の決定で無印）。
 
-    - 消（危険な人気馬）: 人気馬の予想で「危険」と判定された馬（07 の 3。前日・当日だけ。今は1番人気だけ。``DangerFinder``）。
-      先に消にして、ほかの印の候補から外す。
+    - 消（危険な人気馬）: 人気馬の予想で「危険」と判定された馬（07 の 3。前日・当日だけ。1レース1頭まで。1番人気が危険ならその馬、
+      そうでなければ 2〜5番人気から。``DangerFinder``）。先に消にして、ほかの印の候補から外す。
     - ◎: 消を除いた単勝 ``TOP_ODDS_LIMIT``（30倍）以下の馬の中で、単勝の期待値（1着になる確率 × 単勝オッズ）がいちばん高い馬。
       全レースに1頭付ける。30倍以下の馬がいないか、オッズの無い木曜は、1着になる確率が1位の馬。1着の予想が無ければ（前の版のモデル）、
       3着以内の確率が1位の馬。
@@ -63,7 +65,7 @@ class MarkRule:
       期待値が ``VALUE_LINE``（1.25）以上のときだけ。オッズの無い時点（木曜）は、期待値が無いので付かない。
     - 注: 印の付いていない馬のうち、上げ下げ（logit(予想) − logit(市場の見立て)）がいちばん大きい馬。上げ下げが正（市場より来ると見る）のときだけ。
       オッズの無い時点（木曜）は、市場の見立てが無いので付かない。
-    - 消: ほかの全部の馬（買わない馬）。
+    - 無印（``NO_MARK``）: ほかの全部の馬（買わない馬）。
     - 軸（列 ``axis``。印ではない）: ◎○▲ のうち3着以内の確率がいちばん高い馬。◎ と同じ馬のことも ○ のこともある（軸と ◎ が同じでも、
       軸を別の馬に替えない）。3連複・3連単の「軸馬」のパターンで軸にする（設計書 08 の 2）。
     レースの期待度（◎ の単勝の期待値の3段階）は、この表の ◎ の単勝の期待値から ``ExpectationLevel`` が決める。
@@ -85,16 +87,17 @@ class MarkRule:
         table[RANK] = np.arange(1, len(table) + 1)
         table[POPULARITY] = table[WIN_ODDS].rank(method="min")
         table[UPDOWN] = _logit(table[PROBABILITY]) - _logit(table[MARKET_TOP3])
-        table[MARK] = OUT_MARK
+        table[MARK] = NO_MARK
         table[MARK_REASON] = ""
         dangers = table.index[table[IS_DANGER]]
         for row in dangers:
+            table.loc[row, MARK] = OUT_MARK
             table.loc[row, MARK_REASON] = self._danger_reason(table.loc[row])
         self._mark_top_and_ranks(table, any_danger=len(dangers) > 0)
         self._mark_axis(table)
         self._mark_value(table)
         self._mark_note(table)
-        for row in table.index[(table[MARK] == OUT_MARK) & ~table[IS_DANGER]]:
+        for row in table.index[table[MARK] == NO_MARK]:
             table.loc[row, MARK_REASON] = self._out_reason(table.loc[row], any_danger=len(dangers) > 0)
         return table
 
@@ -144,7 +147,7 @@ class MarkRule:
     def _mark_value(self, table: pd.DataFrame) -> None:
         """穴馬で、複勝の期待値がいちばん高い馬に ☆（線以上のときだけ）。"""
         favorites = _favorite_count(len(table))
-        free = (table[MARK] == OUT_MARK) & ~table[IS_DANGER] & (table[POPULARITY] > favorites)
+        free = (table[MARK] == NO_MARK) & (table[POPULARITY] > favorites)
         candidates = table[free][PLACE_VALUE].dropna()
         if candidates.empty or candidates.max() < VALUE_LINE:
             return
@@ -155,7 +158,7 @@ class MarkRule:
 
     def _mark_note(self, table: pd.DataFrame) -> None:
         """印の無い馬のうち、市場の見立てより来ると見る度合いがいちばん大きい馬に 注（正のときだけ）。"""
-        candidates = table[(table[MARK] == OUT_MARK) & ~table[IS_DANGER]][UPDOWN].dropna()
+        candidates = table[table[MARK] == NO_MARK][UPDOWN].dropna()
         if candidates.empty or candidates.max() <= 0:
             return
         row = candidates.idxmax()
@@ -165,12 +168,15 @@ class MarkRule:
 
     def _danger_reason(self, row: pd.Series) -> str:
         """危険な人気馬として消にした理由。"""
-        return (f"危険な人気馬（{row[POPULARITY]:.0f}番人気）。人気馬の予想で4着以下になる確率が {row[OUT_PROBABILITY]:.1%} と、"
-                f"市場の見立て {row[MARKET_OUT]:.1%} より {row[DANGER_SCORE] * 100:.1f}ポイント高く、"
-                f"人気帯の線（{row[DANGER_LINE] * 100:.1f}ポイント）以上")
+        reason = (f"危険な人気馬（{row[POPULARITY]:.0f}番人気）。人気馬の予想で4着以下になる確率が {row[OUT_PROBABILITY]:.1%} と、"
+                  f"市場の見立て {row[MARKET_OUT]:.1%} より {row[DANGER_SCORE] * 100:.1f}ポイント高く、"
+                  f"人気帯の線（{row[DANGER_LINE] * 100:.1f}ポイント）以上")
+        if row[POPULARITY] > 1:
+            reason += "。1番人気は危険でないので、2〜5番人気のうち線をいちばん大きく超えた馬を消にした"
+        return reason
 
     def _out_reason(self, row: pd.Series, *, any_danger: bool) -> str:
-        """印が付かず消になった理由。"""
+        """印が付かず無印になった理由。"""
         within = f"◎と危険な人気馬を除いて{len(RANK_MARKS)}位まで" if any_danger else f"◎を除いて{len(RANK_MARKS)}位まで"
         reason = f"3着以内に入る確率がレース内{row[RANK]:.0f}位で、○〜△（{within}）に入らない"
         if pd.notna(row[WIN_VALUE]) and pd.notna(row[WIN_ODDS]) and row[WIN_ODDS] > TOP_ODDS_LIMIT:
