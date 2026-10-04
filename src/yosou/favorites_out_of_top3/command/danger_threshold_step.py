@@ -21,11 +21,11 @@ from ..dataset import FAVORITE_BAND
 from ..repository import DangerThresholdRepository
 
 #: 途中の表の列の名前。
-_TIMING, _DANGER, _LOST = "時点", "危険度", "4着以下"
+_TIMING, _DANGER, _LOST, _MARKET = "時点", "危険度", "4着以下", "オッズから見た4着以下の確率"
 
 
 class DangerThresholdStep:
-    """学習したモデルで検証データを予測し、危険度（予想 − オッズから見た4着以下の確率）と実際の4着以下から、
+    """学習したモデルで検証データを予測し、危険度（予想 − オッズから見た4着以下の確率）・実際の4着以下・オッズから見た4着以下の確率から、
     時点ごと・人気帯ごとの線（``DangerThreshold``）を決めて、モデルの置き場所に保存する（既存モデルの修正計画の 1）。
 
     テストデータは使わない。保存した線の表を返す。
@@ -37,7 +37,8 @@ class DangerThresholdStep:
                   for (label, report), timing in product(reports, timings)]
         valid = pd.concat(frames, ignore_index=True)
         chooser = DangerThreshold()
-        lines = valid.groupby([_TIMING, FAVORITE_BAND]).apply(lambda group: chooser.choose(group[_DANGER], group[_LOST]))
+        lines = valid.groupby([_TIMING, FAVORITE_BAND]).apply(
+            lambda group: chooser.choose_for(group.name[1], group[_DANGER], group[_LOST], group[_MARKET]))
         bands = list(valid[FAVORITE_BAND].unique())
         thresholds = {timing: self._lines_of(lines, timing, bands) for timing in timings}
         path = DangerThresholdRepository(models_root).save(thresholds)
@@ -54,10 +55,11 @@ class DangerThresholdStep:
 
     def _predicted(self, label: str, report: TrainingReport, segments: ModelSegments, models_root: Path,
                    timing: PredictionTiming) -> pd.DataFrame:
-        """1つの区分・1つの時点の、検証データの危険度と実際の4着以下。"""
+        """1つの区分・1つの時点の、検証データの危険度・実際の4着以下・オッズから見た4着以下の確率。"""
         valid = report.split.valid.for_timing(timing)
         models = ModelRepository(segments.root_of(models_root, label), MEMBER_TYPES).load(timing)
         probability = EnsembleModel(models).predict_proba(valid)
-        danger = probability - valid.baseline.probabilities().to_numpy()
+        market = valid.baseline.probabilities().to_numpy()
+        danger = probability - market
         return pd.DataFrame({_TIMING: timing.value, FAVORITE_BAND: valid.evaluation[FAVORITE_BAND].to_numpy(),
-                             _DANGER: danger, _LOST: valid.label.to_numpy()})
+                             _DANGER: danger, _LOST: valid.label.to_numpy(), _MARKET: market})

@@ -9,7 +9,7 @@ from 印の成績.mark_report import MarkReport
 from 印の成績.popularity_baseline import PopularityBaseline
 
 #: 2レース・各4頭。（印, 人気, 着順, 単勝払戻, 複勝払戻, 危険）。A は期待度「高」、B は「低」。
-_RACE_A = [("◎", 2, 1, 500, 200, False), ("○", 1, 4, 0, 0, False), ("▲", 3, 2, 0, 150, False), ("消", 4, 3, 0, 300, False)]
+_RACE_A = [("◎", 2, 1, 500, 200, False), ("○", 1, 4, 0, 0, False), ("▲", 3, 2, 0, 150, False), ("－", 4, 3, 0, 300, False)]
 _RACE_B = [("消", 1, 1, 200, 110, True), ("◎", 2, 2, 0, 130, False), ("○", 3, 5, 0, 0, False), ("▲", 4, 3, 0, 250, False)]
 _EXPECTATION = {"A": "高", "B": "低"}
 
@@ -30,7 +30,8 @@ def test_いつも同じ6つの表を同じ見出しで出す() -> None:
     marks = {row[0]: row for row in tables[0].rows if not row[0].startswith("└")}
     assert marks["◎"][2:4] == ["2", "1-1-0-0"] and marks["◎"][4] == "50.0%"  # 勝率
     assert marks["◎（1番人気以外）"][2] == "2" and marks["◎（1番人気）"][2] == "0"
-    assert marks["消のうち 危険な1番人気"][3] == "1-0-0-0"
+    assert marks["消のうち 1番人気"][3] == "1-0-0-0" and marks["消のうち 2〜5番人気"][2] == "0"
+    assert marks["－"][3] == "0-0-1-0"  # 無印
     assert marks["◎（期待度 高）"][3] == "1-0-0-0" and marks["◎（期待度 低）"][3] == "0-1-0-0"
     assert "◎が1番人気以外だったレース 100.0%" in tables[0].note
 
@@ -47,8 +48,9 @@ def test_上位3つの印の来た頭数と2頭の組() -> None:
 
 
 def test_区切りごとの危険の線と期待度が高のレース数() -> None:
-    folds = MarkReport().tables(_marked(), "条件。", {"2025年後半": {"1番人気": 0.12}})[4]
-    assert folds.rows == [["2024年前半", "1", "0", "—", "1"], ["2025年後半", "1", "1", "12ポイント", "0"]]
+    folds = MarkReport().tables(_marked(), "条件。", {"2025年後半": {"1番人気": 0.12, "2〜3番人気": 0.03}})[4]
+    assert folds.columns == ["区切り", "レース数", "危険な人気馬（消）", "1番人気の線", "2〜3番人気の線", "4〜5番人気の線", "期待度「高」のレース"]
+    assert folds.rows == [["2024年前半", "1", "0", "—", "—", "—", "1"], ["2025年後半", "1", "1", "12ポイント", "3ポイント", "—", "0"]]
 
 
 def test_二重丸の期待度ごとの単勝の成績() -> None:

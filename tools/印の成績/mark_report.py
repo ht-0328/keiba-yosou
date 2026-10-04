@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import pandas as pd
 
+from yosou.favorites_out_of_top3.dataset import FavoriteBand
 from yosou.shared.win_value import EXPECTATION_LEVELS, HIGH, LINE
 
 from 共通.bootstrap_interval import BootstrapInterval
@@ -13,14 +14,14 @@ from 共通.perf import PERF_COLUMNS, STAKE_YEN, percent
 from 共通.render import Table
 
 from 今週の予想.forecast_columns import EXPECTATION, MARK
-from 今週の予想.mark_rule import NOTE_MARK, OUT_MARK, TOP_MARK, VALUE_MARK
+from 今週の予想.mark_rule import NO_MARK, NOTE_MARK, OUT_MARK, TOP_MARK, VALUE_MARK
 
 from 印の成績.perf_rows import perf_row_of
 from 印の成績.popularity_baseline import RATE_NAMES, PopularityBaseline
 from 印の成績.race_filters import TOP_FILTERS
 
 #: 印ごとの表に並べる印（今週の予想の印の並び）。
-MARKS: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK)
+MARKS: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK, NO_MARK)
 #: 上位3つの印と、比べる人気（◎○▲ ↔ 1〜3番人気）。
 TOP_MARKS: tuple[str, ...] = (TOP_MARK, "○", "▲")
 TOP_POPULARITIES: tuple[int, ...] = (1, 2, 3)
@@ -34,6 +35,10 @@ ALL_TOP_LABEL = "◎ 全体"
 
 def _expectation_label(level: str) -> str:
     return f"◎（期待度 {level}）"
+
+
+def _line_text(line: float | None) -> str:
+    return "—" if line is None or pd.isna(line) else f"{line * 100:.0f}ポイント"
 
 
 def _top_at(level: str) -> Callable[[pd.DataFrame], pd.Series]:
@@ -52,7 +57,7 @@ _YEARLY: tuple[tuple[str, Callable[[pd.DataFrame], pd.Series]], ...] = (
 class MarkReport:
     """印を付けた表（``BacktestMarker.mark`` の戻り値）から、次の6つの表を作る。
 
-    1. 印ごとの成績（成績7つ）と、同じ人気の馬全体の成績（``PopularityBaseline``）。◎ は1番人気かどうか・期待度でも分け、消は内訳も出す。
+    1. 印ごとの成績（成績7つ）と、同じ人気の馬全体の成績（``PopularityBaseline``）。◎ は1番人気かどうか・期待度でも分け、消（危険な人気馬）は1番人気かどうかの内訳も出す。
     2. ◎○▲ の3頭のうち3着以内に来た頭数の割合と、1〜3番人気の3頭の同じ割合。
     3. ◎○▲ のうち2頭とも3着以内に来た割合（組ごと）と、1〜3番人気の同じ組。
     4. 年ごとの印の成績。
@@ -92,8 +97,8 @@ class MarkReport:
         add("◎（1番人気以外）", marked[(marked[MARK] == TOP_MARK) & ~favorite])
         for level in EXPECTATION_LEVELS:
             add(_expectation_label(level), marked[_top_at(level)(marked)])
-        add("消のうち 危険な1番人気", marked[marked["is_danger"]])
-        add("消のうち 印が付かなかった馬", marked[(marked[MARK] == OUT_MARK) & ~marked["is_danger"]])
+        add("消のうち 1番人気", marked[(marked[MARK] == OUT_MARK) & favorite])
+        add("消のうち 2〜5番人気", marked[(marked[MARK] == OUT_MARK) & ~favorite])
         add("1番人気 全体", marked[favorite], with_baseline=False)
         add("全頭", marked, with_baseline=False)
         note = (summary + " ◎は、1着の予想があれば単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 確定の単勝オッズ）が1位の馬、無ければ3着以内の確率が1位の馬。"
@@ -137,11 +142,11 @@ class MarkReport:
     def _folds(self, marked: pd.DataFrame, lines: dict[str, dict[str, float]]) -> Table:
         rows = []
         for fold, group in marked.groupby("fold", sort=True):
-            line = lines.get(fold, {}).get("1番人気")
+            bands = lines.get(fold, {})
             rows.append([fold, f"{group['race_id'].nunique():,}", f"{int(group['is_danger'].sum()):,}",
-                         "—" if line is None or pd.isna(line) else f"{line * 100:.0f}ポイント",
+                         *(_line_text(bands.get(band.label)) for band in FavoriteBand),
                          f"{(group[_top_at(HIGH)(group)])['race_id'].nunique():,}"])
-        return Table(["区切り", "レース数", "危険な1番人気", "1番人気の危険の線", "期待度「高」のレース"], rows,
+        return Table(["区切り", "レース数", "危険な人気馬（消）", *(f"{band.label}の線" for band in FavoriteBand), "期待度「高」のレース"], rows,
                      title="5. 区切りごとのレース数と危険の線",
                      note="危険の線は、区切りごとに、その区切りの検証期間で決め直した値（テスト期間の結果は使っていない）。"
                           f"期待度「高」は、◎の単勝の期待値が {LINE:.2f} 以上のレース。")

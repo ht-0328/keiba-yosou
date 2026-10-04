@@ -41,7 +41,7 @@ def test_予測のファイルを名前かパスで読む(tmp_path: Path) -> Non
         PredictionFile("form/none", folder).load()
 
 
-def test_危険の線は区切りの検証期間で決め1番人気だけを危険にする() -> None:
+def test_危険の線は区切りの検証期間で決め消は1レース1頭で1番人気を優先する() -> None:
     rows = []
     for band in ("1番人気", "2〜3番人気"):
         for i in range(60):
@@ -58,8 +58,17 @@ def test_危険の線は区切りの検証期間で決め1番人気だけを危�
     assert set(dangers["race_id"]) == {"T1番人気", "T2〜3番人気"}
     # 危険度は 0.6 − (1 − 0.7) = 0.3 と −0.1。線の候補（0〜0.2）のどれでも同じ40頭を拾うので、いちばん低い 0.0 になる
     assert lines["2025年前半"]["1番人気"] == pytest.approx(0.0)
-    flagged = dangers.set_index("race_id")["is_danger"]
-    assert bool(flagged["T1番人気"]) and not bool(flagged["T2〜3番人気"])  # 2〜3番人気は印に使わない
+    # 別々のレースなので、1番人気のレースは1番人気、2〜3番人気のレースは2〜3番人気が消になる
+    assert dangers["is_danger"].all()
+    only_first, _ = FavoriteDangerJudge(("1番人気",)).judge(table, places)
+    flagged = only_first.set_index("race_id")["is_danger"]
+    assert bool(flagged["T1番人気"]) and not bool(flagged["T2〜3番人気"])  # 消にできる人気帯を1番人気だけにする
+    assert only_first["over_line"].all()  # 線以上かは、消にできない人気帯にも残す
+    # 同じレースに線以上の1番人気と2〜3番人気がいれば、消は1番人気の1頭だけ
+    same_race = table.assign(race_id=table["race_id"].replace({"T2〜3番人気": "T1番人気"}), horse_id=table["horse_id"] + table["segment"])
+    same_places = places.assign(race_id=same_race["race_id"], horse_id=same_race["horse_id"])
+    one, _ = FavoriteDangerJudge().judge(same_race, same_places)
+    assert one.set_index("favorite_band")["is_danger"].to_dict() == {"1番人気": True, "2〜3番人気": False}
 
 
 def test_テスト期間の行に単勝の期待値を付ける() -> None:
