@@ -12,10 +12,6 @@ _HEADER_TABLE = "o1"
 _ODDS_TABLE = "o1__単勝オッズ"
 _HEADER_COLUMNS = (*keys.RACE_KEY, "データ区分", "発表月日時分")
 _ODDS_COLUMNS = (*keys.RACE_KEY, "発表月日時分", "馬番", "オッズ")
-#: 確定前の断面のデータ区分（1 中間・2 前日売最終・3 最終）。4 確定・5 確定(月曜)・9 中止は、予測に使わない。
-_BEFORE_FINAL_STAGES: tuple[str, ...] = ("1", "2", "3")
-#: 単勝オッズの「無投票」。オッズは 10倍した4桁の文字列で入っている（発売前取消は ----、発売後取消は ****）。
-_NO_ODDS = "0000"
 _ODDS_SCALE = 10.0
 
 
@@ -37,13 +33,13 @@ class AnnouncedOddsRepository:
         header_table = facts.optional_relation(self._con, _HEADER_TABLE, _HEADER_COLUMNS)
         odds_table = facts.optional_relation(self._con, _ODDS_TABLE, _ODDS_COLUMNS)
         announced_at = keys.q("発表月日時分")
-        odds_value = f"TRY_CAST(NULLIF(o.{keys.q('オッズ')}, '{_NO_ODDS}') AS INTEGER)"
+        odds_value = f"TRY_CAST(NULLIF(o.{keys.q('オッズ')}, '{keys.NO_ODDS}') AS INTEGER)"
         sql = f"""
         WITH latest AS (
             SELECT h.{announced_at} AS announced_at
             FROM {header_table} AS h
             WHERE {keys.rid_expr('h')} = ?
-              AND h.{keys.q('データ区分')} IN {keys.sql_list(_BEFORE_FINAL_STAGES)}
+              AND h.{keys.q('データ区分')} IN {keys.sql_list(keys.ODDS_BEFORE_FINAL_STAGES)}
             ORDER BY announced_at DESC LIMIT 1
         )
         SELECT TRY_CAST(o.{keys.q('馬番')} AS INTEGER) AS horse_no,

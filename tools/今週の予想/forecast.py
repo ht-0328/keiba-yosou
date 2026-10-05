@@ -31,20 +31,16 @@ sys.path[:0] = [str(HERE.parents[0])]
 from 共通 import card, cli, db, race  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
-from yosou.favorites_out_of_top3.command.yosou_name import YOSOU_NAME as FAVORITE_YOSOU_NAME  # noqa: E402
-from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 
 from 今週の予想.forecast_store import DEFAULT_FOLDER, ForecastStore  # noqa: E402
 from 今週の予想.forecast_table import ForecastTable  # noqa: E402
-from 今週の予想.race_forecaster import FORECAST_VERSION, RaceForecaster  # noqa: E402
+from 今週の予想.forecast_version import FORECAST_VERSION  # noqa: E402
+from 今週の予想.model_folders import DEFAULT_FAVORITE_MODELS, DEFAULT_MODELS  # noqa: E402
+from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
 
-#: 学習済みモデルの既定の置き場所。
-DEFAULT_MODELS = HERE.parents[1] / "reports" / YOSOU_NAME / "models"
-#: 危険な人気馬を判定する予想（人気馬が4着以下になるかを予想）の学習済みモデルの既定の置き場所。
-DEFAULT_FAVORITE_MODELS = HERE.parents[1] / "reports" / FAVORITE_YOSOU_NAME / "models"
 _RID = card.CARD_LIST_HEADERS.index("rid")
 
 

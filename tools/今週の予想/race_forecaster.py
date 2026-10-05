@@ -37,6 +37,7 @@ from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 from 今週の予想 import forecast_columns as columns
 from 今週の予想.danger_finder import DangerFinder
 from 今週の予想.forecast_tickets import ForecastTickets
+from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.mark_rule import MarkRule
 from 今週の予想.timing_chooser import TimingChooser
@@ -55,10 +56,6 @@ _HORSE_COLUMNS: tuple[str, ...] = (
 )
 #: 予想の名前（画面に出す）。
 MODEL_NAME = "近走と適性から3着以内を予想（3着以内と1着のモデル。危険な人気馬は 人気馬が4着以下になるかを予想）"
-#: 結果の作り方の版。印の決め方や理由の作り方、買い目、モデルの材料を変えたら上げる（``forecast.py --skip-saved`` は、版の違う結果を作り直す）。
-#: 5: 印から組んだ買い目（tickets）を足し、当日の1着のモデルに勝ち切る材料（Q）を足した（設計書「近走と適性から3着以内を予想」の 15 の 15）。
-#: 6: 印の付かなかった馬を無印（－）にし、消は危険な人気馬だけにした（1レース1頭。1番人気が危険でなければ 2〜5番人気から）。
-FORECAST_VERSION = 6
 
 
 class RaceForecaster:
