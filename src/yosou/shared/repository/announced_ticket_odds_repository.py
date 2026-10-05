@@ -10,9 +10,6 @@ from 共通 import facts, keys
 from ..betting import TicketType
 from .final_odds_repository import _ANNOUNCED, _ODDS_SCALE, COMBO, ODDS
 
-#: 確定前の断面のデータ区分（1 中間・2 前日売最終・3 最終）。4 確定・5 確定(月曜)・9 中止は読まない。
-_BEFORE_FINAL_STAGES: tuple[str, ...] = ("1", "2", "3")
-
 
 class AnnouncedTicketOddsRepository:
     """締め切り前のオッズ（速報オッズ ``0B30`` や時系列オッズ）から、1レース・1券種のいちばん新しい断面を、1組1行で読む（``o1``〜``o6``）。
@@ -38,7 +35,7 @@ class AnnouncedTicketOddsRepository:
             SELECT h.{announced_at} AS announced_at
             FROM {parent} AS h
             WHERE {keys.rid_expr('h')} = ?
-              AND h.{keys.q('データ区分')} IN {keys.sql_list(_BEFORE_FINAL_STAGES)}
+              AND h.{keys.q('データ区分')} IN {keys.sql_list(keys.ODDS_BEFORE_FINAL_STAGES)}
             ORDER BY announced_at DESC LIMIT 1
         )
         SELECT trim(o.{keys.q(spec.combo_column)}) AS {COMBO},

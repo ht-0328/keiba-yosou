@@ -18,8 +18,6 @@ _ODDS_COLUMNS = (*keys.RACE_KEY, "発表月日時分", "馬番", "オッズ")
 _PRE_DEADLINE_STAGES: tuple[str, ...] = ("1", "2")
 #: レースの行のうち、使わないデータ区分（0 削除・9 中止）。
 _UNUSED_RACE_STAGES: tuple[str, ...] = ("0", "9")
-#: 単勝オッズの「無投票」。オッズは 10倍した4桁の文字列で入っている（取消は ---- か ****）。
-_NO_ODDS = "0000"
 _ODDS_SCALE = 10.0
 
 
@@ -46,7 +44,7 @@ class PreDeadlineFavoriteRepository:
         odds_table = facts.optional_relation(self._con, _ODDS_TABLE, _ODDS_COLUMNS)
         stage, announced, start = keys.q("データ区分"), keys.q("発表月日時分"), keys.q("発走時刻")
         year, month_day = keys.q("開催年"), keys.q("開催月日")
-        odds_value = f"TRY_CAST(NULLIF(o.{keys.q('オッズ')}, '{_NO_ODDS}') AS INTEGER)"
+        odds_value = f"TRY_CAST(NULLIF(o.{keys.q('オッズ')}, '{keys.NO_ODDS}') AS INTEGER)"
         sql = f"""
         WITH starts AS (
             SELECT {keys.rid_expr()} AS race_id,

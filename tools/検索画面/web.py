@@ -1,7 +1,7 @@
-"""検索画面（ブラウザ）を起動する。DB・テーブル・出馬表・今週の予想・傾向スコア・能力指数・重賞攻略・レース・馬・出走・事象・成績・回収率探索・SQL のタブがある（一覧は tools/README.md）。
+"""検索画面（ブラウザ）を起動する。状況・DB・テーブル・出馬表・今週の予想・傾向スコア・能力指数・重賞攻略・レース・馬・出走・事象・成績・回収率探索・SQL のタブがある（一覧は tools/README.md）。
 
     uv run python tools/検索画面/web.py --open              # 起動してブラウザで開く
-    uv run python tools/検索画面/web.py --open --tab forecast   # 「今週の予想」のタブを開く
+    uv run python tools/検索画面/web.py --open --tab forecast   # 「今週の予想」のタブを開く（overview = 状況）
     uv run python tools/検索画面/web.py --port 9000 --idle 300
     uv run python tools/検索画面/web.py --db reports/synth.duckdb --open    # 合成DB で試す
 
@@ -30,7 +30,7 @@ def build_parser():
     parser.add_argument("--port", type=int, default=server.DEFAULT_PORT, help=f"待ち受けるポート（既定 {server.DEFAULT_PORT}）")
     parser.add_argument("--open", action="store_true", help="起動後にブラウザで開く")
     parser.add_argument("--idle", type=float, default=60.0, help="この秒数放置したら DB を手放す（既定 60）")
-    parser.add_argument("--tab", default="", help="ブラウザで最初に開くタブ（例: forecast = 今週の予想。既定は DB のタブ）")
+    parser.add_argument("--tab", default="", help="ブラウザで最初に開くタブ（例: forecast = 今週の予想。既定は「状況」のタブ）")
     return parser
 
 

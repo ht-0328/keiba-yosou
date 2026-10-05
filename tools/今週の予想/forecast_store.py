@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from 今週の予想.mark_rule import NO_MARK
+
 #: keiba-yosou のリポジトリ直下（tools/今週の予想/ から2つ上）。
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 #: 既定の置き場所。JV-Data から作った値なので Git の対象外（reports/）に置く。
@@ -38,6 +40,11 @@ class ForecastStore:
         """書いてある結果を作った時刻。無ければ None。"""
         forecast = self.load(race_id)
         return forecast.get("made_at") if forecast else None
+
+    @staticmethod
+    def marks_text(forecast: dict[str, Any]) -> str:
+        """印の付いた馬を ``◎3 ○7 …`` の1行に（無印の馬は出さない）。一覧で予想の中身を一目で見せるためのもの。"""
+        return " ".join(f"{horse['mark']}{horse['horse_no'] or ''}" for horse in forecast["horses"] if horse["mark"] != NO_MARK)
 
     def _path(self, race_id: str) -> Path:
         day = f"{race_id[:4]}-{race_id[4:6]}-{race_id[6:8]}"

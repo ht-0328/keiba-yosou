@@ -53,7 +53,7 @@ _MINING_TABLES: tuple[tuple[str, str, str, str], ...] = (
 )
 _WEEKDAYS = "月火水木金土日"
 #: 天候・馬場状態がまだ出ていないときの表示。
-_NOT_ANNOUNCED = "未発表"
+NOT_ANNOUNCED = "未発表"
 _BLINKER_ON = "1"
 
 
@@ -174,6 +174,16 @@ def header_title(header: dict[str, Any]) -> str:
             f"（{h['クラス']} {h['コース']} {h['距離']}m {h['重量']} {h['頭数']}頭 {h['発走']} {h['状態']}）").replace("  ", " ")
 
 
+def going_of(track: str | None, turf: str | None, dirt: str | None) -> str:
+    """``ra`` の芝・ダートの馬場状態コードから、そのレースの馬場状態（良 / 稍重 / 重 / 不良）。まだ出ていなければ「未発表」。
+
+    ダートのコースならダートの、芝のコースなら芝の馬場状態を見る。芝のコードが ``0`` のときもダートの方を見る
+    （障害のレースは芝ダ両方を走ることがある）。``ra`` の馬場状態は、速報の開催情報が入ると埋まる。
+    """
+    condition = dirt if codes.surface_of(track) == "ダート" or turf == "0" else turf
+    return codes.TRACK_CONDITION.get(condition or "", NOT_ANNOUNCED)
+
+
 def _header(con: duckdb.DuckDBPyConnection, rid: str, cond: str, params: list[str]) -> dict[str, Any]:
     row = con.execute(
         f"""
@@ -187,13 +197,12 @@ def _header(con: duckdb.DuckDBPyConnection, rid: str, cond: str, params: list[st
         raise LookupError(f"レースが見つかりません: {rid}")
     (day, venue, race_no, stage, name, cond_code, grade, distance, track, weight_type, turf, dirt, weather,
      field_size, entries, post) = row
-    condition = dirt if codes.surface_of(track) == "ダート" or turf == "0" else turf
     return {
         "rid": rid, "日付": day, "曜": weekday_of(day), "競馬場": codes.venue_name(venue), "R": race_no, "レース名": name,
         "クラス": codes.class_name(cond_code, grade), "コース": codes.TRACK_NAMES.get(track, track),
         "距離": raw.to_int(distance), "重量": codes.WEIGHT_TYPE_NAMES.get(weight_type, ""),
         "頭数": raw.to_int(field_size) or raw.to_int(entries), "登録頭数": raw.to_int(entries), "発走": raw.post_time(post),
-        "馬場": codes.TRACK_CONDITION.get(condition, _NOT_ANNOUNCED), "天候": codes.WEATHER_NAMES.get(weather, _NOT_ANNOUNCED),
+        "馬場": going_of(track, turf, dirt), "天候": codes.WEATHER_NAMES.get(weather, NOT_ANNOUNCED),
         "状態": codes.STAGE_NAMES.get(stage, stage),
     }
 

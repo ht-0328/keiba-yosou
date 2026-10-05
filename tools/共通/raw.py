@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 #: 馬体重の「無し」（未発表）と「計量不能」。
-_NO_BODY_WEIGHT = ("000", "999")
+NO_BODY_WEIGHT: tuple[str, ...] = ("000", "999")
 #: タイム差の「無し」。
 _NO_TIME_DIFF = "9999"
 _POST_TIME_LENGTH = 4
@@ -29,7 +29,7 @@ def tenths(raw: str | None) -> float | None:
 
 def body_weight(weight: str | None, sign: str | None, diff: str | None) -> str:
     """``480(+2)`` の形。未発表・計量不能は空。"""
-    if not _is_positive_number(weight) or weight in _NO_BODY_WEIGHT:
+    if not _is_positive_number(weight) or weight in NO_BODY_WEIGHT:
         return ""
     change = f"{sign}{int(diff)}" if sign in ("+", "-") and diff and diff.isdigit() else ("±0" if diff == "000" else "")
     return f"{int(weight)}({change})" if change else str(int(weight))

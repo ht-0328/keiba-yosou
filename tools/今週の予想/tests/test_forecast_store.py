@@ -6,6 +6,7 @@ from pathlib import Path
 
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.forecast_table import ForecastTable
+from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.ticket_table import TicketTable
 
 
@@ -21,7 +22,7 @@ def sample_forecast(race_id: str = "2025041905010101") -> dict:
         {"rule": "3連単（◎軸・マルチ・期待値 1.0 以上）", "ticket_type": "3連単", "combo": "030108", "horses": [3, 1, 8], "label": "3→1→8",
          "stake_units": 0.1, "value": 1.23, "probability": 0.0205, "odds": 60.0, "dropped": "トリガミ"},
     ]
-    return {"rid": race_id, "title": "2025-04-19（土） 東京 1R", "header": {}, "model": "近走と適性から3着以内を予想",
+    return {"version": FORECAST_VERSION, "rid": race_id, "title": "2025-04-19（土） 東京 1R", "header": {}, "model": "近走と適性から3着以内を予想",
             "timing": "前日", "timing_reason": "出馬表とオッズがある", "pool_free": False, "expectation": "高", "odds_known": True,
             "made_at": "2025-04-18T20:00:00", "horses": [horse], "tickets": tickets}
 
