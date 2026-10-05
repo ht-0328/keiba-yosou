@@ -94,6 +94,10 @@
   .cats .neg .bar { background: var(--red); } .cats .pos .bar { background: var(--green); }
   .cats .val { text-align: right; font-family: var(--mono); color: var(--muted); }
   .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--fg-2); }
+  /* 状況 */
+  td.v-ok { color: var(--green); font-weight: 600; } td.v-redo { color: var(--gold); font-weight: 600; }
+  td.v-missing { color: var(--red); font-weight: 600; } td.v-done { color: var(--muted); }
+  .refresh { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -107,19 +111,21 @@
 <script src="/static/trend.js"></script>
 <script>
 "use strict";
-const VIEWS = ["db", "tables", "cards", "forecast", "trend", "ability", "stakes", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
-const TAB_LABELS = {db: "DB", tables: "テーブル", cards: "出馬表", forecast: "今週の予想", trend: "傾向スコア", ability: "能力指数", stakes: "重賞攻略", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
+const VIEWS = ["overview", "db", "tables", "cards", "forecast", "trend", "ability", "stakes", "races", "horses", "runners", "events", "summary", "perf", "explore", "sql"];
+const TAB_LABELS = {overview: "状況", db: "DB", tables: "テーブル", cards: "出馬表", forecast: "今週の予想", trend: "傾向スコア", ability: "能力指数", stakes: "重賞攻略", races: "レース", horses: "馬", runners: "出走", events: "事象", summary: "条件の成績", perf: "切り口の成績", explore: "回収率探索", sql: "SQL"};
 const FLAG_ONLY = ["by_popularity", "pairs"];
 //: サーバー（server.py の APP_VERSION）と合わせる。違えば古いサーバーが動いている。
-const PAGE_VERSION = "8";
+const PAGE_VERSION = "10";
 const RESTART_HINT = "画面とサーバーの版が違います（画面 " + PAGE_VERSION + "）。サーバーの黒い窓を閉じるか Ctrl+C で止めて、run.bat（または web.py）をもう一度実行してください。新しい版の起動が古い版を自動で止めます。";
 const DETAIL_TAB = {table: "tables", card: "cards", race: "races", horse: "horses"};
 const TOOLS = {
+  overview: "tools/取得と予想の状況/status.py",
   races: "tools/レース一覧/races.py", runners: "tools/出走検索/runners.py", perf: "tools/成績集計/perf.py", explore: "tools/回収率探索/explore.py",
   lost: "tools/人気馬が負けたレース/lost_favorites.py", longshot: "tools/穴馬が勝ったレース/longshot_wins.py",
   card: "tools/今週の出馬表/card.py", forecast: "tools/今週の予想/forecast.py", trend: "tools/傾向スコア/trend_score.py", ability: "tools/能力指数/ability.py", stakes: "tools/重賞攻略/stakes.py", horse: "tools/馬の過去走/horse.py", race: "tools/レース詳細/race.py", table: "tools/テーブル閲覧/table.py", sql: "tools/任意SQL/sql.py",
 };
 const HELP = {
+  overview: "データの取得と予想の状況。中央（jvdata-store）と地方（nvdata-store）それぞれの取得の画面が動いているか・何を取得中か、今日以降の出馬表・オッズ・馬体重・馬場状態がどこまで入っているか、同期の記録と、今週の予想（中央）がそれに追いついているか（レースごとに 最新 / 時点が進んだ / 作り方が古い / オッズが新しい / 未予想）を出す。30秒ごとに自動で更新する。DB は短く開いてすぐ手放すので、開いたままにしても jvdata-store・nvdata-store の取得を塞がない（取得中は「読めない」と出て、終わると戻る）。",
   db: "元DB の状態。期間・件数・途中から入っている表・同期の記録。",
   tables: "元DB の表を1つずつ見る。列名は JV-Data 仕様書の日本語のまま、値は文字列。",
   cards: "これから走るレース（今週の出馬表）。レースを押すと、出走馬と各馬の近走が見られる。木曜の出走馬名表の間は枠番・馬番が空で、金・土の出馬表で決まる。過去の日付も開始日を変えれば見られる。",
@@ -171,12 +177,12 @@ async function api(path, params) {
   return data;
 }
 function parseHash() {
-  const raw = location.hash.slice(1) || "/db";
+  const raw = location.hash.slice(1) || "/overview";
   const [path, qs] = raw.split("?");
   const parts = path.split("/").filter(Boolean);
   const params = {};
   for (const [k, v] of new URLSearchParams(qs || "")) { if (params[k] === undefined) params[k] = v; else params[k] = [].concat(params[k], v); }
-  return {view: parts[0] || "db", id: decodeURIComponent(parts[1] || ""), params};
+  return {view: parts[0] || "overview", id: decodeURIComponent(parts[1] || ""), params};
 }
 function hashFor(view, params, id) {
   const qs = new URLSearchParams();
@@ -267,6 +273,43 @@ function pager(params, total, apply) {
 
 // ---------------------------------------------------------------- 画面
 const renderers = {};
+
+// ---------------------------------------------------------------- 状況
+const OVERVIEW_REFRESH_MS = 30000;
+const OVERVIEW_AUTO_KEY = "overview.auto";
+let overviewTimer = null;
+const VERDICT_CLASS = [["最新", "v-ok"], ["時点が進んだ", "v-redo"], ["作り方が古い", "v-redo"], ["オッズが新しい", "v-redo"], ["未予想", "v-missing"], ["終了", "v-done"], ["中止", "v-done"]];
+function verdictClass(text) { const hit = VERDICT_CLASS.find(([head]) => String(text).startsWith(head)); return hit ? hit[1] : ""; }
+// 判定の列に色を付け、rid の列を今週の予想へのリンクにする
+function overviewTable(table) {
+  const box = resultBlock(table);
+  const verdictAt = table.columns.indexOf("判定"), ridAt = table.columns.indexOf("rid");
+  box.querySelectorAll("tbody tr").forEach((tr, i) => {
+    const row = table.rows[i];
+    if (verdictAt >= 0) tr.children[verdictAt].className = verdictClass(row[verdictAt]);
+    if (ridAt >= 0 && row[ridAt]) { const td = tr.children[ridAt]; td.innerHTML = ""; td.append(el("a", {href: hashFor("forecast", {}, row[ridAt]), title: "今週の予想で開く"}, row[ridAt])); }
+  });
+  return box;
+}
+renderers.overview = async (main, {params}) => {
+  main.append(el("div", {class: "help"}, HELP.overview));
+  const auto = el("input", {type: "checkbox", checked: recall(OVERVIEW_AUTO_KEY) === "0" ? null : ""});
+  auto.addEventListener("change", () => { remember(OVERVIEW_AUTO_KEY, auto.checked ? "1" : "0"); render(); });
+  const form = el("form", {class: "filters", onsubmit: (e) => { e.preventDefault(); go("overview", formValues(form)); }},
+    labeled("レースごとの表に出す開催日（空なら今日。今日にレースが無ければ次の開催日）", el("input", {type: "date", name: "date", value: params.date || ""})),
+    el("div", {class: "actions"}, el("button", {type: "submit", class: "primary"}, "表示"), el("button", {type: "button", onclick: () => go("overview", {})}, "今日に戻す"),
+      el("button", {type: "button", onclick: () => render()}, "今すぐ更新")),
+    el("div", {class: "refresh"}, el("label", {style: "flex-direction:row;gap:6px;align-items:center"}, auto, `${OVERVIEW_REFRESH_MS / 1000} 秒ごとに自動で更新`)));
+  main.append(el("div", {class: "card"}, form));
+  const data = await api("/api/overview", {date: params.date});
+  const [summary, ...rest] = data.tables;
+  const head = el("div", {class: "card"}, el("h2", {}, summary.title), tableEl(summary, true));
+  if (data.db_error) head.append(el("div", {class: "error"}, "DB を読めていません: " + data.db_error + " 取得が終わると、自動で戻ります。"));
+  main.append(head);
+  rest.forEach((table) => main.append(overviewTable(table)));
+  main.append(cliBlock(cliLine(TOOLS.overview, {date: params.date})));
+  if (auto.checked) overviewTimer = setTimeout(() => { if (parseHash().view === "overview") render(); }, OVERVIEW_REFRESH_MS);
+};
 
 renderers.db = async (main) => {
   main.append(el("div", {class: "help"}, HELP.db));
@@ -900,6 +943,7 @@ function renderTabs(current) {
   VIEWS.forEach((view) => nav.append(el("span", {class: "tab" + (view === current ? " sel" : ""), onclick: () => { location.hash = recall("last:" + view) || hashFor(view, {}); }}, TAB_LABELS[view])));
 }
 async function render() {
+  if (overviewTimer) { clearTimeout(overviewTimer); overviewTimer = null; }
   const route = parseHash();
   const tab = DETAIL_TAB[route.view] || route.view;
   remember("last:" + tab, location.hash);

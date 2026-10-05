@@ -13,7 +13,7 @@ import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -28,17 +28,20 @@ from 共通.ability.figure_cache import DEFAULT_FOLDER as FIGURE_CACHE_FOLDER  #
 from 共通.filters import FILTER_FIELDS, Filters  # noqa: E402
 from 成績集計 import check  # noqa: E402
 from 重賞攻略.guide import StakesGuide  # noqa: E402
+from 取得と予想の状況.overview_reader import OverviewReader  # noqa: E402
+from 取得と予想の状況.overview_tables import OverviewTables  # noqa: E402
+from 取得と予想の状況.local_store_reader import DEFAULT_LOCAL_DB, LocalStoreReader  # noqa: E402
+from 取得と予想の状況.store_screen_probe import JRA_STORE_URL, LOCAL_STORE_APP, LOCAL_STORE_URL, StoreScreenProbe  # noqa: E402
 from 今週の予想.feature_labels import CATEGORY_NOTES  # noqa: E402
 from 今週の予想.forecast_store import ForecastStore  # noqa: E402
 from 今週の予想.horse_evaluator import MARK_ROLES  # noqa: E402
-from 今週の予想.mark_rule import NO_MARK  # noqa: E402
 from 検索画面.session import DbSession  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 DEFAULT_PORT = 8767
 APP_NAME = "keiba-yosou"
 #: API の版。画面（index.html の PAGE_VERSION）と合わないときは、古いサーバーが動いていると分かる。API を変えたら両方を上げる。
-APP_VERSION = "8"
+APP_VERSION = "10"
 #: 古い版のサーバーを止めて入れ替えるとき、ポートが空くのを待つ上限（秒）。
 _REPLACE_TIMEOUT_SECONDS = 10.0
 #: 画面が1度に出す行数の上限。
@@ -90,18 +93,25 @@ def table_dict(table: render.Table) -> dict[str, Any]:
 
 
 class Backend:
-    """API の中身。1つの ``DbSession`` を使い回す。``today`` は「今日以降の出馬表」の基準日（テストで差し替える）。
-    ``ability_cache`` は、能力指数のために作った過去の走の指数をとっておく場所（テストで差し替える）。
-    ``forecasts`` は、今週の予想の結果の置き場所（テストで差し替える）。
+    """API の中身。1つの ``DbSession`` を使い回す。``today`` は「今日以降の出馬表」の基準日、``now`` は取得と予想の状況の
+    「今」（どちらもテストで差し替える）。``ability_cache`` は、能力指数のために作った過去の走の指数をとっておく場所、
+    ``forecasts`` は今週の予想の結果の置き場所、``store_url`` は jvdata-store の画面のアドレス、``local_db``・``local_store_url`` は
+    地方競馬DATA の DB と nvdata-store の画面のアドレス（``local_db`` が None なら地方を見ない。どれもテストで差し替える）。
     """
 
     def __init__(self, session: DbSession, today: Callable[[], date] = date.today, ability_cache: Path | None = None,
-                 forecasts: ForecastStore | None = None) -> None:
+                 forecasts: ForecastStore | None = None, now: Callable[[], datetime] = datetime.now,
+                 store_url: str = JRA_STORE_URL, local_db: Path | None = DEFAULT_LOCAL_DB,
+                 local_store_url: str = LOCAL_STORE_URL) -> None:
         self.session = session
         self.today = today
         settings = AbilitySettings()
         self._ability = RaceAbility(settings, FigureCache(settings, ability_cache or FIGURE_CACHE_FOLDER))
         self._forecasts = forecasts or ForecastStore()
+        # 状況の確認は、短い読み取り（peek）で DB を開いてすぐ手放す。自動で何度も更新しても、jvdata-store の取得を塞がない
+        local = LocalStoreReader(local_db, StoreScreenProbe(local_store_url, LOCAL_STORE_APP)) if local_db is not None else None
+        self._overview = OverviewReader(connect=session.peek, db_path=session.path, forecasts=self._forecasts, now=now,
+                                        probe=StoreScreenProbe(store_url), local=local)
 
     def info(self) -> dict[str, Any]:
         return {"app": APP_NAME, "version": APP_VERSION, "db": str(self.session.path), "session": self.session.state()}
@@ -142,6 +152,13 @@ class Backend:
             status = browse.db_status(con, self.session.path)
             return {"status": table_dict(browse.status_table(status)), "years": table_dict(browse.year_counts(con)),
                     "session": self.session.state()}
+
+    def overview(self, query: dict[str, list[str]]) -> dict[str, Any]:
+        """取得と予想の状況（``tools/取得と予想の状況/status.py`` と同じ表）。``date`` でレースごとの表の開催日を選ぶ。"""
+        overview = self._overview.read(_first(query, "date") or None)
+        return {"day": overview.day, "days": [day.day for day in overview.days], "db_error": overview.db_error,
+                "generated_at": overview.now.isoformat(timespec="seconds"),
+                "tables": [table_dict(table) for table in OverviewTables().tables(overview)]}
 
     def tables(self, query: dict[str, list[str]]) -> dict[str, Any]:
         with self.session.use() as con:
@@ -249,8 +266,7 @@ class Backend:
         for row in cards.rows:
             forecast = self._forecasts.load(row[rid_at])
             if forecast is not None:
-                marks = " ".join(f"{horse['mark']}{horse['horse_no'] or ''}" for horse in forecast["horses"] if horse["mark"] != NO_MARK)
-                saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": marks,
+                saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": ForecastStore.marks_text(forecast),
                                       "expectation": forecast.get("expectation")}
         return {"cards": table_dict(cards), "saved": saved, "legend": self._forecast_legend()}
 
@@ -395,6 +411,8 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                 return self._json(backend.meta())
             if path == "/api/status":
                 return self._json(backend.status())
+            if path == "/api/overview":
+                return self._json(backend.overview(query))
             if path == "/api/tables":
                 return self._json(backend.tables(query))
             if path == "/api/tables/rows":
@@ -486,12 +504,16 @@ class _Server(ThreadingHTTPServer):
 
 def make_server(db_path: Path, port: int = DEFAULT_PORT, *, idle_seconds: float = 60.0,
                 today: Callable[[], date] = date.today, ability_cache: Path | None = None,
-                forecasts: ForecastStore | None = None) -> tuple[_Server, DbSession]:
-    """サーバーとセッションを作る（起動はしない）。テストは ``port=0`` で空きポートを使い、``today`` で基準日を固定し、
-    ``ability_cache`` で能力指数のとっておき場所を、``forecasts`` で今週の予想の置き場所を一時フォルダにする。
+                forecasts: ForecastStore | None = None, now: Callable[[], datetime] = datetime.now,
+                store_url: str = JRA_STORE_URL, local_db: Path | None = DEFAULT_LOCAL_DB,
+                local_store_url: str = LOCAL_STORE_URL) -> tuple[_Server, DbSession]:
+    """サーバーとセッションを作る（起動はしない）。テストは ``port=0`` で空きポートを使い、``today``・``now`` で基準の日時を固定し、
+    ``ability_cache`` で能力指数のとっておき場所を、``forecasts`` で今週の予想の置き場所を一時フォルダにし、
+    ``store_url``・``local_db``・``local_store_url`` で jvdata-store の画面・地方の DB・nvdata-store の画面を差し替える。
     """
     session = DbSession(db_path, idle_seconds=idle_seconds)
-    server = _Server(("127.0.0.1", port), make_handler(Backend(session, today, ability_cache, forecasts)))
+    backend = Backend(session, today, ability_cache, forecasts, now=now, store_url=store_url, local_db=local_db, local_store_url=local_store_url)
+    server = _Server(("127.0.0.1", port), make_handler(backend))
     return server, session
 
 

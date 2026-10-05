@@ -24,8 +24,12 @@ from 共通.facts import FACTS_TABLE, ensure_facts
 DEFAULT_IDLE_SECONDS = 60.0
 #: ロックを待つ上限（秒）。
 DEFAULT_LOCK_TIMEOUT = 15.0
+#: 短い読み取り（``peek``）でロックを待つ上限（秒）。取得中ならすぐ「使用中」と返す。
+PEEK_LOCK_TIMEOUT = 3.0
 #: 使用中の判定の余裕（秒）。
 _IDLE_MARGIN = 0.5
+#: 取得中で開けないときの説明。
+BUSY_MESSAGE = "DB を別の画面（jvdata-store の取得など）で使用中です。終わってから読み込み直してください。"
 
 
 class DbSession:
@@ -57,9 +61,33 @@ class DbSession:
                 self._last_used = time.monotonic()
                 self._schedule_release()
 
+    @contextlib.contextmanager
+    def peek(self, lock_timeout: float = PEEK_LOCK_TIMEOUT) -> Iterator[duckdb.DuckDBPyConnection]:
+        """短い読み取りのための接続を借りる。開いている接続があればそれを使い、無ければ一時的に開いてすぐ手放す。
+
+        事実表は作らず、放置の時計も動かさない。取得と予想の状況のように何度も自動で問い合わせる画面が、
+        jvdata-store の取得（書き込み）を塞ぎ続けないための入口。取得中なら ``BlockingIOError``。
+        """
+        with self._serial:
+            if self._con is not None:
+                yield self._con
+                return
+            with self._held_lock(lock_timeout), contextlib.closing(db.connect(self.path)) as con:
+                yield con
+
+    @contextlib.contextmanager
+    def _held_lock(self, lock_timeout: float) -> Iterator[None]:
+        """ロックを取って、抜けるときに手放す。取れなければ ``BlockingIOError``。"""
+        if not self._db_lock.acquire(timeout=lock_timeout):
+            raise BlockingIOError(BUSY_MESSAGE)
+        try:
+            yield
+        finally:
+            self._db_lock.release()
+
     def _open(self) -> None:
         if not self._db_lock.acquire(timeout=self.lock_timeout):
-            raise BlockingIOError("DB を別の画面（jvdata-store の取得など）で使用中です。終わってから読み込み直してください。")
+            raise BlockingIOError(BUSY_MESSAGE)
         try:
             con = db.connect(self.path)
             started = time.perf_counter()

@@ -263,6 +263,39 @@ def test_stakes_list_detail_csv_and_errors(stakes_web: str):
     assert get(stakes_web, "/api/stakes", {"before": "2000-01-01"})[0] == 400
 
 
+def test_overview_counts_races_and_forecasts(card_db: Path, tmp_path: Path):
+    from datetime import datetime
+
+    from 今週の予想.forecast_store import ForecastStore
+    from 今週の予想.tests.test_forecast_store import sample_forecast
+
+    store = ForecastStore(tmp_path / "forecasts")
+    gen = serve(card_db, today=lambda: CARD_TODAY, forecasts=store, now=lambda: datetime(2025, 4, 19, 9, 0), store_url="http://127.0.0.1:1/",
+                local_db=tmp_path / "no-nvdata.duckdb", local_store_url="http://127.0.0.1:1/")
+    base = next(gen)
+    try:
+        cards = json.loads(get(base, "/api/cards", {"from": "2025-04-19"})[2])
+        store.save(sample_forecast(cards["rows"][1][-1]))
+        data = json.loads(get(base, "/api/overview")[2])
+        assert data["day"] == "2025-04-19" and data["days"] == ["2025-04-19"] and data["db_error"] is None
+        summary, days, races, sync, local_days, local_sync, models = data["tables"]
+        items = dict(summary["rows"])
+        assert summary["title"] == "今の状況" and items["中央: jvdata-store の画面"].startswith("止まっている（応答なし。")
+        assert items["地方: DB のファイル"].startswith("無い") and local_days["title"].startswith("地方:") and local_days["rows"] == []
+        assert days["rows"][0][:4] == ["2025-04-19", "土", "東京", 2]
+        verdicts = [row[races["columns"].index("判定")] for row in races["rows"]]
+        # 合成DB にオッズは無いので今の時点は木曜。前日の時点で作ってある予想は、後ろには戻さない
+        assert verdicts == ["未予想", "最新（予想は前日の時点。今の DB の材料は木曜まで）"] and races["rows"][1][races["columns"].index("印")] == "◎3"
+        past = json.loads(get(base, "/api/overview", {"date": "2024-04-06"})[2])
+        assert past["day"] == "2024-04-06" and len(past["tables"][2]["rows"]) == 3
+        status, _, body = get(base, "/api/overview", {"date": "x"})
+        assert status == 400 and "error" in json.loads(body)
+        # 短い読み取りのあとも、ほかの API は今までどおり動く
+        assert json.loads(get(base, "/api/status")[2])["session"]["open"]
+    finally:
+        next(gen, None)
+
+
 def test_forecasts_list_saved_and_detail(card_db: Path, tmp_path: Path):
     from 今週の予想.forecast_store import ForecastStore
     from 今週の予想.tests.test_forecast_store import sample_forecast
