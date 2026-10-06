@@ -3,7 +3,10 @@
 元DB の生の表（列名は日本語、値は文字列）から、検索・集計・事象が使う形を1度だけ作る。
 **型変換はすべてここに集約する。** ここから先は数と日付として扱ってよい。
 
-- 中央競馬の確定成績（``keys.FINAL_STAGES``）だけ。同じレース・馬に複数の行があれば最新の1行。
+- 確定成績（``keys.FINAL_STAGES``）だけ。同じレース・馬に複数の行があれば最新の1行。
+- 元データが中央（jvdata-store。競馬場 01〜10）か地方（nvdata-store。競馬場 30〜61）かは ``FactsSource`` が決める。
+  渡さなければ元DB の表から見分ける（``detect_source``。競走馬マスタ地方 ``nu`` があれば地方）。中央と地方で違うのは、
+  読む競馬場の範囲・競馬場の名前・血統の表・クラスの読み方（地方は競走条件名称の文字列から）だけである。
 - ``ran``: 出走したか（出走取消・発走除外・競走除外は False）。
 - ``finish``: 確定着順。着順が付かない（競走中止・失格・未確定）なら NULL。
 - 払戻は円（当たらなければ 0）。オッズは倍（無ければ NULL）。人気は整数（無ければ NULL）。
@@ -22,7 +25,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import duckdb
@@ -34,6 +37,60 @@ from .render import Table
 FACTS_TABLE = "facts"
 #: 1レースの出走馬に事実表と同じ列を付けた一時表の名前。
 ENTRY_TABLE = "entry_facts"
+
+
+@dataclass(frozen=True)
+class FactsSource:
+    """事実表の元データの決めごと（中央か地方か。予想の設計書「地方競馬の近走と適性から3着以内を予想」04 の 3）。
+
+    - ``name``: 表示名（中央・地方）。
+    - ``venue_range``: 読む競馬場コードの範囲（両端を含む）。中央は 01〜10、地方は 30〜61（ばんえい 83 は入らない）。
+    - ``venue_names``: 競馬場コード → 名前。
+    - ``pedigree_table``: 3代血統情報の表の名前（中央 ``um__3代血統情報``、地方 ``nu__3代血統情報``）。
+    - ``class_name_sql``: （競走条件コードの式, グレードコードの式, 競走条件名称の式）→ クラス名を返す CASE 式。
+    - ``class_order``: クラス名 → 並び順。
+    - ``marker_table``: 元DB にこの表があれば、この元データと見分ける（``detect_source``）。
+    """
+
+    name: str
+    venue_range: tuple[str, str]
+    venue_names: Mapping[str, str]
+    pedigree_table: str
+    class_name_sql: Callable[[str, str, str], str]
+    class_order: Mapping[str, int]
+    marker_table: str
+
+    def venue_filter(self, alias: str = "") -> str:
+        """この元データの競馬場だけに絞る条件。"""
+        low, high = self.venue_range
+        return f"{keys.col('競馬場コード', alias)} BETWEEN '{low}' AND '{high}'"
+
+
+def _jra_class_name_sql(condition_expr: str, grade_expr: str, name_expr: str) -> str:
+    """中央のクラス名: 競走条件コードとグレードコードから（競走条件名称は使わない）。"""
+    return codes.class_name_sql(condition_expr, grade_expr)
+
+
+#: 中央の元データ（jvdata-store の DuckDB）。
+JRA_FACTS_SOURCE = FactsSource(
+    name="中央", venue_range=keys.JRA_VENUE_RANGE, venue_names=codes.VENUE_NAMES, pedigree_table="um__3代血統情報",
+    class_name_sql=_jra_class_name_sql, class_order=codes.CLASS_ORDER, marker_table="um",
+)
+
+
+def detect_source(con: duckdb.DuckDBPyConnection) -> FactsSource:
+    """元DB の表から、中央か地方かを見分ける。競走馬マスタ地方（``nu``）があれば地方、無ければ中央。"""
+    from . import local_codes  # 地方の決めごとはこの部品を使って作るので、ここで読む（読み込みの輪を避ける）
+
+    if has_table(con, local_codes.LOCAL_FACTS_SOURCE.marker_table):
+        return local_codes.LOCAL_FACTS_SOURCE
+    return JRA_FACTS_SOURCE
+
+
+def venue_filter(con: duckdb.DuckDBPyConnection, alias: str = "") -> str:
+    """元DB の競馬場だけに絞る条件（中央なら 01〜10、地方なら 30〜61）。事実表以外の表（オッズ・払戻）を読むリポジトリが、
+    事実表と同じ範囲に絞るのに使う。"""
+    return detect_source(con).venue_filter(alias)
 
 #: 事実表の列と意味。SQL の式はこの列名を使う。
 FACT_COLUMNS: dict[str, str] = {
@@ -101,7 +158,7 @@ FACT_COLUMNS: dict[str, str] = {
 }
 #: 途中の計算にだけ使い、事実表には残さない列。
 _HELPER_COLUMNS = (
-    "cond_code", "style_code", "prev_class_order", "prev_jockey_code", "prev_run",
+    "cond_code", "cond_name", "style_code", "prev_class_order", "prev_jockey_code", "prev_run",
     "area_code", "has_blinker", "is_apprentice", "style_no", "weight_type_code", "leader_text_no",
 )
 #: 推定脚質に使う近走の数。3走の中央を取る（2走なら前寄り、1走ならその脚質）。
@@ -156,22 +213,23 @@ class EntryScope:
             raise ValueError(f"馬場状態コードは {', '.join(codes.TRACK_CONDITION)} のどれかです: {self.condition_code}")
 
 
-def _row_scope(entry: EntryScope | None) -> tuple[str, str, str]:
-    """``ra``・``se``・血統の表から読む行の条件。既定は中央の確定成績だけ（血統は全部）。
+def _row_scope(entry: EntryScope | None, source: FactsSource) -> tuple[str, str, str]:
+    """``ra``・``se``・血統の表から読む行の条件。既定は ``source`` の競馬場の確定成績だけ（血統は全部）。
 
     ``entry`` があれば、そのレースの行（確定前でもよい）を足し、``se`` はそのレースの出走馬の行だけに絞る。
     確定前のレースは、いちばん新しいデータ区分の行だけを使う（出走馬名表にだけ居て出馬表で消えた馬を拾わない）。
     rid は検証済みの16桁の数字なので、そのまま SQL に埋める。
     """
-    final = f"{keys.jra_only()} AND {keys.final_only()}"
+    venues = source.venue_filter()
+    final = f"{venues} AND {keys.final_only()}"
     if entry is None:
         return final, final, "TRUE"
     this_race = f"{keys.rid_expr()} = '{entry.rid}'"
     alive = f"{keys.q('データ区分')} NOT IN {keys.sql_list(_DEAD_STAGES)}"
     newest = f"(SELECT max({keys.q('データ区分')}) FROM se WHERE {this_race} AND {alive})"
     horses = f"(SELECT {keys.q(keys.HORSE_KEY)} FROM se WHERE {this_race})"
-    race_rows = f"{keys.jra_only()} AND ({keys.final_only()} OR ({this_race} AND {alive}))"
-    runner_rows = (f"{keys.jra_only()} AND ({keys.final_only()} OR ({this_race} AND {keys.q('データ区分')} = {newest})) "
+    race_rows = f"{venues} AND ({keys.final_only()} OR ({this_race} AND {alive}))"
+    runner_rows = (f"{venues} AND ({keys.final_only()} OR ({this_race} AND {keys.q('データ区分')} = {newest})) "
                    f"AND {keys.q(keys.HORSE_KEY)} IN {horses}")
     return race_rows, runner_rows, f"{keys.q(keys.HORSE_KEY)} IN {horses}"
 
@@ -190,19 +248,23 @@ def _condition_code_sql(entry: EntryScope | None) -> str:
             f"ELSE {recorded} END")
 
 
-def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -> str:
+def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
+              source: FactsSource | None = None) -> str:
     """事実表を作る SQL。列の意味は ``FACT_COLUMNS``。
 
     ``entry`` を渡すと、確定成績に加えてそのレースの行も読み、そのレースの出走馬の行だけに絞る
     （``build_entry_facts`` が使う。そのレース以外の行はレース単位の列が正しくないので使わない）。
+    ``source`` は元データの決めごと（中央か地方か）。省略すると元DB の表から見分ける（``detect_source``）。
     """
+    source = source or detect_source(con)
     rid = keys.rid_expr()
-    race_rows, runner_rows, pedigree_rows = _row_scope(entry)
+    race_rows, runner_rows, pedigree_rows = _row_scope(entry, source)
     not_ran = keys.sql_list(keys.NOT_RAN_CODES)
     no_place = keys.sql_list(keys.OUT_OF_RACE_CODES)
     win_table = optional_relation(con, "hr__単勝払戻", _PAYOUT_COLUMNS)
     place_table = optional_relation(con, "hr__複勝払戻", _PAYOUT_COLUMNS)
-    pedigree_table = optional_relation(con, "um__3代血統情報", _PEDIGREE_COLUMNS)
+    pedigree_table = optional_relation(con, source.pedigree_table, _PEDIGREE_COLUMNS)
+    class_name_sql = source.class_name_sql("cond_code", "grade_code", "cond_name")
     tm_table = optional_relation(con, "tm__マイニング予想", _TM_COLUMNS)
     corner_table = optional_relation(con, _CORNER_TABLE, _CORNER_COLUMNS)
     sex_order = {name: index for index, name in enumerate(codes.SEX_NAMES.values())}
@@ -216,6 +278,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                TRY_CAST("距離" AS INTEGER) AS distance_m,
                "芝馬場状態コード" AS turf_cond, "ダート馬場状態コード" AS dirt_cond,
                "競走条件コード 最若年条件" AS cond_code, trim("グレードコード") AS grade_code,
+               trim("競走条件名称") AS cond_name,
                "重量種別コード" AS weight_type_code,
                coalesce(TRY_CAST(NULLIF("出走頭数", '00') AS INTEGER), TRY_CAST(NULLIF("登録頭数", '00') AS INTEGER)) AS field_size,
                TRY_CAST(NULLIF("前3ハロン", '000') AS INTEGER) / 10.0 AS first3f,
@@ -298,13 +361,13 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
         FROM tm_rows
     ), joined AS (
         SELECT r.race_id, r.race_date, r.month, r.venue_code,
-               {codes.sql_case("r.venue_code", codes.VENUE_NAMES, "?")} AS venue,
+               {codes.sql_case("r.venue_code", source.venue_names, "?")} AS venue,
                r.race_no, r.race_name, r.track_code,
                {codes.surface_sql("r.track_code")} AS surface,
                {codes.sql_case("r.track_code", codes.TRACK_NAMES, "?")} AS course,
                r.distance_m,
                {_condition_code_sql(entry)} AS condition_code,
-               r.cond_code, r.grade_code, r.weight_type_code, r.field_size, r.first3f, r.last3f_race,
+               r.cond_code, r.grade_code, r.cond_name, r.weight_type_code, r.field_size, r.first3f, r.last3f_race,
                lt.first_corner_no, lt.corner_count, coalesce(lt.corner_laps_over_one, FALSE) AS corner_laps_over_one,
                lt.leader_text_no,
                CASE WHEN coalesce(lt.corner_laps_over_one, FALSE) THEN NULL
@@ -344,8 +407,8 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None) -
                {codes.sql_case("surface", codes.SURFACE_ORDER, 9)} AS surface_order,
                {codes.sql_case("condition_code", codes.TRACK_CONDITION, "?")} AS condition,
                coalesce(TRY_CAST(condition_code AS INTEGER), 9) AS condition_order,
-               {codes.class_name_sql("cond_code", "grade_code")} AS class_name,
-               {codes.sql_case(codes.class_name_sql("cond_code", "grade_code"), codes.CLASS_ORDER, 99)} AS class_order,
+               {class_name_sql} AS class_name,
+               {codes.sql_case(class_name_sql, source.class_order, 99)} AS class_order,
                {codes.sql_case("sex", sex_order, 9)} AS sex_order,
                {codes.sql_case("style_code", style_order, 9)} AS style_order,
                CAST(substr(race_date, 1, 4) AS INTEGER) AS year,
@@ -474,25 +537,27 @@ def facts_ready(con: duckdb.DuckDBPyConnection, name: str = FACTS_TABLE) -> bool
     return bool(con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = ? AND temporary", [name]).fetchone()[0])
 
 
-def ensure_facts(con: duckdb.DuckDBPyConnection, name: str = FACTS_TABLE) -> str:
-    """事実表（一時表）が無ければ作る。表の名前を返す。"""
+def ensure_facts(con: duckdb.DuckDBPyConnection, name: str = FACTS_TABLE, source: FactsSource | None = None) -> str:
+    """事実表（一時表）が無ければ作る。表の名前を返す。``source`` を省略すると元DB の表から見分ける。"""
     if not facts_ready(con, name):
-        con.execute(f"CREATE TEMP TABLE {keys.q(name)} AS {facts_sql(con)}")
+        con.execute(f"CREATE TEMP TABLE {keys.q(name)} AS {facts_sql(con, source=source)}")
     return name
 
 
 def build_entry_facts(con: duckdb.DuckDBPyConnection, entry: EntryScope, *,
                       popularity: Mapping[int, int] | None = None,
                       popularity_by_name: Mapping[str, int] | None = None,
-                      weights: Mapping[int, tuple[int, int | None]] | None = None, name: str = ENTRY_TABLE) -> str:
+                      weights: Mapping[int, tuple[int, int | None]] | None = None, name: str = ENTRY_TABLE,
+                      source: FactsSource | None = None) -> str:
     """1レースの出走馬に事実表と同じ列を付けた一時表を作る（あれば作り直す）。表の名前を返す。
 
     ``popularity`` は 馬番 → 単勝人気、``popularity_by_name`` は 馬名 → 単勝人気、``weights`` は 馬番 → （馬体重, 増減）。
     発走前の DB に無い値を手で与える。馬番がまだ決まっていないレース（木曜の出走馬名表）には、人気を馬名で与える
     （馬名は事実表と同じく前後の空白を除いたもの）。レースが無ければ ``LookupError``、いない馬番・馬名なら ``ValueError``。
+    ``source`` は元データの決めごと（省略すると元DB の表から見分ける）。
     """
     table = keys.q(name)
-    con.execute(f"CREATE OR REPLACE TEMP TABLE {table} AS SELECT * FROM ({facts_sql(con, entry)}) WHERE race_id = '{entry.rid}'")
+    con.execute(f"CREATE OR REPLACE TEMP TABLE {table} AS SELECT * FROM ({facts_sql(con, entry, source)}) WHERE race_id = '{entry.rid}'")
     known = {no for (no,) in con.execute(f"SELECT horse_no FROM {table}").fetchall()}
     if not known:
         con.execute(f"DROP TABLE IF EXISTS {table}")

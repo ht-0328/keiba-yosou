@@ -53,10 +53,11 @@ class EntryRecordsLoader:
                  ability_sources: AbilitySourcesLoader | None = None,
                  pool_probabilities: PoolProbabilityLoader | None = None,
                  head_to_head_runs: HeadToHeadRunRepository | None = None,
-                 finish_records: FinishRecordsLoader | None = None) -> None:
+                 finish_records: FinishRecordsLoader | None = None,
+                 career_counts: CareerCountRepository | None = None) -> None:
         self._entries = EntryRepository(con)
         self._place_odds = PlaceOddsRepository(con)
-        self._career_counts = CareerCountRepository(con)
+        self._career_counts = career_counts if career_counts is not None else CareerCountRepository(con)
         self._past_runs = PastRunRepository(con)
         self._workouts = WorkoutRepository(con, WORKOUT_WINDOW_DAYS)
         self._workout_coverage = WorkoutCoverageRepository(con)

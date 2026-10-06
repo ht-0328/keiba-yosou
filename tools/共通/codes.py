@@ -96,6 +96,7 @@ _CONDITION_ALIASES: dict[str, str] = {
 #: 性別の書き方のゆれ。
 _SEX_ALIASES: dict[str, str] = {"牡": "牡", "牝": "牝", "セン": "セン", "セ": "セン", "騙": "セン"}
 _VENUE_CODES: dict[str, str] = {name: code for code, name in VENUE_NAMES.items()}
+_LOCAL_VENUE_CODES: dict[str, str] = {name: code for code, name in LOCAL_VENUE_NAMES.items()}
 
 
 def surface_of(track_code: str | None) -> str | None:
@@ -109,13 +110,15 @@ def surface_of(track_code: str | None) -> str | None:
 
 
 def venue_code(text: str) -> str:
-    """競馬場の名前かコードをコードにする。知らなければ ``ValueError``。"""
+    """競馬場の名前かコードをコードにする（中央と地方）。知らなければ ``ValueError``。"""
     value = text.strip()
-    if value in VENUE_NAMES:
+    if value in VENUE_NAMES or value in LOCAL_VENUE_NAMES:
         return value
     if value in _VENUE_CODES:
         return _VENUE_CODES[value]
-    raise ValueError(f"知らない競馬場です: {text}（{', '.join(VENUE_NAMES.values())} か 01〜10）")
+    if value in _LOCAL_VENUE_CODES:
+        return _LOCAL_VENUE_CODES[value]
+    raise ValueError(f"知らない競馬場です: {text}（{', '.join(VENUE_NAMES.values())} か 01〜10、地方は 大井・名古屋 などの名前か 30〜83）")
 
 
 def venue_name(code: str | None) -> str:

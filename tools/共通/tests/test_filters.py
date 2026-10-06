@@ -38,8 +38,10 @@ def test_from_mapping_normalizes_and_ignores_unknown_or_empty():
     assert f.venue == "05" and f.course == ("11",) and f.condition == "2" and f.class_name == "G1"
     assert f.pop == Range(1, 3) and f.date_from == "2024-01-01" and f.sex == "セン" and f.surface == "ダート"
     assert f.odds is None and f.jockey is None
+    # 地方の競馬場の名前も受ける（道具が地方の元DB も読めるため）。知らない名前は弾く
+    assert Filters.from_mapping({"venue": "大井"}).venue == "44"
     with pytest.raises(ValueError):
-        Filters.from_mapping({"venue": "大井"})
+        Filters.from_mapping({"venue": "月面"})
 
 
 def test_where_uses_fact_columns_and_params():

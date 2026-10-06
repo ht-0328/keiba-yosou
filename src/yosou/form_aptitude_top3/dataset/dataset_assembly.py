@@ -15,6 +15,7 @@ from yosou.shared.dataset import (
     HistoryRecordsLoader,
     PoolProbabilityLoader,
     RaceRecordsLoader,
+    RunnerSelector,
     Top3Baseline,
     Top3TargetBuilder,
 )
@@ -39,7 +40,7 @@ from yosou.shared.repository import HeadToHeadRunRepository, MarketRunRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER
 
 from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_ABILITY_FEATURES, RACE_DAY_WIN_CATALOG
-from .runner_selector import RunnerSelector
+
 
 #: 馬の力の材料のモデルの学習データの始まり。研究「一番人気を疑う」で、2017年からより長い期間で学ぶほうが良かった
 #: （ウォームアップは前の年の 2011年。DB にある最初の年）。

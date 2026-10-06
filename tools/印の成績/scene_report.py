@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import numpy as np
 import pandas as pd
 
@@ -15,7 +17,7 @@ from 今週の予想.forecast_columns import EXPECTATION, MARK, MARKET_TOP3, MAR
 from 今週の予想.mark_rule import TOP_MARK
 
 from 今週の予想.mark_tickets import RULE
-from 印の成績.scene_bands import AXES, BANDS, UNKNOWN
+from 印の成績.scene_bands import AXES, UNKNOWN, SceneBands
 from 印の成績.ticket_payouts import PAYOUT
 from 今週の予想.ticket_rules import PLACE_LABEL, POINT_YEN
 from 今週の予想.torigami_filter import DROPPED
@@ -31,7 +33,11 @@ class SceneReport:
     軸（クラス・競馬場・頭数・単勝の売上・芝ダ）ごとに帯で分け、帯ごとに、レース数、◎ の単勝回収率と 90% の幅（全体と期待度「高」）、
     複勝（期待値 1.25 以上）の点数と回収率、上乗せ（3着以内と1着の、市場の見立てのログ損失 − モデルのログ損失。×1000。正ならモデルが市場より正しい）を出す。
     場面で絞る決まりを決めるための表ではなく、上乗せが場面でどう違うかを測る表（決まりはテスト期間の結果からは選ばない）。
+    ``band_names`` は軸 → 帯の名前の並び（``SceneBands.bands``。中央か地方の区分）。省略すると中央。
     """
+
+    def __init__(self, band_names: Mapping[str, tuple[str, ...]] | None = None) -> None:
+        self._band_names = dict(SceneBands().bands if band_names is None else band_names)
 
     def table(self, marked: pd.DataFrame, tickets: pd.DataFrame, bands: pd.DataFrame) -> Table:
         horses = marked.merge(bands, on="race_id", how="left")
@@ -40,7 +46,7 @@ class SceneReport:
                    "複勝の点数", "複勝の回収率", "上乗せ（3着以内）", "上乗せ（1着）"]
         rows = []
         for axis in AXES:
-            names = [*BANDS[axis], UNKNOWN]
+            names = [*self._band_names[axis], UNKNOWN]
             present = set(horses[axis].fillna(UNKNOWN).unique())
             for band in [name for name in names if name in present]:
                 rows.append(self._row(axis, band, horses[horses[axis].fillna(UNKNOWN) == band], place[place[axis].fillna(UNKNOWN) == band]))

@@ -48,7 +48,7 @@ class FinalOddsRepository:
         WITH final_header AS (
             SELECT {keys.key_list('h')}, {keys.col(_ANNOUNCED, 'h')}
             FROM {parent} AS h
-            WHERE {keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)} AND {keys.jra_only('h')} AND {days.condition('h')}
+            WHERE {keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)} AND {facts.venue_filter(self._con, 'h')} AND {days.condition('h')}
             {keys.latest_qualify(keys.RACE_KEY, 'h')}
         ), odds AS (
             SELECT {keys.rid_expr('o')} AS race_id, trim({keys.col(spec.combo_column, 'o')}) AS {COMBO}, {decoded},

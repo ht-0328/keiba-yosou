@@ -1,4 +1,4 @@
-"""学習データ・予測用データに入れる行を選ぶ。"""
+"""学習データ・予測用データに入れる行を選ぶ（出走した全頭）。"""
 
 from __future__ import annotations
 
@@ -6,14 +6,15 @@ from datetime import date
 
 import pandas as pd
 
-from yosou.shared.dataset import JUMP, FlatRunnerFilter
+from .flat_runner_filter import JUMP, FlatRunnerFilter
 
 
 class RunnerSelector:
-    """入れる行を選ぶ（設計書 06 の図1）。``SampleSelector`` を守る。
+    """入れる行を選ぶ（近走と適性の予想の設計書 06 の図1）。``SampleSelector`` を守る。
 
     3つの問い「障害レースか」「出走したか」「学習データの始まり以降か」のうち、はじめの2つは学習と予測に共通で、
     共通の ``FlatRunnerFilter`` が答える。3つ目は学習だけ（これから走るレースは、常に学習データの始まり以降）。
+    中央の予想と地方の予想が同じ決まりで使うので、``shared`` に置く。
     """
 
     def __init__(self) -> None:
@@ -36,5 +37,5 @@ class RunnerSelector:
         return runners
 
     def keep_samples(self, rows: pd.DataFrame) -> pd.DataFrame:
-        """特徴量を作ったあとに残す行。この予想は出走した全頭を入れるので、そのまま返す（設計書 08 の 3）。"""
+        """特徴量を作ったあとに残す行。出走した全頭を入れるので、そのまま返す（設計書 08 の 3）。"""
         return rows

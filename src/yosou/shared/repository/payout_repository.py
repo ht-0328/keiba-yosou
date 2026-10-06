@@ -34,7 +34,7 @@ class PayoutRepository:
         SELECT {keys.rid_expr('p')} AS race_id, trim({keys.col(spec.combo_column, 'p')}) AS {COMBO}, {yen} AS {YEN},
                TRY_CAST({keys.col('人気順', 'p')} AS INTEGER) AS {POPULARITY}, TRY_CAST({keys.col('_連番', 'p')} AS INTEGER) AS {SEQ}
         FROM {table} AS p
-        WHERE {keys.jra_only('p')} AND {days.condition('p')} AND {yen} > 0
+        WHERE {facts.venue_filter(self._con, 'p')} AND {days.condition('p')} AND {yen} > 0
         ORDER BY race_id, {SEQ}
         """
         return self._con.execute(sql, days.params).df()

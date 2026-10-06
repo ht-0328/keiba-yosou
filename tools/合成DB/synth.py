@@ -80,6 +80,32 @@ CK_COLUMNS: tuple[str, ...] = (
     *_HEADER, *KEY_COLUMNS, "血統登録番号", "馬名",
     *(f"{item}_{slot}" for item in CK_COUNT_ITEMS for slot in range(1, CK_SLOTS + 1)),
 )
+#: 出走別着度数地方（nd）の着回数の項目（総合（中央と地方の両方）・地方合計、芝ダ×距離帯、芝ダ×馬場状態、地方 14場のダートと盛岡の芝）。
+#: 距離帯は（その帯のいちばん長い距離, 欄の名前での書き方）。中央の ck より短い距離を細かく分ける。
+ND_DISTANCE_BANDS: tuple[tuple[int | None, str], ...] = (
+    (1000, "1000以下"), (1200, "1001-1200"), (1300, "1201-1300"), (1400, "1301-1400"), (1500, "1401-1500"),
+    (1600, "1501-1600"), (1700, "1601-1700"), (1800, "1701-1800"), (2000, "1801-2000"), (2200, "2001-2200"),
+    (None, "2201以上"),
+)
+ND_VENUE_ITEMS: tuple[str, ...] = (
+    "門別ダ", "盛岡ダ", "盛岡芝", "水沢ダ", "浦和ダ", "船橋ダ", "大井ダ", "川崎ダ", "金沢ダ", "笠松ダ", "名古屋ダ", "園田ダ", "姫路ダ",
+    "高知ダ", "佐賀ダ",
+)
+ND_COUNT_ITEMS: tuple[str, ...] = (
+    "総合着回数", "地方合計着回数",
+    *(f"{surface}{band}・着回数" for surface in ("芝", "ダ") for _, band in ND_DISTANCE_BANDS),
+    *(f"{surface}{going}・着回数" for surface in ("芝", "ダ") for going in ("良", "稍", "重", "不")),
+    *(f"{venue}・着回数" for venue in ND_VENUE_ITEMS),
+)
+ND_COLUMNS: tuple[str, ...] = (
+    *_HEADER, *KEY_COLUMNS, "血統登録番号", "馬名",
+    *(f"{item}_{slot}" for item in ND_COUNT_ITEMS for slot in range(1, CK_SLOTS + 1)),
+)
+#: 競走馬マスタ地方（nu）。3代血統情報の子は中央の um と同じ形（``PEDIGREE_COLUMNS``）。
+NU_COLUMNS: tuple[str, ...] = (
+    *_HEADER, "血統登録番号", "生年月日", "馬名", "性別コード", "品種コード", "毛色コード", "東西所属コード",
+    "調教師コード", "調教師名略称", "招待地域名", "生産者コード", "馬主コード",
+)
 _WORKOUT_TIMES: tuple[str, ...] = (
     "4ハロンタイム合計(800M～0M)", "ラップタイム(800M～600M)", "3ハロンタイム合計(600M～0M)", "ラップタイム(600M～400M)",
     "2ハロンタイム合計(400M～0M)", "ラップタイム(400M～200M)", "ラップタイム(200M～0M)",
@@ -128,6 +154,7 @@ TABLES: dict[str, tuple[str, ...]] = {
 #: 取得していない DB もある表と列。``Sample`` に行があるときだけ作る（行が無ければ、実DB の取得前と同じく表が無い）。
 OPTIONAL_TABLES: dict[str, tuple[str, ...]] = {
     "ck": CK_COLUMNS, "hc": HC_COLUMNS, "wc": WC_COLUMNS,
+    "nd": ND_COLUMNS, "nu": NU_COLUMNS, "nu__3代血統情報": PEDIGREE_COLUMNS,
     "we": WE_COLUMNS, "wh": WH_COLUMNS, "wh__馬体重情報": WH_WEIGHT_COLUMNS, "av": AV_COLUMNS,
     "hr": HR_COLUMNS, "hr__馬連払戻": COMBO_PAYOUT_COLUMNS, "hr__3連複払戻": COMBO_PAYOUT_COLUMNS,
     "hr__3連単払戻": COMBO_PAYOUT_COLUMNS, "hr__ワイド払戻": COMBO_PAYOUT_COLUMNS, "hr__馬単払戻": COMBO_PAYOUT_COLUMNS,
@@ -140,11 +167,12 @@ TITLES: dict[str, str] = {
     "wc": "ウッドチップ調教", "we": "天候馬場状態", "wh": "馬体重", "av": "出走取消・競走除外",
     "o1": "オッズ1（単複枠）", "o2": "オッズ2（馬連）", "o3": "オッズ3（ワイド）", "o4": "オッズ4（馬単）",
     "o5": "オッズ5（3連複）", "o6": "オッズ6（3連単）",
+    "nd": "出走別着度数地方", "nu": "競走馬マスタ地方",
 }
 #: 親の表の鍵（実DB の ``_tables`` の keys）。書いていない表は血統登録番号。
 _TABLE_KEYS: dict[str, tuple[str, ...]] = {
     **{name: KEY_COLUMNS for name in ("ra", "se", "hr", "tm", "dm", "wh", *ODDS_PARENTS)},
-    "ck": (*KEY_COLUMNS, "血統登録番号"), "av": (*KEY_COLUMNS, "馬番"),
+    "ck": (*KEY_COLUMNS, "血統登録番号"), "nd": (*KEY_COLUMNS, "血統登録番号"), "av": (*KEY_COLUMNS, "馬番"),
     "hc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
     "wc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
     "we": (*KEY_COLUMNS[:-1], "発表月日時分", "変更識別"),
@@ -438,6 +466,10 @@ class Sample:
     exacta: list[dict[str, str]] = field(default_factory=list)
     #: オッズの親と子の行。（表の名前, 行）の並び。表ごとに分けるのは ``tables()``。
     odds: list[tuple[str, dict[str, str]]] = field(default_factory=list)
+    #: 地方の表（出走別着度数地方・競走馬マスタ地方とその3代血統情報）。地方の合成DB（``local_synth.py``）だけが入れる。
+    nd: list[dict[str, str]] = field(default_factory=list)
+    nu: list[dict[str, str]] = field(default_factory=list)
+    nu_pedigree: list[dict[str, str]] = field(default_factory=list)
 
     def extend(self, other: "Sample") -> "Sample":
         """別の束を足す。"""
@@ -455,6 +487,8 @@ class Sample:
             "we": self.going, "wh": self.weight, "wh__馬体重情報": self.weights, "av": self.scratches,
             "hr": self.headers, "hr__馬連払戻": self.quinella, "hr__3連複払戻": self.trio, "hr__3連単払戻": self.trifecta,
             "hr__ワイド払戻": self.wide, "hr__馬単払戻": self.exacta, **odds_tables,
+            "nd": self.nd, "nu": _unique(self.nu, ("血統登録番号",)),
+            "nu__3代血統情報": _unique(self.nu_pedigree, ("血統登録番号", "_連番")),
         }
         return {
             "ra": self.ra, "se": self.se, "hr__単勝払戻": self.win, "hr__複勝払戻": self.place,

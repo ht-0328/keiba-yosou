@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
 
 from 共通.render import Table
 
 from ..dataset import RACE_DATE, TrainingData
 from ..evaluation import Evaluation, TrainingReport
+from ..feature import PredictionTiming
 from .cell_format import day_text, rounded
 
 
@@ -16,12 +18,18 @@ class TrainingReportTables:
 
     目的変数の名前（``TrainingData.label_name``。例: 3着以内）は、表の見出しに使う。
     ``subject`` は表題の頭に付ける言葉（例: 区分の名前）。区分ごとに学習するとき、どの表か分かるようにする。
+    ``timing_labels`` は時点 → 表に出す名前（地方の予想は木曜の枠を「出馬表」と出す）。省略すると時点の名前のまま。
     """
 
-    def __init__(self, report: TrainingReport, subject: str = "") -> None:
+    def __init__(self, report: TrainingReport, subject: str = "",
+                 timing_labels: Mapping[PredictionTiming, str] | None = None) -> None:
         self._report = report
         self._subject = f"{subject}: " if subject else ""
         self._label_name = report.split.train.label_name
+        self._timing_labels = dict(timing_labels or {})
+
+    def _timing_label(self, timing: PredictionTiming) -> str:
+        return self._timing_labels.get(timing, timing.label)
 
     def tables(self) -> list[Table]:
         return [self._periods(), self._evaluations(), self._popularity_comparison(), self._model_folders()]
@@ -58,7 +66,7 @@ class TrainingReportTables:
 
     def _evaluation_row(self, evaluation: Evaluation) -> list[object]:
         return [
-            evaluation.timing.label, evaluation.model, evaluation.tree_count, evaluation.rows,
+            self._timing_label(evaluation.timing), evaluation.model, evaluation.tree_count, evaluation.rows,
             rounded(evaluation.log_loss), rounded(evaluation.auc), rounded(evaluation.brier),
             rounded(evaluation.top_pick_place_rate),
         ]
@@ -80,7 +88,7 @@ class TrainingReportTables:
 
     def _comparison_row(self, evaluation: Evaluation) -> list[object]:
         return [
-            evaluation.timing.label, evaluation.model,
+            self._timing_label(evaluation.timing), evaluation.model,
             rounded(evaluation.top_pick_place_rate), rounded(evaluation.popularity_pick_place_rate),
             rounded(evaluation.top_pick_place_payback), rounded(evaluation.popularity_pick_place_payback),
             rounded(evaluation.auc_within_popularity),
@@ -91,7 +99,7 @@ class TrainingReportTables:
         folders = self._report.model_folders
         return Table(
             ["時点", "特徴量の数", "保存したフォルダ"],
-            [[timing.label, len(catalog.columns_for(timing)), str(folder)]
+            [[self._timing_label(timing), len(catalog.columns_for(timing)), str(folder)]
              for timing, folder in folders.items()],
             title=f"{self._subject}保存したモデル",
         )

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from yosou.shared.dataset import PredictionData
-
-from ..feature import POOL_SUPPORT_NAMES
+from ..feature.feature_catalog import POOL_SUPPORT_NAMES
+from .prediction_data import PredictionData
 
 
 class PoolAvailability:

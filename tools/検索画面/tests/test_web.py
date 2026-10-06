@@ -106,7 +106,7 @@ def test_status_tables_races_horses_events_perf(web: str):
 def test_errors_are_reported_with_status(web: str):
     status, _, body = get(web, "/api/tables/rows", {"name": "nope"})
     assert status == 400 and "知らない表" in json.loads(body)["error"]
-    status, _, body = get(web, "/api/runners", {"venue": "大井"})
+    status, _, body = get(web, "/api/runners", {"venue": "月面"})
     assert status == 400
     status, _, body = get(web, "/api/perf", {"dimension": "nope"})
     assert status == 400

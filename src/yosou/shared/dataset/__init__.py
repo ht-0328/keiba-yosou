@@ -29,6 +29,13 @@
 | ``PopularityApplier`` | 予測に使う人気を決める（渡された人気 → 締め切り前のオッズ → 元DB の人気）。人気を使う予想が使う |
 | ``OddsInput`` | 利用者が ``--odds`` で渡した「馬番 → 単勝オッズ」を表す値 |
 | ``OddsResolver`` | 予測に使う単勝オッズを決める（渡されたオッズ → 締め切り前のオッズ → 元DB のオッズ）。オッズを使う予想が使う |
+| ``RunnerSelector`` | 入れる行を選ぶ（障害・取消を除く、学習データの始まり以降）。出走した全頭を入れる予想（中央・地方の近走と適性）が使う |
+| ``PoolAvailability`` | 予測するレースの券種のオッズがあるかを確かめる |
+| ``PoolFreeData`` | 学習データ・予測用データから N（券種ごとのオッズから見た支持）を外す（当日に券種のオッズが無いときのモデル） |
+| ``PoolFreeRows`` | 学習データの行ごとに、そのレースの券種のオッズが無いか（券種オッズなしのモデルで予測する行か）を答える（テスト期間の確かめ） |
+| ``FinishPowerFreeData`` | 学習データ・予測用データから Q（勝ち切る材料）を外す（3着以内のモデルに渡すとき。Q は1着のモデルだけが使う） |
+| ``WinTargetData`` | 学習データ・予測用データを1着のモデル用に持ち替える（目的変数を「1着」に、基準をオッズから見た勝率に） |
+| ``PaceAttachment`` | 学習データ・予測用データに、展開の予想の結果（まとまり P）の 20列を足す（中央の木曜のモデル） |
 | ``RequiredInfoCheck`` | 予測に要る情報（馬番・馬場状態・馬体重・オッズ など）が DB にあるかを確かめる |
 | ``FieldOddsCheck`` | 前日以降の予測で、全頭の単勝オッズがそろっているかを確かめる（レース単位の予想が使う） |
 | ``TrainingPeriod`` | 学習データの期間（ウォームアップ・学習・検証・テストの始まりの日） |
@@ -64,7 +71,11 @@ from .flat_runner_filter import JUMP, FlatRunnerFilter
 from .history_records_loader import HistoryRecordsLoader
 from .odds_input import OddsInput
 from .odds_resolver import OddsResolver
+from .pace_attachment import PaceAttachment
 from .period_splitter import PeriodSplitter
+from .pool_availability import PoolAvailability
+from .pool_free_data import PoolFreeData
+from .pool_free_rows import PoolFreeRows
 from .pool_probability_loader import POOL_KEY, PoolProbabilityLoader
 from .popularity_applier import PopularityApplier
 from .popularity_input import PopularityInput
@@ -75,6 +86,7 @@ from .race_result_source import RaceResultSource
 from .race_result_summary import RaceResultSummary
 from .race_target_labeler import RaceTargetLabeler
 from .required_info_check import RequiredInfoCheck
+from .runner_selector import RunnerSelector
 from .sample_selector import SampleSelector
 from .split_data import SplitData
 from .target_baseline import TargetBaseline
@@ -82,6 +94,8 @@ from .target_labeler import TargetLabeler
 from .top3_baseline import Top3Baseline
 from .top3_target_builder import PLACE_HIT, TOP3, WIN, Top3TargetBuilder
 from .win_baseline import WinBaseline
+from .win_target_data import WinTargetData
+from .finish_power_free_data import FinishPowerFreeData
 from .training_data import BINARY_LABELS, TrainingData
 from .training_period import (
     DEFAULT_TEST_FIRST_DAY,
@@ -99,6 +113,7 @@ __all__ = [
     "TargetBaseline", "BaselineLogit", "Top3Baseline",
     "WinBaseline",
     "PopularityInput", "PopularityApplier", "OddsInput", "OddsResolver",
+    "RunnerSelector", "PoolAvailability", "PoolFreeData", "PoolFreeRows", "FinishPowerFreeData", "WinTargetData", "PaceAttachment",
     "RequiredInfoCheck", "FieldOddsCheck", "FlatRunnerFilter", "JUMP", "LARGE_FIELD_FROM",
     "DEFAULT_TRAIN_FIRST_DAY", "DEFAULT_VALID_FIRST_DAY", "DEFAULT_TEST_FIRST_DAY",
     "RACE_ID", "RACE_DATE", "HORSE_ID", "HORSE_NO", "HORSE_NAME", "VENUE", "RACE_NO",

@@ -40,7 +40,7 @@ class TicketOddsRepository:
         WITH final_header AS (
             SELECT {keys.key_list('h')}, {keys.col(_ANNOUNCED, 'h')}
             FROM {parent} AS h
-            WHERE {keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)} AND {keys.jra_only('h')}
+            WHERE {keys.col('データ区分', 'h')} IN {keys.sql_list(_FINAL_STAGES)} AND {facts.venue_filter(self._con, 'h')}
               AND {keys.rid_expr('h')} IN (SELECT race_id FROM {_TICKETS})
             {keys.latest_qualify(keys.RACE_KEY, 'h')}
         ), odds AS (

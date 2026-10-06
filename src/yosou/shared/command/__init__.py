@@ -12,10 +12,12 @@
 | ``RacePredictionTable`` | レース単位の予測の結果（券種ごと など）を、そのまま表にする |
 | ``PlacePriceStep`` | 学習のあとに、複勝の見込みの倍率を学習データの期間で決めて、モデルと一緒に保存する |
 | ``CalibrationReportTables`` | 確率のずれを確かめた結果（``CalibrationCheck`` の材料の表）を、4つの表にする |
+| ``BacktestReportTables`` | テスト期間の確かめの結果（``BacktestReport``）を、期間・目的変数ごとの当たり具合・書いた予測の表 の表にする |
 
 ``cell_format.py`` は、表のセルに入れる値の形をそろえる関数。
 """
 
+from .backtest_report_tables import BacktestReportTables
 from .calibration_report_tables import CalibrationReportTables
 from .class_training_report_tables import ClassTrainingReportTables
 from .common_arguments import CommonArguments
@@ -26,5 +28,5 @@ from .training_report_tables import TrainingReportTables
 
 __all__ = [
     "CommonArguments", "TrainingReportTables", "ClassTrainingReportTables", "PredictionTable", "RacePredictionTable",
-    "PlacePriceStep", "CalibrationReportTables",
+    "PlacePriceStep", "CalibrationReportTables", "BacktestReportTables",
 ]
