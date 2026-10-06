@@ -40,7 +40,7 @@ def test_list_cards_shows_races_on_and_after_the_start_date(card_db: Path):
 def test_list_cards_rejects_unknown_venue_and_cuts_at_limit(card_db: Path):
     with db.open_db(card_db) as con:
         with pytest.raises(ValueError):
-            card.list_cards(con, date_from="2025-04-19", venue="大井")
+            card.list_cards(con, date_from="2025-04-19", venue="月面")
         cut = card.list_cards(con, date_from="2024-01-01", limit=3)
     assert len(cut.rows) == 3 and cut.meta["total"] == 8 and "打ち切り" in cut.note
 

@@ -4,18 +4,17 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from yosou.shared.dataset import PredictionData, TrainingData
-from yosou.shared.feature import FeatureCatalog
-
-from ..feature import FINISH_POWER_NAMES
+from ..feature.feature_catalog import FINISH_POWER_NAMES, FeatureCatalog
+from .prediction_data import PredictionData
+from .training_data import TrainingData
 
 
 class FinishPowerFreeData:
-    """Q の 10列を外し、特徴量の一覧からも Q を除いたデータを返す（当日のモデルなら 295個 → 285個）。
+    """Q の 10列を外し、特徴量の一覧からも Q を除いたデータを返す。
 
-    Q（勝ち切る材料）は1着のモデルだけが使う（設計書 15 の 15）。当日の学習データ・予測用データは Q を含めて1回で作り
-    （``race_day_dataset_builder``）、3着以内のモデルに渡す前にこのクラスで Q を外す。1着のモデルには外さずに渡す。
-    Q の無いデータ（木曜・前日・前の形）に使っても、何も変わらない。
+    Q（勝ち切る材料）は1着のモデルだけが使う（近走と適性の予想の設計書 15 の 15）。当日の学習データ・予測用データは Q を含めて
+    1回で作り、3着以内のモデルに渡す前にこのクラスで Q を外す。1着のモデルには外さずに渡す。
+    Q の無いデータに使っても、何も変わらない。
     """
 
     def training(self, data: TrainingData) -> TrainingData:

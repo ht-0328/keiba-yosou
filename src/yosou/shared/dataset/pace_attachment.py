@@ -7,16 +7,18 @@ from typing import TypeVar
 
 import pandas as pd
 
-from yosou.shared.dataset import HORSE_ID, RACE_ID, PredictionData, TrainingData
-from yosou.shared.feature import PACE_FORECAST_FEATURES, FeatureCatalog
-from yosou.shared.feature.pace_forecast import PaceForecastTableBuilder
+from ..feature.feature_catalog import PACE_FORECAST_FEATURES, FeatureCatalog
+from ..feature.pace_forecast import PaceForecastTableBuilder
+from .column_names import HORSE_ID, RACE_ID
+from .prediction_data import PredictionData
+from .training_data import TrainingData
 
 #: 学習データか予測用データ（どちらも ``ids``・``features``・``catalog`` を持つ）。
 Data = TypeVar("Data", TrainingData, PredictionData)
 
 
 class PaceAttachment:
-    """``data`` の行に、同じ出走（レースID・馬ID）の P の 20列を足し、特徴量の一覧にも P を足す（設計書 09 の P）。
+    """``data`` の行に、同じ出走（レースID・馬ID）の P の 20列を足し、特徴量の一覧にも P を足す（近走と適性の予想の設計書 09 の P）。
 
     P の元の予測（``forecasts``。1行 = 1頭、列 ``race_id``・``horse_id`` と ``pace_forecast.SOURCE_COLUMNS``）は呼ぶ側が渡す。
     学習データには、展開の予想の年ごとの確かめの予測（そのレースより前だけで学習した展開のモデルの予測。``PaceForecastHistory``）、

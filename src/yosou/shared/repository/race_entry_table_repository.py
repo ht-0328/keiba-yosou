@@ -19,10 +19,12 @@ class RaceEntryTableRepository:
 
     事実表と同じ SQL を「確定成績 + そのレース」に当てるので、学習と予測で列の定義がずれない（設計書 11 の 4）。
     確定前のレース（出走馬名表・出馬表）でも、終わったレースでもよい。
+    ``source`` は元データの決めごと（中央か地方か）。省略すると元DB の表から見分ける。
     """
 
-    def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
+    def __init__(self, con: duckdb.DuckDBPyConnection, source: facts.FactsSource | None = None) -> None:
         self._con = con
+        self._source = source
 
     def build(self, race_id: str, going_code: str | None,
               popularity: Mapping[int | str, int] | None = None) -> TargetScope:
@@ -35,7 +37,7 @@ class RaceEntryTableRepository:
         scope = facts.EntryScope(race_id, going_code)
         by_number, by_name = self._split(popularity or {})
         table = facts.build_entry_facts(
-            self._con, scope, popularity=by_number, popularity_by_name=by_name, name=_TABLE,
+            self._con, scope, popularity=by_number, popularity_by_name=by_name, name=_TABLE, source=self._source,
         )
         return TargetScope.of_table(table)
 

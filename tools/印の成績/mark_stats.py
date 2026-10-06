@@ -69,6 +69,7 @@ from 印の成績.prediction_file import TEST, PredictionFile  # noqa: E402
 from 印の成績.race_results import RaceResults  # noqa: E402
 from 印の成績.race_scene_repository import RaceSceneRepository  # noqa: E402
 from 印の成績.scene_bands import SceneBands  # noqa: E402
+from 印の成績.scene_scheme import JRA_SCENE_SCHEME, SCENE_SCHEMES  # noqa: E402
 from 印の成績.scene_report import SceneReport  # noqa: E402
 from 印の成績.ticket_payouts import TicketPayouts  # noqa: E402
 from 印の成績.ticket_report import TicketReport  # noqa: E402
@@ -100,7 +101,9 @@ def main(args) -> None:
     odds_known = args.timing is not PredictionTiming.THURSDAY
     marker = BacktestMarker(_estimator(args.models), odds_known=odds_known)
     test_race_ids = tested["race_id"].drop_duplicates()
-    with db.open_db(args.db) as con:
+    scheme = SCENE_SCHEMES[args.scene]
+    database = db.LOCAL if scheme is not JRA_SCENE_SCHEME else db.JRA
+    with db.open_db(args.db, default=database) as con:
         favorites = danger.load() if danger else None
         win_predictions = win.load() if win else None
         race_ids = pd.concat([frame["race_id"] for frame in (tested, favorites, win_predictions) if frame is not None])
@@ -122,12 +125,13 @@ def main(args) -> None:
     tables = MarkReport().tables(marked, conditions, lines)
     tickets = MarkTickets().build(marked)
     print(f"買い目 {len(tickets):,} 点の払戻と確定オッズを読みます", file=sys.stderr, flush=True)
-    with db.open_db(args.db) as con:
+    with db.open_db(args.db, default=database) as con:
         tickets = TorigamiFilter().apply(TicketPayouts(con).attach(tickets))
     report = TicketReport()
     tables += report.tables(tickets, marked["race_id"].nunique(), marked["race_date"].nunique())
     tables.append(LineSensitivityReport().table(tickets))
-    tables.append(SceneReport().table(marked, tickets, SceneBands().build(scenes, pool_sizes)))
+    scene_bands = SceneBands(scheme)
+    tables.append(SceneReport(scene_bands.bands).table(marked, tickets, scene_bands.build(scenes, pool_sizes)))
     tables.append(MovementReport().table(marked))
     if not dangers.empty:
         tables.append(DangerBandReport().table(marked))
@@ -161,6 +165,8 @@ def build_parser():
     parser.add_argument("--danger-bands", nargs="+", choices=FAVORITE_BANDS, default=list(MARKED_BANDS), metavar="人気帯",
                         help=f"危険と判定した馬を消にできる人気帯（{'・'.join(FAVORITE_BANDS)}。1レース1頭で、1番人気を優先。"
                              f"既定: 今週の予想と同じ {'・'.join(MARKED_BANDS)}）")
+    parser.add_argument("--scene", choices=tuple(SCENE_SCHEMES), default=JRA_SCENE_SCHEME.name,
+                        help="場面の表（表10）のクラス・競馬場の帯の区分（既定: 中央）。地方の予想の予測を数えるときは 地方（--db を省くと地方の元DB を開く）")
     parser.add_argument("--models", type=Path, default=DEFAULT_MODELS,
                         help="複勝の見込みの倍率（place_price.json）の置き場所（既定: reports/近走と適性から3着以内を予想/models）")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="結果を書く場所（既定: reports/印の成績）")

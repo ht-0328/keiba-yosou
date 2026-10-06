@@ -48,7 +48,7 @@ from .feature_group import FeatureGroup
 from .field_feature_group import FieldFeatureGroup
 from .feature_kind import FeatureKind
 from .history import RecentRunSummary, WorkoutCoverage
-from .prediction_timing import PredictionTiming
+from .prediction_timing import LOCAL_FIRST_TIMING_LABEL, PredictionTiming
 from .race_feature_builder import RaceFeatureBuilder
 from .race_condition_summary import FIELD_SIZE, GOING, HANDICAP, SPECIAL_RACE, RaceConditionSummary
 from .race_feature_group import RaceFeatureGroup
@@ -57,7 +57,7 @@ from .time_windows import PEOPLE_WINDOW_DAYS, WORKOUT_WINDOW_DAYS
 from .value_types import as_numbers, as_yes_no, typed_features
 
 __all__ = [
-    "FeatureBuilder", "RaceFeatureBuilder", "EntryRecords", "RaceRecords", "EntryColumns", "PredictionTiming",
+    "FeatureBuilder", "RaceFeatureBuilder", "EntryRecords", "RaceRecords", "EntryColumns", "PredictionTiming", "LOCAL_FIRST_TIMING_LABEL",
     "WorkoutCoverage", "RecentRunSummary",
     "BASE_FEATURES", "POPULARITY_FEATURES", "MARKET_FEATURES", "ODDS_FEATURES", "PEOPLE_MARKET_FEATURES",
     "ABILITY_FEATURES", "POOL_SUPPORT_FEATURES", "POOL_SUPPORT_NAMES", "HEAD_TO_HEAD_FEATURES", "PACE_FORECAST_FEATURES",

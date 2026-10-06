@@ -47,7 +47,7 @@ class PayoutFlagRepository:
         SELECT {keys.rid_expr('h')} AS race_id, {voids},
                coalesce({keys.col(_REFUND_FLAG, 'h')} = '{_ON}', FALSE) AS {REFUNDED}
         FROM {table} AS h
-        WHERE {keys.col('データ区分', 'h')} IN {keys.sql_list(_PAYOUT_STAGES)} AND {keys.jra_only('h')} AND {days.condition('h')}
+        WHERE {keys.col('データ区分', 'h')} IN {keys.sql_list(_PAYOUT_STAGES)} AND {facts.venue_filter(self._con, 'h')} AND {days.condition('h')}
         {keys.latest_qualify(keys.RACE_KEY, 'h')}
         ORDER BY race_id
         """

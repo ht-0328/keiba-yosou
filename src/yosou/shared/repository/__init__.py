@@ -7,7 +7,7 @@
 | ``FactTableRepository`` | 事実表（一時表）を用意する |
 | ``RaceEntryTableRepository`` | 予測する1レースの出走馬の一時表を作る |
 | ``EntryRepository`` | 出走の行（事実表の列） |
-| ``CareerCountRepository`` | 出走別着度数（その出走の時点の、通算の着回数） |
+| ``CareerCountRepository`` | 出走別着度数（その出走の時点の、通算の着回数）。欄の決めごとは ``CareerCountLayout``（中央 ``JRA_CAREER_LAYOUT``。地方は予想のパッケージが ``nd`` の決めごとを渡す） |
 | ``PastRunRepository`` | 過去走 |
 | ``WorkoutRepository`` | 調教（坂路・ウッド） |
 | ``WorkoutCoverageRepository`` | 調教の記録が DB にある期間（コースごとの最初の調教日） |
@@ -49,6 +49,7 @@ from .announced_going_repository import AnnouncedGoingRepository
 from .announced_odds_repository import AnnouncedOddsRepository
 from .announced_ticket_odds_repository import AnnouncedTicketOddsRepository
 from .announced_weight_repository import AnnouncedWeightRepository
+from .career_count_layout import JRA_CAREER_LAYOUT, CareerCountLayout
 from .career_count_repository import CareerCountRepository
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
@@ -83,7 +84,7 @@ from .workout_summary_repository import WorkoutSummaryRepository
 
 __all__ = [
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
-    "CareerCountRepository", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
+    "CareerCountRepository", "CareerCountLayout", "JRA_CAREER_LAYOUT", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository", "MarketRunRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "AnnouncedTicketOddsRepository", "PlaceOddsRepository",
     "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository",

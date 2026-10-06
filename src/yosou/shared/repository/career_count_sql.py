@@ -1,12 +1,14 @@
-"""出走別着度数（ck）から、そのレースの条件に合う欄の着回数を取り出す SQL の式。"""
+"""出走別着度数（中央 ck・地方 nd）から、そのレースの条件に合う欄の着回数を取り出す SQL の式。"""
 
 from __future__ import annotations
 
 from itertools import product
 
-from 共通 import codes, keys
+from 共通 import keys
 
-#: ck の1つの欄。（そのレースが当てはまる条件の SQL, 欄の名前）。
+from .career_count_layout import JRA_CAREER_LAYOUT, SURFACE_PREFIXES, CareerCountLayout
+
+#: 1つの欄。（そのレースが当てはまる条件の SQL, 欄の名前）。
 #: 例: ("t.venue = '東京' AND t.surface = '芝'", "東京芝・着回数")
 Cell = tuple[str, str]
 
@@ -14,42 +16,36 @@ Cell = tuple[str, str]
 _SLOTS = 6
 #: 1着から何番目までの列を足すか。6つ全部で出走数、3つで3着以内の数、1つで勝利数。
 _RUNS, _PLACES, _WINS = 6, 3, 1
-_TOTAL_ITEM = "中央合計着回数"
 _ITEM_SUFFIX = "・着回数"
-#: 芝ダ → ck の欄の名前での書き方。
-_SURFACES: dict[str, str] = {"芝": "芝", "ダート": "ダ"}
-#: 馬場状態コード → ck の欄の名前での書き方。
+#: 馬場状態コード → 欄の名前での書き方。
 _GOINGS: dict[str, str] = {"1": "良", "2": "稍", "3": "重", "4": "不"}
-#: 距離帯。（その距離帯のいちばん長い距離, ck の欄の名前での書き方）。最後の帯は上限なし。
-_DISTANCE_BANDS: tuple[tuple[int | None, str], ...] = (
-    (1200, "1200以下"), (1400, "1201-1400"), (1600, "1401-1600"), (1800, "1601-1800"),
-    (2000, "1801-2000"), (2200, "2001-2200"), (2400, "2201-2400"), (2800, "2401-2800"),
-    (None, "2801以上"),
-)
 
 
 class CareerCountSql:
-    """ck の着回数を、そのレースの条件（競馬場・芝ダ・距離・馬場状態）に合う欄から取り出す式を作る。
+    """出走別着度数の着回数を、そのレースの条件（競馬場・芝ダ・距離・馬場状態）に合う欄から取り出す式を作る。
 
-    ``ck`` は ck の行の別名、``entry`` は出走の行（事実表の列）の別名。
+    ``ck`` は出走別着度数の行の別名、``entry`` は出走の行（事実表の列）の別名。欄の決めごと（通算の欄・競馬場・距離帯）は
+    ``layout``（省略すると中央の ``ck``）。
     """
 
-    def __init__(self, ck: str, entry: str) -> None:
+    def __init__(self, ck: str, entry: str, layout: CareerCountLayout = JRA_CAREER_LAYOUT) -> None:
         self._ck = ck
         self._entry = entry
+        self._layout = layout
 
     def source_columns(self) -> tuple[str, ...]:
-        """ck の表から読む着回数の列。"""
+        """出走別着度数の表から読む着回数の列。"""
         cells = [*self._venue_cells(), *self._distance_band_cells(), *self._going_cells()]
-        items = [_TOTAL_ITEM, *(item for _, item in cells)]
+        items = [self._layout.total_item, *(item for _, item in cells)]
         return tuple(f"{item}_{slot}" for item, slot in product(items, range(1, _SLOTS + 1)))
 
     def select_list(self) -> str:
         """SELECT に並べる式。通算と、競馬場・距離帯・馬場状態ごとの、出走数と3着以内の数。"""
+        total = self._layout.total_item
         expressions = {
-            "ck_total_runs": self._sum(_TOTAL_ITEM, _RUNS),
-            "ck_total_wins": self._sum(_TOTAL_ITEM, _WINS),
-            "ck_total_places": self._sum(_TOTAL_ITEM, _PLACES),
+            "ck_total_runs": self._sum(total, _RUNS),
+            "ck_total_wins": self._sum(total, _WINS),
+            "ck_total_places": self._sum(total, _PLACES),
             "ck_venue_runs": self._case(self._venue_cells(), _RUNS),
             "ck_venue_places": self._case(self._venue_cells(), _PLACES),
             "ck_band_runs": self._case(self._distance_band_cells(), _RUNS),
@@ -60,9 +56,9 @@ class CareerCountSql:
         return ",\n".join(f"{expression} AS {name}" for name, expression in expressions.items())
 
     def _venue_cells(self) -> list[Cell]:
-        """競馬場 × 芝ダ の欄（例: 東京芝）。"""
-        pairs = product(codes.VENUE_NAMES.values(), _SURFACES.items())
-        return [self._venue_cell(venue, surface, prefix) for venue, (surface, prefix) in pairs]
+        """競馬場 × 芝ダ の欄（例: 東京芝・大井ダ）。欄のある芝ダは競馬場ごとに決まる。"""
+        return [self._venue_cell(venue, surface, SURFACE_PREFIXES[surface])
+                for venue, surfaces in self._layout.venues.items() for surface in surfaces]
 
     def _venue_cell(self, venue: str, surface: str, prefix: str) -> Cell:
         entry = self._entry
@@ -71,7 +67,7 @@ class CareerCountSql:
 
     def _distance_band_cells(self) -> list[Cell]:
         """芝ダ × 距離帯 の欄（例: 芝1401-1600）。CASE は上から順に見るので、距離帯は短い順に並べる。"""
-        pairs = product(_SURFACES.items(), _DISTANCE_BANDS)
+        pairs = product(SURFACE_PREFIXES.items(), self._layout.distance_bands)
         return [self._distance_band_cell(surface, prefix, longest, band)
                 for (surface, prefix), (longest, band) in pairs]
 
@@ -83,7 +79,7 @@ class CareerCountSql:
 
     def _going_cells(self) -> list[Cell]:
         """芝ダ × 馬場状態 の欄（例: 芝良）。馬場状態が分からなければ、どの欄にも当てはまらない。"""
-        pairs = product(_SURFACES.items(), _GOINGS.items())
+        pairs = product(SURFACE_PREFIXES.items(), _GOINGS.items())
         return [self._going_cell(surface, prefix, code, going)
                 for (surface, prefix), (code, going) in pairs]
 

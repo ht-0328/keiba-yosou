@@ -19,12 +19,14 @@ class PredictionTable:
 
     ``probability`` は確率の列の名前（予想ごとに違う。例: 3着以内に入る確率）。
     ``extra_columns`` は、馬名のあとに足す列の名前（予想ごとに違う。例: 人気順位）。
+    ``timing_label`` は表題に出す時点の名前（省略すると時点の名前のまま。地方の予想は「出馬表」を渡す）。
     """
 
     def __init__(self, prediction: pd.DataFrame, timing: PredictionTiming, probability: str,
-                 extra_columns: Sequence[str] = ()) -> None:
+                 extra_columns: Sequence[str] = (), timing_label: str | None = None) -> None:
         self._prediction = prediction
         self._timing = timing
+        self._timing_label = timing_label or timing.label
         self._probability = probability
         self._extra_columns = tuple(extra_columns)
         self._member_names = [model_type.name for model_type in MEMBER_TYPES]
@@ -53,4 +55,4 @@ class PredictionTable:
     def _title(self) -> str:
         first_runner = self._prediction.iloc[0]
         race_day = day_text(first_runner[RACE_DATE])
-        return f"{first_runner[RACE_ID]}（{race_day}）の予測: {self._timing.label}の時点"
+        return f"{first_runner[RACE_ID]}（{race_day}）の予測: {self._timing_label}の時点"

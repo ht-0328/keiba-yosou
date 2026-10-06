@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from yosou.shared.feature import PredictionTiming
+from ..feature import PredictionTiming
 
 
 @dataclass(frozen=True)

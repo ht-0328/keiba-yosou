@@ -5,24 +5,32 @@
 
 | 名前 | 仕事 |
 |---|---|
-| ``RunnerSelector`` | 入れる行を選ぶ（障害・取消を除く、学習データの始まり以降）。``SampleSelector`` を守る |
 | ``dataset_builder()`` | ``RunnerSelector``・共通の ``Top3TargetBuilder``（3着以内なら 1）・特徴量の一覧（``CATALOG``）とまとまりの並びを渡して、共通の ``DatasetBuilder`` を組み立てる関数（今の材料 79個。券種のオッズが無いときの当日のモデル・展開の予想・研究が使う） |
 | ``pool_dataset_builder()`` | 今の材料に N（券種ごとのオッズから見た支持）を足した ``DatasetBuilder``（``POOL_CATALOG``。研究の比べに使う） |
 | ``race_day_dataset_builder()`` | 今の材料に N と M を足した ``DatasetBuilder``（``RACE_DAY_CATALOG``。当日のモデル） |
-| ``PoolFreeData`` | 学習データ・予測用データから N を外す（当日に券種のオッズが無いときのモデル） |
-| ``FinishPowerFreeData`` | 学習データ・予測用データから Q（勝ち切る材料）を外す（3着以内のモデルに渡すとき。Q は1着のモデルだけが使う） |
-| ``WinTargetData`` | 学習データ・予測用データを1着のモデル用に持ち替える（目的変数を「1着」に、基準をオッズから見た勝率に。設計書 10・15 の 14） |
-| ``PaceAttachment`` | 学習データ・予測用データに、展開の予想の結果（まとまり P）の 20列を足す（採用した時点のモデル） |
-| ``PoolAvailability`` | 予測するレースの券種のオッズがあるかを確かめる |
 | ``ABILITY_TRAIN_FIRST_DAY`` | 馬の力の材料のモデルの学習データの始まり（2012年1月1日） |
 | ``ability_dataset_builder()`` | 馬の力の材料（M と O と J）の ``DatasetBuilder``（``ABILITY_CATALOG``。木曜・前日のモデル） |
 
 目的変数（3着以内・1着）を付ける部品と、その列の名前（``TOP3``・``WIN``）は、穴馬の予想とも共通なので
 ``yosou.shared.dataset`` にある。利用者が ``--odds`` で渡すオッズ（``OddsInput``）と、予測に使うオッズの決め方
 （``OddsResolver``）も、荒れ具合の予想と共通なので ``yosou.shared.dataset`` に移した。
+行の選び方（``RunnerSelector``）・券種の支持の有無と外し方（``PoolAvailability``・``PoolFreeData``）・勝ち切る材料の外し方
+（``FinishPowerFreeData``）・1着のモデル用の持ち替え（``WinTargetData``）・展開の予想の結果の付け方（``PaceAttachment``）は、
+地方の予想（``local_form_aptitude_top3``）と同じものなので ``yosou.shared.dataset`` にある（ここから同じ名前で使える）。
 """
 
-from yosou.shared.dataset import TOP3, WIN, OddsInput, OddsResolver
+from yosou.shared.dataset import (
+    TOP3,
+    WIN,
+    FinishPowerFreeData,
+    OddsInput,
+    OddsResolver,
+    PaceAttachment,
+    PoolAvailability,
+    PoolFreeData,
+    RunnerSelector,
+    WinTargetData,
+)
 
 from .dataset_assembly import (
     ABILITY_TRAIN_FIRST_DAY,
@@ -31,12 +39,6 @@ from .dataset_assembly import (
     pool_dataset_builder,
     race_day_dataset_builder,
 )
-from .finish_power_free_data import FinishPowerFreeData
-from .pace_attachment import PaceAttachment
-from .pool_availability import PoolAvailability
-from .pool_free_data import PoolFreeData
-from .runner_selector import RunnerSelector
-from .win_target_data import WinTargetData
 
 __all__ = ["dataset_builder", "pool_dataset_builder", "race_day_dataset_builder", "ability_dataset_builder", "ABILITY_TRAIN_FIRST_DAY",
            "PoolFreeData", "FinishPowerFreeData", "WinTargetData", "PoolAvailability", "PaceAttachment", "RunnerSelector", "OddsInput", "OddsResolver", "TOP3", "WIN"]

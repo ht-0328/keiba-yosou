@@ -12,8 +12,10 @@ def test_venue_code_accepts_name_and_code():
     assert codes.venue_code("東京") == "05"
     assert codes.venue_code(" 05 ") == "05"
     assert codes.venue_name("06") == "中山"
+    # 地方の競馬場の名前とコードも受ける（地方の予想がレースを指定するため）
+    assert codes.venue_code("大井") == "44" and codes.venue_code("44") == "44"
     with pytest.raises(ValueError):
-        codes.venue_code("大井")
+        codes.venue_code("月面")
 
 
 def test_track_codes_accepts_name_and_code():

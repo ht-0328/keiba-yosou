@@ -16,6 +16,7 @@
 | ``ClassMetricCalculator`` | 多クラス分類のクラスごとの確率と正解から、評価指標を計算する |
 | ``ClassEvaluation`` | 多クラス分類の、1つの時点・1つのモデルの当たり具合の値 |
 | ``TrainingReport`` | 学習の結果の入れ物（使った期間・期間ごとのデータ・当たり具合・保存したフォルダ） |
+| ``BacktestReport`` | テスト期間の確かめの結果の入れ物（期間・テスト期間の行・目的変数ごとの当たり具合・書いた予測の表） |
 | ``ProbabilityBands`` | 予想した確率と、実際に 1 になった割合を、確率の帯ごとに並べる（確率のずれ） |
 | ``ValueBands`` | 複勝の期待値と、実際の的中率・回収率を、期待値の帯ごとに並べる |
 
@@ -23,6 +24,7 @@
 （多クラス分類は ``ClassTrainingReportTables``）が表にする。
 """
 
+from .backtest_report import BacktestReport
 from .class_evaluation import ClassEvaluation
 from .class_metric_calculator import ClassMetricCalculator
 from .class_model_evaluator import ClassModelEvaluator
@@ -34,6 +36,7 @@ from .training_report import TrainingReport
 from .value_bands import ValueBands
 
 __all__ = [
+    "BacktestReport",
     "ModelEvaluator", "MetricCalculator", "Evaluation",
     "ClassModelEvaluator", "ClassMetricCalculator", "ClassEvaluation",
     "TrainingReport", "ENSEMBLE_NAME", "ProbabilityBands", "ValueBands",

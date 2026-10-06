@@ -10,7 +10,7 @@
 
 | 言葉 | 意味 | どこにある |
 |---|---|---|
-| 元DB | jvdata-store が作った DuckDB。1レコード種別 = 1表（`ra` `se` `hr` …）。列名は JV-Data 仕様書の日本語のまま、値は全部文字列 | `../jvdata-store/jvdata.duckdb` |
+| 元DB | jvdata-store が作った DuckDB。1レコード種別 = 1表（`ra` `se` `hr` …）。列名は JV-Data 仕様書の日本語のまま、値は全部文字列。地方は nvdata-store の `nvdata.duckdb`（同じ表の作り。`--db ../nvdata-store/nvdata.duckdb` で道具から読める。事実表は競走馬マスタ地方 `nu` があれば地方と見分ける） | `../jvdata-store/jvdata.duckdb`・`../nvdata-store/nvdata.duckdb` |
 | rid | レースの鍵6列（開催年・開催月日・競馬場コード・開催回・開催日目・レース番号）を連結した16桁 | 例 `2026090606040211` |
 | hid | 馬の鍵 = 血統登録番号（10桁） | 例 `2021100001` |
 | 事実表 | 1行 = 1頭の出走。レース・馬・市場・結果・払戻・前走を型付きの列に並べた一時表。検索・集計・事象の土台 | `tools/共通/facts.py`（列の一覧は `出走検索/runners.py --columns`） |
@@ -73,8 +73,12 @@
 | 作ったモデル（作り方）の7つの区切りの予測に、今週の予想と同じ印を付けて、印ごとの成績（同じ人気の馬全体との比べ・◎○▲の2頭以上の率・年ごと・◎の期待度ごとの単勝の成績）と、印のルールの買い目（全券種。3連複・3連単は軸の1頭から流し、軸は ◎軸・軸馬の2パターン）の買い方ごとの回収率を、絞り込み（全レース・期待度「高」・高で2モデル一致・高で3連単の支持あり）ごとにいつも同じ形で確かめる。場面（クラス・競馬場・頭数・売上・芝ダ）ごとの ◎ の成績と上乗せ、前日夜 → 当日朝のオッズの動きごとの ◎ の成績も出る。**予想モデルを作ったり直したりしたら必ず回す** | `uv run python tools/印の成績/mark_stats.py`（既定は今の本番と同じ作り（前日）。`--form <予想>/<作り方>` で全頭の予想、`--win <予想>/<作り方>` で1着の予想の予測（研究「既存モデルの改善」の `walk_forward.py`・`win_check.py` が書いたもの。pkl のパスでもよい）を指定する。当日は `--form h2h_pool_ability/h2h-race_day --win h2h_pool_ability/win-race_day --timing 当日`。`--danger` で危険な人気馬を判定する予測、`--no-danger`・`--no-win` で使わない。`--timing 木曜` で木曜の予測（オッズから出すものを使わない決め方）。結果は `reports/印の成績/`。10〜15分） |
 | 当日のレースを予想して、買い（馬体重ありのモデルで複勝・期待値 1.2 以上。馬体重なしのモデルは「参考」で買わない）を出す | `uv run python tools/当日の予想/predict_today.py`（ダブルクリックなら `tools/当日の予想/run.bat`。先に jvdata-store の `realtime_today.bat` で速報を取り込む。`--after 00:00` で今日の全レース、`--date 2026-09-13` で別の日。重賞の日は、一般の予想「近走と適性から3着以内を予想」の当日の予測の表も並ぶ（重賞の専用モデルは引退した。見せるだけで、買いには使わない。`--no-stakes` で出さない）） |
 | 当日の予想のモデルごとに、買いの線を学習に使っていない期間（線を選ぶ期間と確かめる期間）で確かめる | `uv run python tools/当日の予想/line_check.py`（数分。結果は `reports/当日の予想/線の確かめ.md`。設定は `predict_today.py` の `MODELS` に手で書く） |
+| 地方競馬の予想を学習する（3つの時点 × 3着以内・1着 と、当日の券種オッズなし。元DB は `../nvdata-store/nvdata.duckdb`。モデルは `reports/地方競馬の近走と適性から3着以内を予想/models/`） | `uv run python -m yosou.local_form_aptitude_top3 train`（期間は `--warmup-from 2016-01-01 --train-from 2019-01-01 --valid-from 2025-07-01 --test-from 2026-01-01` が既定。1時間以上かかる） |
+| 地方競馬の1レースを予想する（時点は 出馬表・前日・当日） | `uv run python -m yosou.local_form_aptitude_top3 predict --date 2026-10-15 --venue 大井 --race 11 --timing 当日`（rid でもよい。前日・当日は `--odds 馬番:オッズ` か、nvdata-store で速報を取り込んでおく） |
+| 地方競馬の予想を、学習に使っていないテスト期間で確かめる（モデルと市場の確率のログ損失を比べ、印の成績が読む予測の表を書く） | `uv run python -m yosou.local_form_aptitude_top3 backtest`（結果の表と `reports/地方競馬の近走と適性から3着以内を予想/predictions/<時点>.pkl`・`<時点>-1着.pkl`） |
+| 地方競馬の予想の印の成績（印ごとの成績と全券種の買い目の回収率） | `uv run python tools/印の成績/mark_stats.py --form reports/地方競馬の近走と適性から3着以内を予想/predictions/day_before.pkl --win reports/地方競馬の近走と適性から3着以内を予想/predictions/day_before-1着.pkl --no-danger --scene 地方 --models reports/地方競馬の近走と適性から3着以内を予想/models --out-dir reports/印の成績/地方`（当日は `race_day.pkl`・`race_day-1着.pkl` と `--timing 当日`。`--scene 地方` で地方の元DB を開く） |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
-| 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日） |
+| 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日）。地方は `uv run python tools/合成DB/local_synth.py --out reports/local_synth.duckdb` |
 | テストを走らせる | `uv run python -m pytest -q` |
 
 どのツールも `--help` で引数の全部が見られる。結果の rid・hid は、そのままレース詳細・馬の過去走に渡せる。
