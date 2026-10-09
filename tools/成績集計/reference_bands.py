@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from 共通 import distance_change
+
 from 成績集計.reference_band import ReferenceBand
 
 ODDS = ReferenceBand(
@@ -24,7 +26,10 @@ INTERVAL = ReferenceBand((10, 17, 24, 38, 66), ("連闘", "中1週", "中2週", 
 PREV_FINISH = ReferenceBand((2, 3, 4, 6, 10), ("1着", "2着", "3着", "4〜5着", "6〜9着", "10着以下"), unknown="前走なし・不明")
 PREV_POPULARITY = ReferenceBand((2, 4, 6, 10), ("1番人気", "2〜3番人気", "4〜5番人気", "6〜9番人気", "10番人気以下"),
                                 unknown="前走なし・不明")
-POPULARITY_TOP = ReferenceBand((2, 3, 4), ("1番人気", "2番人気", "3番人気", "4番人気以下"))
+#: 前走との距離の差（今回 − 前走、m）。距離は整数なので、−399 未満 = −400m 以下。
+DISTANCE_GAP = ReferenceBand((1 - distance_change.LARGE_GAP_M, 0, 1, distance_change.LARGE_GAP_M),
+                             distance_change.GAP_NAMES, unknown=distance_change.NO_PREVIOUS)
+POPULARITY_TOP =ReferenceBand((2, 3, 4), ("1番人気", "2番人気", "3番人気", "4番人気以下"))
 MINING_RANK = ReferenceBand((2, 3, 4, 6, 10), ("1位", "2位", "3位", "4〜5位", "6〜9位", "10位以下"))
 MINING_TOP = ReferenceBand((2, 4), ("1位", "2〜3位", "4位以下"))
 MINING_GAP = ReferenceBand((-2, 0, 1, 3), ("人気より3つ以上高評価", "人気より1〜2つ高評価", "人気と同じ",

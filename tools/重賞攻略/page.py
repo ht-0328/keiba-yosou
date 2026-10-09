@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from 共通 import distance_change
+from 共通.distance_change_verdict import SHOWN_CHANGES, DistanceChangeVerdict, Verdict
 from 共通.render import Table, to_markdown
 
 from . import stats
@@ -31,7 +33,12 @@ _UNSTABLE = "年ごとの入れ替わりが大きい切り口（参考程度）"
 PERSISTENCE: dict[str, str] = {
     "人気": _PERSISTENT, "脚質": _PERSISTENT, "枠": _PERSISTENT,
     "ローテ": _UNSTABLE, "属性": _UNSTABLE, "経験": _UNSTABLE, "荒れ度": _UNSTABLE,
+    "距離": _UNSTABLE,
 }
+#: 距離の変更の帯（表の名前・事実表の値）。
+_DISTANCE_BANDS: tuple[tuple[str, str], ...] = (
+    ("距離短縮", distance_change.SHORTER), ("同じ距離", distance_change.SAME), ("距離延長", distance_change.LONGER),
+)
 
 
 @dataclass
@@ -59,6 +66,9 @@ class StakesPage:
     editions: int
     markdown: str = ""
     findings: list[Finding] = field(default_factory=list)
+    #: 短縮と延長のどちらが有利か（勝つ・穴馬の好走）。索引に使う。
+    distance_win: str = ""
+    distance_longshot: str = ""
 
     @property
     def file_name(self) -> str:
@@ -88,6 +98,7 @@ def build_page(race_rows: pd.DataFrame, grade_rows: pd.DataFrame,
     sections.append(_style_section(page, race_rows, course_rates))
     sections.append(_frame_section(page, race_rows, course_rates))
     sections.append(_rotation_section(page, race_rows))
+    sections.append(_distance_section(page, race_rows, grade_rows))
     sections.append(_attribute_section(page, race_rows))
     sections.append(_repeat_section(page, race_rows))
     sections.append(_upset_section(page, race_rows, grade_rows))
@@ -104,7 +115,7 @@ def _header(page: StakesPage, race_rows: pd.DataFrame) -> str:
         f"- 条件: {page.venue} {page.course} {page.distance_m}m（いちばん新しい開催のもの）",
         f"- 対象: {period} の {page.editions} 開催、のべ {len(race_rows)} 頭",
         "- 「基準の複勝率」は、人気は同じグレードの重賞全体、脚質の前・枠の内はこのコースの全クラス、"
-        "それ以外はこのレースのほかの出走馬。判定は ◎ = p<0.05、○ = p<0.10（そのずれが偶然出る確率）",
+        "距離の変更は同じグレードの重賞の同じ距離の変更の馬、それ以外はこのレースのほかの出走馬。判定は ◎ = p<0.05、○ = p<0.10（そのずれが偶然出る確率）",
     ]
     names = race_rows.groupby("stakes_name")["year"].max().sort_values(ascending=False)
     if len(names) > 1:
@@ -125,7 +136,9 @@ def _summary_section(page: StakesPage) -> str:
         f"> 持続性の注意: 人気・脚質・枠のずれは{_PERSISTENT.replace('切り口', '')}、"
         f"ローテ・属性・経験・荒れ度のずれは{_UNSTABLE.replace('切り口', '')}である"
         "（2011〜2018年と2019〜2026年で相関を検証。前後半の相関は 前 0.49・内枠 0.30・上位人気 0.27、"
-        "荒れ度・二桁人気は 0.16 以下）。",
+        "荒れ度・二桁人気は 0.16 以下）。距離の変更（短縮と延長のどちらが有利か）も、2011〜2018年と2019〜2026年で"
+        "重賞ごとの向きがそろわず、年をまたいで続いていなかった（参考程度）。全コースを合わせると、延長の穴馬は人気ほど走らない"
+        "傾向がどの期間でも続いている（基礎統計の目次の「3. 延長と短縮のどちらが有利か」）。",
     ]
     return "\n".join(lines)
 
@@ -241,6 +254,53 @@ def _rotation_section(page: StakesPage, race_rows: pd.DataFrame) -> str:
         results.append(stats.against_rest(f"前走が{name}", rows, rest))
     _collect(page, "ローテ", results)
     return _band_table("## ローテ（基準: このレースのほかの出走馬）", results)
+
+
+def _distance_section(page: StakesPage, race_rows: pd.DataFrame, grade_rows: pd.DataFrame) -> str:
+    """距離短縮・同じ距離・距離延長の成績（基準: 同じグレードの重賞の、同じ距離の変更の馬）と、短縮と延長のどちらが有利か。"""
+    longshot_line = distance_change.LONGSHOT_MIN_POPULARITY
+    results = []
+    for longshot in (False, True):
+        for label, change in _DISTANCE_BANDS:
+            rows, base = (frame[frame["distance_change"] == change] for frame in (race_rows, grade_rows))
+            if longshot:
+                rows, base = (frame[frame["popularity"] >= longshot_line] for frame in (rows, base))
+                label = f"{label}の穴馬（{longshot_line}番人気以下）"
+            base_rate = float((base["finish"] <= 3).mean()) if len(base) else None
+            results.append(stats.against_base(label, rows, base_rate))
+    _collect(page, "距離", results)
+    runs, base = _with_outcomes(race_rows), _with_outcomes(grade_rows)
+    verdicts = (("勝つ（勝率）", DistanceChangeVerdict().win(runs, base)),
+                ("穴馬の好走（複勝率）", DistanceChangeVerdict().longshot(runs, base)))
+    page.distance_win, page.distance_longshot = (verdict.winner for _, verdict in verdicts)
+    for name, verdict in verdicts:
+        _collect_verdict(page, name, verdict)
+    lines = [_band_table("## 距離の変更（基準: 同じグレードの重賞の、同じ距離の変更の馬）", results), "",
+             "**短縮と延長のどちらが有利か。** 前走より距離が短い馬（短縮）と長い馬（延長）を、このレースの全開催で比べたもの。"
+             "かっこの中は人気から見た差（同じグレードの重賞で同じ人気の馬がふつう出す率との差）。"
+             "有利なほうは、短縮と延長の人気から見た差の違いが検定で 5%（1%）の線を超えたときだけ書く。", "",
+             "| 見るもの | " + " | ".join(SHOWN_CHANGES) + " | 有利なほう |", "|" + " :--- |" * (len(SHOWN_CHANGES) + 2)]
+    lines.extend(f"| {name} | " + " | ".join(verdict.results[change].text() for change in SHOWN_CHANGES)
+                 + f" | {verdict.winner} |" for name, verdict in verdicts)
+    return "\n".join(lines)
+
+
+def _with_outcomes(rows: pd.DataFrame) -> pd.DataFrame:
+    """判定（``DistanceChangeVerdict``）が読む列（距離の変更・1着・2着・3着）を付ける。"""
+    finish = pd.to_numeric(rows["finish"], errors="coerce")
+    return rows.assign(label_distance_change=rows["distance_change"], first=finish.eq(1), second=finish.eq(2), third=finish.eq(3))
+
+
+def _collect_verdict(page: StakesPage, name: str, verdict: Verdict) -> None:
+    """短縮か延長が有利と判定できたら、自動要約に載せる。"""
+    side = verdict.favored
+    if side is None or verdict.p_value is None:
+        return
+    other = distance_change.LONGER if side == distance_change.SHORTER else distance_change.SHORTER
+    favored, rest = verdict.results[side], verdict.results[other]
+    page.findings.append(Finding(
+        section="距離", p_value=verdict.p_value,
+        text=f"{name}は{verdict.winner} — {side} {favored.text()}、{other} {rest.text()}（かっこは人気から見た差）"))
 
 
 def _prev_label(name: object) -> str:

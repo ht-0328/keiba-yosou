@@ -8,6 +8,8 @@
 | ``PopularityRunSummary`` | 過去走を、馬ごとの「その走までの近5走の人気のまとめ」にする（まとまり J の材料） |
 | ``Top3Rate`` | 騎手・調教師・血統の、近1年の3着以内の割合 |
 | ``PedigreeTop3Rate`` | 父・母父の産駒の、近1年の3着以内の割合（芝ダを問わない分と、同じ芝ダだけの分） |
+| ``CumulativeExcess`` | 鍵ごとの、開催日の前日までの全期間の出走数・当たりの数・オッズから見た期待の和 |
+| ``DistanceChangeTendency`` | 同じコース・同じ重賞で、自分と同じ距離の変更だった馬の市場に対する成績（距離の変更の傾向 R） |
 | ``MarketExcessRate`` | 騎手・調教師・血統の、近1年の市場に対する超過3着以内率（オッズから期待された3着以内率をどれだけ上回ったか） |
 | ``ConditionUpsetRate`` | 同じ条件のレースの、近1年の中荒れ以上の割合（荒れ具合の予想のまとまり E） |
 | ``WorkoutLookup`` | 開催日の前 14日以内の調教（直近の1本と、本数） |
@@ -15,6 +17,8 @@
 """
 
 from .as_of_lookup import AsOfLookup
+from .cumulative_excess import CumulativeExcess
+from .distance_change_tendency import DISTANCE_CHANGE_NAMES, DistanceChangeTendency
 from .condition_upset_rate import RACES, UPSETS, ConditionUpsetRate
 from .dated_records import DatedRecords
 from .market_excess_rate import MarketExcessRate
@@ -31,7 +35,7 @@ from .workout_lookup import WorkoutLookup
 
 __all__ = [
     "DatedRecords", "AsOfLookup", "RecentRunSummary", "PopularityRunSummary", "Top3Rate", "PedigreeTop3Rate", "MarketExcessRate",
-    "ConditionUpsetRate", "RACES", "UPSETS",
+    "ConditionUpsetRate", "RACES", "UPSETS", "CumulativeExcess", "DistanceChangeTendency", "DISTANCE_CHANGE_NAMES",
     "WorkoutLookup", "WorkoutCoverage", "COURSES", "HILL", "WOOD",
     "WORSE_THAN_POPULARITY", "AVERAGE_POPULARITY",
 ]

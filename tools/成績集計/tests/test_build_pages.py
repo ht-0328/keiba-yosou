@@ -6,6 +6,9 @@ from pathlib import Path
 
 from 共通 import db
 from 成績集計 import check
+from 成績集計.distance_change_overall import DistanceChangeOverall
+from 成績集計.distance_change_summary import DistanceChangeSummary
+from 共通.distance_change_verdict import DistanceChangeVerdict
 from 成績集計.reference_index_writer import ReferenceIndexWriter
 from 成績集計.reference_labels import ReferenceLabels
 from 成績集計.reference_page_writer import ReferencePageWriter
@@ -19,8 +22,9 @@ def _build(database: Path, out_dir: Path, date_from: str | None = None, date_to:
         runs = ReferenceRuns().build(FinalRunnerRepository(con).read(), PayoutRepository(con).read(),
                                      PedigreeRepository(con).read(), MiningScoreRepository(con).read(), date_from, date_to)
     runs = ReferenceLabels().add(runs)
-    ReferencePageWriter(ReferenceTally(), "2026-09-30").write(runs, out_dir)
-    ReferenceIndexWriter("2026-09-30").write(runs, out_dir)
+    summary = DistanceChangeSummary(DistanceChangeVerdict())
+    ReferencePageWriter(ReferenceTally(), summary, "2026-09-30").write(runs, out_dir)
+    ReferenceIndexWriter(summary, DistanceChangeOverall(), "2026-09-30").write(runs, out_dir)
     return runs
 
 
@@ -59,13 +63,28 @@ def test_the_period_limits_the_races(synth_db: Path, tmp_path: Path):
 def test_each_section_has_the_same_tables_as_before_in_the_same_order(synth_db: Path, tmp_path: Path):
     """前のページ（scripts/stats_doc.py が作っていたもの）と同じ見出しを、同じ並びで置く。"""
     _build(synth_db, tmp_path)
-    section = (tmp_path / "05-turf-1600.md").read_text(encoding="utf-8").split("\n## ")[1]
+    page = (tmp_path / "05-turf-1600.md").read_text(encoding="utf-8")
+    section = page.split("\n## 芝・左 1600m 良\n")[1].split("\n## ")[0]
     titles = [line[4:] for line in section.splitlines() if line.startswith("### ")]
     assert titles[:4] == ["単勝人気", "枠番", "馬番", "単勝オッズ"]
     assert titles[9:12] == ["馬（勝率の上位 10・出走 2 以上）", "脚質", "上がり3F順位"]
-    assert titles[20:22] == ["データマイニング予想の範囲", "タイム型順位"]
+    assert titles[20:23] == ["距離の変更", "距離の変更の幅", "距離の変更（穴馬）"]
+    assert titles[23:25] == ["データマイニング予想の範囲", "タイム型順位"]
     assert titles[-3:] == ["月別 × 人気", "月別 × 人気帯 × タイム型", "月別 × 人気帯 × 対戦型"]
-    assert len(titles) == 38 and "#### 1勝クラス" in section
+    assert len(titles) == 41 and "#### 1勝クラス" in section
+
+
+def test_the_page_and_the_index_say_which_of_shorter_and_longer_is_better(synth_db: Path, tmp_path: Path):
+    """ページの先頭と目次に、コースごとの「延長と短縮のどちらが有利か」が出る（合成DB は出走が少ないので標本が少ない）。"""
+    _build(synth_db, tmp_path)
+    page = (tmp_path / "05-turf-1600.md").read_text(encoding="utf-8")
+    assert "## 延長と短縮のどちらが有利か" in page.split("\n---\n")[0]
+    assert "| 芝・左 | 勝つ（勝率） |" in page and "| 芝・左 | 穴馬の好走（複勝率） |" in page
+    index = (tmp_path / "index.md").read_text(encoding="utf-8")
+    assert "## 3. 延長と短縮のどちらが有利か" in index
+    assert "### 全コースを合わせた傾向（期間ごと）" in index and "### コースごとの差は年をまたいで続くか" in index
+    assert "| 勝つ（勝率） | 0 | - | - |" in index, "合成DB は出走が少なく、比べられるコースが無い"
+    assert "| [芝 1600m](05-turf-1600.md) | 芝・左 | 標本が少ない | 標本が少ない |" in index
 
 
 def test_the_mining_range_names_the_races_with_predictions(synth_db: Path, tmp_path: Path):

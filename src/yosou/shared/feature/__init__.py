@@ -2,7 +2,7 @@
 
 | 場所 | 中身 |
 |---|---|
-| ``feature_catalog.py`` | どの予想でも使う 71個の一覧（``BASE_FEATURES``）、人気を使う予想が足す4個（``POPULARITY_FEATURES``）、人気を使う予想がオッズも使うときに足す3個（``ODDS_FEATURES``）、オッズを使う予想が足す4個（``MARKET_FEATURES``）、騎手・調教師・血統の市場に対する成績の4個（``PEOPLE_MARKET_FEATURES``）、馬の力の材料の202個（``ABILITY_FEATURES``）、券種ごとのオッズから見た支持の6個（``POOL_SUPPORT_FEATURES``）、対戦レーティングの7個（``HEAD_TO_HEAD_FEATURES``）、展開の予想の結果の20個（``PACE_FORECAST_FEATURES``）、勝ち切る材料の10個（``FINISH_POWER_FEATURES``）、予想ごとの一覧（``FeatureCatalog``） |
+| ``feature_catalog.py`` | どの予想でも使う 71個の一覧（``BASE_FEATURES``）、人気を使う予想が足す4個（``POPULARITY_FEATURES``）、人気を使う予想がオッズも使うときに足す3個（``ODDS_FEATURES``）、オッズを使う予想が足す4個（``MARKET_FEATURES``）、騎手・調教師・血統の市場に対する成績の4個（``PEOPLE_MARKET_FEATURES``）、馬の力の材料の202個（``ABILITY_FEATURES``）、券種ごとのオッズから見た支持の6個（``POOL_SUPPORT_FEATURES``）、対戦レーティングの7個（``HEAD_TO_HEAD_FEATURES``）、展開の予想の結果の20個（``PACE_FORECAST_FEATURES``）、勝ち切る材料の10個（``FINISH_POWER_FEATURES``）、距離の変更の傾向の7個（``DISTANCE_CHANGE_FEATURES``）、予想ごとの一覧（``FeatureCatalog``） |
 | ``Feature``・``FeatureKind`` | 一覧の1行と、その型 |
 | ``FeatureGroup`` | まとまりのクラスに共通の決まり（インターフェース。1頭ごと） |
 | ``RaceFeatureGroup`` | レース単位のまとまりのクラスに共通の決まり（インターフェース） |
@@ -34,6 +34,7 @@ from .feature_catalog import (
     BASE_FEATURES,
     FINISH_POWER_FEATURES,
     FINISH_POWER_NAMES,
+    DISTANCE_CHANGE_FEATURES,
     HEAD_TO_HEAD_FEATURES,
     MARKET_FEATURES,
     PACE_FORECAST_FEATURES,
@@ -61,7 +62,7 @@ __all__ = [
     "WorkoutCoverage", "RecentRunSummary",
     "BASE_FEATURES", "POPULARITY_FEATURES", "MARKET_FEATURES", "ODDS_FEATURES", "PEOPLE_MARKET_FEATURES",
     "ABILITY_FEATURES", "POOL_SUPPORT_FEATURES", "POOL_SUPPORT_NAMES", "HEAD_TO_HEAD_FEATURES", "PACE_FORECAST_FEATURES",
-    "FINISH_POWER_FEATURES", "FINISH_POWER_NAMES",
+    "FINISH_POWER_FEATURES", "FINISH_POWER_NAMES", "DISTANCE_CHANGE_FEATURES",
     "FeatureCatalog", "Feature", "FeatureKind",
     "FeatureGroup", "RaceFeatureGroup", "FieldFeatureGroup",
     "RaceConditionSummary", "GOING", "FIELD_SIZE", "SPECIAL_RACE", "HANDICAP",

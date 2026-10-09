@@ -59,9 +59,11 @@ def _index_markdown(pages: list[page.StakesPage]) -> str:
     lines = [
         "# 重賞攻略の索引", "",
         "レースごとの攻略ポイント（過去の開催の、基準からのずれ）。作り直すときは "
-        "`uv run python tools/重賞攻略/stakes.py --all`。", "",
-        "| グレード | 競走名 | 条件 | 開催数 | 攻略ポイント | 主なポイント |",
-        "|" + " :--- |" * 6,
+        "`uv run python tools/重賞攻略/stakes.py --all`。"
+        "距離の変更の列は、前走から距離を短縮した馬と延長した馬のどちらが有利か（人気の偏りを除いて比べ、"
+        "検定で 5%・1% の線を超えたときだけ書く）。", "",
+        "| グレード | 競走名 | 条件 | 開催数 | 攻略ポイント | 主なポイント | 距離の変更（勝つ） | 距離の変更（穴馬の好走） |",
+        "|" + " :--- |" * 8,
     ]
     grade_names = {"A": "G1", "B": "G2", "C": "G3"}
     for built in pages:
@@ -69,7 +71,8 @@ def _index_markdown(pages: list[page.StakesPage]) -> str:
         condition = f"{built.venue} {built.course} {built.distance_m}m"
         lines.append(
             f"| {grade_names.get(built.grade, built.grade)} | [{built.stakes_name}]({built.file_name}) "
-            f"| {condition} | {built.editions} | {len(built.findings)} | {first} |")
+            f"| {condition} | {built.editions} | {len(built.findings)} | {first} "
+            f"| {built.distance_win} | {built.distance_longshot} |")
     lines.append("")
     return "\n".join(lines)
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
-from 共通 import codes
+from 共通 import codes, distance_change
 
 from 成績集計 import reference_bands as bands
 
@@ -19,11 +20,13 @@ class ReferenceLabels:
     行の名前が無い（空の）出走は、その表では数えない。たとえば人気帯は人気のある出走だけ、タイム型の表は
     タイム型の予想がある出走だけ、性別は牡・セン と牝が混ざったレースだけ、馬齢は年齢が混ざったレースだけを数える。
     帯の表で値が無い出走は、帯の「不明」（前走の表なら「前走なし・不明」）の行に入る。
+    距離の変更（短縮・同じ・延長・前走なし）は、穴馬（6番人気以下）だけの列 ``label_longshot_distance_change`` も付ける。
     """
 
     def add(self, runs: pd.DataFrame) -> pd.DataFrame:
         has_popularity = runs["popularity"].notna()
         has_dm, has_tm = runs["dm_rank"].notna(), runs["tm_rank"].notna()
+        change = _distance_change(runs["distance"], runs["prev_distance"])
         return runs.assign(
             label_odds=bands.ODDS.label(runs["win_odds"]),
             label_style=_ordered(runs["style_code"].map(codes.STYLE_NAMES).fillna("不明"), STYLE_ORDER),
@@ -36,6 +39,10 @@ class ReferenceLabels:
             label_interval=bands.INTERVAL.label(runs["interval_days"]),
             label_prev_finish=bands.PREV_FINISH.label(runs["prev_finish"]),
             label_prev_popularity=bands.PREV_POPULARITY.label(runs["prev_popularity"]),
+            label_distance_change=change,
+            label_distance_gap=bands.DISTANCE_GAP.label(runs["distance"] - runs["prev_distance"]),
+            label_longshot_distance_change=_only(
+                change, runs["popularity"].ge(distance_change.LONGSHOT_MIN_POPULARITY)),
             label_popularity_top=_only(bands.POPULARITY_TOP.label(runs["popularity"]), has_popularity),
             label_dm_rank=_only(bands.MINING_RANK.label(runs["dm_rank"]), has_dm),
             label_dm_top=_only(bands.MINING_TOP.label(runs["dm_rank"]), has_dm),
@@ -47,6 +54,13 @@ class ReferenceLabels:
             label_class=_ordered(runs["class_name"], CLASS_ORDER),
             label_field_size=bands.FIELD_SIZE.label(runs["field_size"]),
         )
+
+
+def _distance_change(distance: pd.Series, prev_distance: pd.Series) -> pd.Categorical:
+    """短縮・同じ・延長・前走なし（事実表の ``distance_change`` と同じ決め方）。"""
+    names = np.select([prev_distance.isna(), prev_distance.gt(distance), prev_distance.lt(distance)],
+                      [distance_change.NO_PREVIOUS, distance_change.SHORTER, distance_change.LONGER], distance_change.SAME)
+    return _ordered(pd.Series(names, index=distance.index), distance_change.CHANGE_ORDER)
 
 
 def _ordered(names: pd.Series, order: tuple[str, ...]) -> pd.Categorical:

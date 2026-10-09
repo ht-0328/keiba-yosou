@@ -6,7 +6,8 @@ import pandas as pd
 
 
 class ReferenceHistory:
-    """``prev_finish``（前走の確定着順）・``prev_popularity``（前走の単勝人気）・``interval_days``（前走からの日数）を付ける。
+    """``prev_finish``（前走の確定着順）・``prev_popularity``（前走の単勝人気）・``interval_days``（前走からの日数）・
+    ``prev_distance``（前走の距離 m。芝ダや障害を問わない）を付ける。
 
     前走は、この DB にある中央の確定成績のうち、同じ馬が出走した1つ前のレース（出走取消・除外のレースは出走していないので
     前走に数えない）。DB の最初のころは、それより前の出走が DB に無いので、前走なしになる馬が多い。
@@ -15,8 +16,8 @@ class ReferenceHistory:
 
     def add(self, started: pd.DataFrame) -> pd.DataFrame:
         ordered = started.sort_values(["horse_id", "race_day", "rid"], kind="stable")
-        previous = ordered.groupby("horse_id", sort=False)[["placing", "popularity", "day"]].shift(1)
+        previous = ordered.groupby("horse_id", sort=False)[["placing", "popularity", "day", "distance"]].shift(1)
         return ordered.assign(
             prev_finish=previous["placing"], prev_popularity=previous["popularity"],
-            interval_days=(ordered["day"] - previous["day"]).dt.days,
+            interval_days=(ordered["day"] - previous["day"]).dt.days, prev_distance=previous["distance"],
         ).sort_index()

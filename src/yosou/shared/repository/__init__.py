@@ -21,6 +21,7 @@
 | ``MarketRunRepository`` | 過去の平地の全出走の単勝オッズと着順（騎手・調教師・血統の市場に対する成績の材料）。全頭の3着以内・穴馬・人気馬の予想が使う |
 | ``HeadToHeadRunRepository`` | 過去の平地の全出走と対象の出走の着順（レースID・開催日・馬ID・着順だけ）。対戦レーティング（まとまり O）の元 |
 | ``HorseFinishRepository``・``PeopleFinishRepository`` | 対象の出走ごとの、馬の近10走の勝ち切る材料（1着数・2着数・勝ち切り率・惜敗数・勝ち着差・人気で負けた数）と、騎手・調教師の近1年の勝ち切り率と1番人気のときの勝率。勝ち切る材料（まとまり Q）の元。近走と適性の予想の当日の1着のモデルが使う |
+| ``DistanceChangeTargetRepository``・``DistanceChangeRunRepository`` | 距離の変更の傾向（まとまり R）の元。対象の出走のコース・距離の変更・前走の距離・特別競走番号と、過去の平地の全出走のコース・距離の変更・単勝オッズ・人気・着順・特別競走番号 |
 | ``RaceEarlyRecordRepository`` | レースごとの序盤と後半の記録（最初のコーナー・先頭の馬番・前3ハロン・後3ハロン）。1行 = 1レース。展開から着順を予想する予想が使う |
 | ``StakesTendencyRepository`` | 重賞のレースごとの傾向（それより前の開催の数え上げと基準。``tools/共通/stakes.py`` の SQL）。1行 = 1レース。重賞の傾向と近走から3着以内を予想する予想が使う |
 | ``RacePayoutRepository`` | レースごとの4券種（単勝・馬連・3連複・3連単）の払戻と、成立したか。レース単位の予想が使う |
@@ -57,6 +58,8 @@ from .final_odds_repository import FinalOddsRepository
 from .ticket_odds_repository import TicketOddsRepository
 from .first_horse_pool_repository import FirstHorsePoolRepository
 from .head_to_head_run_repository import HeadToHeadRunRepository
+from .distance_change_run_repository import DistanceChangeRunRepository
+from .distance_change_target_repository import DistanceChangeTargetRepository
 from .horse_finish_repository import HORSE_FINISH_NAMES, HorseFinishRepository
 from .market_run_repository import MarketRunRepository
 from .model_repository import ModelRepository
@@ -91,5 +94,6 @@ __all__ = [
     "RaceDayRange", "FinalOddsRepository", "TicketOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
     "AbilityRunRepository", "RUN_COLUMNS", "SpeedFigureRepository", "WorkoutSummaryRepository", "SalePriceRepository",
     "FirstHorsePoolRepository", "AllHorsesPoolRepository", "POOLS", "PoolSpec", "HeadToHeadRunRepository",
+    "DistanceChangeTargetRepository", "DistanceChangeRunRepository",
     "HorseFinishRepository", "HORSE_FINISH_NAMES", "PeopleFinishRepository", "PEOPLE_FINISH_NAMES",
 ]
