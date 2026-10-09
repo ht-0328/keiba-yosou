@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from 成績集計.distance_change_table_spec import DistanceChangeTableSpec
 from 成績集計.mining_range_spec import MiningRangeSpec
 from 成績集計.reference_group_spec import ReferenceGroupSpec
 from 成績集計.reference_table_spec import ReferenceTableSpec
@@ -54,6 +55,9 @@ SECTION_TABLES = (
     _plain("前走からの間隔", "label_interval"),
     _plain("前走の着順", "label_prev_finish"),
     _plain("前走の人気", "label_prev_popularity"),
+    DistanceChangeTableSpec("距離の変更", "距離の変更", "label_distance_change"),
+    DistanceChangeTableSpec("距離の変更の幅", "距離の変更の幅", "label_distance_gap"),
+    DistanceChangeTableSpec("距離の変更（穴馬）", "距離の変更（穴馬）", "label_longshot_distance_change"),
     MiningRangeSpec(),
     _plain("タイム型順位", "label_dm_rank"),
     _plain("対戦型順位", "label_tm_rank"),

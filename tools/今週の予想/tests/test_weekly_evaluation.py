@@ -18,6 +18,9 @@ def test_名前から分類を決める() -> None:
     assert labels.category("展開の予想_先頭の確率") == "展開"
     assert labels.category("オッズから見た3着以内率") == "市場の評価"
     assert labels.category("近5走の平均上がり順位") == "位置取り・末脚"
+    assert labels.category("距離の変更") == labels.category("前走との距離の差") == "距離の変更"
+    assert labels.category("コースの同じ距離の変更の穴馬の市場に対する超過3着以内率") == "距離の変更"
+    assert labels.category("重賞の同じ距離の変更の出走数") == "距離の変更"
     assert labels.category("distance_m") == RACE_CONDITION
     assert labels.category("クラス") == RACE_CONDITION
     assert set(map(labels.category, ["坂路_直前4F", "body_weight", "frame_no", "course_wins_before"])) <= set(CATEGORIES)
@@ -29,6 +32,7 @@ def test_人が読む名前と値() -> None:
     assert labels.display_name("騎手_1年_3着内率") == "騎手・近1年・3着以内率"
     assert labels.display_value("指数_前走_順位", 2.0) == "2位"
     assert labels.display_value("騎手_3着内率", 0.254) == "25.4%"
+    assert labels.display_value("コースの同じ距離の変更の市場に対する超過勝率", 0.004) == "+0.4ポイント"
     assert labels.display_value("指数_前走", float("nan")) == "なし"
 
 

@@ -31,7 +31,7 @@ def load_runners(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     SELECT f.race_id, f.race_date, f.year, f.venue, f.course, f.distance_m, f.condition,
            f.grade_code, f.field_size, f.frame_no, f.horse_no, f.horse_name,
            f.sex, f.age, f.affiliation, f.popularity, f.win_odds, f.finish,
-           f.style, f.style_before, f.interval_days,
+           f.style, f.style_before, f.interval_days, f.distance_change,
            f.same_race_places_before, f.win_payout, f.place_payout,
            m.stakes_no, m.stakes_name, m.grade,
            r.prev_race_name, r.prev_class_name

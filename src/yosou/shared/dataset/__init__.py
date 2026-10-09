@@ -10,6 +10,7 @@
 | ``EntryRecordsLoader`` | リポジトリを順に呼んで、対象の出走の記録を集める |
 | ``AbilitySourcesLoader`` | 馬の力の材料（まとまり M）の元の記録を集める。近走と適性の予想の木曜・前日のモデルが使う |
 | ``PoolProbabilityLoader`` | 券種ごとのオッズから見た馬ごとの確率を、6つの券種ぶん1つの表にする。近走と適性の予想の当日版（まとまり N）と custom_binary が使う |
+| ``DistanceChangeRecordsLoader`` | 距離の変更の傾向（まとまり R）を、対象の出走と過去の出走の2つのリポジトリから読んで数える |
 | ``FinishRecordsLoader`` | 勝ち切る材料（まとまり Q）の元の記録を、馬と人の2つのリポジトリから読んで1つの表にする。近走と適性の予想の当日版（1着のモデル）が使う |
 | ``AnnouncedWeightApplier`` | 速報の馬体重を、出走の行に反映する |
 | ``AnnouncedOddsApplier`` | 予測に使う単勝オッズ（手で渡したものか、締め切り前のもの）を、出走の行に反映する |
@@ -62,6 +63,7 @@ from .column_names import (
     WINNER_POPULARITY,
 )
 from .ability_sources_loader import HISTORY_FIRST_DAY, AbilitySourcesLoader
+from .distance_change_records_loader import DISTANCE_CHANGE_KEY, DistanceChangeRecordsLoader
 from .finish_records_loader import FinishRecordsLoader
 from .baseline_logit import BaselineLogit
 from .dataset_builder import DatasetBuilder
@@ -108,6 +110,7 @@ __all__ = [
     "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData",
     "TrainingPeriod", "PeriodSplitter", "SplitData",
     "HistoryRecordsLoader", "RaceRecordsLoader", "AbilitySourcesLoader", "HISTORY_FIRST_DAY", "FinishRecordsLoader",
+    "DistanceChangeRecordsLoader", "DISTANCE_CHANGE_KEY",
     "PoolProbabilityLoader", "POOL_KEY", "SampleSelector", "TargetLabeler", "RaceTargetLabeler",
     "Top3TargetBuilder", "TOP3", "WIN", "PLACE_HIT", "RaceResultSummary", "RaceResultSource",
     "TargetBaseline", "BaselineLogit", "Top3Baseline",

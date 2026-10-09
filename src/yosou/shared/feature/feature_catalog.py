@@ -18,6 +18,7 @@ from ..repository import HORSE_FINISH_NAMES, PEOPLE_FINISH_NAMES, POOLS
 from .ability import DAY_BEFORE_COLUMNS, RACE_DAY_COLUMNS, ability_columns
 from .feature import Feature
 from .head_to_head import HEAD_TO_HEAD_NAMES
+from .history.distance_change_tendency import DISTANCE_CHANGE_NAMES
 from .pace_forecast import PACE_FORECAST_NAMES
 from .feature_kind import FeatureKind
 from .prediction_timing import PredictionTiming
@@ -182,6 +183,13 @@ HEAD_TO_HEAD_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "O", _N) for na
 #: 研究「回収率100超の施策」で、近走と適性の予想の当日の1着のモデルに足して採用の基準を満たした（3着以内のモデルは満たさず、使わない）。
 FINISH_POWER_NAMES: tuple[str, ...] = HORSE_FINISH_NAMES + PEOPLE_FINISH_NAMES
 FINISH_POWER_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "Q", _N) for name in FINISH_POWER_NAMES)
+
+#: R. 距離の変更の傾向（7個。どれも数値）。前走との距離の差（m）と、同じコース（競馬場・コース・距離）・同じ重賞で、自分と同じ
+#: 距離の変更（短縮・同じ・延長）だった馬の、開催日の前日までの出走数と市場に対する超過勝率・超過3着以内率（穴馬だけの分も）。
+#: 過去のレースの結果だけから作るので、木曜から分かる。数えるのは ``history/distance_change_tendency.py``、
+#: 読むのは ``dataset/distance_change_records_loader.py``。研究「既存モデルの改善」の入口⑫で近走と適性の予想に足して7つの区切りで比べ、
+#: 木曜・前日・当日 × 3着以内・1着のどれも採用の基準を満たさなかったので、本番のモデルは使っていない（設計書 15 の 16）。
+DISTANCE_CHANGE_FEATURES: tuple[Feature, ...] = tuple(Feature(name, "R", _N) for name in DISTANCE_CHANGE_NAMES)
 
 #: P. 展開の予想の結果（20個。どれも数値）。予想「展開から着順を予想」の前半・後半の展開の予想と、そのレース内の順位・偏差。
 #: その時点の展開のモデルの予測から作るので、どの時点でも分かる（木曜から）。作るのは ``group/pace_forecast_features.py``

@@ -8,6 +8,7 @@ import pandas as pd
 
 from 共通 import codes
 
+from 成績集計.distance_change_summary import DistanceChangeSummary
 from 成績集計.reference_runs import UNKNOWN_GOING
 from 成績集計.reference_sections import SECTION_TABLES
 from 成績集計.reference_tally import ReferenceTally
@@ -15,7 +16,7 @@ from 成績集計.reference_tally import ReferenceTally
 #: ページ・節の見出しと、成績を数えるのに要る列（表ごとの列のほかに）。
 _BASE_COLUMNS: tuple[str, ...] = (
     "rid", "race_date", "venue_code", "surface", "distance", "track_code", "course", "going",
-    "first", "second", "third", "win_yen", "place_yen",
+    "first", "second", "third", "win_yen", "place_yen", "popularity", "label_distance_change",
 )
 #: 馬場状態の並び。
 GOING_ORDER: tuple[str, ...] = ("良", "稍重", "重", "不良", UNKNOWN_GOING)
@@ -24,13 +25,15 @@ GOING_ORDER: tuple[str, ...] = ("良", "稍重", "重", "不良", UNKNOWN_GOING)
 class ReferencePageWriter:
     """``ReferenceRuns``（と ``ReferenceLabels``）の表から、コースの単位ごとのページを ``out_dir`` に書く。書いたページのパスを返す。
 
+    ページの先頭には、コースごとの「延長と短縮のどちらが有利か」のまとめを置く（``DistanceChangeSummary``）。
     各節には ``reference_sections.SECTION_TABLES`` の表を上から順に置く。
 
     ファイル名は ``<競馬場コード>-<turf|dirt|jump>-<距離>.md``（例 ``05-turf-1600.md``）。
     """
 
-    def __init__(self, tally: ReferenceTally, made_on: str) -> None:
+    def __init__(self, tally: ReferenceTally, summary: DistanceChangeSummary, made_on: str) -> None:
         self._tally = tally
+        self._summary = summary
         self._made_on = made_on
 
     def write(self, runs: pd.DataFrame, out_dir: Path) -> list[Path]:
@@ -54,6 +57,7 @@ class ReferencePageWriter:
             "**手で直さない。**", "",
             "| コース | 馬場状態 | レース数 | 延べ頭数 |", "| :--- | :--- | :--- | :--- |",
             *(f"| {course} | {going} | {part['rid'].nunique():,} | {len(part):,} |" for (course, going), part in sections),
+            *self._summary.page_lines(runs),
             "", "---",
         ]
         for (course, going), part in sections:

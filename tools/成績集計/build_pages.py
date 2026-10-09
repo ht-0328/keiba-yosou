@@ -19,6 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from 共通 import cli, db  # noqa: E402
 
+from 成績集計.distance_change_overall import DistanceChangeOverall  # noqa: E402
+from 成績集計.distance_change_summary import DistanceChangeSummary  # noqa: E402
+from 共通.distance_change_verdict import DistanceChangeVerdict  # noqa: E402
 from 成績集計.reference_index_writer import ReferenceIndexWriter  # noqa: E402
 from 成績集計.reference_labels import ReferenceLabels  # noqa: E402
 from 成績集計.reference_page_writer import ReferencePageWriter  # noqa: E402
@@ -42,8 +45,9 @@ def main(args) -> None:
         raise ValueError("その期間に確定成績がありません")
     runs = ReferenceLabels().add(runs)
     made_on = date.today().isoformat()
-    pages = ReferencePageWriter(ReferenceTally(), made_on).write(runs, args.out_dir)
-    index = ReferenceIndexWriter(made_on).write(runs, args.out_dir)
+    summary = DistanceChangeSummary(DistanceChangeVerdict())
+    pages = ReferencePageWriter(ReferenceTally(), summary, made_on).write(runs, args.out_dir)
+    index = ReferenceIndexWriter(summary, DistanceChangeOverall(), made_on).write(runs, args.out_dir)
     print(f"{len(pages)} ページと目次を書きました: {index}")
     print(f"期間: {runs['race_date'].min()} 〜 {runs['race_date'].max()}（check.py の CHECK_DATE_FROM・CHECK_DATE_TO に書く）")
 

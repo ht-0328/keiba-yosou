@@ -8,6 +8,9 @@ import pandas as pd
 
 from 共通 import codes
 
+from 成績集計 import distance_change_summary
+from 成績集計.distance_change_overall import DistanceChangeOverall
+from 成績集計.distance_change_summary import DistanceChangeSummary
 from 成績集計.reference_page_writer import GOING_ORDER, page_name
 
 INDEX_NAME = "index.md"
@@ -38,6 +41,9 @@ _TABLES_TEXT = [
     "| 馬齢 | **年齢が混ざったレースだけ**で数える。2歳戦・3歳限定戦では全馬が同じ年齢で、勝率が 1÷頭数 になるため |",
     "| 馬体重・馬体重の増減・前走からの間隔・前走の着順・前走の人気 | その値ごとの成績。値が無い出走は「不明」（前走の表は"
     "「前走なし・不明」）の行に入る |",
+    "| 距離の変更・距離の変更の幅・距離の変更（穴馬） | 前走より距離が短い（短縮）・同じ・長い（延長）ごとの成績。幅は 400m を境に分ける。"
+    "穴馬の表は 6番人気以下の馬だけを数える。成績7つのあとに **人気から見た勝率の差・複勝率の差**（その節で同じ人気の馬がふつう出す率との差）を"
+    "置く。延長の馬は人気薄に偏るなど、組ごとに人気の混ざり方が違うため |",
     "| データマイニング予想の範囲 | その節で、タイム型・対戦型の予想があるレースの数と期間。このあとの予想の表は、**予想がある出走だけ**を数える |",
     "| タイム型順位・対戦型順位・対戦型スコア | **データマイニング予想**（JV-Data の `DM`・`TM`）の値ごとの成績。"
     "タイム型は `SE` の `マイニング予想順位`（予想タイムの速い順）、対戦型は `TM` の予測スコアの高い順にレース内で付けた順位"
@@ -73,12 +79,14 @@ _RULES_TEXT = [
 class ReferenceIndexWriter:
     """``ReferenceRuns`` の表から、目次を ``out_dir/index.md`` に書く。"""
 
-    def __init__(self, made_on: str) -> None:
+    def __init__(self, summary: DistanceChangeSummary, overall: DistanceChangeOverall, made_on: str) -> None:
+        self._summary = summary
+        self._overall = overall
         self._made_on = made_on
 
     def write(self, runs: pd.DataFrame, out_dir: Path) -> Path:
         path = out_dir / INDEX_NAME
-        path.write_text("\n".join([*self._intro(runs), *self._page_list(runs), *self._commands()]) + "\n", encoding="utf-8")
+        path.write_text("\n".join([*self._intro(runs), *self._page_list(runs), *self._distance_change_list(runs), *self._commands()]) + "\n", encoding="utf-8")
         return path
 
     def _intro(self, runs: pd.DataFrame) -> list[str]:
@@ -120,15 +128,32 @@ class ReferenceIndexWriter:
                          for surface, distance in zip(venue_pages["surface"], venue_pages["distance"]))
         return lines
 
+    def _distance_change_list(self, runs: pd.DataFrame) -> list[str]:
+        """コースごとの「延長と短縮のどちらが有利か」の一覧（競馬場ごとの表）。"""
+        lines = ["", f"## 3. {distance_change_summary.TITLE}", "",
+                 "まず全コースを合わせた傾向と、コースごとの差が年をまたいで続くかを見て、そのあとコースごとの判定を見る。",
+                 *self._overall.lines(runs), "", "### コースごとの判定", "", distance_change_summary.EXPLANATION,
+                 "値と馬場状態ごとの表は、各ページにある。"]
+        for venue, venue_runs in runs.groupby("venue_code", sort=True):
+            lines.extend(["", f"#### {codes.venue_name(venue)}", "", "| コース・距離 | コース | 勝つ | 穴馬の好走 |",
+                          "| :--- | :--- | :--- | :--- |"])
+            pages = venue_runs.assign(order=venue_runs["surface"].map(codes.SURFACE_ORDER))
+            for (_, surface, distance), page_runs in pages.groupby(["order", "surface", "distance"], sort=True):
+                link = f"[{surface} {int(distance)}m]({page_name(venue, surface, distance)})"
+                lines.extend(f"| {link} | {course} | {win} | {longshot} |"
+                             for course, win, longshot in self._summary.index_rows(page_runs))
+        return lines
+
     @staticmethod
     def _commands() -> list[str]:
         return [
-            "", "## 3. 自分で数える", "",
+            "", "## 4. 自分で数える", "",
             "表はどれも `tools/成績集計/perf.py` で、条件を足して数え直せる（切り口の一覧は `--list`）。", "",
             "```powershell",
             "uv run python tools/成績集計/perf.py horse --venue 京都 --course 芝・右 --distance 2000 --condition 良   # 勝率の高い馬10頭",
             "uv run python tools/成績集計/perf.py dm-rank --venue 京都 --course 芝・右 --distance 2000 --condition 良 # タイム型順位別",
             "uv run python tools/成績集計/perf.py class --cross popularity-top --cross tm-top --venue 京都 --course 芝・右 --distance 2000",
+            "uv run python tools/成績集計/perf.py distance-change --venue 京都 --course 芝・右 --distance 2000 --condition 良 # 距離の変更別",
             "uv run python tools/成績集計/build_pages.py                                                     # このページを作り直す",
             "```",
         ]
