@@ -96,6 +96,11 @@ def test_当日の傾きは_先に終わったレースと前の日のレース�
     thursday = DaySlopes().of(target, slopes, PredictionTiming.THURSDAY)
     assert thursday[names.RACES].tolist() == [0.0] and np.isnan(thursday[names.INNER_SLOPE].iloc[0])
     assert list(race_day.index) == list(target.index)
+    # 終わった日: 対象が b2 なら、その日のほかの全部のレース（b1 は馬場が違うので 0.5、後の b3 も 1）と前の日（0.5 × 2）→ 2.5
+    whole = DaySlopes().of_finished_day(slopes[slopes[names.RACE_ID] == "b2"], slopes)
+    assert whole[names.RACES].tolist() == [2.5]
+    expected = (0.5 * by_id["b1"] + 1.0 * by_id["b3"] + 0.5 * by_id["a1"] + 0.5 * by_id["a2"]) / 2.5
+    assert abs(whole[names.INNER_SLOPE].iloc[0] - expected) < 1e-9
 
 
 def test_使う傾きは_当日と過去をレース数と重みkで混ぜ_当日が無ければ過去のまま():
