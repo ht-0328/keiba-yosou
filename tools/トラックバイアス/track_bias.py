@@ -89,8 +89,9 @@ def _race_table(corrected, used, entries, title: str, timing: PredictionTiming, 
         rows.append([row[column] for column in HORSE_COLUMNS])
     note = (f"時点: {timing.label}（{reason}）。当日の傾き: 内 {_points(used[names.INNER_SLOPE])}・前 {_points(used[names.FRONT_SLOPE])}"
             f"（数えたレース {used[names.RACES]:g} 本）。過去の傾き: 内 {_points(used[names.PRIOR_INNER])}・前 {_points(used[names.PRIOR_FRONT])}。"
-            f"使う傾き: 内 {_points(used[names.USED_INNER])}・前 {_points(used[names.USED_FRONT])}。"
-            f"内の分 = 使う内の傾き × 内らしさ（最内 +0.5〜大外 −0.5）、前の分 = 使う前の傾き × 予想の前らしさ（展開の予想④）。"
+            f"使う傾き: 内 {_points(used[names.USED_INNER])}・前 {_points(used[names.USED_FRONT])}"
+            f"（いつもの傾き: 内 {_points(used[names.COURSE_INNER])}・前 {_points(used[names.COURSE_FRONT])}）。"
+            f"内の分 = （使う内の傾き − いつもの内の傾き）× 内らしさ（最内 +0.5〜大外 −0.5）、前の分 = （使う前の傾き − いつもの前の傾き）× 予想の前らしさ（展開の予想④）。"
             f"バイアス補正は3着以内の確率のポイント。線 ±{judge._line:g} でバイアス向き・バイアス逆")
     return Table(HORSE_COLUMNS, rows, title=f"トラックバイアス: {title}", note=note)
 

@@ -18,11 +18,14 @@ class UsedSlopes:
     """
 
     def of(self, day: pd.DataFrame, prior: pd.DataFrame) -> pd.DataFrame:
-        """``day``（``DaySlopes.of`` の表）と ``prior``（``PriorSlopeTable.lookup`` の表。同じ index）から、列 ``使う内の傾き``・``使う前の傾き``。"""
+        """``day``（``DaySlopes.of`` の表）と ``prior``（``PriorSlopeTable.lookup`` の表。同じ index）から、列 ``使う内の傾き``・``使う前の傾き``。
+        いつもの傾き（``COURSE_INNER``・``COURSE_FRONT``）は、補正で引くためにそのまま添える（``prior`` に無ければ 0）。"""
         races = day[names.RACES].astype("float64")
+        usual = prior.reindex(columns=[names.COURSE_INNER, names.COURSE_FRONT]).fillna(0.0)
         return pd.DataFrame({
             names.USED_INNER: self._mix(day[names.INNER_SLOPE], prior[names.PRIOR_INNER], races),
             names.USED_FRONT: self._mix(day[names.FRONT_SLOPE], prior[names.PRIOR_FRONT], races),
+            names.COURSE_INNER: usual[names.COURSE_INNER].to_numpy(), names.COURSE_FRONT: usual[names.COURSE_FRONT].to_numpy(),
         }, index=day.index)
 
     def _mix(self, today: pd.Series, past: pd.Series, races: pd.Series) -> pd.Series:

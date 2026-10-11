@@ -65,6 +65,8 @@ def test_過去の傾きの表は_マスの平均を同じ馬場の平均に寄�
     assert abs(looked.loc[3, names.PRIOR_INNER] - expected) < 1e-9
     assert abs(looked.loc[4, names.PRIOR_INNER] - course_mean) < 1e-9   # 無いマスは同じ馬場の値
     assert looked.loc[5, names.PRIOR_INNER] == 0.0 and list(looked.index) == [3, 4, 5]   # 知らない馬場は 0
+    # いつもの傾き（同じ馬場の全期間の平均）も添える
+    assert abs(looked.loc[3, names.COURSE_INNER] - course_mean) < 1e-9 and looked.loc[5, names.COURSE_FRONT] == 0.0
     # before を渡すと、その日より前のレースだけ
     assert PriorSlopeTableBuilder().build(slopes, before=date(2023, 1, 1)).as_of is None
     assert PriorSlopeTableBuilder().build(slopes, before=date(2023, 3, 1)).as_of == date(2023, 2, 2)
@@ -114,10 +116,15 @@ def test_使う傾きは_当日と過去をレース数と重みkで混ぜ_当�
 def test_補正は_使う傾きと内らしさの積と_使う傾きと予想の前らしさの積の和で_判定は線で分ける():
     entries = pd.DataFrame({names.RACE_ID: ["r", "r", "r"], "horse_id": ["x", "y", "z"], "horse_no": [2, 16, 9], "field_size": 16,
                             "corner4_pred": [0.0, 1.0, np.nan]}, index=[1, 2, 3])
-    used = pd.DataFrame({names.USED_INNER: [0.074], names.USED_FRONT: [0.05]}, index=["r"])
+    # いつもの前の傾きが +0.2 なら、使う前の傾き +0.25 のうち、その日の分は +0.05
+    used = pd.DataFrame({names.USED_INNER: [0.074], names.USED_FRONT: [0.25], names.COURSE_INNER: [0.0], names.COURSE_FRONT: [0.2]}, index=["r"])
     table = BiasCorrection().of(entries, used)
-    assert abs(table.loc[1, names.INNER_PART] - 0.074 * (0.5 - 1 / 15)) < 1e-9 and table.loc[1, names.FRONT_PART] == 0.025
+    assert abs(table.loc[1, names.INNER_PART] - 0.074 * (0.5 - 1 / 15)) < 1e-9 and abs(table.loc[1, names.FRONT_PART] - 0.025) < 1e-9
     assert abs(table.loc[1, names.CORRECTION] - (0.074 * (0.5 - 1 / 15) + 0.025)) < 1e-9
+    assert table[names.FRONT_SLOPE_FEATURE].tolist() == [0.25] * 3   # 使う傾きそのものは、いつもの分を引かずに残す
+    # いつもの傾きの列が無ければ 0 とみなす
+    plain = BiasCorrection().of(entries, used[[names.USED_INNER, names.USED_FRONT]])
+    assert abs(plain.loc[1, names.FRONT_PART] - 0.125) < 1e-9
     assert table.loc[2, names.CORRECTION] < 0 and np.isnan(table.loc[3, names.CORRECTION]) and not np.isnan(table.loc[3, names.INNER_PART])
     assert table[names.INNER_SLOPE_FEATURE].tolist() == [0.074] * 3 and list(table.index) == [1, 2, 3]
     verdict = BiasJudge().of(pd.Series([0.03, -0.02, 0.01, np.nan]))
