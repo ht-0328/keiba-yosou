@@ -11,7 +11,16 @@ from yosou.shared.feature.pace_forecast import pace_forecast_columns as names
 
 from ..dataset import PaceAttachment
 from ..feature import ABILITY_CATALOG
-from ..workflow import ABILITY_TIMINGS, PACE_TIMINGS, SCORE_TIMINGS, SCORE_TOP3_TIMINGS, SCORE_WIN_TIMINGS
+from ..workflow import (
+    ABILITY_SCORE_TIMINGS,
+    ABILITY_SCORE_TOP3_TIMINGS,
+    ABILITY_SCORE_WIN_TIMINGS,
+    ABILITY_TIMINGS,
+    PACE_TIMINGS,
+    SCORE_TIMINGS,
+    SCORE_TOP3_TIMINGS,
+    SCORE_WIN_TIMINGS,
+)
 
 
 def test_only_the_thursday_model_adds_the_pace_forecasts():
@@ -20,6 +29,8 @@ def test_only_the_thursday_model_adds_the_pace_forecasts():
     # 展開スコア（S）は、3着以内のモデルは前日だけ（設計書 15 の 17）。学習データに足す時点は、どちらかのモデルが使う時点
     assert SCORE_TOP3_TIMINGS == (PredictionTiming.DAY_BEFORE,) and SCORE_WIN_TIMINGS == ()
     assert set(SCORE_TIMINGS) == set(SCORE_TOP3_TIMINGS) | set(SCORE_WIN_TIMINGS)
+    # 能力スコア（T）も同じ形（設計書 15 の 18。採用した時点は研究の結果で決める）
+    assert set(ABILITY_SCORE_TIMINGS) == set(ABILITY_SCORE_TOP3_TIMINGS) | set(ABILITY_SCORE_WIN_TIMINGS)
 
 
 def test_attachment_adds_twenty_columns_and_the_catalog(ability_training_data: TrainingData):

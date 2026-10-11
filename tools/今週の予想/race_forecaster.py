@@ -15,6 +15,8 @@ from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_D
 from yosou.form_aptitude_top3.dataset import OddsResolver, ability_dataset_builder, race_day_dataset_builder
 from yosou.form_aptitude_top3.feature import WIN_ODDS
 from yosou.form_aptitude_top3.workflow import (
+    ABILITY_SCORE_TOP3_TIMINGS,
+    ABILITY_SCORE_WIN_TIMINGS,
     ABILITY_TIMINGS,
     PACE_TIMINGS,
     POOL_FREE_FOLDER,
@@ -27,6 +29,7 @@ from yosou.form_aptitude_top3.workflow import (
     ExplainedPrediction,
     PredictionWorkflow,
 )
+from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import column_names as ids
@@ -149,6 +152,10 @@ class RaceForecaster:
             attacher = RaceScoreAttacher(con, self._development_root / "models", table)
             extras = [attacher.attach] if timing in SCORE_TOP3_TIMINGS else []
             win_extras = [attacher.attach] if timing in SCORE_WIN_TIMINGS else []
+        if timing in ABILITY_SCORE_TOP3_TIMINGS:
+            extras.append(RaceAbilityScoreAttacher().attach)
+        if timing in ABILITY_SCORE_WIN_TIMINGS:
+            win_extras.append(RaceAbilityScoreAttacher().attach)
         return PredictionWorkflow(
             builder, SegmentedPrediction(ModelSegments(), self._models),
             OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price()),
