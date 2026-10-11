@@ -37,6 +37,7 @@ from yosou.form_aptitude_top3.workflow import (
 )
 from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
+from yosou.development_score import names as score_names
 from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
 from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
@@ -51,9 +52,11 @@ from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 
 from 今週の予想 import forecast_columns as columns
 from 今週の予想.danger_finder import DangerFinder
+from 今週の予想.danger_reasons import DangerReasons
 from 今週の予想.forecast_tickets import ForecastTickets
 from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.horse_evaluator import HorseEvaluator
+from 今週の予想.mark_rule import OUT_MARK as DANGER_MARK
 from 今週の予想.mark_rule import MarkRule
 from 今週の予想.timing_chooser import TimingChooser
 
@@ -98,6 +101,8 @@ class RaceForecaster:
         self._evaluator = HorseEvaluator()
         self._expectation = ExpectationLevel()
         self._tickets = ForecastTickets()
+        self._danger_reasons = DangerReasons()
+        self._score_attacher: RaceScoreAttacher | None = None
 
     def forecast(self, con: duckdb.DuckDBPyConnection, race_id: str,
                  timing: PredictionTiming | None = None) -> dict[str, Any]:
@@ -117,7 +122,16 @@ class RaceForecaster:
             "expectation": expectation, "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
             "tickets": self._tickets.build(con, race_id, marked, expectation, odds_known),
+            "pace": self._pace(race_id),
         }
+
+    def _pace(self, race_id: str) -> dict[str, float] | None:
+        """予想のペースの確率（展開スコアを足した時点だけ。回顧の表2「予想のペース」に残す）。無ければ None。"""
+        scores = self._score_attacher.last_scores(race_id) if self._score_attacher is not None else None
+        if scores is None or scores.empty:
+            return None
+        first = scores.iloc[0]
+        return {"high": _plain(first.get(score_names.HIGH)), "even": _plain(first.get(score_names.EVEN)), "slow": _plain(first.get(score_names.SLOW))}
 
     def _race_expectation(self, horses: list[dict[str, Any]]) -> str | None:
         """レースの期待度（高・低）。◎ の単勝の期待値から決める。期待値が無ければ（木曜・1着のモデルが無い）None。"""
@@ -135,8 +149,13 @@ class RaceForecaster:
         table = table.merge(dangers, on=columns.HORSE_ID, how="left").set_index(table.index)
         marked = self._marks.assign(table)
         horses = []
-        for _, horse in marked.iterrows():
+        for index, horse in marked.iterrows():
             row = horse["_row"]
+            if horse[columns.MARK] == DANGER_MARK:
+                reasons = self._danger_reasons.of(explained.features.loc[row])
+                if reasons:
+                    marked.loc[index, columns.MARK_REASON] = horse[columns.MARK_REASON] + "。理由: " + "・".join(reasons)
+                    horse = marked.loc[index]
             evaluation = self._evaluator.evaluate(horse, explained.features.loc[row], explained.contributions.loc[row])
             horses.append({**{column: _plain(horse.get(column)) for column in _HORSE_COLUMNS}, **evaluation})
         return horses, marked
@@ -155,9 +174,11 @@ class RaceForecaster:
             development = DevelopmentPaceWorkflow(self._development_root / "models")
             pace = lambda race_id, at, given: development.run(con, race_id, at, given)  # noqa: E731
         extras, win_extras = [], []
+        self._score_attacher = None
         if timing in SCORE_TIMINGS:
             table = AdvantageTableStore(cache_folder_beside(self._development_root)).load(con)
             attacher = RaceScoreAttacher(con, self._development_root / "models", table)
+            self._score_attacher = attacher
             extras = [attacher.attach] if timing in SCORE_TOP3_TIMINGS else []
             win_extras = [attacher.attach] if timing in SCORE_WIN_TIMINGS else []
         if timing in ABILITY_SCORE_TOP3_TIMINGS:

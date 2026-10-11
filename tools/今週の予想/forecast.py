@@ -16,6 +16,10 @@
 印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（単勝・複勝・ワイド・馬連・馬単・3連複・3連単。3連複・3連単は前からの形と、
 ◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す（今の決まりで実際に買うのは複勝だけ。ほかは参考）。
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
+予想のあと、開催日ごとに買うレースの計画（勝負／ノルマ参加（重賞）／ノルマ参加（日）／買わない と、複勝の買い目と金額。設計書 03・08 の 1）を
+財布（reports/回顧/財布.json。初めの額は利用者が決める）の予算で決めて、reports/今週の予想/<開催日>/plan.json と回顧の表1「買い目の記録」に書く
+（前日・当日の予想だけ。木曜はオッズが無いので計画しない）。予想の前には、終わったレースの回顧（レースの回顧・馬の回顧ノート）を自動で書き足し、
+買い目の記録に払戻を入れる（tools/回顧/review.py と同じ。--no-review で飛ばす）。
 1レースに数十秒かかる（はじめの1レースは、事実表とスピード指数を作るので数分）。
 """
 
@@ -31,25 +35,38 @@ sys.path[:0] = [str(HERE.parents[0])]
 from 共通 import card, cli, db, race  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
+from yosou.review import DEFAULT_REVIEW_DB, ReviewStore, ReviewWorkflow, names as review_names  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 
+from 今週の予想.bet_recorder import BetRecorder  # noqa: E402
+from 今週の予想.day_planner import DayPlanner  # noqa: E402
+from 今週の予想.forecast_paces import ForecastPaces  # noqa: E402
 from 今週の予想.forecast_store import DEFAULT_FOLDER, ForecastStore  # noqa: E402
 from 今週の予想.forecast_table import ForecastTable  # noqa: E402
 from 今週の予想.forecast_version import FORECAST_VERSION  # noqa: E402
 from 今週の予想.model_folders import DEFAULT_FAVORITE_MODELS, DEFAULT_MODELS  # noqa: E402
+from 今週の予想.plan_store import PlanStore  # noqa: E402
+from 今週の予想.plan_table import PlanTable  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
+from 今週の予想.wallet import MATCH_WALLET, POLICY_WALLET, Wallet  # noqa: E402
 
 _RID = card.CARD_LIST_HEADERS.index("rid")
 
 
 def main(args) -> None:
     store = ForecastStore(args.out_dir)
+    review = ReviewStore(args.review_db)
     forecaster = RaceForecaster(args.models, args.favorite_models)
     tables: list[Table] = []
     with db.open_db(args.db) as con:
+        if not args.no_review:
+            _update_review(con, review, store)
         race_ids = _race_ids(con, args)
+        if args.plan_only:
+            cli.emit(_plan_days(con, store, review, race_ids), args)
+            return
         for number, race_id in enumerate(race_ids, start=1):
             print(f"[{number}/{len(race_ids)}] {race_id} を予想します", file=sys.stderr, flush=True)
             if args.skip_saved and _same_timing_saved(con, store, race_id):
@@ -65,8 +82,39 @@ def main(args) -> None:
             tables.append(TicketTable().table(forecast))
             if args.detail:
                 tables.append(_detail_table(forecast))
+        if not args.no_plan:
+            tables += _plan_days(con, store, review, race_ids)
     cli.emit(tables, args)
     print(f"\n保存先: {args.out_dir}", file=sys.stderr)
+
+
+def _update_review(con, review: ReviewStore, store: ForecastStore) -> None:
+    """終わったレースの回顧（表2・表3）を書き足し、買い目の記録（表1）に払戻を入れる（初めての1回は 2011年からさかのぼるので 2〜3分）。"""
+    print("終わったレースの回顧を書き足しています …", file=sys.stderr, flush=True)
+    written = ReviewWorkflow(review).run(con, None, ForecastPaces(store).table())
+    print(f"  レースの回顧 {written[review_names.RACES_TABLE]:,} 行・馬の回顧ノート {written[review_names.HORSES_TABLE]:,} 行・"
+          f"精算した買い目 {written[review_names.BETS_TABLE]:,} 点（{review.path}）", file=sys.stderr, flush=True)
+
+
+def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[str]) -> list[Table]:
+    """予想したレースの開催日ごとに、その日の全部の予想（保存してあるもの）から買うレースの計画を決めて、保存と記録をする。"""
+    wallet = Wallet(review)
+    planner, recorder, plans_store = DayPlanner(wallet), BetRecorder(review), PlanStore(store)
+    tables = []
+    for day in sorted({date(int(rid[:4]), int(rid[4:6]), int(rid[6:8])) for rid in race_ids}):
+        listed = card.list_cards(con, date_from=day.isoformat(), date_to=day.isoformat(), limit=card.MAX_LIST_LIMIT)
+        forecasts = [forecast for forecast in (store.load(row[_RID]) for row in listed.rows) if forecast is not None]
+        if not any(forecast.get("odds_known") for forecast in forecasts):
+            continue
+        plans = planner.plan(con, day, forecasts)
+        summary = {MATCH_WALLET: wallet.balance(MATCH_WALLET, wallet.month_start(day)), POLICY_WALLET: wallet.balance(POLICY_WALLET, wallet.month_start(day)),
+                   "予算": {kind: wallet.budget(kind, day) for kind in (review_names.MATCH, review_names.POLICY_STAKES, review_names.POLICY_DAY)},
+                   "1点": wallet.unit(day)}
+        plans_store.save(day, plans, summary)
+        odds_at = max((forecast.get("made_at") or "" for forecast in forecasts), default="")
+        recorder.record(plans, odds_at)
+        tables.append(PlanTable().table(day, plans, summary))
+    return tables
 
 
 def _race_ids(con, args) -> list[str]:
@@ -111,6 +159,10 @@ def build_parser():
     parser.add_argument("--favorite-models", type=Path, default=DEFAULT_FAVORITE_MODELS,
                         help="危険な人気馬を判定する予想の学習済みモデルの置き場所（既定: reports/人気馬が4着以下になるかを予想/models）")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_FOLDER, help="結果を書く場所（既定: reports/今週の予想）")
+    parser.add_argument("--review-db", type=Path, default=DEFAULT_REVIEW_DB, help="回顧の DuckDB の場所（既定: reports/回顧/review.duckdb）")
+    parser.add_argument("--no-review", action="store_true", help="予想の前に、終わったレースの回顧を書き足さない")
+    parser.add_argument("--no-plan", action="store_true", help="予想のあとに、買うレースの計画を決めない")
+    parser.add_argument("--plan-only", action="store_true", help="予想はせず、保存してある予想から買うレースの計画だけを決め直す")
     return parser
 
 
