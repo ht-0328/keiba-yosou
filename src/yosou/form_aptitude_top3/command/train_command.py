@@ -49,6 +49,7 @@ from ..dataset import (
 from ..setting import DEFAULT_SETTINGS_PATH
 from ..workflow import (
     ABILITY_SCORE_TIMINGS,
+    TIMINGS,
     ABILITY_SCORE_TOP3_TIMINGS,
     ABILITY_SCORE_WIN_TIMINGS,
     ABILITY_TIMINGS,
@@ -104,6 +105,10 @@ class TrainCommand:
             "--config", type=Path, default=None,
             help="ハイパーパラメータの設定ファイル（TOML。省略すると初期値）",
         )
+        parser.add_argument(
+            "--timings", nargs="+", type=PredictionTiming.parse, default=None, metavar="時点",
+            help="学習する時点だけに絞る（木曜 前日 当日。省略すると全部）。1つの時点のモデルだけ学び直すときに使う",
+        )
         self._add_period_arguments(parser)
         FigureCacheArgument().add_to(parser)
         DevelopmentRootArgument().add_to(parser)
@@ -116,20 +121,25 @@ class TrainCommand:
             args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
         )
         ability_period = TrainingPeriod.starting(args.ability_train_from, args.valid_from, args.test_from)
+        chosen = tuple(args.timings) if args.timings else TIMINGS
+        form_timings = tuple(timing for timing in FORM_TIMINGS if timing in chosen)
+        ability_timings = tuple(timing for timing in ABILITY_TIMINGS if timing in chosen)
         history = PaceForecastHistory(args.development_root)
-        paces = {timing: history.read(timing) for timing in PACE_TIMINGS}
+        paces = {timing: history.read(timing) for timing in PACE_TIMINGS if timing in chosen}
+        score_timings = tuple(timing for timing in SCORE_TIMINGS if timing in chosen)
+        bias_timings = tuple(timing for timing in TRACK_BIAS_TIMINGS if timing in chosen)
         with db.open_db(args.db) as con:
-            form_data = race_day_dataset_builder(con, args.figure_cache).build_training_data(form_period)
+            form_data = race_day_dataset_builder(con, args.figure_cache).build_training_data(form_period) if form_timings else None
             ability_data = (ability_dataset_builder(con, args.figure_cache).build_training_data(ability_period)
-                            if ABILITY_TIMINGS else None)
-            prepared = AdvantageRuns().build(DevelopmentRunRepository(con).read()) if SCORE_TIMINGS else None
-            bias_runs = BiasRunRepository(con).read() if TRACK_BIAS_TIMINGS else None
-            weight_runs = WeightRuns().build(WeightRunRepository(con).read()) if WEIGHT_DISCOUNT_TIMINGS else None
-        scores = {timing: ScoreHistory(args.development_root).of(timing, prepared) for timing in SCORE_TIMINGS}
-        biases = {timing: BiasHistory(args.development_root).of(timing, bias_runs) for timing in TRACK_BIAS_TIMINGS}
-        tables = self._form_tables(form_data, form_period, scores, biases, weight_runs, args)
+                            if ability_timings else None)
+            prepared = AdvantageRuns().build(DevelopmentRunRepository(con).read()) if score_timings else None
+            bias_runs = BiasRunRepository(con).read() if bias_timings else None
+            weight_runs = WeightRuns().build(WeightRunRepository(con).read()) if WEIGHT_DISCOUNT_TIMINGS and form_timings else None
+        scores = {timing: ScoreHistory(args.development_root).of(timing, prepared) for timing in score_timings}
+        biases = {timing: BiasHistory(args.development_root).of(timing, bias_runs) for timing in bias_timings}
+        tables = self._form_tables(form_data, form_period, scores, biases, weight_runs, args) if form_data is not None else []
         if ability_data is not None:
-            tables += self._ability_tables(ability_data, ability_period, paces, scores, biases, args)
+            tables += self._ability_tables(ability_data, ability_period, paces, scores, biases, args, ability_timings)
         return tables
 
     def _form_tables(self, data: TrainingData, period: TrainingPeriod, scores: dict[PredictionTiming, pd.DataFrame],
@@ -152,14 +162,14 @@ class TrainCommand:
 
     def _ability_tables(self, data: TrainingData, period: TrainingPeriod, paces: dict[PredictionTiming, pd.DataFrame],
                         scores: dict[PredictionTiming, pd.DataFrame], biases: dict[PredictionTiming, pd.DataFrame],
-                        args: argparse.Namespace) -> list[Table]:
-        """馬の力の材料のモデル（木曜・前日）を学んで、結果の表を返す。P・S・T・U を採用した時点は、その時点の展開の予測から作った P・S・U と、
+                        args: argparse.Namespace, timings: tuple[PredictionTiming, ...] = ABILITY_TIMINGS) -> list[Table]:
+        """馬の力の材料のモデル（木曜・前日のうち ``timings``）を学んで、結果の表を返す。P・S・T・U を採用した時点は、その時点の展開の予測から作った P・S・U と、
         能力指数と斤量から作った T を足した学習データで、時点ごとに学ぶ（``paces`` は 時点 → 展開の予想の元の予測の表、``scores`` は
         時点 → 展開スコアの表、``biases`` は 時点 → バイアスの補正の表）。"""
-        plain = tuple(timing for timing in ABILITY_TIMINGS
+        plain = tuple(timing for timing in timings
                       if timing not in paces and timing not in scores and timing not in ABILITY_SCORE_TIMINGS and timing not in biases)
         tables = self._both(data, period, args.models, plain, "馬の力の材料", args.config)[0] if plain else []
-        for timing in ABILITY_TIMINGS:
+        for timing in timings:
             if timing in plain:
                 continue
             attached, subject = data, "馬の力の材料"

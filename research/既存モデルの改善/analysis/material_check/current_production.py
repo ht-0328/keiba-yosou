@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from yosou.ability_score import ABILITY_SCORE_NAMES
 from yosou.development_score import DEVELOPMENT_SCORE_NAMES
 from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, RACE_DAY_CATALOG
 from yosou.shared.dataset import TOP3, WIN
@@ -43,20 +44,21 @@ class CurrentProduction:
 
 
 _THURSDAY, _DAY_BEFORE, _RACE_DAY = PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE, PredictionTiming.RACE_DAY
-_THURSDAY_COLUMNS = ABILITY_CATALOG.columns_for(_THURSDAY) + PACE_NAMES
+_THURSDAY_COLUMNS = ABILITY_CATALOG.columns_for(_THURSDAY) + PACE_NAMES + ABILITY_SCORE_NAMES
 _DAY_BEFORE_COLUMNS = ABILITY_CATALOG.columns_for(_DAY_BEFORE)
 _RACE_DAY_COLUMNS = RACE_DAY_CATALOG.columns_for(_RACE_DAY)
 
-#: 今の本番の6つのモデル（設計書「近走と適性から3着以内を予想」07 の表）。木曜は M・O・J・P（入口⑩の予測）、前日の3着以内は M・O・J・S
+#: 今の本番の6つのモデル（設計書「近走と適性から3着以内を予想」07 の表）。木曜は M・O・J・P・T（入口⑭の能力スコアの予測）、前日の3着以内は M・O・J・S
 #: （入口⑬の予測）、前日の1着は M・O・J（入口⑪の予測）、当日の3着以内は A〜L・N・M（入口⑧の予測）、当日の1着はそれに Q（研究「回収率100超の施策」の予測）。
-#: 元の表は入口⑬が作った表（P と S の列を持つ。当日の1着は Q も）。**材料を本番に足したら、ここも直す**（列に足し、予測をその材料の確かめのものにする）。
+#: 元の表は入口⑬が作った表（P と S の列を持つ。当日の1着は Q も）に、入口⑭の ``tables`` が T を付けたもの。
+#: **材料を本番に足したら、ここも直す**（列に足し、予測をその材料の確かめのものにする）。
 CURRENT_PRODUCTION: tuple[CurrentProduction, ...] = (
     CurrentProduction(_DAY_BEFORE, TOP3, _DAY_BEFORE_COLUMNS + DEVELOPMENT_SCORE_NAMES, THIS_RESEARCH, "dscore_day_before", "dscore-day_before", "dscore_day_before"),
     CurrentProduction(_RACE_DAY, TOP3, _RACE_DAY_COLUMNS, THIS_RESEARCH, "h2h_pool_ability", "current-race_day", "dscore_race_day"),
-    CurrentProduction(_THURSDAY, TOP3, _THURSDAY_COLUMNS, THIS_RESEARCH, "pace_thursday", "pace-thursday", "dscore_thursday"),
+    CurrentProduction(_THURSDAY, TOP3, _THURSDAY_COLUMNS, THIS_RESEARCH, "ascore_thursday", "ascore-thursday", "dscore_thursday"),
     CurrentProduction(_DAY_BEFORE, WIN, _DAY_BEFORE_COLUMNS, THIS_RESEARCH, "h2h_ability", "win-day_before", "dscore_day_before"),
     CurrentProduction(_RACE_DAY, WIN, _RACE_DAY_COLUMNS + FINISH_POWER_NAMES, PAYBACK_RESEARCH, "finish_pool_ability", "finish-win-race_day", "dscore_finish_race_day"),
-    CurrentProduction(_THURSDAY, WIN, _THURSDAY_COLUMNS, THIS_RESEARCH, "pace_thursday", "win-thursday", "dscore_thursday"),
+    CurrentProduction(_THURSDAY, WIN, _THURSDAY_COLUMNS, THIS_RESEARCH, "ascore_thursday", "ascore-win-thursday", "dscore_thursday"),
 )
 
 
