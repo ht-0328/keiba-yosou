@@ -31,6 +31,14 @@ ABILITY_SCORE_WIN_TIMINGS: tuple[PredictionTiming, ...] = ()
 #: T を学習データに足す時点（どちらかのモデルが使う時点。使わないモデルには渡す前に外す）。
 ABILITY_SCORE_TIMINGS: tuple[PredictionTiming, ...] = tuple(
     timing for timing in TIMINGS if timing in ABILITY_SCORE_TOP3_TIMINGS or timing in ABILITY_SCORE_WIN_TIMINGS)
+#: トラックバイアスの補正（まとまり U。当日の先に終わったレースで「市場の見立てより来た馬が内か外か・前か後ろか」を数えたもの。
+#: 設計書「買うレースと買い目を決める」06 の 1）を足して学ぶ時点。T と同じ決め方（設計書 15 の 19）。馬番が要るので前日から。
+#: 予測には、その時点の展開のモデル（④ 4コーナーの位置）と、元DB の終わったレースの傾き（``reports/トラックバイアス/cache/``）が要る。
+TRACK_BIAS_TOP3_TIMINGS: tuple[PredictionTiming, ...] = ()
+TRACK_BIAS_WIN_TIMINGS: tuple[PredictionTiming, ...] = ()
+#: U を学習データに足す時点（どちらかのモデルが使う時点。使わないモデルには渡す前に外す）。
+TRACK_BIAS_TIMINGS: tuple[PredictionTiming, ...] = tuple(
+    timing for timing in TIMINGS if timing in TRACK_BIAS_TOP3_TIMINGS or timing in TRACK_BIAS_WIN_TIMINGS)
 #: 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（モデルの置き場所の下のフォルダの名前）。
 POOL_FREE_FOLDER = "券種オッズなし"
 #: 1着のモデル（目的変数「1着」。設計書 10・15 の 14）の置き場所（3着以内のモデルの置き場所の下のフォルダの名前。

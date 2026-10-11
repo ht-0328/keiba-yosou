@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 from yosou.ability_score import ABILITY_SCORE_FEATURES
+from yosou.shared.feature import PredictionTiming
+from yosou.track_bias import TRACK_BIAS_FEATURES
 
 from .ability_score_table_builder import AbilityScoreTableBuilder
 from .material import Material
+from .track_bias_table_builder import TrackBiasTableBuilder
 
 #: 材料の名前 → 材料。足すときは、予想のパッケージに材料の部品（特徴量の一覧・足す部品・外す部品）を作ってから、ここに1行足す。
 MATERIALS: dict[str, Material] = {
     "能力スコア": Material(
         "ascore", "能力スコア", "T", ABILITY_SCORE_FEATURES, AbilityScoreTableBuilder,
         design="設計書「買うレースと買い目を決める」04（能力指数を今回の斤量で直し、レース内の偏差・2位との差・順位にする）",
+    ),
+    "トラックバイアス": Material(
+        "tbias", "トラックバイアス", "U", TRACK_BIAS_FEATURES, TrackBiasTableBuilder,
+        timings=(PredictionTiming.DAY_BEFORE, PredictionTiming.RACE_DAY),
+        design="設計書「買うレースと買い目を決める」06 の 1（先に終わったレースで「市場の見立てより来た馬が内か外か・前か後ろか」を数え、"
+               "過去の傾きと混ぜて、馬番の位置と展開の予想④の位置で馬ごとの補正にする。前日は前の日のレースだけ、当日はその日の先のレースも）",
     ),
 }
 
