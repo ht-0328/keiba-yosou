@@ -23,6 +23,9 @@ from ..workflow import (
     TRACK_BIAS_TIMINGS,
     TRACK_BIAS_TOP3_TIMINGS,
     TRACK_BIAS_WIN_TIMINGS,
+    WEIGHT_DISCOUNT_TIMINGS,
+    WEIGHT_DISCOUNT_TOP3_TIMINGS,
+    WEIGHT_DISCOUNT_WIN_TIMINGS,
 )
 
 
@@ -37,6 +40,9 @@ def test_only_the_thursday_model_adds_the_pace_forecasts():
     # トラックバイアスの補正（U）も同じ形（設計書 15 の 19）。馬番が要るので木曜には足せない
     assert set(TRACK_BIAS_TIMINGS) == set(TRACK_BIAS_TOP3_TIMINGS) | set(TRACK_BIAS_WIN_TIMINGS)
     assert PredictionTiming.THURSDAY not in TRACK_BIAS_TIMINGS
+    # 馬体重の表の割引（V）も同じ形（設計書 15 の 20）。馬体重の発表は当日なので当日にしか足せない
+    assert set(WEIGHT_DISCOUNT_TIMINGS) == set(WEIGHT_DISCOUNT_TOP3_TIMINGS) | set(WEIGHT_DISCOUNT_WIN_TIMINGS)
+    assert set(WEIGHT_DISCOUNT_TIMINGS) <= {PredictionTiming.RACE_DAY}
 
 
 def test_attachment_adds_twenty_columns_and_the_catalog(ability_training_data: TrainingData):

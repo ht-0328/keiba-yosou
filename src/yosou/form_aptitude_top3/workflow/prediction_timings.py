@@ -39,6 +39,13 @@ TRACK_BIAS_WIN_TIMINGS: tuple[PredictionTiming, ...] = ()
 #: U を学習データに足す時点（どちらかのモデルが使う時点。使わないモデルには渡す前に外す）。
 TRACK_BIAS_TIMINGS: tuple[PredictionTiming, ...] = tuple(
     timing for timing in TIMINGS if timing in TRACK_BIAS_TOP3_TIMINGS or timing in TRACK_BIAS_WIN_TIMINGS)
+#: 馬体重の表の割引（まとまり V。増減の帯 × 前走からの間隔 × 馬齢ごとの市場の見立てとの差。設計書「買うレースと買い目を決める」06 の 2）を
+#: 足して学ぶ時点。T と同じ決め方（設計書 15 の 20）。馬体重の発表は当日なので当日だけ。予測には表 W（``reports/馬体重の表/cache/``）が要る。
+WEIGHT_DISCOUNT_TOP3_TIMINGS: tuple[PredictionTiming, ...] = ()
+WEIGHT_DISCOUNT_WIN_TIMINGS: tuple[PredictionTiming, ...] = ()
+#: V を学習データに足す時点（どちらかのモデルが使う時点。使わないモデルには渡す前に外す）。
+WEIGHT_DISCOUNT_TIMINGS: tuple[PredictionTiming, ...] = tuple(
+    timing for timing in TIMINGS if timing in WEIGHT_DISCOUNT_TOP3_TIMINGS or timing in WEIGHT_DISCOUNT_WIN_TIMINGS)
 #: 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（モデルの置き場所の下のフォルダの名前）。
 POOL_FREE_FOLDER = "券種オッズなし"
 #: 1着のモデル（目的変数「1着」。設計書 10・15 の 14）の置き場所（3着以内のモデルの置き場所の下のフォルダの名前。

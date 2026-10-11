@@ -18,10 +18,12 @@ from yosou.form_aptitude_top3.workflow import (
     POOL_FREE_FOLDER,
     PROBABILITY,
     TRACK_BIAS_TOP3_TIMINGS,
+    WEIGHT_DISCOUNT_TOP3_TIMINGS,
     DataAttachment,
     PredictionWorkflow,
 )
 from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
+from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
 from yosou.shared.command import PredictionTable
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE
@@ -59,13 +61,15 @@ class FormRaceDayTable:
         return PredictionTable(prediction, TIMING, PROBABILITY, self._extra_columns(prediction)).table()
 
     def _extras(self, con: duckdb.DuckDBPyConnection) -> list[DataAttachment]:
-        """当日の3着以内のモデルに採用した材料（T・U）を予測用データに足す関数。"""
+        """当日の3着以内のモデルに採用した材料（T・U・V）を予測用データに足す関数。"""
         extras: list[DataAttachment] = []
         if TIMING in ABILITY_SCORE_TOP3_TIMINGS:
             extras.append(RaceAbilityScoreAttacher().attach)
         if TIMING in TRACK_BIAS_TOP3_TIMINGS:
             slopes, table = PriorSlopeTableStore(bias_cache_folder_beside(self._development_root)).load(con)
             extras.append(RaceBiasAttacher(con, MemoizedPaceForecast(self._development_root / "models").run, slopes, table).attach)
+        if TIMING in WEIGHT_DISCOUNT_TOP3_TIMINGS:
+            extras.append(RaceWeightDiscountAttacher(WeightTableStore(weight_cache_folder_beside(self._development_root)).load(con)).attach)
         return extras
 
     def has_models(self) -> bool:

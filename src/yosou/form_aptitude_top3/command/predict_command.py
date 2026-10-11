@@ -14,6 +14,7 @@ from yosou.shared.command import CommonArguments, PredictionTable
 from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
 from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
+from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import DatasetBuilder
 from yosou.shared.feature import PredictionTiming
@@ -37,6 +38,8 @@ from ..workflow import (
     SCORE_WIN_TIMINGS,
     TRACK_BIAS_TOP3_TIMINGS,
     TRACK_BIAS_WIN_TIMINGS,
+    WEIGHT_DISCOUNT_TOP3_TIMINGS,
+    WEIGHT_DISCOUNT_WIN_TIMINGS,
     WIN_FOLDER,
     WIN_PROBABILITY,
     DataAttachment,
@@ -83,8 +86,10 @@ class PredictCommand:
                 pace=self._pace(con, args),
                 win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
                 win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
-                extras=self._extras(con, args, SCORE_TOP3_TIMINGS, ABILITY_SCORE_TOP3_TIMINGS, TRACK_BIAS_TOP3_TIMINGS),
-                win_extras=self._extras(con, args, SCORE_WIN_TIMINGS, ABILITY_SCORE_WIN_TIMINGS, TRACK_BIAS_WIN_TIMINGS),
+                extras=self._extras(con, args, SCORE_TOP3_TIMINGS, ABILITY_SCORE_TOP3_TIMINGS, TRACK_BIAS_TOP3_TIMINGS,
+                                    WEIGHT_DISCOUNT_TOP3_TIMINGS),
+                win_extras=self._extras(con, args, SCORE_WIN_TIMINGS, ABILITY_SCORE_WIN_TIMINGS, TRACK_BIAS_WIN_TIMINGS,
+                                        WEIGHT_DISCOUNT_WIN_TIMINGS),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
@@ -103,12 +108,14 @@ class PredictCommand:
         return lambda race_id, timing, given: workflow.run(con, race_id, timing, given)
 
     def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace, score_timings: tuple[PredictionTiming, ...],
-                ability_score_timings: tuple[PredictionTiming, ...], track_bias_timings: tuple[PredictionTiming, ...]) -> list[DataAttachment]:
+                ability_score_timings: tuple[PredictionTiming, ...], track_bias_timings: tuple[PredictionTiming, ...],
+                weight_discount_timings: tuple[PredictionTiming, ...]) -> list[DataAttachment]:
         """そのモデルの予測用データに足す材料の関数。展開スコア（S）を足して学んだ時点（``score_timings``。3着以内は前日）なら、保存した
         展開のモデルと表 G（展開の予想の置き場所の隣の ``展開スコア/cache/``。元DB が更新されていれば作り直す）でそのレースの S を足す関数。
         能力スコア（T）を足して学んだ時点（``ability_score_timings``）なら、予測用データの能力指数と斤量から T を足す関数。
         トラックバイアスの補正（U）を足して学んだ時点（``track_bias_timings``）なら、元DB の終わったレースの傾き（``トラックバイアス/cache/``）と
-        展開の予測④でそのレースの U を足す関数。ほかの時点は無し。"""
+        展開の予測④でそのレースの U を足す関数。馬体重の表の割引（V）を足して学んだ時点（``weight_discount_timings``）なら、
+        表 W（``馬体重の表/cache/``）を予測用データの増減・日数・馬齢で引いて V を足す関数。ほかの時点は無し。"""
         extras: list[DataAttachment] = []
         if args.timing in score_timings:
             extras.append(self._attacher(con, args).attach)
@@ -116,6 +123,9 @@ class PredictCommand:
             extras.append(RaceAbilityScoreAttacher().attach)
         if args.timing in track_bias_timings:
             extras.append(self._bias_attacher(con, args).attach)
+        if args.timing in weight_discount_timings:
+            table = WeightTableStore(weight_cache_folder_beside(args.development_root)).load(con)
+            extras.append(RaceWeightDiscountAttacher(table).attach)
         return extras
 
     def _attacher(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> RaceScoreAttacher:
