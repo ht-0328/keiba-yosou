@@ -12,6 +12,7 @@ import pytest
 
 from 共通 import db
 
+from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import ScoreAttachment
 from yosou.shared.dataset import HORSE_NO
 from yosou.shared.evaluation import ENSEMBLE_NAME
@@ -68,11 +69,11 @@ def test_training_saves_the_settings_it_used(trained: tuple[Path, str]):
 def test_training_reports_each_model_group(trained: tuple[Path, str]):
     _, text = trained
     # 当日（今の材料・券種の支持・馬の力の材料）・券種オッズなし（当日）・展開スコアを足した馬の力の材料（前日）・
-    # 展開の予想を足した馬の力の材料（木曜）の4つの学習の結果を出す
-    for subject in ("今の材料", "券種オッズなし", "馬の力の材料 ＋ 展開スコア", "馬の力の材料 ＋ 展開の予想（木曜）"):
+    # 展開の予想と能力スコアを足した馬の力の材料（木曜）の4つの学習の結果を出す
+    for subject in ("今の材料", "券種オッズなし", "馬の力の材料 ＋ 展開スコア", "馬の力の材料 ＋ 展開の予想（木曜） ＋ 能力スコア"):
         assert f"{subject}: 検証データでの当たり具合" in text and f"{subject}: 保存したモデル" in text
-    # 1着のモデルも、同じ学習ごとに出す。前日の1着のモデルは展開スコア（S）を外して学ぶ（設計書 15 の 17）
-    for subject in ("今の材料", "券種オッズなし", "馬の力の材料: ", "馬の力の材料 ＋ 展開の予想（木曜）"):
+    # 1着のモデルも、同じ学習ごとに出す。前日の1着のモデルは展開スコア（S）を外して学ぶ（設計書 15 の 17）。木曜の1着は能力スコア（T）も使う（15 の 18）
+    for subject in ("今の材料", "券種オッズなし", "馬の力の材料: ", "馬の力の材料 ＋ 展開の予想（木曜） ＋ 能力スコア"):
         assert f"1着: {subject}" in text
     assert "1着: 馬の力の材料 ＋ 展開スコア" not in text
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
@@ -119,8 +120,8 @@ def _workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
 
 def _thursday_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
                        asked: list[tuple[str, PredictionTiming]]) -> PredictionWorkflow:
-    """木曜の予測の流れ（馬の力の材料と展開の予想の結果）。展開の予測は、聞かれたレースと時点を ``asked`` に書き足し、
-    予測の無い表を返す（展開のモデルは合成DB では学べないため。P は欠損値になる）。"""
+    """木曜の予測の流れ（馬の力の材料と展開の予想の結果と能力スコア）。展開の予測は、聞かれたレースと時点を ``asked`` に書き足し、
+    予測の無い表を返す（展開のモデルは合成DB では学べないため。P は欠損値になる）。能力スコア（T）は両方のモデルに足す（設計書 15 の 18）。"""
     def pace(race_id: str, timing: PredictionTiming, given) -> pd.DataFrame:
         asked.append((race_id, timing))
         return pd.DataFrame()
@@ -128,6 +129,7 @@ def _thursday_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cach
         ability_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
         OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(None), pace=pace,
         win_predictor=SegmentedPrediction(ModelSegments(), models / WIN_FOLDER),
+        extras=[RaceAbilityScoreAttacher().attach], win_extras=[RaceAbilityScoreAttacher().attach],
     )
 
 
