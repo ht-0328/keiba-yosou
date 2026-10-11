@@ -29,7 +29,8 @@ def test_only_the_thursday_model_adds_the_pace_forecasts():
     # 展開スコア（S）は、3着以内のモデルは前日だけ（設計書 15 の 17）。学習データに足す時点は、どちらかのモデルが使う時点
     assert SCORE_TOP3_TIMINGS == (PredictionTiming.DAY_BEFORE,) and SCORE_WIN_TIMINGS == ()
     assert set(SCORE_TIMINGS) == set(SCORE_TOP3_TIMINGS) | set(SCORE_WIN_TIMINGS)
-    # 能力スコア（T）も同じ形（設計書 15 の 18。採用した時点は研究の結果で決める）
+    # 能力スコア（T）は、木曜の3着以内と1着に足す（設計書 15 の 18。前日・当日は印の成績か誤差の基準で見送り）
+    assert ABILITY_SCORE_TOP3_TIMINGS == (PredictionTiming.THURSDAY,) and ABILITY_SCORE_WIN_TIMINGS == (PredictionTiming.THURSDAY,)
     assert set(ABILITY_SCORE_TIMINGS) == set(ABILITY_SCORE_TOP3_TIMINGS) | set(ABILITY_SCORE_WIN_TIMINGS)
 
 
