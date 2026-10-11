@@ -63,6 +63,9 @@ def test_each_comparison_is_the_current_model_plus_the_material() -> None:
         assert set(spec.current.columns) <= set(spec.added.columns) and spec.added.uses_baseline == spec.current.uses_baseline
         assert spec.added.timing is spec.current.timing and spec.table.base == spec.current.base_table
     assert comparison_keyed(material, "ascore-day_before").table.name == "ascore_day_before"
+    # どの材料の表の一覧にも、元の表から作れる T が入る（重ねて入らない）
+    thursday = material_table_named(material, "ascore_thursday")
+    assert set(ABILITY_SCORE_NAMES) <= set(thursday.catalog.names) and len(thursday.catalog.names) == len(set(thursday.catalog.names))
     assert comparison_keyed(material, "ascore-win-race_day").table.name == "ascore_finish_race_day"
     assert material_table_named(material, "ascore_thursday").base == "dscore_thursday"
     with pytest.raises(ValueError):

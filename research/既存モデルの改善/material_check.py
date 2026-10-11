@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from 共通 import db  # noqa: E402
 
+from yosou.ability_score import AbilityScoreAttachment  # noqa: E402
 from yosou.form_aptitude_top3.dataset import WinTargetData  # noqa: E402
 from yosou.form_aptitude_top3.setting import DEFAULT_SETTINGS_PATH  # noqa: E402
 from yosou.shared.dataset import WIN  # noqa: E402
@@ -78,7 +79,7 @@ def _tables(args: argparse.Namespace, material: Material) -> None:
         if not source.exists(table.base):
             raise FileNotFoundError(f"{table.label}: 元の表 {args.reports / table.base_research / 'tables' / table.base} がありません（development_score_check.py tables で作る）")
         print(f"{table.label}: 元の表 {table.base} に{material.label}を足しています …", flush=True)
-        built = builder.build(source.read(table.base, table.base_catalog), table.timing)
+        built = AbilityScoreAttachment().apply(builder.build(source.read(table.base, table.base_catalog), table.timing))   # T はどの表にも付けておく
         folder = store.write(table.name, built)
         filled = " ".join(f"{column}={built.features[column].notna().mean():.3f}" for column in material.names)
         print(f"{table.name}: {len(built):,}行・特徴量 {built.features.shape[1]}個 → {folder}\n  値のある行の割合: {filled}", flush=True)

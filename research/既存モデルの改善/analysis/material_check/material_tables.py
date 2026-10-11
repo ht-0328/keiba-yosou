@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from yosou.ability_score import ABILITY_SCORE_FEATURES
 from yosou.shared.feature import FeatureCatalog, PredictionTiming
 
 from ..development_score import score_table_named
 from .current_production import CURRENT_PRODUCTION, THIS_RESEARCH, CurrentProduction
 from .material import Material
+
+#: 元の表の列だけから作れるので、どの材料の表にも付けておく材料（能力スコア T）。本番で採用した時点の「今の予想」の列に入っていても、
+#: 表に列があるので同じ土俵で比べられる。付けるのは入口の ``tables`` の段（``AbilityScoreAttachment``）。
+ALWAYS_ATTACHED_FEATURES = ABILITY_SCORE_FEATURES
 
 
 @dataclass(frozen=True)
@@ -26,9 +31,12 @@ class MaterialTable:
 
     @property
     def catalog(self) -> FeatureCatalog:
-        """材料の列を足した特徴量の一覧。"""
-        names = set(self.base_catalog.names)
-        return FeatureCatalog(self.base_catalog.features + tuple(feature for feature in self.material.features if feature.name not in names))
+        """材料の列（と、どの表にも付ける T）を足した特徴量の一覧。"""
+        features = list(self.base_catalog.features)
+        for feature in (*ALWAYS_ATTACHED_FEATURES, *self.material.features):
+            if feature.name not in {known.name for known in features}:
+                features.append(feature)
+        return FeatureCatalog(tuple(features))
 
 
 def material_tables(material: Material) -> tuple[MaterialTable, ...]:
