@@ -24,6 +24,12 @@ from yosou.form_aptitude_top3.workflow import (
     SCORE_TIMINGS,
     SCORE_TOP3_TIMINGS,
     SCORE_WIN_TIMINGS,
+    TRACK_BIAS_TIMINGS,
+    TRACK_BIAS_TOP3_TIMINGS,
+    TRACK_BIAS_WIN_TIMINGS,
+    WEIGHT_DISCOUNT_TIMINGS,
+    WEIGHT_DISCOUNT_TOP3_TIMINGS,
+    WEIGHT_DISCOUNT_WIN_TIMINGS,
     WIN_FOLDER,
     WIN_PROBABILITY,
     ExplainedPrediction,
@@ -31,6 +37,8 @@ from yosou.form_aptitude_top3.workflow import (
 )
 from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
+from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
+from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import column_names as ids
 from yosou.shared.feature import PredictionTiming
@@ -156,6 +164,15 @@ class RaceForecaster:
             extras.append(RaceAbilityScoreAttacher().attach)
         if timing in ABILITY_SCORE_WIN_TIMINGS:
             win_extras.append(RaceAbilityScoreAttacher().attach)
+        if timing in TRACK_BIAS_TIMINGS:
+            slopes, prior = PriorSlopeTableStore(bias_cache_folder_beside(self._development_root)).load(con)
+            bias = RaceBiasAttacher(con, MemoizedPaceForecast(self._development_root / "models").run, slopes, prior)
+            extras += [bias.attach] if timing in TRACK_BIAS_TOP3_TIMINGS else []
+            win_extras += [bias.attach] if timing in TRACK_BIAS_WIN_TIMINGS else []
+        if timing in WEIGHT_DISCOUNT_TIMINGS:
+            weight = RaceWeightDiscountAttacher(WeightTableStore(weight_cache_folder_beside(self._development_root)).load(con))
+            extras += [weight.attach] if timing in WEIGHT_DISCOUNT_TOP3_TIMINGS else []
+            win_extras += [weight.attach] if timing in WEIGHT_DISCOUNT_WIN_TIMINGS else []
         return PredictionWorkflow(
             builder, SegmentedPrediction(ModelSegments(), self._models),
             OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price()),
