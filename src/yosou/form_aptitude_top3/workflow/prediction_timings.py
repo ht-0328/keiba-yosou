@@ -14,6 +14,14 @@ FORM_TIMINGS: tuple[PredictionTiming, ...] = tuple(timing for timing in TIMINGS 
 #: 展開の予想の結果（まとまり P）を足して学ぶ時点。研究「既存モデルの改善」の7つの区切りで、P を足すと今の予想より確率の誤差が
 #: 小さくなり、採用の基準を満たした時点だけ（設計書 15 の 13。前日・当日は満たさなかった）。
 PACE_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.THURSDAY,)
+#: 展開スコア（まとまり S。設計書「買うレースと買い目を決める」05）を足して学ぶ時点。3着以内のモデルと1着のモデルで別々に、
+#: 研究「既存モデルの改善」の7つの区切りで S を足すと今の予想より確率の誤差が小さくなり、採用の基準を満たした時点だけ（設計書 15 の 17）。
+#: 当日の1着は確率の誤差の基準を満たしたが、道具「印の成績」で期待度「高」の ◎ の単勝回収率が下がったので足していない。
+#: 予測には、その時点の展開のモデル（``reports/展開から着順を予想/models/``）と表 G（``reports/展開スコア/cache/``）が要る。
+SCORE_TOP3_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.DAY_BEFORE,)
+SCORE_WIN_TIMINGS: tuple[PredictionTiming, ...] = ()
+#: S を学習データに足す時点（どちらかのモデルが使う時点。学習データは時点ごとに1つで、使わないモデルには渡す前に外す）。
+SCORE_TIMINGS: tuple[PredictionTiming, ...] = tuple(timing for timing in TIMINGS if timing in SCORE_TOP3_TIMINGS or timing in SCORE_WIN_TIMINGS)
 #: 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（モデルの置き場所の下のフォルダの名前）。
 POOL_FREE_FOLDER = "券種オッズなし"
 #: 1着のモデル（目的変数「1着」。設計書 10・15 の 14）の置き場所（3着以内のモデルの置き場所の下のフォルダの名前。

@@ -19,11 +19,15 @@ from yosou.form_aptitude_top3.workflow import (
     PACE_TIMINGS,
     POOL_FREE_FOLDER,
     PROBABILITY,
+    SCORE_TIMINGS,
+    SCORE_TOP3_TIMINGS,
+    SCORE_WIN_TIMINGS,
     WIN_FOLDER,
     WIN_PROBABILITY,
     ExplainedPrediction,
     PredictionWorkflow,
 )
+from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import column_names as ids
 from yosou.shared.feature import PredictionTiming
@@ -62,7 +66,7 @@ class RaceForecaster:
     """1レースを、予想「近走と適性から3着以内を予想」の学習済みモデルで予想し、全頭の順位・印・良い点と悪い点・総合をまとめる。
 
     時点は ``TimingChooser`` が DB の情報から選ぶ（``timing`` を渡せばその時点）。組み立ては
-    ``python -m yosou.form_aptitude_top3 predict`` と同じ（木曜は展開の予想の結果も使う。当日に券種のオッズが無ければ券種オッズなしのモデル。
+    ``python -m yosou.form_aptitude_top3 predict`` と同じ（木曜は展開の予想の結果、前日は展開スコアも使う。当日に券種のオッズが無ければ券種オッズなしのモデル。
     3着以内のモデルと1着のモデルの両方で予測する）。
     前日・当日は、危険な人気馬（1レース1頭まで）を予想「人気馬が4着以下になるかを予想」で判定して、印を付ける前に消にする（``DangerFinder``）。
     ◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、レースの期待度（◎ の期待値が 1.00 以上なら高）も出す
@@ -139,12 +143,19 @@ class RaceForecaster:
         if timing in PACE_TIMINGS:
             development = DevelopmentPaceWorkflow(self._development_root / "models")
             pace = lambda race_id, at, given: development.run(con, race_id, at, given)  # noqa: E731
+        extras, win_extras = [], []
+        if timing in SCORE_TIMINGS:
+            table = AdvantageTableStore(cache_folder_beside(self._development_root)).load(con)
+            attacher = RaceScoreAttacher(con, self._development_root / "models", table)
+            extras = [attacher.attach] if timing in SCORE_TOP3_TIMINGS else []
+            win_extras = [attacher.attach] if timing in SCORE_WIN_TIMINGS else []
         return PredictionWorkflow(
             builder, SegmentedPrediction(ModelSegments(), self._models),
             OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price()),
             pool_free=SegmentedPrediction(ModelSegments(), self._models / POOL_FREE_FOLDER), pace=pace,
             win_predictor=SegmentedPrediction(ModelSegments(), self._models / WIN_FOLDER),
             win_pool_free=SegmentedPrediction(ModelSegments(), self._models / POOL_FREE_FOLDER / WIN_FOLDER),
+            extras=extras, win_extras=win_extras,
         )
 
     def _place_price(self) -> PlacePriceEstimator | None:

@@ -11,6 +11,7 @@ from 共通 import db, race
 from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, PredictionTable
+from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import DatasetBuilder
 from yosou.shared.feature import PredictionTiming
@@ -27,8 +28,12 @@ from ..workflow import (
     PACE_TIMINGS,
     POOL_FREE_FOLDER,
     PROBABILITY,
+    SCORE_TIMINGS,
+    SCORE_TOP3_TIMINGS,
+    SCORE_WIN_TIMINGS,
     WIN_FOLDER,
     WIN_PROBABILITY,
+    DataAttachment,
     PaceSource,
     PredictionWorkflow,
 )
@@ -72,6 +77,7 @@ class PredictCommand:
                 pace=self._pace(con, args),
                 win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
                 win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
+                extras=self._extras(con, args, SCORE_TOP3_TIMINGS), win_extras=self._extras(con, args, SCORE_WIN_TIMINGS),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
@@ -88,6 +94,21 @@ class PredictCommand:
             return None
         workflow = DevelopmentPaceWorkflow(args.development_root / "models")
         return lambda race_id, timing, given: workflow.run(con, race_id, timing, given)
+
+    def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace,
+                timings: tuple[PredictionTiming, ...]) -> list[DataAttachment]:
+        """展開スコア（S）を足して学んだ時点（``timings``。3着以内は前日）なら、保存した展開のモデルと表 G（展開の予想の置き場所の隣の
+        ``展開スコア/cache/``。元DB が更新されていれば作り直す）でそのレースの S を予測用データに足す関数。ほかの時点は無し。"""
+        if args.timing not in timings:
+            return []
+        return [self._attacher(con, args).attach]
+
+    def _attacher(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> RaceScoreAttacher:
+        """S を足す部品（1回の predict で1つだけ作り、3着以内と1着で使い回す）。"""
+        if not hasattr(args, "_score_attacher"):
+            table = AdvantageTableStore(cache_folder_beside(args.development_root)).load(con)
+            args._score_attacher = RaceScoreAttacher(con, args.development_root / "models", table)
+        return args._score_attacher
 
     def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
         """``--odds`` で渡されたオッズ。渡されなければ None。"""

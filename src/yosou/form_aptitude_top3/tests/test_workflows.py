@@ -12,6 +12,7 @@ import pytest
 
 from 共通 import db
 
+from yosou.development_score import ScoreAttachment
 from yosou.shared.dataset import HORSE_NO
 from yosou.shared.evaluation import ENSEMBLE_NAME
 from yosou.shared.feature import PredictionTiming
@@ -66,11 +67,14 @@ def test_training_saves_the_settings_it_used(trained: tuple[Path, str]):
 
 def test_training_reports_each_model_group(trained: tuple[Path, str]):
     _, text = trained
-    # 当日（今の材料・券種の支持・馬の力の材料）・券種オッズなし（当日）・馬の力の材料（前日）・展開の予想を足した馬の力の材料（木曜）の
-    # 4つの学習の結果を出す
-    for subject in ("今の材料", "券種オッズなし", "馬の力の材料", "馬の力の材料 ＋ 展開の予想（木曜）"):
+    # 当日（今の材料・券種の支持・馬の力の材料）・券種オッズなし（当日）・展開スコアを足した馬の力の材料（前日）・
+    # 展開の予想を足した馬の力の材料（木曜）の4つの学習の結果を出す
+    for subject in ("今の材料", "券種オッズなし", "馬の力の材料 ＋ 展開スコア", "馬の力の材料 ＋ 展開の予想（木曜）"):
         assert f"{subject}: 検証データでの当たり具合" in text and f"{subject}: 保存したモデル" in text
-        assert f"1着: {subject}: 検証データでの当たり具合" in text  # 1着のモデルも、同じ学習ごとに出す
+    # 1着のモデルも、同じ学習ごとに出す。前日の1着のモデルは展開スコア（S）を外して学ぶ（設計書 15 の 17）
+    for subject in ("今の材料", "券種オッズなし", "馬の力の材料: ", "馬の力の材料 ＋ 展開の予想（木曜）"):
+        assert f"1着: {subject}" in text
+    assert "1着: 馬の力の材料 ＋ 展開スコア" not in text
     assert "| ウォームアップ | 2023-10-07 | 2023-12-31 |" in text
     assert "複勝の見込みの倍率" in text
 
@@ -94,15 +98,22 @@ def test_model_repository_reports_missing_models(tmp_path: Path):
         ModelRepository(tmp_path, MEMBER_TYPES).load(PredictionTiming.RACE_DAY)
 
 
+def _no_score(data, race_id: str, timing: PredictionTiming, given):
+    """展開スコアの無い表を足す（展開のモデルは合成DB では学べないため。S は欠損値になる）。"""
+    return ScoreAttachment().apply(data, pd.DataFrame())
+
+
 def _workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
               place_price: PlacePriceEstimator | None = None) -> PredictionWorkflow:
-    """当日の予測の流れ（今の材料・券種の支持・馬の力の材料。当日に券種のオッズが無ければ、券種の支持を使わないモデルに切り替える）。"""
+    """当日の予測の流れ（今の材料・券種の支持・馬の力の材料。当日に券種のオッズが無ければ、券種の支持を使わないモデルに切り替える。
+    当日の1着のモデルは展開スコア（S）を足して学んだので、1着の予測用データに S を足す関数を渡す）。"""
     return PredictionWorkflow(
         race_day_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
         OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(place_price),
         pool_free=SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER),
         win_predictor=SegmentedPrediction(ModelSegments(), models / WIN_FOLDER),
         win_pool_free=SegmentedPrediction(ModelSegments(), models / POOL_FREE_FOLDER / WIN_FOLDER),
+        win_extras=[_no_score],
     )
 
 
@@ -151,6 +162,32 @@ def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[
     assert WIN_PROBABILITY in prediction.columns and WIN_VALUE not in prediction.columns
 
 
+def _day_before_workflow(con: duckdb.DuckDBPyConnection, models: Path, figure_cache: Path,
+                         asked: list[tuple[str, PredictionTiming]]) -> PredictionWorkflow:
+    """前日の予測の流れ（馬の力の材料と展開スコア）。展開スコアは、聞かれたレースと時点を ``asked`` に書き足し、
+    展開スコアの無い表を足す（展開のモデルは合成DB では学べないため。S は欠損値になる）。"""
+    def attach(data, race_id: str, timing: PredictionTiming, given):
+        asked.append((race_id, timing))
+        return ScoreAttachment().apply(data, pd.DataFrame())
+    return PredictionWorkflow(
+        ability_dataset_builder(con, figure_cache), SegmentedPrediction(ModelSegments(), models),
+        OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(None), extras=[attach],
+        win_predictor=SegmentedPrediction(ModelSegments(), models / WIN_FOLDER),
+    )
+
+
+def test_day_before_prediction_attaches_the_development_score(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
+    models, _ = trained
+    with db.open_db(season_db) as con:
+        asked: list[tuple[str, PredictionTiming]] = []
+        prediction = _day_before_workflow(con, models, figure_cache, asked).run(
+            season.CARD_RACE_ID, PredictionTiming.DAY_BEFORE, OddsInput.of(CARD_ODDS_TEXTS))
+    # 前日のモデルは展開スコア（S）を足して学んだので、そのレースの前日の展開スコアを聞いてから予測する
+    assert asked == [(season.CARD_RACE_ID, PredictionTiming.DAY_BEFORE)]
+    assert len(prediction) == 7 and prediction[PROBABILITY].between(0, 1, inclusive="neither").all()
+    assert WIN_ODDS in prediction.columns and WIN_PROBABILITY in prediction.columns
+
+
 def test_race_day_prediction_without_pool_odds_uses_the_pool_free_models(season_db: Path, trained: tuple[Path, str],
                                                                          figure_cache: Path):
     models, _ = trained
@@ -196,10 +233,14 @@ def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, train
     assert lines[0] == f"順位,馬番,馬名,{WIN_PROBABILITY},{PROBABILITY},LightGBM,CatBoost"
 
 
-def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, capsys):
+def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, capsys, tmp_path: Path,
+                                                    monkeypatch: pytest.MonkeyPatch):
     models, _ = trained
+    # 当日の1着のモデルは展開スコア（S）を足して学んだが、展開のモデルは合成DB では学べないので、S の無い表を足す。
+    # 表 G は展開の予想の置き場所の隣にできるので、一時フォルダを渡して本物の reports/ を書き換えない
+    monkeypatch.setattr(predict_command.RaceScoreAttacher, "attach", lambda self, data, race_id, timing, given: _no_score(data, race_id, timing, given))
     code = _run_command([
-        "predict", season.CARD_RACE_ID, "--timing", "当日", "--odds", *CARD_ODDS_TEXTS,
+        "predict", season.CARD_RACE_ID, "--timing", "当日", "--odds", *CARD_ODDS_TEXTS, "--development-root", str(tmp_path / "development"),
         "--db", str(season_db), "--models", str(models), "--format", "csv",
     ])
     lines = capsys.readouterr().out.strip().splitlines()
@@ -209,10 +250,11 @@ def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, ca
                         f"{PROBABILITY},LightGBM,CatBoost")
 
 
-def test_command_asks_for_odds_when_the_database_has_none(season_db: Path, trained, capsys):
+def test_command_asks_for_odds_when_the_database_has_none(season_db: Path, trained, capsys, tmp_path: Path):
     models, _ = trained
     code = _run_command([
         "predict", season.CARD_RACE_ID, "--timing", "当日", "--db", str(season_db), "--models", str(models),
+        "--development-root", str(tmp_path / "development"),
     ])
     assert code == 1 and "--odds" in capsys.readouterr().err
 

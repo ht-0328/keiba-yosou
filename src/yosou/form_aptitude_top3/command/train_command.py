@@ -19,6 +19,14 @@ from yosou.shared.dataset import (
     TrainingData,
     TrainingPeriod,
 )
+from yosou.development_score import (
+    DEVELOPMENT_SCORE_NAMES,
+    AdvantageRuns,
+    DevelopmentRunRepository,
+    DevelopmentScoreFreeData,
+    ScoreAttachment,
+    ScoreHistory,
+)
 from yosou.race_development.workflow import PaceForecastHistory
 from yosou.shared.evaluation import TrainingReport
 from yosou.shared.feature import PredictionTiming
@@ -36,7 +44,16 @@ from ..dataset import (
     race_day_dataset_builder,
 )
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS, PACE_TIMINGS, POOL_FREE_FOLDER, WIN_FOLDER
+from ..workflow import (
+    ABILITY_TIMINGS,
+    FORM_TIMINGS,
+    PACE_TIMINGS,
+    POOL_FREE_FOLDER,
+    SCORE_TIMINGS,
+    SCORE_TOP3_TIMINGS,
+    SCORE_WIN_TIMINGS,
+    WIN_FOLDER,
+)
 from .development_root_argument import DevelopmentRootArgument
 from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
@@ -52,7 +69,9 @@ class TrainCommand:
     券種ごとのオッズから見た支持と馬の力の材料を足したもので学ぶ。当日は、券種のオッズが無いレースのために、支持を使わないモデルも
     学んで ``<置き場所>/券種オッズなし/`` に保存する。
     展開の予想の結果（P）を採用した時点（``PACE_TIMINGS``。木曜）は、馬の力の材料に、予想「展開から着順を予想」の年ごとの確かめの
-    予測から作った P を足して学ぶ（設計書 15 の 13）。そのため、その時点だけ別に学ぶ。
+    予測から作った P を足して学ぶ（設計書 15 の 13）。展開スコア（S）を採用した時点（``SCORE_TIMINGS``。前日）は、同じ予測と、
+    元DB の全出走から年ごとに作る表 G で出した S を足して学ぶ（設計書 15 の 17）。S を使うのは、3着以内のモデルは ``SCORE_TOP3_TIMINGS``、
+    1着のモデルは ``SCORE_WIN_TIMINGS`` の時点だけで、使わないモデルには ``DevelopmentScoreFreeData`` で外して渡す。
     どの学習データでも、3着以内のモデルと、目的変数を「1着」に・基準をオッズから見た勝率に持ち替えた1着のモデル（``WinTargetData``）を
     別々に学び、1着のモデルは ``<置き場所>/1着/`` に保存する（設計書 10・15 の 14）。当日の学習データにある勝ち切る材料（Q）は
     1着のモデルだけが使い、3着以内のモデルには ``FinishPowerFreeData`` で外して渡す（設計書 15 の 15）。
@@ -85,37 +104,58 @@ class TrainCommand:
             form_data = race_day_dataset_builder(con, args.figure_cache).build_training_data(form_period)
             ability_data = (ability_dataset_builder(con, args.figure_cache).build_training_data(ability_period)
                             if ABILITY_TIMINGS else None)
-        tables = self._form_tables(form_data, form_period, args)
+            prepared = AdvantageRuns().build(DevelopmentRunRepository(con).read()) if SCORE_TIMINGS else None
+        scores = {timing: ScoreHistory(args.development_root).of(timing, prepared) for timing in SCORE_TIMINGS}
+        tables = self._form_tables(form_data, form_period, scores, args)
         if ability_data is not None:
-            tables += self._ability_tables(ability_data, ability_period, paces, args)
+            tables += self._ability_tables(ability_data, ability_period, paces, scores, args)
         return tables
 
-    def _form_tables(self, data: TrainingData, period: TrainingPeriod, args: argparse.Namespace) -> list[Table]:
-        """今の材料のモデル（当日）と、券種のオッズが無いときの当日のモデルを学んで、結果の表を返す。"""
+    def _form_tables(self, data: TrainingData, period: TrainingPeriod, scores: dict[PredictionTiming, pd.DataFrame],
+                     args: argparse.Namespace) -> list[Table]:
+        """今の材料のモデル（当日）と、券種のオッズが無いときの当日のモデルを学んで、結果の表を返す。S を採用した時点（当日）なら、
+        学習データに S を足してから学ぶ（使わないモデルには ``_both`` が外して渡す）。"""
+        race_day = PredictionTiming.RACE_DAY
+        if race_day in scores:
+            data = ScoreAttachment().apply(data, scores[race_day])
         tables, report = self._both(data, period, args.models, FORM_TIMINGS, "今の材料", args.config)
         pool_free, _ = self._both(PoolFreeData().training(data), period, args.models / POOL_FREE_FOLDER,
-                                  (PredictionTiming.RACE_DAY,), "券種オッズなし", args.config)
+                                  (race_day,), "券種オッズなし", args.config)
         return [*tables, *pool_free, PlacePriceStep().run(report.split.train, args.models)]
 
-    def _ability_tables(self, data: TrainingData, period: TrainingPeriod,
-                        paces: dict[PredictionTiming, pd.DataFrame], args: argparse.Namespace) -> list[Table]:
-        """馬の力の材料のモデル（木曜・前日）を学んで、結果の表を返す。P を採用した時点は、その時点の展開の予測から作った P を
-        足した学習データで、時点ごとに学ぶ（``paces`` は 時点 → 展開の予想の元の予測の表）。"""
-        plain = tuple(timing for timing in ABILITY_TIMINGS if timing not in paces)
+    def _ability_tables(self, data: TrainingData, period: TrainingPeriod, paces: dict[PredictionTiming, pd.DataFrame],
+                        scores: dict[PredictionTiming, pd.DataFrame], args: argparse.Namespace) -> list[Table]:
+        """馬の力の材料のモデル（木曜・前日）を学んで、結果の表を返す。P や S を採用した時点は、その時点の展開の予測から作った P・S を
+        足した学習データで、時点ごとに学ぶ（``paces`` は 時点 → 展開の予想の元の予測の表、``scores`` は 時点 → 展開スコアの表）。"""
+        plain = tuple(timing for timing in ABILITY_TIMINGS if timing not in paces and timing not in scores)
         tables = self._both(data, period, args.models, plain, "馬の力の材料", args.config)[0] if plain else []
         for timing in ABILITY_TIMINGS:
+            if timing in plain:
+                continue
+            attached, subject = data, "馬の力の材料"
             if timing in paces:
-                tables += self._both(PaceAttachment().apply(data, paces[timing]), period, args.models, (timing,),
-                                     f"馬の力の材料 ＋ 展開の予想（{timing.label}）", args.config)[0]
+                attached, subject = PaceAttachment().apply(attached, paces[timing]), f"{subject} ＋ 展開の予想（{timing.label}）"
+            if timing in scores:
+                attached = ScoreAttachment().apply(attached, scores[timing])
+            tables += self._both(attached, period, args.models, (timing,), subject, args.config)[0]
         return tables
 
     def _both(self, data: TrainingData, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...],
               subject: str, config: Path | None) -> tuple[list[Table], TrainingReport]:
-        """同じ学習データで、3着以内のモデル（``root``。Q は外す）と1着のモデル（``root/1着``。Q も使う）を学んで保存する。結果の表と、3着以内の学習の結果を返す。"""
-        top3 = self._workflow(period, root, timings).train(FinishPowerFreeData().training(data), config)
-        win = self._workflow(period, root / WIN_FOLDER, timings).train(WinTargetData().training(data), config)
-        tables = [*TrainingReportTables(top3, subject).tables(), *TrainingReportTables(win, f"{_WIN_SUBJECT}: {subject}").tables()]
+        """同じ学習データで、3着以内のモデル（``root``。Q は外す）と1着のモデル（``root/1着``。Q も使う）を学んで保存する。
+        S は、その時点で採用したモデル（3着以内は ``SCORE_TOP3_TIMINGS``、1着は ``SCORE_WIN_TIMINGS``）にだけ渡し、ほかは外す。
+        結果の表（題に S の有無を添える）と、3着以内の学習の結果を返す。"""
+        top3_data = data if any(timing in SCORE_TOP3_TIMINGS for timing in timings) else DevelopmentScoreFreeData().training(data)
+        win_data = data if any(timing in SCORE_WIN_TIMINGS for timing in timings) else DevelopmentScoreFreeData().training(data)
+        top3 = self._workflow(period, root, timings).train(FinishPowerFreeData().training(top3_data), config)
+        win = self._workflow(period, root / WIN_FOLDER, timings).train(WinTargetData().training(win_data), config)
+        tables = [*TrainingReportTables(top3, self._subject(subject, top3_data)).tables(),
+                  *TrainingReportTables(win, f"{_WIN_SUBJECT}: {self._subject(subject, win_data)}").tables()]
         return tables, top3
+
+    def _subject(self, subject: str, data: TrainingData) -> str:
+        """表の題。学習データに S が入っていれば「＋ 展開スコア」を添える。"""
+        return f"{subject} ＋ 展開スコア" if any(name in data.features.columns for name in DEVELOPMENT_SCORE_NAMES) else subject
 
     def _workflow(self, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...]) -> TrainingWorkflow:
         """読んだ学習データで学ぶだけの学習の流れ（学習データは作らない）。"""
