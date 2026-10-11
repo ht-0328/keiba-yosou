@@ -429,7 +429,8 @@ async function forecastRaceList(main, params) {
     forecastLegend(data.legend), cliBlock(cliLine(TOOLS.forecast, {date: params.from, venue: params.venue}) + " --skip-saved")));
   appendRaceDays(main, data.cards, "forecast", (r) => {
     const saved = data.saved[r.rid];
-    return saved ? el("span", {class: "sub", title: "作成 " + saved.made_at}, "予想済み（" + saved.timing + (saved.expectation ? "・期待度 " + saved.expectation : "") + "） " + saved.marks)
+    const plan = saved && saved.plan_kind ? "［" + saved.plan_kind + (saved.plan_yen ? " " + saved.plan_yen.toLocaleString() + "円" : "") + "］ " : "";
+    return saved ? el("span", {class: "sub", title: "作成 " + saved.made_at}, plan + "予想済み（" + saved.timing + (saved.expectation ? "・期待度 " + saved.expectation : "") + "） " + saved.marks)
                  : el("span", {class: "sub"}, "未予想");
   });
 }
@@ -530,6 +531,13 @@ function showForecast(main, data) {
       + (forecast.expectation ? " レースの期待度: " + forecast.expectation + "（◎の単勝の期待値が 1.00 以上なら高）。" : "")
       + (forecast.pool_free ? " 券種のオッズが無いので、券種オッズなしのモデルで予想した。" : "")
       + (forecast.timing === "木曜" ? " 木曜はオッズも人気もまだ無いので、市場の見立て・期待値・☆・注・危険な人気馬は出ない。" : "")));
+    if (forecast.plan) {
+      const p = forecast.plan;
+      const picks = (p.picks || []).map((k) => k.horse_no + "番 " + k.yen.toLocaleString() + "円" + (k.value !== null && k.value !== undefined ? "（期待値 " + k.value.toFixed(2) + "）" : "")).join("・");
+      head.append(el("div", {class: "note"}, el("b", {}, "買うレース: " + p.kind), "。" + p.reason + "。"
+        + (picks ? " 複勝 " + picks + "（合計 " + p.stake_yen.toLocaleString() + "円）。" : "")
+        + " 見込みの利益 E = " + Number(p.profit_units).toFixed(2) + "単位。計画は設計書「買うレースと買い目を決める」03・08 の 1 の決まりで、財布（reports/回顧/財布.json）の予算から決める。"));
+    }
   }
   head.append(forecastControls(rid, forecast, (fresh) => showForecast(main, fresh)), forecastLegend(data.legend),
     cliBlock(cliLine(TOOLS.forecast, {}, rid) + " --detail"));

@@ -5,10 +5,12 @@ from __future__ import annotations
 from yosou.ability_score import ABILITY_SCORE_FEATURES
 from yosou.shared.feature import PredictionTiming
 from yosou.track_bias import TRACK_BIAS_FEATURES
+from yosou.review import PREVIOUS_HANDICAP_FEATURES
 from yosou.weight_table import WEIGHT_DISCOUNT_FEATURES
 
 from .ability_score_table_builder import AbilityScoreTableBuilder
 from .material import Material
+from .previous_handicap_table_builder import PreviousHandicapTableBuilder
 from .track_bias_table_builder import TrackBiasTableBuilder
 from .weight_discount_table_builder import WeightDiscountTableBuilder
 
@@ -29,6 +31,11 @@ MATERIALS: dict[str, Material] = {
         timings=(PredictionTiming.RACE_DAY,),
         design="設計書「買うレースと買い目を決める」06 の 2（増減の帯 × 前走からの間隔 × 馬齢ごとの「実際の3着以内率 − 市場から見た3着以内率」を、"
                "馬ごとの体重の割引にする。馬体重の発表は当日なので当日だけ）",
+    ),
+    "前走の不利": Material(
+        "phand", "前走の不利", "X", PREVIOUS_HANDICAP_FEATURES, PreviousHandicapTableBuilder,
+        design="設計書「買うレースと買い目を決める」08 の 3（馬の回顧ノートの不利（出遅れ・展開が向かなかった・バイアスと逆）の程度と"
+               "「見直す」を、前走・前々走から次走の材料にする）",
     ),
 }
 

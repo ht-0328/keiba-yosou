@@ -23,6 +23,10 @@ class ForecastStore:
     def __init__(self, folder: Path = DEFAULT_FOLDER) -> None:
         self._folder = Path(folder)
 
+    @property
+    def folder(self) -> Path:
+        return self._folder
+
     def save(self, forecast: dict[str, Any]) -> Path:
         path = self._path(forecast["rid"])
         path.parent.mkdir(parents=True, exist_ok=True)

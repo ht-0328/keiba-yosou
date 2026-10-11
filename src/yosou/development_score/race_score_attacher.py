@@ -34,3 +34,9 @@ class RaceScoreAttacher:
         if self._last is None or self._last[0] != key:
             self._last = (key, self._source.of(self._con, race_id, timing, given))
         return self._attachment.apply(data, self._last[1])
+
+    def last_scores(self, race_id: str) -> pd.DataFrame | None:
+        """直前に足した、そのレースの展開スコアの表（``DevelopmentScore.COLUMNS``。ペースの確率を回顧に残すのに使う）。無ければ None。"""
+        if self._last is None or self._last[0][0] != race_id:
+            return None
+        return self._last[1]

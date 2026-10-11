@@ -266,8 +266,9 @@ class Backend:
         for row in cards.rows:
             forecast = self._forecasts.load(row[rid_at])
             if forecast is not None:
+                plan = forecast.get("plan") or {}
                 saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": ForecastStore.marks_text(forecast),
-                                      "expectation": forecast.get("expectation")}
+                                      "expectation": forecast.get("expectation"), "plan_kind": plan.get("kind"), "plan_yen": plan.get("stake_yen")}
         return {"cards": table_dict(cards), "saved": saved, "legend": self._forecast_legend()}
 
     def forecast(self, query: dict[str, list[str]]) -> dict[str, Any]:
