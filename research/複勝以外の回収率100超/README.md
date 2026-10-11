@@ -29,7 +29,8 @@
 | `docs/` | 進め方と、分かったこと |
 | `cases.py` | 入口①。前半の年で、券種どうしの値段の食い違いが大きかったレースを集める |
 | `backtest.py` | 入口②。すべての作り方で、線を前半で決めて後半で確かめる |
-| `analysis/` | 市場の組の確率を作る部品（`market_combo_table.py`・`pool_derivation.py`・`horse_uplift.py`・`market_source.py`・`trifecta_corrections.py`・`variant.py`・`gap_cases.py`） |
+| `early_years.py` | 入口③。印のルールの買い目を、まだ見ていない 2021〜2022年で確かめるために、今の本番のモデルをその年の区切りで学習し、今の本番の予測と合わせる（docs/03） |
+| `analysis/` | 市場の組の確率を作る部品（`market_combo_table.py`・`pool_derivation.py`・`horse_uplift.py`・`market_source.py`・`trifecta_corrections.py`・`variant.py`・`gap_cases.py`）と、入口③の区切りと学び直すモデル（`early_windows.py`・`retrain_target.py`・`retrain_targets.py`） |
 | `prompts/` | 事例の見方 |
 | `tests/` | 架空の値で部品を確かめるテスト |
 | `reports/複勝以外の回収率100超/`（Git 対象外） | 実測の数値。JV-Data 由来の値はここにだけ置く |
@@ -40,6 +41,7 @@
 
 1. [docs/01-進め方.md](docs/01-進め方.md) — 何をどの順で確かめるか
 2. [docs/02-結果.md](docs/02-結果.md) — 事例から分かったことと、検証の結果
+3. [docs/03-印の買い目の確かめ.md](docs/03-印の買い目の確かめ.md) — 印のルールの買い目を、まだ見ていない年で確かめる手順と採用の基準（手順4）
 
 ## 動かし方
 
@@ -48,5 +50,7 @@
 ```bash
 uv run python research/複勝以外の回収率100超/cases.py      # 事例を集める（数分）
 uv run python research/複勝以外の回収率100超/backtest.py   # すべての作り方を確かめる
+uv run python research/複勝以外の回収率100超/early_years.py run       # 手順4: 今の本番のモデルを 2021〜2022年の区切りで学習する（1時間ほど）
+uv run python research/複勝以外の回収率100超/early_years.py combine   # 手順4: 今の本番の予測と合わせる（そのあと道具「印の成績」で数える。docs/03）
 uv run python -m pytest -q research/複勝以外の回収率100超                                  # 部品のテスト（架空の値だけ）
 ```

@@ -14,7 +14,7 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.bet_recorder import BetRecorder
 from 今週の予想.day_planner import DayPlanner
 from 今週の予想.race_plan import NO_BET
-from 今週の予想.wallet import MATCH_WALLET, POLICY_WALLET, Wallet
+from 今週の予想.wallet import MATCH_WALLET, POLICY_WALLET, WIN_WALLET, Wallet
 
 
 def _forecast(rid: str, klass: str, values: list[float], field_size: int = 16, odds_known: bool = True) -> dict:
@@ -41,7 +41,7 @@ def con():
 
 def test_財布は_初めの額と買い目の記録から残高を数え_予算を割合で決める(store: ReviewStore, tmp_path: Path):
     wallet = Wallet(store, tmp_path / "財布.json")
-    assert wallet.initial() == {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000}
+    assert wallet.initial() == {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 100_000}
     day = date(2026, 10, 11)
     assert wallet.budget(names.MATCH, day) == 5_000 and wallet.unit(day) == 1_600 and wallet.day_cap(day) == 20_000
     assert wallet.budget(names.POLICY_STAKES, day) == 900 and wallet.budget(names.POLICY_DAY, day) == 400
@@ -96,3 +96,72 @@ def test_買い目の記録は_計画の複勝を書き_同じレースの未精
     assert recorder.record(again, "2026-10-11T11:00:00") == 1
     bets = store.read(names.BETS_TABLE)
     assert len(bets) == 1 and bets.iloc[0][names.COMBO] == "01" and bets.iloc[0][names.PARTICIPATION] == names.MATCH and not bets.iloc[0][names.SETTLED]
+
+
+def _high_forecast(rid: str, timing: str = "当日", expectation: str = "高") -> dict:
+    """期待度つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝 1点と馬単 3点（1点はトリガミで外した）。"""
+    forecast = _forecast(rid, "1勝クラス", [1.0, 1.0, 1.0, 1.0])
+    forecast["horses"][2].update({columns.MARK: "◎", columns.WIN_VALUE: 1.12})
+    forecast.update(timing=timing, expectation=expectation, tickets=[
+        {"rule": "単勝", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 8.0, "dropped": ""},
+        {"rule": "馬単", "ticket_type": "馬単", "combo": "0301", "label": "3→1", "odds": 30.0, "dropped": ""},
+        {"rule": "馬単", "ticket_type": "馬単", "combo": "0302", "label": "3→2", "odds": 60.0, "dropped": ""},
+        {"rule": "馬単", "ticket_type": "馬単", "combo": "0304", "label": "3→4", "odds": 1.5, "dropped": "トリガミ"},
+        {"rule": "馬連", "ticket_type": "馬連", "combo": "0103", "label": "1-3", "odds": 12.0, "dropped": ""},
+    ])
+    return forecast
+
+
+def test_単勝と馬単の1点は単勝馬単用の財布の割合で100円に届かなければ買わず_古い財布のファイルには書き足す(store: ReviewStore, tmp_path: Path):
+    import json
+    path = tmp_path / "財布.json"
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000}), encoding="utf-8")   # 単勝・馬単用を足す前のファイル
+    wallet = Wallet(store, path)
+    assert wallet.initial()[WIN_WALLET] == 100_000 and WIN_WALLET in json.loads(path.read_text(encoding="utf-8"))
+    day = date(2026, 10, 11)
+    assert wallet.point_yen("単勝", day) == 100 and wallet.point_yen("馬単", day) == 0   # 馬単は 30円で 100円に届かない
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
+    assert wallet.point_yen("単勝", day) == 400 and wallet.point_yen("馬単", day) == 100
+
+
+def test_当日の期待度高のレースは複勝と別に単勝と馬単を買い_前日と期待度低では買わない(store: ReviewStore, tmp_path: Path, con):
+    import json
+    path = tmp_path / "財布.json"
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
+    planner = DayPlanner(Wallet(store, path))
+    forecasts = [_high_forecast("2026101105040401"), _high_forecast("2026101105040402", timing="前日"),
+                 _high_forecast("2026101105040403", expectation="低"), _forecast("2026101105040409", "1勝クラス", [1.6, 1.0])]   # 09 は複勝の勝負
+    plans = {plan.rid[-2:]: plan for plan in planner.plan(con, date(2026, 10, 11), forecasts)}
+    bought = plans["01"]
+    assert bought.kind == NO_BET and bought.buys   # 複勝は買わないが、単勝と馬単は買う
+    assert [(ticket.ticket_type, ticket.combo, ticket.yen) for ticket in bought.tickets] == [("単勝", "03", 400), ("馬単", "0301", 100), ("馬単", "0302", 100)]
+    assert bought.tickets[0].value == pytest.approx(1.12) and bought.tickets[1].value is None
+    assert bought.ticket_yen == 600 and bought.stake_yen == 600 and "期待度「高」" in bought.ticket_reason
+    assert plans["02"].tickets == () and "前日" in plans["02"].ticket_reason
+    assert plans["03"].tickets == () and plans["03"].ticket_reason == "" and not plans["03"].buys
+
+
+def test_財布が小さいうちは馬単を買わず_単勝馬単用が止まりの線を割れば単勝も止める(store: ReviewStore, tmp_path: Path, con):
+    import pandas as pd
+    planner = DayPlanner(Wallet(store, tmp_path / "財布.json"))
+    plan = planner.plan(con, date(2026, 10, 11), [_high_forecast("2026101105040401")])[0]
+    assert [ticket.ticket_type for ticket in plan.tickets] == ["単勝"] and "馬単は1点が 100円に届かない" in plan.ticket_reason
+    store.write(names.BETS_TABLE, pd.DataFrame([
+        {names.RACE_ID: "r1", names.TICKET_TYPE: "単勝", names.COMBO: "01", names.RACE_DATE: date(2026, 9, 20), names.PARTICIPATION: names.MATCH_WIN,
+         names.RECORD_ONLY: False, names.STAKE_YEN: 40_000, names.PAYOUT_YEN: 0, names.SETTLED: True},
+    ]))
+    stopped = planner.plan(con, date(2026, 10, 11), [_high_forecast("2026101105040401")])[0]
+    assert stopped.tickets == () and "70%" in stopped.ticket_reason
+
+
+def test_買い目の記録は_単勝と馬単を勝負単勝馬単として書く(store: ReviewStore, tmp_path: Path, con):
+    import json
+    path = tmp_path / "財布.json"
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
+    forecasts = [_high_forecast("2026101105040401"), _forecast("2026101105040409", "1勝クラス", [1.6, 1.0])]   # 09 は複勝の勝負
+    plans = DayPlanner(Wallet(store, path)).plan(con, date(2026, 10, 11), forecasts)
+    assert BetRecorder(store).record(plans, "2026-10-11T10:00:00") == 3 + 1
+    bets = store.read(names.BETS_TABLE).sort_values(names.COMBO)
+    bets = bets[bets[names.RACE_ID] == "2026101105040401"]
+    assert list(bets[names.TICKET_TYPE]) == ["単勝", "馬単", "馬単"] and set(bets[names.PARTICIPATION]) == {names.MATCH_WIN}
+    assert list(bets[names.STAKE_YEN]) == [400, 100, 100] and bets.iloc[1][names.BOUGHT_ODDS] == pytest.approx(30.0)

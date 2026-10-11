@@ -26,6 +26,7 @@ from 今週の予想.filter_columns import AGREEMENT, MEMBERS, POOL_BACKED, memb
 from 今週の予想.ticket_rules import (
     BET_RULES,
     PLACE_AGREE_LABEL,
+    PLACE_AXIS_RULES,
     PLACE_LABEL,
     PLACE_MAX_POINTS,
     PLACE_STAKE_UNITS,
@@ -55,6 +56,7 @@ class MarkTickets:
       組の期待値（``ComboExpectedValue``。市場が見た組の確率 × 3頭の「モデル ÷ 市場」の比）を付け、線のあるルールは線以上の買い目だけにする。
       2モデル一致のルールは、LightGBM と CatBoost のそれぞれの確率で出した組の期待値も線以上の買い目だけにする（モデルごとの確率が無ければ 0点）。
     - 複勝: 複勝の期待値が線（1.25）以上の馬を、高い順に最大3点。2モデル一致の行は、そのうちモデルごとの期待値も線以上の馬だけ。
+    - 複勝の馬を軸にするワイド・馬連（``PLACE_AXIS_RULES``）: 複勝の買い目の馬を軸に、◎○▲ に流す。
     列は ``COLUMNS``。
     """
 
@@ -80,8 +82,12 @@ class MarkTickets:
                           "stake_units": rule.stake_units, VALUE: value}
                          for combo, value, keep in zip(combos, values, kept, strict=True) if keep]
             for label, agreement in ((PLACE_LABEL, False), (PLACE_AGREE_LABEL, True)):
-                rows += [{**head, RULE: label, "ticket_type": TicketType.PLACE.label, "combo": combo, "stake_units": PLACE_STAKE_UNITS,
-                          VALUE: np.nan} for combo in self._place_combos(race, agreement)]
+                rows += [{**head, RULE: label, "ticket_type": TicketType.PLACE.label, "combo": combo_text((horse,)),
+                          "stake_units": PLACE_STAKE_UNITS, VALUE: np.nan} for horse in self._place_horses(race, agreement)]
+            place_horses = self._place_horses(race, False)
+            for rule in PLACE_AXIS_RULES:
+                rows += [{**head, RULE: rule.label, "ticket_type": rule.ticket_type.label, "combo": combo_text(combo),
+                          "stake_units": rule.stake_units, VALUE: np.nan} for combo in rule.combos(place_horses, by_mark)]
         return pd.DataFrame(rows, columns=list(COLUMNS))
 
     def _horses_by_mark(self, race: pd.DataFrame) -> dict[str, list[int]]:
@@ -123,7 +129,7 @@ class MarkTickets:
                     kept &= member >= rule.value_line
         return kept
 
-    def _place_combos(self, race: pd.DataFrame, agreement: bool) -> list[str]:
+    def _place_horses(self, race: pd.DataFrame, agreement: bool) -> list[int]:
         """複勝: 期待値が線以上の馬を高い順に最大3点。2モデル一致なら、そのうちモデルごとの期待値も線以上の馬だけ。"""
         priced = race[race[PLACE_VALUE] >= PLACE_VALUE_LINE].sort_values(PLACE_VALUE, ascending=False).head(PLACE_MAX_POINTS)
         if agreement:
@@ -131,4 +137,4 @@ class MarkTickets:
                 column = member_column("place_value", member)
                 values = priced[column] if column in priced.columns else pd.Series(np.nan, index=priced.index)
                 priced = priced[values >= PLACE_VALUE_LINE]
-        return [combo_text((int(no),)) for no in priced[HORSE_NO]]
+        return [int(no) for no in priced[HORSE_NO]]

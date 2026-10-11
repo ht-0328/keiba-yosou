@@ -46,7 +46,7 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert by_rule["単勝"] == ["03"]
     assert by_rule["ワイド"] == ["0308", "0309"]
     assert by_rule["馬連"] == ["0103", "0305", "0308"]
-    assert by_rule["馬単（設計書に無い）"] == ["0301", "0305", "0308"]  # ◎ を1着に固定
+    assert by_rule["馬単"] == ["0301", "0305", "0308"]  # ◎ を1着に固定
     assert by_rule["複勝"] == ["03", "08"]  # 期待値 1.25 以上（高い順は 8 → 3）
     # 元の3連複: ◎ − ○▲☆ − ○▲△△△☆ で、同じ馬を含まない組（順不同）。元の3連単: ◎→(○▲☆)→残り5頭
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
@@ -54,6 +54,20 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
     # モデルごとの確率の無い表では、2モデル一致の行は出ない
     assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label}
+
+
+def test_複勝の馬を軸にしたワイドと馬連は二重丸と丸と三角に流し同じ組は1点にする() -> None:
+    by_rule = _by_rule(MarkTickets().build(_marked_race()))
+    # 複勝の馬は 8番と 3番。8番 − ◎3・○1・▲5、3番（◎）− ○1・▲5。3番と 8番の組は1点
+    expected = ["0103", "0108", "0305", "0308", "0508"]
+    assert by_rule["ワイド（複勝の馬軸−◎○▲）"] == expected
+    assert by_rule["馬連（複勝の馬軸−◎○▲）"] == expected
+
+
+def test_複勝の買い目が無いレースでは複勝の馬を軸にした買い目を作らない() -> None:
+    race = _marked_race().assign(place_value=1.0)
+    labels = set(MarkTickets().build(race)[RULE])
+    assert "複勝" not in labels and "ワイド（複勝の馬軸−◎○▲）" not in labels and "馬連（複勝の馬軸−◎○▲）" not in labels
 
 
 def test_3連複は軸の1頭から相手6頭に流して15点で軸馬のときは二重丸が相手に回る() -> None:
