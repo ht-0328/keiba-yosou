@@ -8,7 +8,7 @@
 | ``training_data`` | 今の材料の学習データ（出走した全頭・3着以内・特徴量 79個） |
 | ``figure_cache`` | スピード指数をとっておく一時フォルダ（本物の ``reports/能力指数/cache/`` を書き換えない） |
 | ``ability_training_data`` | 馬の力の材料の学習データ（M の 202個と J の4個） |
-| ``development_root`` | 予想「展開から着順を予想」の置き場所の代わり（木曜の、架空の前半・後半の年ごとの予測だけを置いた一時フォルダ） |
+| ``development_root`` | 予想「展開から着順を予想」の置き場所の代わり（3つの時点の、架空の前半・後半の年ごとの予測だけを置いた一時フォルダ。表 G はその隣の ``展開スコア/cache/`` にできる） |
 | ``trained`` | 本番と同じ学習（train コマンド）を1回通した結果（モデルを置いたフォルダと、学習の報告の文章） |
 """
 
@@ -53,7 +53,8 @@ def ability_training_data(season_db: Path, season_period: TrainingPeriod, figure
 
 @pytest.fixture(scope="session")
 def development_root(ability_training_data: TrainingData, tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """展開の予想の置き場所の代わり。学習データの出走ごとに、乱数で作った木曜の前半・後半の予測を、年ごとの確かめの形で置く。"""
+    """展開の予想の置き場所の代わり。学習データの出走ごとに、乱数で作った前半・後半の予測を、3つの時点とも同じ値で年ごとの確かめの形で置く
+    （木曜は P、前日と当日は S の材料）。"""
     root = tmp_path_factory.mktemp("development")
     rng = np.random.default_rng(20261002)
     ids = ability_training_data.ids[[RACE_ID, HORSE_ID]].astype(str).reset_index(drop=True)
@@ -65,8 +66,9 @@ def development_root(ability_training_data: TrainingData, tmp_path_factory: pyte
     late = GroupForecast(ids.assign(corner4_pred=rng.uniform(size=len(ids)), closing_pred=rng.uniform(size=len(ids))),
                          races.assign(second_q10=-1.0, second_q50=rng.normal(size=len(races)), second_q90=1.0))
     repository = OutOfSampleRepository(root / "out_of_sample")
-    repository.save("early", PredictionTiming.THURSDAY, 2024, "テスト", early)
-    repository.save("late", PredictionTiming.THURSDAY, 2024, "テスト", late)
+    for timing in PredictionTiming:
+        repository.save("early", timing, 2024, "テスト", early)
+        repository.save("late", timing, 2024, "テスト", late)
     return root
 
 

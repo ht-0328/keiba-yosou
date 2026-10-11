@@ -71,7 +71,7 @@ sequenceDiagram
 |---|---|---|---|
 | 1. レースの期待値ランキング | 荒れ具合の予想（`src/yosou/upset_level/`）、見送りの条件（ルール集の ALL-09） | レースの点数、**購入ポリシーを満たすレースの選び方**、堅い重賞での買い方 | [03-race-screening.md](03-race-screening.md) |
 | 2. 基礎能力と適性 | 能力指数（`tools/共通/ability/`）、全頭の予想の特徴量 | 今回の斤量の補正、レース内の偏差 | [04-ability-aptitude.md](04-ability-aptitude.md) |
-| 3. 展開予測 | 展開の予想（`src/yosou/race_development/`）、研究「展開の理論の検証」の結論 | 展開スコア（脚質×ペースの有利・不利を、市場との差で数える） | [05-race-development.md](05-race-development.md) |
+| 3. 展開予測 | 展開の予想（`src/yosou/race_development/`）、研究「展開の理論の検証」の結論 | 展開スコア（脚質×ペースの有利・不利を、市場との差で数える。`src/yosou/development_score/` と道具 `tools/展開スコア/` として作った） | [05-race-development.md](05-race-development.md) |
 | 4. 当日の補正 | 速報の馬体重の反映（`announced_weight_applier.py`）、馬場傾向の実験 | **トラックバイアスの検知**（作り直し）、馬体重の補正の表 | [06-realtime-adjustment.md](06-realtime-adjustment.md) |
 | 5. 期待値と危険な人気馬 | 券種のオッズから確率を作る方法（研究「回収率100超」）、人気馬・穴馬の予想、確率の較正 | 補正のまとめ方、印の付け方 | [07-expected-value.md](07-expected-value.md) |
 | 6. 資金管理と回顧 | 券種ごとの予算と払戻均等（研究「既存モデルの改善」）、運用の目安 | **勝負とノルマ参加で予算を変える式**、**回顧データの形** | [08-bankroll-and-review.md](08-bankroll-and-review.md) |
@@ -121,7 +121,7 @@ Phase 2 以降で新しい予想モデル（例: トラックバイアスの補�
 | [02-glossary.md](02-glossary.md) | 用語の意味 | 提案 |
 | [03-race-screening.md](03-race-screening.md) | モジュール1: 買うレースの選び方 | 提案 |
 | [04-ability-aptitude.md](04-ability-aptitude.md) | モジュール2: 能力スコアの式 | 提案 |
-| [05-race-development.md](05-race-development.md) | モジュール3: ペースの予測と展開スコア | 提案 |
+| [05-race-development.md](05-race-development.md) | モジュール3: ペースの予測と展開スコア | 決定（展開スコアを作り、線を確かめて決めた） |
 | [06-realtime-adjustment.md](06-realtime-adjustment.md) | モジュール4: トラックバイアス・馬体重・パドック | 提案 |
 | [07-expected-value.md](07-expected-value.md) | モジュール5: 確率の作り方、期待値の式、危険な人気馬と穴馬、印 | 提案 |
 | [08-bankroll-and-review.md](08-bankroll-and-review.md) | モジュール6: 予算の式、回顧データの形 | 提案 |

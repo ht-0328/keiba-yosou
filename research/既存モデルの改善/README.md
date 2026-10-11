@@ -44,6 +44,7 @@
 | `pace_check.py` | 入口⑩: 予想「展開から着順を予想」の前半・後半の展開の予想の結果（全頭の予想のまとまり P）を、今の本番と同じ材料に足して、木曜・前日・当日の3つの時点で7つの区切りで比べる（`fill` → `tables` → `run` → `summary` の4段。今の予想の予測は入口⑧のものを使う） |
 | `win_check.py` | 入口⑪: 全頭の予想の1着のモデル（目的変数「1着」。設計書 15 の 14）を、今の本番と同じ材料の表（⑧・⑩が作ったもの）で木曜・前日・当日の時点ごとに7つの区切りで学ぶ（`run` → `summary` の2段）。◎（単勝の期待値が1位）と期待度を付けた単勝の成績は、道具「印の成績」（`tools/印の成績/mark_stats.py --win`）で出す |
 | `distance_check.py` | 入口⑫: 距離の変更の傾向（全頭の予想のまとまり R。前走との距離の差と、同じコース・同じ重賞で自分と同じ距離の変更だった馬の市場に対する成績。設計書 15 の 16）を、今の本番と同じ材料の表に足して、木曜・前日・当日の時点ごと・3着以内と1着のモデルごとに7つの区切りで今の本番と比べる（`tables` → `run` → `summary` の3段。R は予想のパッケージの `DistanceChangeRecordsLoader` で読む） |
+| `development_score_check.py` | 入口⑬: 展開スコア（全頭の予想のまとまり S。脚質 × ペースの有利・不利を市場の見立てとの差で数えたもの。設計書「買うレースと買い目を決める」05・全頭の予想の設計書 15 の 17）を、⑩ の表（P の列を持つ）と当日の1着は研究「回収率100超の施策」の勝ち切る材料入りの表に足して、木曜・前日・当日 × 3着以内・1着のモデルごとに7つの区切りで今の本番と比べる（`tables` → `run` → `summary` の3段。S は予想のパッケージの `yosou.development_score` で、表 G をレースの年ごとにその年より前のレースだけで作って付ける） |
 | `analysis/` | 部品（下の表） |
 | `docs/` | 進め方（`01-進め方.md`）と結果の読み方（`02-結果の読み方.md`） |
 | `tests/` | 部品のテスト（合成データだけ） |
@@ -111,6 +112,9 @@ uv run python research/既存モデルの改善/win_check.py summary            
 uv run python research/既存モデルの改善/distance_check.py tables                         # ⑫ 距離の変更の傾向を足した表（元DB を開く。10分ほど）
 uv run python research/既存モデルの改善/distance_check.py run                            # ⑫ 時点と目的変数ごとに7つの区切りで学習（1つ 10〜20分。済んだものは飛ばす）
 uv run python research/既存モデルの改善/distance_check.py summary                        # ⑫ 今の本番と比べた採否の表
+uv run python research/既存モデルの改善/development_score_check.py tables                # ⑬ ⑩ の表（と当日の1着の Q 入りの表）に展開スコアを足した表（元DB を開く。2分ほど）
+uv run python research/既存モデルの改善/development_score_check.py run                   # ⑬ 時点と目的変数ごとに足した作り方を学習（1つ 12分ほど。済んだものは飛ばす）
+uv run python research/既存モデルの改善/development_score_check.py summary               # ⑬ 時点ごとの採否と、◎と1番人気の表
 uv run python tools/印の成績/mark_stats.py                                                 # ⑪のあと: ◎（単勝の期待値が1位）と期待度を付けた印の成績（既定が前日の1着の予測）
 uv run python -m pytest -q research/既存モデルの改善                                       # 部品のテスト
 ```
