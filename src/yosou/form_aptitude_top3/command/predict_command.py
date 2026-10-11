@@ -11,6 +11,7 @@ from 共通 import db, race
 from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, PredictionTable
+from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import DatasetBuilder
@@ -24,6 +25,8 @@ from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 from ..dataset import OddsInput, OddsResolver, ability_dataset_builder, race_day_dataset_builder
 from ..feature import WIN_ODDS
 from ..workflow import (
+    ABILITY_SCORE_TOP3_TIMINGS,
+    ABILITY_SCORE_WIN_TIMINGS,
     ABILITY_TIMINGS,
     PACE_TIMINGS,
     POOL_FREE_FOLDER,
@@ -77,7 +80,8 @@ class PredictCommand:
                 pace=self._pace(con, args),
                 win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
                 win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
-                extras=self._extras(con, args, SCORE_TOP3_TIMINGS), win_extras=self._extras(con, args, SCORE_WIN_TIMINGS),
+                extras=self._extras(con, args, SCORE_TOP3_TIMINGS, ABILITY_SCORE_TOP3_TIMINGS),
+                win_extras=self._extras(con, args, SCORE_WIN_TIMINGS, ABILITY_SCORE_WIN_TIMINGS),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         return [PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction)).table()]
@@ -95,13 +99,17 @@ class PredictCommand:
         workflow = DevelopmentPaceWorkflow(args.development_root / "models")
         return lambda race_id, timing, given: workflow.run(con, race_id, timing, given)
 
-    def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace,
-                timings: tuple[PredictionTiming, ...]) -> list[DataAttachment]:
-        """展開スコア（S）を足して学んだ時点（``timings``。3着以内は前日）なら、保存した展開のモデルと表 G（展開の予想の置き場所の隣の
-        ``展開スコア/cache/``。元DB が更新されていれば作り直す）でそのレースの S を予測用データに足す関数。ほかの時点は無し。"""
-        if args.timing not in timings:
-            return []
-        return [self._attacher(con, args).attach]
+    def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace, score_timings: tuple[PredictionTiming, ...],
+                ability_score_timings: tuple[PredictionTiming, ...]) -> list[DataAttachment]:
+        """そのモデルの予測用データに足す材料の関数。展開スコア（S）を足して学んだ時点（``score_timings``。3着以内は前日）なら、保存した
+        展開のモデルと表 G（展開の予想の置き場所の隣の ``展開スコア/cache/``。元DB が更新されていれば作り直す）でそのレースの S を足す関数。
+        能力スコア（T）を足して学んだ時点（``ability_score_timings``）なら、予測用データの能力指数と斤量から T を足す関数。ほかの時点は無し。"""
+        extras: list[DataAttachment] = []
+        if args.timing in score_timings:
+            extras.append(self._attacher(con, args).attach)
+        if args.timing in ability_score_timings:
+            extras.append(RaceAbilityScoreAttacher().attach)
+        return extras
 
     def _attacher(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> RaceScoreAttacher:
         """S を足す部品（1回の predict で1つだけ作り、3着以内と1着で使い回す）。"""

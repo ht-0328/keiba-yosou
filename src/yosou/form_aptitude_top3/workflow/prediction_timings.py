@@ -22,6 +22,16 @@ SCORE_TOP3_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.DAY_BEFORE,
 SCORE_WIN_TIMINGS: tuple[PredictionTiming, ...] = ()
 #: S を学習データに足す時点（どちらかのモデルが使う時点。学習データは時点ごとに1つで、使わないモデルには渡す前に外す）。
 SCORE_TIMINGS: tuple[PredictionTiming, ...] = tuple(timing for timing in TIMINGS if timing in SCORE_TOP3_TIMINGS or timing in SCORE_WIN_TIMINGS)
+#: 能力スコア（まとまり T。能力指数を今回の斤量で直し、レース内の偏差・2位との差・順位にしたもの。設計書「買うレースと買い目を決める」04）を
+#: 足して学ぶ時点。3着以内のモデルと1着のモデルで別々に、研究「既存モデルの改善」の入口⑭で7つの区切りで T を足すと今の予想より確率の誤差が
+#: 小さくなり、採用の基準を満たし、道具「印の成績」で印の成績と全券種の回収率が悪くなっていない時点だけ（設計書 15 の 18）。
+#: 木曜は両方のモデルで基準を満たし、◎ の成績も上がったので足す。前日の3着以内は誤差の基準は満たしたが、実際に買う複勝の回収率が下がったので足さない。
+#: T は予測用データの能力指数と斤量から作るので、予測に追加のモデルや表は要らない。
+ABILITY_SCORE_TOP3_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.THURSDAY,)
+ABILITY_SCORE_WIN_TIMINGS: tuple[PredictionTiming, ...] = (PredictionTiming.THURSDAY,)
+#: T を学習データに足す時点（どちらかのモデルが使う時点。使わないモデルには渡す前に外す）。
+ABILITY_SCORE_TIMINGS: tuple[PredictionTiming, ...] = tuple(
+    timing for timing in TIMINGS if timing in ABILITY_SCORE_TOP3_TIMINGS or timing in ABILITY_SCORE_WIN_TIMINGS)
 #: 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（モデルの置き場所の下のフォルダの名前）。
 POOL_FREE_FOLDER = "券種オッズなし"
 #: 1着のモデル（目的変数「1着」。設計書 10・15 の 14）の置き場所（3着以内のモデルの置き場所の下のフォルダの名前。

@@ -10,6 +10,7 @@
 | ``ABILITY_TIMINGS``・``FORM_TIMINGS`` | 馬の力の材料のモデルで予測する時点と、今の材料のモデルで予測する時点 |
 | ``PACE_TIMINGS`` | 展開の予想の結果（P）を足して学ぶ時点（木曜） |
 | ``SCORE_TOP3_TIMINGS``・``SCORE_WIN_TIMINGS``・``SCORE_TIMINGS`` | 展開スコア（S）を足して学ぶ時点（3着以内のモデル・1着のモデル・そのどちらか） |
+| ``ABILITY_SCORE_TOP3_TIMINGS``・``ABILITY_SCORE_WIN_TIMINGS``・``ABILITY_SCORE_TIMINGS`` | 能力スコア（T）を足して学ぶ時点（同じく） |
 | ``POOL_FREE_FOLDER`` | 当日に券種のオッズが無いときに使う、N を使わないモデルの置き場所（フォルダの名前） |
 | ``WIN_FOLDER`` | 1着のモデル（目的変数「1着」）の置き場所（フォルダの名前） |
 
@@ -20,6 +21,9 @@
 from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, DataAttachment, ExplainedPrediction, PaceSource, PredictionWorkflow
 
 from .prediction_timings import (
+    ABILITY_SCORE_TIMINGS,
+    ABILITY_SCORE_TOP3_TIMINGS,
+    ABILITY_SCORE_WIN_TIMINGS,
     ABILITY_TIMINGS,
     FORM_TIMINGS,
     PACE_TIMINGS,
@@ -32,4 +36,5 @@ from .prediction_timings import (
 )
 
 __all__ = ["PredictionWorkflow", "ExplainedPrediction", "PROBABILITY", "WIN_PROBABILITY", "PaceSource", "DataAttachment", "TIMINGS", "ABILITY_TIMINGS",
-           "FORM_TIMINGS", "PACE_TIMINGS", "SCORE_TIMINGS", "SCORE_TOP3_TIMINGS", "SCORE_WIN_TIMINGS", "POOL_FREE_FOLDER", "WIN_FOLDER"]
+           "FORM_TIMINGS", "PACE_TIMINGS", "SCORE_TIMINGS", "SCORE_TOP3_TIMINGS", "SCORE_WIN_TIMINGS",
+           "ABILITY_SCORE_TIMINGS", "ABILITY_SCORE_TOP3_TIMINGS", "ABILITY_SCORE_WIN_TIMINGS", "POOL_FREE_FOLDER", "WIN_FOLDER"]

@@ -45,6 +45,7 @@
 | `win_check.py` | 入口⑪: 全頭の予想の1着のモデル（目的変数「1着」。設計書 15 の 14）を、今の本番と同じ材料の表（⑧・⑩が作ったもの）で木曜・前日・当日の時点ごとに7つの区切りで学ぶ（`run` → `summary` の2段）。◎（単勝の期待値が1位）と期待度を付けた単勝の成績は、道具「印の成績」（`tools/印の成績/mark_stats.py --win`）で出す |
 | `distance_check.py` | 入口⑫: 距離の変更の傾向（全頭の予想のまとまり R。前走との距離の差と、同じコース・同じ重賞で自分と同じ距離の変更だった馬の市場に対する成績。設計書 15 の 16）を、今の本番と同じ材料の表に足して、木曜・前日・当日の時点ごと・3着以内と1着のモデルごとに7つの区切りで今の本番と比べる（`tables` → `run` → `summary` の3段。R は予想のパッケージの `DistanceChangeRecordsLoader` で読む） |
 | `development_score_check.py` | 入口⑬: 展開スコア（全頭の予想のまとまり S。脚質 × ペースの有利・不利を市場の見立てとの差で数えたもの。設計書「買うレースと買い目を決める」05・全頭の予想の設計書 15 の 17）を、⑩ の表（P の列を持つ）と当日の1着は研究「回収率100超の施策」の勝ち切る材料入りの表に足して、木曜・前日・当日 × 3着以内・1着のモデルごとに7つの区切りで今の本番と比べる（`tables` → `run` → `summary` の3段。S は予想のパッケージの `yosou.development_score` で、表 G をレースの年ごとにその年より前のレースだけで作って付ける） |
+| `material_check.py` | 入口⑭: 新しい材料（予想のまとまり）を、⑬ の表（今の本番の列を全部持つ）に足して、木曜・前日・当日 × 3着以内・1着のモデルごとに7つの区切りで今の本番と比べる（`tables` → `run` → `summary` の3段。`--material` で材料を選ぶ。`--list` で一覧）。⑬ と同じ流れを、材料を差し替えられる形にしたもので、比べる相手（今の本番の6つのモデルの列と予測）は `analysis/material_check/current_production.py` にだけ書く。材料: 能力スコア（T。設計書「買うレースと買い目を決める」04） |
 | `analysis/` | 部品（下の表） |
 | `docs/` | 進め方（`01-進め方.md`）と結果の読み方（`02-結果の読み方.md`） |
 | `tests/` | 部品のテスト（合成データだけ） |
@@ -72,6 +73,7 @@
 | `head_to_head/` | 対戦レーティングを足した比べ（元の表に7列を足す・時点ごとの作り方・区切りごとの採否） |
 | `pace_forecast/` | 展開の予想の結果を足した比べ（展開の年ごとの予測を読む・抜けた年を作り足す・元の表に 20列を足す・時点ごとの作り方） |
 | `distance_change/` | 距離の変更の傾向を足した比べ（R を足す元の表と足した表・元の表に 7列を足す・時点と目的変数ごとの作り方と比べる相手） |
+| `material_check/` | 材料を差し替えて足す比べ（今の本番の6つのモデルの列と予測・材料の一覧・元の表に材料を足す部品の形と材料ごとの部品・材料を足した表・時点と目的変数ごとの作り方と比べる相手） |
 | `win_model/` | 1着のモデルの確かめ（時点ごとの作り方・1着の予測に答えと勝率を付けて読む・オッズから見た勝率そのままとの比べ） |
 
 ## 動かし方
@@ -115,6 +117,9 @@ uv run python research/既存モデルの改善/distance_check.py summary       
 uv run python research/既存モデルの改善/development_score_check.py tables                # ⑬ ⑩ の表（と当日の1着の Q 入りの表）に展開スコアを足した表（元DB を開く。2分ほど）
 uv run python research/既存モデルの改善/development_score_check.py run                   # ⑬ 時点と目的変数ごとに足した作り方を学習（1つ 12分ほど。済んだものは飛ばす）
 uv run python research/既存モデルの改善/development_score_check.py summary               # ⑬ 時点ごとの採否と、◎と1番人気の表
+uv run python research/既存モデルの改善/material_check.py tables --material 能力スコア     # ⑭ ⑬ の表に材料を足した表（材料によっては元DB を開く）
+uv run python research/既存モデルの改善/material_check.py run --material 能力スコア        # ⑭ 時点と目的変数ごとに足した作り方を学習（1つ 10〜30分。済んだものは飛ばす）
+uv run python research/既存モデルの改善/material_check.py summary --material 能力スコア    # ⑭ 時点ごとの採否と、◎と1番人気の表
 uv run python tools/印の成績/mark_stats.py                                                 # ⑪のあと: ◎（単勝の期待値が1位）と期待度を付けた印の成績（既定が前日の1着の予測）
 uv run python -m pytest -q research/既存モデルの改善                                       # 部品のテスト
 ```

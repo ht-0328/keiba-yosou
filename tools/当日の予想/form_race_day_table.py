@@ -9,9 +9,10 @@ import pandas as pd
 
 from 共通.render import Table
 
+from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.form_aptitude_top3.dataset import OddsResolver, race_day_dataset_builder
 from yosou.form_aptitude_top3.feature import WIN_ODDS
-from yosou.form_aptitude_top3.workflow import POOL_FREE_FOLDER, PROBABILITY, PredictionWorkflow
+from yosou.form_aptitude_top3.workflow import ABILITY_SCORE_TOP3_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, PredictionWorkflow
 from yosou.shared.command import PredictionTable
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE
@@ -28,7 +29,8 @@ class FormRaceDayTable:
     """一般の予想（近走と適性）の当日のモデルで1レースを予測し、確率の高い順の表にする。
 
     ``python -m yosou.form_aptitude_top3 predict --timing 当日`` と同じ組み立て（当日の材料。券種のオッズが無ければ
-    券種オッズなしのモデル。複勝の見込みの倍率があれば期待値も）。``models`` は学習済みのモデルの置き場所、
+    券種オッズなしのモデル。複勝の見込みの倍率があれば期待値も。能力スコア（T）を当日の3着以内のモデルに採用していれば、それも足す）。
+    ``models`` は学習済みのモデルの置き場所、
     ``figure_cache`` はスピード指数をとっておく場所。モデルが無ければ ``FileNotFoundError``。
     """
 
@@ -41,6 +43,7 @@ class FormRaceDayTable:
             race_day_dataset_builder(con, self._figure_cache), SegmentedPrediction(ModelSegments(), self._models),
             OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price()),
             pool_free=SegmentedPrediction(ModelSegments(), self._models / POOL_FREE_FOLDER),
+            extras=[RaceAbilityScoreAttacher().attach] if TIMING in ABILITY_SCORE_TOP3_TIMINGS else [],
         )
         prediction = workflow.run(race_id, TIMING)
         return PredictionTable(prediction, TIMING, PROBABILITY, self._extra_columns(prediction)).table()
