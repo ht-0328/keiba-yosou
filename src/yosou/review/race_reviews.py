@@ -57,5 +57,10 @@ class RaceReviews:
         high = table[names.RACE_ID].map(keyed[names.FORECAST_HIGH]).astype("float64")
         slow = table[names.RACE_ID].map(keyed[names.FORECAST_SLOW]).astype("float64")
         even = 1 - high - slow
-        label = pd.DataFrame({score_names.HIGH: high, score_names.EVEN: even, score_names.SLOW: slow}).idxmax(axis=1).where(high.notna())
+        # 予想の無いレースは空のまま（全部が欠損値の行で idxmax を呼ぶと pandas がエラーにするので、予想のある行だけで選ぶ）
+        known = high.notna()
+        label = pd.Series(None, index=table.index, dtype=object)
+        if known.any():
+            shares = pd.DataFrame({score_names.HIGH: high, score_names.EVEN: even, score_names.SLOW: slow})
+            label[known] = shares[known].idxmax(axis=1)
         return table.assign(**{names.FORECAST_PACE: label, names.FORECAST_HIGH: high, names.FORECAST_SLOW: slow})
