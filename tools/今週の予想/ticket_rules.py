@@ -8,6 +8,7 @@ from itertools import product
 from yosou.shared.betting import TicketType
 
 from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
+from 今週の予想.place_axis_ticket_rule import PlaceAxisTicketRule
 
 #: 1単位の金額（円）。08 の 2 の「1点の額」は単位で書いてあるので、合計を金額で出すときに使う。
 UNIT_YEN = 1000
@@ -59,7 +60,7 @@ class TicketRule:
         return sorted(combos)
 
 
-#: 印で組む買い方のルール（08 の 2 の表の順）。馬単は、全券種をそろえるために ◎ を1着に固定した形で足したもので、設計書には無い。
+#: 印で組む買い方のルール（08 の 2 の表の順）。馬単は ◎ を1着に固定した形（◎→○▲☆）。
 #: 元の3連複・3連単（印の位置で組む）は必ず買う買い目で、どの合計にも入る。軸から流す3連複・3連単（軸の2パターン × 期待値で絞る・絞らない）は、
 #: その軸のパターンの合計にだけ入る（期待値で絞らない3連単・絞った3連複は、比べるための行で、どの合計にも入らない）。
 #: 期待値で絞る行には、2モデル一致（LightGBM と CatBoost のそれぞれの確率で出した組の期待値も線以上）で絞った行も添える
@@ -69,7 +70,7 @@ BET_RULES: tuple[TicketRule | AxisTicketRule, ...] = (
     TicketRule(TicketType.WIN, (("◎",),), 1.0, "単勝"),
     TicketRule(TicketType.WIDE, (("◎",), ("☆", "注")), 1.0, "ワイド"),
     TicketRule(TicketType.QUINELLA, (("◎",), ("○", "▲", "☆")), 0.5, "馬連"),
-    TicketRule(TicketType.EXACTA, (("◎",), ("○", "▲", "☆")), 0.5, "馬単（設計書に無い）"),
+    TicketRule(TicketType.EXACTA, (("◎",), ("○", "▲", "☆")), 0.5, "馬単"),
     TicketRule(TicketType.TRIO, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.3, "3連複（◎−○▲☆−○▲△☆）"),
     TicketRule(TicketType.TRIFECTA, (("◎",), ("○", "▲", "☆"), ("○", "▲", "△", "☆")), 0.1, "3連単（◎→○▲☆→○▲△☆）"),
     AxisTicketRule(TicketType.TRIO, TOP_AXIS, None, 0.3, (TOP_AXIS,)),
@@ -85,11 +86,22 @@ BET_RULES: tuple[TicketRule | AxisTicketRule, ...] = (
     AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, COMBO_VALUE_LINE, 0.1, (HORSE_AXIS,)),
     AxisTicketRule(TicketType.TRIFECTA, HORSE_AXIS, COMBO_VALUE_LINE, 0.1, (), agreement=True),
 )
-#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行は単勝の次）。
-RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in BET_RULES[1:]))
+#: 複勝の買い目の馬を軸にして ◎○▲ に流すワイド・馬連（研究「複勝以外の回収率100超」の手順4。1点の額はワイド・馬連と同じ）。
+#: 複勝の買い目が決まってから組むので、``MarkTickets`` が複勝のあとに作る。
+PLACE_AXIS_RULES: tuple[PlaceAxisTicketRule, ...] = (
+    PlaceAxisTicketRule(TicketType.WIDE, 1.0),
+    PlaceAxisTicketRule(TicketType.QUINELLA, 0.5),
+)
+#: 当日の期待度「高」のレースで実際に買う買い方（研究「複勝以外の回収率100超」の手順4 で採用の基準を満たした。08 の 2）。
+#: 金額は印の単位ではなく、単勝・馬単用の財布から決める（``Wallet.point_yen``）。
+HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.WIN.label, TicketType.EXACTA.label)
+#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、複勝の馬を軸にした行は単勝の次）。
+RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in PLACE_AXIS_RULES),
+                                *(rule.label for rule in BET_RULES[1:]))
 #: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。
 TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {
-    group: (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in BET_RULES[1:] if group in rule.totals)) for group in TOTAL_GROUPS
+    group: (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in (*PLACE_AXIS_RULES, *BET_RULES[1:]) if group in rule.totals))
+    for group in TOTAL_GROUPS
 }
 
 

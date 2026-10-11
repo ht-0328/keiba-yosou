@@ -43,7 +43,7 @@ class ReviewWorkflow:
                    names.HORSES_TABLE: self._store.write(names.HORSES_TABLE, flagged)}
         last = runs["race_date"].max().date()
         self._store.set_as_of(last)
-        written[names.BETS_TABLE] = self._settler.settle(runs)
+        written[names.BETS_TABLE] = self._settler.settle(runs, con)
         return written
 
     def _next_day(self) -> date | None:

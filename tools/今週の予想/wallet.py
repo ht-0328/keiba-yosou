@@ -1,4 +1,4 @@
-"""2つの財布（勝負用・ポリシー用）の残高と、参加の種類ごとの予算（設計書「買うレースと買い目を決める」08 の 1）。"""
+"""3つの財布（勝負用・ポリシー用・単勝・馬単用）の残高と、参加の種類ごとの予算（設計書「買うレースと買い目を決める」08 の 1）。"""
 
 from __future__ import annotations
 
@@ -8,18 +8,25 @@ from pathlib import Path
 
 from yosou.review import ReviewStore, names
 
-#: 財布の名前。
-MATCH_WALLET, POLICY_WALLET = "勝負用", "ポリシー用"
+#: 財布の名前。単勝・馬単用は、当日の期待度「高」のレースの単勝と馬単（参加の種類 ``MATCH_WIN``）だけに使う。
+#: 馬単は連敗が長く、複勝の勝負用と同じ財布にすると、勝負用の止まりの線（初めの 70%）を馬単の振れで割ってしまうので分ける。
+MATCH_WALLET, POLICY_WALLET, WIN_WALLET = "勝負用", "ポリシー用", "単勝・馬単用"
 #: 参加の種類 → 出す財布。
-WALLET_OF: dict[str, str] = {names.MATCH: MATCH_WALLET, names.POLICY_STAKES: POLICY_WALLET, names.POLICY_DAY: POLICY_WALLET}
+WALLET_OF: dict[str, str] = {names.MATCH: MATCH_WALLET, names.POLICY_STAKES: POLICY_WALLET, names.POLICY_DAY: POLICY_WALLET,
+                             names.MATCH_WIN: WIN_WALLET}
 #: 予算の割合（残高に対して）。勝負レース 5%・ノルマ参加（重賞）3%・ノルマ参加（日）1.5%。
 BUDGET_RATE: dict[str, float] = {names.MATCH: 0.05, names.POLICY_STAKES: 0.03, names.POLICY_DAY: 0.015}
-#: 勝負レースの1点 = 予算 ÷ 3。1日に使う額の上限は勝負用の残高の 20%。勝負用が初めの 70% を下回ったら勝負レースを止める。
+#: 勝負レースの1点 = 予算 ÷ 3。1日に使う額の上限は勝負用の残高の 20%。財布が初めの 70% を下回ったら、その財布の買い目を止める。
 POINTS_PER_RACE, DAY_CAP_RATE, STOP_RATE = 3, 0.20, 0.70
+#: 単勝・馬単の1点の額（単勝・馬単用の月初の残高に対する割合）。2021〜2026年の当日の期待度「高」の買い目で数えた、いちばん深い落ち込み
+#: （点数ぶん）が、財布の 15%（止まりの線までの半分）に収まる割合にした。馬単は連敗が長く落ち込みが深いので、割合を小さくした
+#: （数値は Git の対象外の reports/複勝以外の回収率100超/運用の目安.md）。
+#: 100円に届かない券種は買わない（財布が小さいうちは馬単を買わない。初めの額の既定の 100,000円では単勝 100円だけになる）。
+POINT_RATE: dict[str, float] = {"単勝": 0.001, "馬単": 0.0003}
 #: 100円未満は切り捨て、最低 100円。
 YEN_UNIT, MIN_YEN = 100, 100
 #: 初めに入れる額の既定（設計書 08 の 1 の例。実際に買い始めるときに利用者が財布のファイルで決める）。
-DEFAULT_INITIAL: dict[str, int] = {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000}
+DEFAULT_INITIAL: dict[str, int] = {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 100_000}
 #: 財布のファイルの既定（Git の対象外の reports/回顧/）。
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_WALLET_FILE = _PROJECT_ROOT / "reports" / "回顧" / "財布.json"
@@ -41,7 +48,10 @@ class Wallet:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             self._path.write_text(json.dumps(DEFAULT_INITIAL, ensure_ascii=False, indent=2), encoding="utf-8")
         saved = json.loads(self._path.read_text(encoding="utf-8"))
-        return {wallet: int(saved.get(wallet, DEFAULT_INITIAL[wallet])) for wallet in DEFAULT_INITIAL}
+        if any(wallet not in saved for wallet in DEFAULT_INITIAL):   # 財布を足す前のファイルには、足した財布を既定の額で書き足す
+            saved = {**DEFAULT_INITIAL, **saved}
+            self._path.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {wallet: int(saved[wallet]) for wallet in DEFAULT_INITIAL}
 
     def balance(self, wallet: str, before: date | None = None) -> int:
         """``before`` より前の開催日の買い目まで数えた残高（省略すると全部）。"""
@@ -68,9 +78,14 @@ class Wallet:
         """1日に勝負用の財布から使える額の上限。"""
         return self._floor(self.balance(MATCH_WALLET, self.month_start(day)) * DAY_CAP_RATE)
 
-    def stopped(self, day: date) -> bool:
-        """勝負用の財布が初めの 70% を下回っているか（勝負レースを止めて線と買い方を見直す）。"""
-        return self.balance(MATCH_WALLET, day) < self.initial()[MATCH_WALLET] * STOP_RATE
+    def point_yen(self, ticket_type: str, day: date) -> int:
+        """単勝・馬単の1点の額（単勝・馬単用の月初の残高 × ``POINT_RATE``。100円未満は切り捨て、100円に届かなければ 0 で買わない）。"""
+        yen = self.balance(WIN_WALLET, self.month_start(day)) * POINT_RATE[ticket_type]
+        return int(yen // YEN_UNIT) * YEN_UNIT
+
+    def stopped(self, day: date, wallet: str = MATCH_WALLET) -> bool:
+        """財布が初めの 70% を下回っているか（その財布の買い目を止めて線と買い方を見直す）。"""
+        return self.balance(wallet, day) < self.initial()[wallet] * STOP_RATE
 
     @staticmethod
     def _floor(yen: float) -> int:

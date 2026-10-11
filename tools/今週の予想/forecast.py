@@ -14,7 +14,7 @@
 （消は1レース1頭まで。1番人気が危険ならその馬、そうでなければ 2〜5番人気から）。印の付かなかった馬は無印（－）。時点（木曜・前日・当日）は、DB に入っている情報（オッズ・馬番・馬体重）から自動で選ぶ。
 先に jvdata-store で今週の出馬表（jvstore sync）と速報（jvstore realtime --date <開催日>）を取り込んでおく。
 印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（単勝・複勝・ワイド・馬連・馬単・3連複・3連単。3連複・3連単は前からの形と、
-◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す（今の決まりで実際に買うのは複勝だけ。ほかは参考）。
+◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す（今の決まりで実際に買うのは、複勝と、当日の予想で期待度「高」のレースの単勝・馬単。ほかは参考）。
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
 予想のあと、開催日ごとに買うレースの計画（勝負／ノルマ参加（重賞）／ノルマ参加（日）／買わない と、複勝の買い目と金額。設計書 03・08 の 1）を
 財布（reports/回顧/財布.json。初めの額は利用者が決める）の予算で決めて、reports/今週の予想/<開催日>/plan.json と回顧の表1「買い目の記録」に書く
@@ -50,7 +50,8 @@ from 今週の予想.plan_table import PlanTable  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
-from 今週の予想.wallet import MATCH_WALLET, POLICY_WALLET, Wallet  # noqa: E402
+from 今週の予想.ticket_rules import HIGH_RACE_LABELS  # noqa: E402
+from 今週の予想.wallet import MATCH_WALLET, POLICY_WALLET, WIN_WALLET, Wallet  # noqa: E402
 
 _RID = card.CARD_LIST_HEADERS.index("rid")
 
@@ -107,9 +108,9 @@ def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[st
         if not any(forecast.get("odds_known") for forecast in forecasts):
             continue
         plans = planner.plan(con, day, forecasts)
-        summary = {MATCH_WALLET: wallet.balance(MATCH_WALLET, wallet.month_start(day)), POLICY_WALLET: wallet.balance(POLICY_WALLET, wallet.month_start(day)),
+        summary = {**{name: wallet.balance(name, wallet.month_start(day)) for name in (MATCH_WALLET, POLICY_WALLET, WIN_WALLET)},
                    "予算": {kind: wallet.budget(kind, day) for kind in (review_names.MATCH, review_names.POLICY_STAKES, review_names.POLICY_DAY)},
-                   "1点": wallet.unit(day)}
+                   "1点": wallet.unit(day), "単勝・馬単の1点": {label: wallet.point_yen(label, day) for label in HIGH_RACE_LABELS}}
         plans_store.save(day, plans, summary)
         odds_at = max((forecast.get("made_at") or "" for forecast in forecasts), default="")
         recorder.record(plans, odds_at)

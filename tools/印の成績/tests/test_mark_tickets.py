@@ -61,7 +61,7 @@ def test_買い方ごとの表は絞り込みごとに出し合計は軸のパ�
     rows = {(row[0], row[1]): row for row in tables[0].rows}
     assert rows[("単勝", ALL_RACES.label)][2:8] == ["2", "2", "1.0", "200円", "500円", "250.0%"]
     assert rows[("単勝", HIGH_RACES.label)][2:8] == ["1", "1", "1.0", "100円", "500円", "500.0%"]
-    assert rows[("馬単（設計書に無い）", ALL_RACES.label)][3] == "6"
+    assert rows[("馬単", ALL_RACES.label)][3] == "6"
     # 合計（元の買い目だけ）: 単勝1 + 複勝2 + ワイド2 + 馬連3 + 馬単3 + 元の3連複12 + 元の3連単15
     base = 1 + 2 + 2 + 3 + 3 + 12 + 15
     assert rows[(total_label("元の買い目だけ"), HIGH_RACES.label)][3] == f"{base}"

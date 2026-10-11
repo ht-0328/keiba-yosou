@@ -1,4 +1,4 @@
-"""1開催日の予想から、買うレース（勝負・ノルマ参加・買わない）と買い目の金額を決める（設計書「買うレースと買い目を決める」03・08 の 1）。"""
+"""1開催日の予想から、買うレース（勝負・ノルマ参加・買わない）と買い目の金額を決める（設計書「買うレースと買い目を決める」03・08 の 1・2）。"""
 
 from __future__ import annotations
 
@@ -9,13 +9,16 @@ from typing import Any
 import duckdb
 
 from yosou.review import names
+from yosou.shared.feature import PredictionTiming
 from yosou.shared.repository.place_pool_repository import PlacePoolRepository
+from yosou.shared.win_value import HIGH
 
 from 今週の予想 import forecast_columns as columns
-from 今週の予想.mark_rule import OUT_MARK
+from 今週の予想.mark_rule import OUT_MARK, TOP_MARK
 from 今週の予想.race_plan import NO_BET, PlacePick, RacePlan
-from 今週の予想.ticket_rules import PLACE_LABEL, PLACE_VALUE_LINE
-from 今週の予想.wallet import Wallet
+from 今週の予想.ticket_pick import TicketPick
+from 今週の予想.ticket_rules import HIGH_RACE_LABELS, PLACE_LABEL, PLACE_VALUE_LINE
+from 今週の予想.wallet import WIN_WALLET, Wallet
 
 #: 勝負レースの1日の上限（重賞は別枠。利用者の決定）。
 RACES_PER_DAY = 3
@@ -39,6 +42,9 @@ class DayPlanner:
        そうでなければノルマ参加（重賞。堅い重賞）。
     2. 重賞以外で、新馬戦・7頭以下を除いた E > 0 のレースを、E の大きい順に1日 3つまで勝負レースにする。
     3. 勝負も重賞も無い日は、最大の期待値 M がいちばん高いレースをノルマ参加（日）の予備にする。
+    4. 複勝とは別に、当日の予想で期待度「高」（◎ の単勝の期待値 1.00 以上）のレースは全部、◎ の単勝と馬単（◎→○▲☆）を買う
+       （勝負（単勝・馬単）。08 の 2）。1点の額は単勝・馬単用の財布から（``Wallet.point_yen``）。前日の予想では買わない
+       （まだ見ていない年で基準を満たしたのは当日の予想だけ）。トリガミとオッズの無い組は買わない。
 
     金額は財布（``Wallet``）の予算から。勝負は1点 = 予算 ÷ 3（期待値 1.40 以上は 2単位、ただしケリー基準の4分の1とレースの予算の中）、
     ノルマ参加（重賞）は予算を最大2点に分け、ノルマ参加（日）は1点。複勝1点はその複勝プールの売上の見込みの 0.5% まで。
@@ -55,7 +61,7 @@ class DayPlanner:
             plans = self._with_reserve(plans)
         stopped = self._wallet.stopped(day)
         priced = [self._priced(con, day, plan, stopped) for plan in plans]
-        return self._within_day_cap(priced, day)
+        return self._with_tickets(self._within_day_cap(priced, day), forecasts, day)
 
     def _classify(self, forecast: dict[str, Any]) -> RacePlan:
         header = forecast.get("header", {})
@@ -169,8 +175,33 @@ class DayPlanner:
         matches = sorted([plan for plan in plans if plan.kind == names.MATCH], key=lambda plan: -plan.profit_units)
         total, kept = 0, set()
         for plan in matches:
-            if total + plan.stake_yen <= cap:
-                total += plan.stake_yen
+            if total + plan.place_yen <= cap:
+                total += plan.place_yen
                 kept.add(plan.rid)
         return [replace(plan, kind=NO_BET, reason=f"{plan.reason}。ただし1日の上限（勝負用の残高の 20% = {cap:,}円）を超えるので外した", picks=())
                 if plan.kind == names.MATCH and plan.rid not in kept else plan for plan in plans]
+
+    def _with_tickets(self, plans: list[RacePlan], forecasts: list[dict[str, Any]], day: date) -> list[RacePlan]:
+        """当日の期待度「高」のレースに、◎ の単勝と馬単を足す（4.）。"""
+        by_rid = {forecast["rid"]: forecast for forecast in forecasts}
+        stopped = self._wallet.stopped(day, WIN_WALLET)
+        yen = {label: self._wallet.point_yen(label, day) for label in HIGH_RACE_LABELS}
+        return [self._ticketed(plan, by_rid[plan.rid], yen, stopped) for plan in plans]
+
+    def _ticketed(self, plan: RacePlan, forecast: dict[str, Any], yen: dict[str, int], stopped: bool) -> RacePlan:
+        if forecast.get(columns.EXPECTATION) != HIGH:
+            return plan
+        if forecast.get("timing") != PredictionTiming.RACE_DAY.label:
+            return replace(plan, ticket_reason="期待度「高」だが前日の予想なので、単勝・馬単は買わない（当日の予想で買う）")
+        if stopped:
+            return replace(plan, ticket_reason="単勝・馬単用の財布が初めの 70% を下回ったので、単勝・馬単を止めて線と買い方を見直す")
+        top_value = next((horse.get(columns.WIN_VALUE) for horse in forecast["horses"] if horse.get(columns.MARK) == TOP_MARK), None)
+        tickets = tuple(
+            TicketPick(ticket["ticket_type"], str(ticket["combo"]), str(ticket["label"]),
+                       top_value if ticket["ticket_type"] == HIGH_RACE_LABELS[0] else None, ticket.get("odds"), yen[ticket["rule"]])
+            for ticket in forecast.get("tickets", [])
+            if ticket.get("rule") in HIGH_RACE_LABELS and not ticket.get("dropped") and yen[ticket["rule"]] > 0)
+        skipped = [label for label in HIGH_RACE_LABELS if yen[label] == 0]
+        note = f"（{'・'.join(skipped)}は1点が 100円に届かないので買わない）" if skipped else ""
+        value = f"（◎ の単勝の期待値 {top_value:.2f}）" if top_value is not None else ""
+        return replace(plan, tickets=tickets, ticket_reason=f"当日の予想で期待度「高」{value}なので、◎ の単勝と馬単を買う{note}")
