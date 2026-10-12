@@ -16,6 +16,7 @@
 | ``wild_only_window_trainer.py`` | ``WildOnlyWindowTrainer``: 1つの区切りで、荒れたレースだけで馬ごとのモデルを学ぶ（第2段） |
 | ``crowded_split_rule.py`` | ``crowded_split_score``: 条件のルール「多頭数で人気が割れている」の点数（第1段） |
 | ``race_selection_scores.py`` | ``RaceSelectionScores``: レースごとに、選び方ごとの点数を並べる |
+| ``big_chance_table.py`` | ``BigChanceTable``: 保存した今の予想と3連単の確定オッズから、レースごとの予想が見た 1,000倍以上になる確率を出す（docs/06 の 2） |
 | ``selection_precision.py`` | ``SelectionPrecision``: 点数ごとに、同じレース数を選んだときに実際に 1,000倍以上だった割合を並べる（docs/06 の 2） |
 | ``day_race_picker.py`` | ``DayRacePicker``: 開催日ごとに、点数がいちばん高いレースを1つ選ぶ |
 | ``day_bootstrap.py`` | ``DayBootstrap``: 開催日を単位にしたブートストラップで、比の 90% の幅を出す |

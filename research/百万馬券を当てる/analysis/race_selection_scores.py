@@ -6,6 +6,7 @@ import pandas as pd
 
 from yosou.shared.dataset import RACE_ID
 from yosou.shared.feature import PredictionTiming
+from yosou.upset_premise.selection import RaceSelectionScore
 
 from 既存モデルの改善.analysis.walk_forward import PredictionStore
 from 既存モデルの改善.analysis.walk_forward.prediction_frame import PART, PART_TEST, PREDICTION_COLUMN, WINDOW
@@ -24,6 +25,7 @@ BIG_LEVELS: tuple[str, ...] = ("大荒れ", "超荒れ")
 RULE = "条件のルール（多頭数で人気が割れている）"
 BASELINE = "比べる目安（荒れ具合の予想の3連単の超荒れの確率）"
 BIG_BASELINE = "荒れ具合の予想の3連単の大荒れ＋超荒れの確率"
+BLEND = "大荒れ＋超荒れと予想が見た確率の平均（本番の点数）"
 
 
 def model_column(timing: PredictionTiming) -> str:
@@ -40,10 +42,13 @@ class RaceSelectionScores:
     """レースごとの事例の表（``race_frame`` の結果）に、テスト期間の予測から、選び方ごとの点数の列を足す。
 
     予測が無いレース（テスト期間の外）は落とす。区切りの名前の列も足す。
+    ``chance`` はレースID → 予想が見た 1,000倍以上になる確率（``BigChanceTable``）。渡すと、本番と同じ点数
+    （大荒れ＋超荒れとの平均。``RaceSelectionScore``）の列も足す。
     """
 
-    def __init__(self, store: PredictionStore) -> None:
+    def __init__(self, store: PredictionStore, chance: pd.Series | None = None) -> None:
         self._store = store
+        self._chance = chance
 
     def scores(self, races: pd.DataFrame) -> pd.DataFrame:
         model = {model_column(timing): self._model(RACE_OBI, timing) for timing in PredictionTiming
@@ -56,6 +61,10 @@ class RaceSelectionScores:
         baseline = self._baseline()
         tested[BASELINE] = tested[RACE_ID].map(baseline[BASELINE_LEVEL]) if not baseline.empty else float("nan")
         tested[BIG_BASELINE] = tested[RACE_ID].map(baseline[list(BIG_LEVELS)].sum(axis=1)) if not baseline.empty else float("nan")
+        if self._chance is not None:
+            chance = tested[RACE_ID].map(self._chance)
+            score = RaceSelectionScore()
+            tested[BLEND] = [score.of(upset, None if pd.isna(value) else value) for upset, value in zip(tested[BIG_BASELINE], chance)]
         tested[RULE] = crowded_split_score(tested)
         return tested
 

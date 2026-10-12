@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import date, datetime
 from typing import Any
 
@@ -29,16 +30,16 @@ _RID = card.CARD_LIST_HEADERS.index("rid")
 class ObiDayRun:
     """1日の帯狙いを進める（ほかを順に呼ぶだけ）。
 
-    1. その日のレースを、3連単が 1,000倍以上になる確率の高い順に並べる（``ObiDayPicker``）。線以上のレースを全部選ぶ（1日何レースでも）。
+    1. その日のレースを「荒れる」点数の高い順に並べる（``ObiDayPicker``）。線以上のレースを全部選ぶ（1日何レースでも）。
     2. 選んだレースを、荒れる前提のモデルの置き場所を渡した ``RaceForecaster`` で予想する（印・危険な人気馬の判定も今週の予想と同じ）。
-       同じレースを、今の予想のモデルの置き場所を渡した ``usual_forecaster`` でも予想する（2着・3着の重みに使う）。
+       今の予想の結果（2着・3着の重み）は、点数を出すときに ``ObiDayPicker`` が出したものを使う。無ければ ``usual_forecaster`` で出す。
     3. 3着以内と1着の確率と、締め切り前（なければ確定）の組ごとのオッズで、``plan`` の買い目を組む。
        オッズがまだ無ければ（木曜・前日でオッズの無いレース）、買い目は組まず、当日に組み直すことを書く。
     結果は JSON にできる辞書。
     """
 
-    def __init__(self, picker: ObiDayPicker, forecaster: RaceForecaster, usual_forecaster: RaceForecaster | None,
-                 plan: TicketPlan, line: float = DEFAULT_LINE) -> None:
+    def __init__(self, picker: ObiDayPicker, forecaster: RaceForecaster, usual_forecaster: RaceForecaster, plan: TicketPlan,
+                 line: float = DEFAULT_LINE) -> None:
         self._picker = picker
         self._forecaster = forecaster
         self._usual_forecaster = usual_forecaster
@@ -51,18 +52,25 @@ class ObiDayRun:
         chosen = self._picker.above(ranked, self._line)
         return {
             "day": day.isoformat(), "made_at": datetime.now().isoformat(timespec="seconds"), "plan": self._plan.name, "line": self._line,
+            "score": self._picker.score,
             "ranking": [self._ranking_row(con, chance) for chance in ranked[:RANKING_COUNT]],
             "picks": [self._pick(con, chance) for chance in chosen],
         }
 
     def _ranking_row(self, con: duckdb.DuckDBPyConnection, chance: RaceChance) -> dict[str, Any]:
         title = card.header_title(card.race_header(con, chance.race_id))
-        return {"rid": chance.race_id, "title": title, "timing": chance.timing.label, "probability": round(chance.probability, 4),
+        return {"rid": chance.race_id, "title": title, "timing": chance.timing.label, **self._scores(chance),
                 "chosen": chance.probability >= self._line}
+
+    @staticmethod
+    def _scores(chance: RaceChance) -> dict[str, Any]:
+        """点数と、その元になった2つの確率（予想が見た確率が無ければ None）。"""
+        return {"probability": round(chance.probability, 4), "upset_probability": round(chance.upset_probability, 4),
+                "chance": _rounded(chance.chance)}
 
     def _pick(self, con: duckdb.DuckDBPyConnection, chance: RaceChance) -> dict[str, Any]:
         forecast = self._forecaster.forecast(con, chance.race_id, chance.timing)
-        usual = self._usual_forecaster.forecast(con, chance.race_id, chance.timing) if self._usual_forecaster is not None else None
+        usual = chance.usual_forecast if chance.usual_forecast is not None else self._usual(con, chance)
         ticket_type = TicketType.TRIFECTA if self._plan.ordered else TicketType.TRIO
         odds = AnnouncedComboOdds(con).read(chance.race_id, ticket_type)
         tickets = self._plan.tickets(ForecastHorses().of(forecast, usual), odds) if odds else []
@@ -72,10 +80,18 @@ class ObiDayRun:
                 else "組ごとのオッズがまだ無いので、買い目は組んでいない。当日（オッズが出てから）もう一度動かす。")
         usual_top3 = self._usual_top3(usual)
         return {
-            "rid": chance.race_id, "title": forecast["title"], "timing": forecast["timing"], "probability": round(chance.probability, 4),
+            "rid": chance.race_id, "title": forecast["title"], "timing": forecast["timing"], **self._scores(chance),
             "horses": [self._horse(horse, usual_top3) for horse in forecast["horses"]], "tickets": rows,
             "total_yen": sum(stake for _, stake in tickets), "note": f"{note}{REFERENCE_NOTE}",
         }
+
+    def _usual(self, con: duckdb.DuckDBPyConnection, chance: RaceChance) -> dict[str, Any] | None:
+        """今の予想の結果（点数のときに出していなければ、ここで出す）。出せなければ None（2着・3着の重みは荒れる前提の3着以内だけ）。"""
+        try:
+            return self._usual_forecaster.forecast(con, chance.race_id, chance.timing)
+        except (ValueError, LookupError, FileNotFoundError) as error:
+            print(f"  {chance.race_id}: 今の予想を出せません: {error}", file=sys.stderr, flush=True)
+            return None
 
     @staticmethod
     def _usual_top3(usual: dict[str, Any] | None) -> dict[int, Any]:

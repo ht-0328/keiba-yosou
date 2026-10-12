@@ -3,15 +3,19 @@
     uv run python tools/帯狙い/obi.py                        # 今日以降の開催日ぜんぶ（出馬表のあるもの）
     uv run python tools/帯狙い/obi.py --date 2026-10-18      # その日だけ
     uv run python tools/帯狙い/obi.py --line 0.35            # 「荒れる」と決める線を下げて、買うレースを増やす（既定 0.40）
+    uv run python tools/帯狙い/obi.py --score 大荒れ＋超荒れ   # 点数を荒れ具合の予想だけにする（速い。買うレースは増え、2〜3レース/日では回収率が高い）
     uv run python tools/帯狙い/obi.py --stake 300            # 一律の1点の金額を替える（100・300・500。既定 100）
     uv run python tools/帯狙い/obi.py --plan 甲              # 買い方を替える（一律・甲・乙・丙。既定は一律）
     uv run python tools/帯狙い/obi.py --models reports/近走と適性から3着以内を予想/models   # 今の予想のモデルで買い目を組む（比べるため）
 
 予想は「荒れる前提で着順を予想」（設計書 docs/design/荒れる前提で着順を予想/）。
-1. その日のレースごとに、荒れ具合の予想（reports/レースの荒れ具合を4段階で予想/models/）で3連単が 1,000倍以上になる確率
-   （大荒れ＋超荒れ）を出し、線（--line）以上のレースを全部選ぶ（1日何レースでも。無い日は買わない）。
+1. その日のレースごとに「荒れる」点数を出し、線（--line）以上のレースを全部選ぶ（1日何レースでも。無い日は買わない）。
+   点数は、荒れ具合の予想（reports/レースの荒れ具合を4段階で予想/models/）の3連単が 1,000倍以上になる確率（大荒れ＋超荒れ）と、
+   予想が見た 1,000倍以上になる確率（今の予想の全頭の1着の確率と締め切り前の3連単のオッズから）の平均。
+   今の予想は、今週の予想が保存した結果（--forecasts。同じ時点のもの）があればそれを使い、無ければ出す（1レース数十秒）。
+   先に今週の予想（tools/今週の予想/forecast.py）を動かしておくと速い。
 2. 選んだレースを、荒れたレースだけで学んだ 3着以内と1着のモデル（reports/荒れる前提で着順を予想/models/）で予想する
-   （印・危険な人気馬の判定は今週の予想と同じ部品）。同じレースを今の予想のモデル（--usual-models）でも予想する。
+   （印・危険な人気馬の判定は今週の予想と同じ部品）。
 3. 締め切り前の組ごとのオッズで、1万円の買い目を組む。既定の一律は、1,000倍以上の組を組の確率の高い順に 1点 --stake 円で
    予算ぶん買う（組の確率は、1着が荒れる前提の1着の確率、2着・3着が今の予想と荒れる前提の予想の3着以内の確率の平均）。
    オッズが無ければ組まない（当日にもう一度動かす）。
@@ -40,9 +44,10 @@ from yosou.upset_level.dataset import race_dataset_builder  # noqa: E402
 from yosou.upset_level.workflow import PredictionWorkflow, model_repositories  # noqa: E402
 from yosou.upset_premise.betting import DEFAULT_FLAT_STAKE_YEN, FLAT_STAKE_CHOICES  # noqa: E402
 
+from 今週の予想.forecast_store import DEFAULT_FOLDER as DEFAULT_FORECASTS, ForecastStore  # noqa: E402
 from 今週の予想.model_folders import DEFAULT_FAVORITE_MODELS, DEFAULT_MODELS as DEFAULT_USUAL_MODELS  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
-from 帯狙い.obi_day_picker import DEFAULT_LINE, ObiDayPicker  # noqa: E402
+from 帯狙い.obi_day_picker import DEFAULT_LINE, SCORE_BLEND, SCORE_CHOICES, ObiDayPicker  # noqa: E402
 from 帯狙い.obi_day_run import ObiDayRun  # noqa: E402
 from 帯狙い.obi_plans import DEFAULT_PLAN, PLAN_LABELS, plan_named  # noqa: E402
 from 帯狙い.obi_store import DEFAULT_FOLDER, ObiStore  # noqa: E402
@@ -63,8 +68,9 @@ def main(args) -> None:
     tables: list[Table] = []
     with db.open_db(args.db) as con:
         upset = PredictionWorkflow(race_dataset_builder(con), model_repositories(args.upset_models), OddsResolver(AnnouncedOddsRepository(con)))
-        usual = RaceForecaster(args.usual_models, args.favorite_models) if args.usual_models != args.models else None
-        run = ObiDayRun(ObiDayPicker(upset), RaceForecaster(args.models, args.favorite_models), usual, plan, args.line)
+        usual = RaceForecaster(args.usual_models, args.favorite_models)
+        picker = ObiDayPicker(upset, usual, ForecastStore(args.forecasts), args.score)
+        run = ObiDayRun(picker, RaceForecaster(args.models, args.favorite_models), usual, plan, args.line)
         for day in _days(con, args):
             print(f"{day} のレースを選んでいます …", file=sys.stderr, flush=True)
             result = run.run(con, day)
@@ -98,14 +104,18 @@ def _parser():
     parser = cli.build_parser(__doc__, limit=None)
     parser.add_argument("--date", default=None, help="開催日 YYYY-MM-DD（省略すると今日以降の開催日ぜんぶ）")
     parser.add_argument("--line", type=float, default=DEFAULT_LINE,
-                        help=f"「荒れる」と決める線。3連単が 1,000倍以上になる確率がこの値以上のレースを全部買う（既定: {DEFAULT_LINE}）")
+                        help=f"「荒れる」と決める線。点数（1,000倍以上になる確率の、荒れ具合の予想と予想が見た確率の平均）がこの値以上のレースを全部買う（既定: {DEFAULT_LINE}）")
+    parser.add_argument("--score", choices=SCORE_CHOICES, default=SCORE_BLEND,
+                        help=f"点数（{SCORE_BLEND}: 荒れ具合の予想と予想が見た確率の平均 / 大荒れ＋超荒れ: 荒れ具合の予想だけ。既定: {SCORE_BLEND}）")
     parser.add_argument("--stake", type=int, choices=FLAT_STAKE_CHOICES, default=DEFAULT_FLAT_STAKE_YEN,
                         help=f"一律の買い方の1点の金額（円。既定: {DEFAULT_FLAT_STAKE_YEN}。100円なら 100点・300円なら 33点・500円なら 20点）")
     parser.add_argument("--plan", choices=tuple(PLAN_LABELS), default=DEFAULT_PLAN,
                         help=f"買い方（{' / '.join(f'{key}: {label}' for key, label in PLAN_LABELS.items())}。既定: {DEFAULT_PLAN}）")
     parser.add_argument("--models", type=Path, default=DEFAULT_MODELS, help="荒れる前提で着順を予想の学習済みモデルの置き場所")
     parser.add_argument("--usual-models", type=Path, default=DEFAULT_USUAL_MODELS,
-                        help="今の予想（近走と適性から3着以内を予想）の学習済みモデルの置き場所（2着・3着の重みに使う）")
+                        help="今の予想（近走と適性から3着以内を予想）の学習済みモデルの置き場所（点数と2着・3着の重みに使う）")
+    parser.add_argument("--forecasts", type=Path, default=DEFAULT_FORECASTS,
+                        help="今週の予想が保存した結果の置き場所（既定: reports/今週の予想。同じ時点の結果があれば今の予想を出し直さない）")
     parser.add_argument("--upset-models", type=Path, default=DEFAULT_UPSET_MODELS, help="レースを選ぶ荒れ具合の予想の学習済みモデルの置き場所")
     parser.add_argument("--favorite-models", type=Path, default=DEFAULT_FAVORITE_MODELS, help="危険な人気馬を判定する予想の学習済みモデルの置き場所")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_FOLDER, help="結果を書く置き場所（既定: reports/帯狙い）")
