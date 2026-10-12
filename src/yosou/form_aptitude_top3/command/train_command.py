@@ -16,8 +16,10 @@ from yosou.shared.dataset import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
     DEFAULT_VALID_FIRST_DAY,
+    AllRows,
     TrainingData,
     TrainingPeriod,
+    TrainingRows,
 )
 from yosou.ability_score import ABILITY_SCORE_NAMES, AbilityScoreAttachment, AbilityScoreFreeData
 from yosou.development_score import (
@@ -95,7 +97,15 @@ class TrainCommand:
     別々に学び、1着のモデルは ``<置き場所>/1着/`` に保存する（設計書 10・15 の 14）。当日の学習データにある勝ち切る材料（Q）は
     1着のモデルだけが使い、3着以内のモデルには ``FinishPowerFreeData`` で外して渡す（設計書 15 の 15）。
     学習のあとに、複勝の見込みの倍率（今の材料の学習データの期間の払戻から決めたもの）も保存する（予測で複勝の期待値を出すため）。
+
+    ``yosou_name`` と ``rows`` は、同じ材料・同じ列で学ぶ別の予想のためにある。``yosou_name`` はモデルの既定の置き場所
+    （``reports/<予想の名前>/models``）を決め、``rows`` は作った学習データから学ぶ行だけを残す（既定は全部の行）。
+    予想「荒れる前提で着順を予想」は、荒れたレースの行だけを残して、別の置き場所に学ぶ（``yosou.upset_premise``）。
     """
+
+    def __init__(self, yosou_name: str = YOSOU_NAME, rows: TrainingRows | None = None) -> None:
+        self._yosou_name = yosou_name
+        self._rows: TrainingRows = AllRows() if rows is None else rows
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -112,7 +122,7 @@ class TrainCommand:
         self._add_period_arguments(parser)
         FigureCacheArgument().add_to(parser)
         DevelopmentRootArgument().add_to(parser)
-        CommonArguments(YOSOU_NAME).add_to(parser)
+        CommonArguments(self._yosou_name).add_to(parser)
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:
@@ -132,6 +142,8 @@ class TrainCommand:
             form_data = race_day_dataset_builder(con, args.figure_cache).build_training_data(form_period) if form_timings else None
             ability_data = (ability_dataset_builder(con, args.figure_cache).build_training_data(ability_period)
                             if ability_timings else None)
+            form_data = self._rows.keep(con, form_data) if form_data is not None else None
+            ability_data = self._rows.keep(con, ability_data) if ability_data is not None else None
             prepared = AdvantageRuns().build(DevelopmentRunRepository(con).read()) if score_timings else None
             bias_runs = BiasRunRepository(con).read() if bias_timings else None
             weight_runs = WeightRuns().build(WeightRunRepository(con).read()) if WEIGHT_DISCOUNT_TIMINGS and form_timings else None
