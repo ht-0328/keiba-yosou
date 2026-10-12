@@ -164,7 +164,7 @@ sequenceDiagram
 
 **説明。** 共通の `FeatureBuilder` は、時点によらず当日の全部の列で1頭ごとの特徴量を作る。先に列を絞ると、D の「1番人気の馬体重の増減」のように、集約する元の列が無くなるためである。まとまり A〜E のクラスは、どれも `RaceFeatureGroup` を守り、出走の行と1頭ごとの特徴量（E は払戻）を受け取って、1行 = 1レースの表を返す（集約のしかたは [09-features.md](09-features.md#表の見方)）。最後に、レース用の特徴量の一覧（`CATALOG`）で、その時点で使う列に絞る（[07-prediction-timing.md](07-prediction-timing.md#時点ごとに使う特徴量)）。
 
-## 今は無く、これから作るところ
+## 図の中の部分の今の状態
 
 | 図の中の部分 | 今の状態 |
 |---|---|
@@ -172,7 +172,7 @@ sequenceDiagram
 | 手本の予想から `shared` に移すもの（`MarketFeatures`・`OddsInput`・`OddsResolver`） | 移した。手本の予想も移した形に直した |
 | この予想のクラス（`RaceSelector`・`UpsetLevelRule`・`UpsetLevelLabeler`・まとまり A〜E・`PredictionWorkflow`・コマンド） | 作った（`src/yosou/upset_level/`） |
 | 合成DB（`tools/合成DB/synth.py`）と `shared/tests/synthetic_season` の払戻 | `hr`（フラグ）・`hr__馬連払戻`・`hr__3連複払戻`・`hr__3連単払戻` の表と、人気から決めた架空の払戻を足した。締め切り前のオッズ（`o1__単勝オッズ`）は無いままで、テストは `--odds` で渡す経路を通る |
-| `AnnouncedOddsRepository` が読むオッズ | 手本と同じ。今の元DB には断面がごく少数しか無く、取り込んでいないレースは `--odds` で全頭ぶん渡す |
+| `AnnouncedOddsRepository` が読むオッズ | 手本と同じ。断面は jvdata-store の `jvstore realtime --date <開催日>` で入る。取り込んでいないレースは `--odds` で全頭ぶん渡す |
 | 学習データ・検証データ・テストデータの期間の分け方と、評価指標 | [16-evaluation.md](16-evaluation.md) で決め、`ClassModelEvaluator` と `UserRuleBaseline` で測る。実データでの値は `reports/レースの荒れ具合を4段階で予想/` |
 | アンサンブルの平均のしかた | 決めた。手本と同じく、重みを付けない単純な平均（[15-decisions.md の 16](15-decisions.md#16-アンサンブルの重み)） |
 
@@ -182,3 +182,4 @@ sequenceDiagram
 |---|---|
 | 作成日 | 2026-09-23 |
 | 更新 | 2026-09-28: 「今は無く、これから作るところ」の平均のしかたを、決めた状態に直した |
+| 更新 | 2026-10-12: 見出し「今は無く、これから作るところ」を「図の中の部分の今の状態」に直した。締め切り前のオッズの断面が少ないという古い記述を消した |

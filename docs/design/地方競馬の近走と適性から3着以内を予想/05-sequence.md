@@ -14,7 +14,7 @@
 | 利用者 | 人 | ― | ― |
 | nvdata-store | 隣のリポジトリの道具。地方競馬DATA を取得して、元DB に入れる | コマンド（`nvstore sync` か `nvstore realtime`）を1回実行する | ある |
 | 元DB | nvdata-store が作った DuckDB（`nvdata.duckdb`）。この AI は読むだけ | SQL を1回流す | ある |
-| `TrainingWorkflow` など | この AI のクラス。一覧と仕事は [04-classes.md](04-classes.md) を参照 | public メソッドを1回呼ぶ | 共通の部品はある。地方の部品はこれから作る |
+| `TrainingWorkflow` など | この AI のクラス。一覧と仕事は [04-classes.md](04-classes.md) を参照 | public メソッドを1回呼ぶ | ある（共通の部品は `src/yosou/shared/`、地方の部品は `src/yosou/local_form_aptitude_top3/`） |
 | `LGBMClassifier`・`CatBoostClassifier` | ライブラリのクラス | `fit()` か `predict_proba()` を1回呼ぶ | ライブラリはある |
 | モデルのファイル | 学習済みのモデルを保存したファイル | 1回書き込むか、1回読み込む | `train` を実行すると、`reports/地方競馬の近走と適性から3着以内を予想/models/` にできる |
 
@@ -231,3 +231,4 @@ sequenceDiagram
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-10-06 |
+| 更新 | 2026-10-12: 「今あるか」を今に合わせた（地方の部品も作った） |

@@ -47,7 +47,7 @@ uv run python -m yosou.custom_binary predict 架空レースA --models reports/�
 （1行目は、見た人気を馬番で渡して予測するコマンド。2行目は、見た単勝オッズを渡して、オッズの順から人気を作るコマンド）
 
 - 人気範囲を指定したモデルで、人気の分からない馬が1頭でもいれば止める（[06-flowchart.md](06-flowchart.md#図1-学習データに入れる行の選び方)）。人気範囲を指定しないモデルでは、人気は要らない（特徴量「人気順位」を選んだときを除く）。
-- 選んだ特徴量が単勝オッズや券種オッズを使うのに、元DB に無ければ止める。券種オッズは、jvdata-store の `jvstore realtime`（`realtime_today.bat`）が単勝・複勝と一緒に取り込む（[05-sequence.md](05-sequence.md#今は無くこれから作るところ)）。
+- 選んだ特徴量が単勝オッズや券種オッズを使うのに、元DB に無ければ止める。券種オッズは、jvdata-store の `jvstore realtime`（`realtime_today.bat`）が単勝・複勝と一緒に取り込む（[05-sequence.md](05-sequence.md#図の中の部分の今の状態)）。
 - 渡した人気・オッズと、締め切り後に確定する値は、ずれることがある。学習は確定の値で行っている（[11-leak-prevention.md](11-leak-prevention.md#決まり)）。
 
 ## 時点ごとにモデルを分ける理由
@@ -59,4 +59,5 @@ uv run python -m yosou.custom_binary predict 架空レースA --models reports/�
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-26 |
+| 更新 | 2026-10-12: 05-sequence.md の見出しの変更に合わせてリンクを直した |
 | 例の値 | すべて架空。JV-Data の実際の値は載せていない |
