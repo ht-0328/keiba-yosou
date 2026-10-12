@@ -128,7 +128,7 @@ sequenceDiagram
 
 `evaluate --models <モデルのフォルダ>` は、`EvaluateCommand` が `TestEvaluationWorkflow` を呼ぶ。保存した設定で図1 の `CustomDataset.training()` までを行い、テスト期間の行だけで当たり具合と回収率を出して、モデルのフォルダに `test_evaluation.json` を書く（[16-evaluation.md](16-evaluation.md)）。複勝の想定払戻倍率は、学習期間の払戻から求める。
 
-## 今は無く、これから作るところ
+## 図の中の部分の今の状態
 
 | 図の中の部分 | 今の状態 |
 |---|---|
@@ -141,3 +141,4 @@ sequenceDiagram
 |---|---|
 | 作成日 | 2026-09-26 |
 | 更新日 | 2026-09-30（流れを進めるクラス `TrainingWorkflow`・`PredictionWorkflow`・`TestEvaluationWorkflow` に合わせて図を直した） |
+| 更新 | 2026-10-12: 見出し「今は無く、これから作るところ」を、どれも作ったあとなので「図の中の部分の今の状態」に直した |

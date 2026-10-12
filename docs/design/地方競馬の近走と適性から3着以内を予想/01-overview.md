@@ -9,7 +9,7 @@
 - データの元: 地方競馬DATA（UmaConn / NV-Link）の地方競馬のデータ（nvdata-store が `nvdata.duckdb` に貯めたもの）。中央の予想の元DB（jvdata-store の `jvdata.duckdb`）は読まない。
 - 対象: 地方 14場（門別・盛岡・水沢・浦和・船橋・大井・川崎・金沢・笠松・名古屋・園田・姫路・高知・佐賀）の平地。ばんえい（帯広）は入れない（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)）。
 - 用語の意味: [02-glossary.md](02-glossary.md) を参照。
-- 状態: 決めごとは決まり（[15-decisions.md](15-decisions.md)）、プログラムは `src/yosou/local_form_aptitude_top3/` に作る（クラスとフォルダは [04-classes.md](04-classes.md)）。中央の予想と共通の部品は `src/yosou/shared/` にあり、この予想のパッケージには地方だけの決めごとを置く。
+- 状態: 決めごとは決まり（[15-decisions.md](15-decisions.md)）、プログラムは `src/yosou/local_form_aptitude_top3/` に作った（クラスとフォルダは [04-classes.md](04-classes.md)）。中央の予想と共通の部品は `src/yosou/shared/` にあり、この予想のパッケージには地方だけの決めごとを置く。**学習と、テスト期間での確かめ（`backtest`）と、印の成績まで済んでいる。** 学習済みのモデルと確かめの結果は、Git の対象外の `reports/地方競馬の近走と適性から3着以内を予想/` に置く。
 
 ## 中央の予想との違い（要点）
 
@@ -100,4 +100,5 @@ LightGBM と CatBoost でどう学習・予測するかは [03-library-basics.md
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-10-06 |
+| 更新 | 2026-10-12: 状態を今に合わせた（作って、学習・確かめ・印の成績まで済んでいる） |
 | 例の値 | すべて架空。地方競馬DATA・JV-Data の実際の値は載せていない |
