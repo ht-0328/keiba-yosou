@@ -1,6 +1,7 @@
 """手順3・6: 区切りごとに学んで、レース選びと荒れる前提の予想の予測を作る（研究「百万馬券を当てる」の入口②）。
 
     uv run python research/百万馬券を当てる/walk.py race       # 第1段: 帯になる確率（レース単位。木曜・前日・当日）
+    uv run python research/百万馬券を当てる/walk.py big        # 第1段: 3連単が 1,000倍以上になる確率（レース単位。木曜・前日・当日）
     uv run python research/百万馬券を当てる/walk.py baseline   # 比べる目安: 荒れ具合の予想（4券種 × 4段階）を同じ区切りで学び直す
     uv run python research/百万馬券を当てる/walk.py horses     # 第2段: 荒れたレースだけで学ぶ 3着以内と1着（当日）
 
@@ -35,7 +36,7 @@ from 複勝以外の回収率100超.analysis.early_windows import EARLY_WINDOWS 
 from 複勝以外の回収率100超.analysis.retrain_targets import retrain_target_named  # noqa: E402
 from 百万馬券を当てる.analysis.obi_rules import BIG_YEN  # noqa: E402
 from 百万馬券を当てる.analysis.race_obi_window_trainer import RaceObiWindowTrainer  # noqa: E402
-from 百万馬券を当てる.analysis.race_table_loader import TRIFECTA_YEN, RaceTableLoader  # noqa: E402
+from 百万馬券を当てる.analysis.race_table_loader import BIG_LABEL, OBI_LABEL, TRIFECTA_YEN, RaceTableLoader  # noqa: E402
 from 百万馬券を当てる.analysis.wild_only_window_trainer import WildOnlyWindowTrainer  # noqa: E402
 
 _REPORTS = Path(__file__).resolve().parents[2] / "reports"
@@ -45,6 +46,9 @@ DEFAULT_HORSE_TABLES = _REPORTS / "既存モデルの改善" / "tables"
 RESEARCH_WINDOWS = (*EARLY_WINDOWS, *WINDOWS)
 #: 予測の置き場所の名前（予想の名前, 作り方の名前）。
 RACE_OBI = "race_obi"
+RACE_BIG = "race_big"
+#: レース単位の二値のモデルの、置き場所の名前 → 目的変数の列。
+RACE_LABELS: dict[str, str] = {RACE_OBI: OBI_LABEL, RACE_BIG: BIG_LABEL}
 UPSET_BASELINE = ("upset_level", "current")
 #: 第2段で学ぶ馬ごとの予想（今の本番の表と列のまま、学ぶ行だけ荒れたレースにする）と、置き場所の作り方の名前。
 HORSE_TARGETS: dict[str, str] = {"当日・3着以内": "wild-top3-race_day", "当日・1着": "wild-win-race_day"}
@@ -54,22 +58,32 @@ def main() -> None:
     args = _parser().parse_args()
     pin_to_p_cores()
     store = PredictionStore(args.root / "predictions")
-    {"race": _race, "baseline": _baseline, "horses": _horses}[args.step](args, store)
+    {"race": _race, "big": _big, "baseline": _baseline, "horses": _horses}[args.step](args, store)
 
 
 def _race(args: argparse.Namespace, store: PredictionStore) -> None:
+    _race_model(args, store, RACE_OBI)
+
+
+def _big(args: argparse.Namespace, store: PredictionStore) -> None:
+    _race_model(args, store, RACE_BIG)
+
+
+def _race_model(args: argparse.Namespace, store: PredictionStore, model: str) -> None:
+    """レース単位の二値のモデル（帯になる確率か、1,000倍以上になる確率）を、3つの時点で学ぶ。"""
     data = RaceTableLoader(args.root / "tables").read()
     for timing in PredictionTiming:
-        _race_timing(args, store, data, timing)
+        _race_timing(args, store, data, timing, model)
 
 
-def _race_timing(args: argparse.Namespace, store: PredictionStore, data: TrainingData, timing: PredictionTiming) -> None:
-    """1つの時点の、帯になる確率のモデルを区切りごとに学ぶ（済んでいれば飛ばす）。"""
-    if _done(store, RACE_OBI, timing.value, args):
+def _race_timing(args: argparse.Namespace, store: PredictionStore, data: TrainingData, timing: PredictionTiming,
+                 model: str) -> None:
+    """1つの時点の、レース単位の二値のモデルを区切りごとに学ぶ（済んでいれば飛ばす）。"""
+    if _done(store, model, timing.value, args):
         return
-    trainer = RaceObiWindowTrainer(_settings(UPSET_SETTINGS, args.threads), timing)
-    results = [trainer.run(data, window) for window in RESEARCH_WINDOWS]
-    _write(store, RACE_OBI, timing.value, results)
+    trainer = RaceObiWindowTrainer(_settings(UPSET_SETTINGS, args.threads), timing, RACE_LABELS[model])
+    results = [_progress(f"{model} {timing.label} {window.name}", trainer.run(data, window)) for window in RESEARCH_WINDOWS]
+    _write(store, model, timing.value, results)
 
 
 def _baseline(args: argparse.Namespace, store: PredictionStore) -> None:
@@ -126,7 +140,8 @@ def _write(store: PredictionStore, model: str, key: str, results: list[tuple[pd.
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="区切りごとに学んで、レース選びと荒れる前提の予想の予測を作る", allow_abbrev=False)
-    parser.add_argument("step", choices=("race", "baseline", "horses"), help="race（第1段）・baseline（比べる目安）・horses（第2段）")
+    parser.add_argument("step", choices=("race", "big", "baseline", "horses"),
+                        help="race（第1段: 帯）・big（第1段: 1,000倍以上）・baseline（比べる目安）・horses（第2段）")
     parser.add_argument("--force", action="store_true", help="済んだものも回し直す")
     parser.add_argument("--threads", type=int, default=6, help="学習のスレッド数（既定: 6）")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="この研究の置き場所（tables/ と predictions/）")

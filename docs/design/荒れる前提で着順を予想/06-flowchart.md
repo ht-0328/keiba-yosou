@@ -2,11 +2,25 @@
 
 **この文書で示すこと:** 条件によって分かれる判断の手順。
 
-**結論: この予想だけの判断は2つある。「甲・丙で、どの組をいくらで買うか」（`ObiStakePlan.tickets()`）と、「乙で、どの組をいくらで買うか」（`FormationPlan.tickets()`）である。** 学習データに入れる行の選び方（`WildRaceRows.keep()`）は、払戻が線以上かどうかの1つの判断だけなので、図にしない（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)）。
+**結論: この予想だけの判断は3つある。「一律で、どの組を買うか」（`FlatPlan.tickets()`）、「甲・丙で、どの組をいくらで買うか」（`ObiStakePlan.tickets()`）、「乙で、どの組をいくらで買うか」（`FormationPlan.tickets()`）である。** レース選び（`ObiDayPicker`）は、1,000倍以上になる確率が線以上かどうかの1つの判断だけなので、図にしない。 学習データに入れる行の選び方（`WildRaceRows.keep()`）は、払戻が線以上かどうかの1つの判断だけなので、図にしない（[08-training-data.md](08-training-data.md#3-どのサンプルを入れるか)）。
 
 図の読み方（凡例）は [手本の 06 の「図の読み方」](../近走と適性から3着以内を予想/06-flowchart.md) を参照。
 
-## 図1. 甲・丙の買い目（`ObiStakePlan.tickets()`）
+## 図1. 一律の買い目（`FlatPlan.tickets()`）
+
+```mermaid
+flowchart TD
+    A[全頭で3連単の組を作る<br>18頭なら 4,896通り] --> B{その組のオッズがあり、1,000倍以上か}
+    B -- いいえ --> X[買わない]
+    B -- はい --> C[候補にする]
+    C --> D[組の確率を Harville の式で出す<br>1着は荒れる前提の1着の確率<br>2着・3着は今の予想と荒れる前提の予想の3着以内の確率の平均の重み]
+    D --> E[候補を組の確率の高い順に並べる<br>同じ確率なら馬番の小さい組を先に]
+    E --> F{上から 1万円 ÷ 1点の金額 点以内か<br>100円なら 100点}
+    F -- はい --> G[1点の金額で買う]
+    F -- いいえ --> X
+```
+
+## 図2. 甲・丙の買い目（`ObiStakePlan.tickets()`）
 
 ```mermaid
 flowchart TD
@@ -22,7 +36,7 @@ flowchart TD
     G -- 以下 --> I[買う]
 ```
 
-## 図2. 乙の買い目（`FormationPlan.tickets()`）
+## 図3. 乙の買い目（`FormationPlan.tickets()`）
 
 ```mermaid
 flowchart TD

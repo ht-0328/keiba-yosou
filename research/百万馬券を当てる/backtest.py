@@ -1,12 +1,16 @@
-"""手順4・7: レース選びと、荒れる前提の予想の買い目を確かめる（研究「百万馬券を当てる」の入口③）。
+"""手順4・7 と docs/06: レース選びと、荒れる前提の予想の買い目を確かめる（研究「百万馬券を当てる」の入口③）。
 
     uv run python research/百万馬券を当てる/backtest.py races    # 手順4: 1日1レース選んだとき、帯がどれだけ集まったか
     uv run python research/百万馬券を当てる/backtest.py horses   # 手順7の前半: 荒れたレースで、予想の上位の馬が来たか（今の予想と比べる）
     uv run python research/百万馬券を当てる/backtest.py bets     # 手順7: 選んだレースで、甲・乙・丙を1レース1万円で買ったとき
+    uv run python research/百万馬券を当てる/backtest.py select   # docs/06 の 2: 同じレース数を選んだとき、実際に 1,000倍以上だった割合（点数ごと）
+    uv run python research/百万馬券を当てる/backtest.py flat     # docs/06 の 3: 線以上のレースを全部買い、一律の買い方で 1,000倍以上の組を買ったとき
 
-先に walk.py の race・baseline・horses を回しておく。確かめるのは、まだ見ていない 2021〜2022年。2023〜2026年は参考として並べる。
-bets は元DB から選んだレースの3連単・3連複の確定オッズを読む（初回は数分。``cache/`` にとっておく）。
-出るもの（Git 対象外）: ``reports/百万馬券を当てる/レース選びの結果.md``・``来る馬の予想の結果.md``・``買い目の結果.md``・``買い目/<買い方>.csv``。
+先に walk.py の race・big・baseline・horses を回しておく。races・horses・bets は、まだ見ていない 2021〜2022年で確かめ、2023〜2026年を参考として並べる。
+select・flat は 2021〜2026年の全部で数え、2021〜2022年と 2023〜2026年にも分けて並べる。
+bets・flat は元DB から選んだレースの3連単（bets は3連複も）の確定オッズを読む（初回は数分。``cache/`` にとっておく）。
+出るもの（Git 対象外）: ``reports/百万馬券を当てる/レース選びの結果.md``・``来る馬の予想の結果.md``・``買い目の結果.md``・``買い目/<買い方>.csv``・
+``レース選びの精度.md``・``一律の買い目の結果.md``・``一律の買い目/<買い方>.csv``。
 """
 
 from __future__ import annotations
@@ -26,20 +30,30 @@ from 共通 import db  # noqa: E402
 from yosou.shared.betting import TicketType  # noqa: E402
 from yosou.shared.dataset import RACE_DATE, RACE_ID  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
+from yosou.upset_premise.betting import FLAT_STAKE_CHOICES, FlatPlan, FormationPlan, ObiStakePlan, TicketPlan  # noqa: E402
 
 from 既存モデルの改善.analysis.walk_forward import PredictionStore  # noqa: E402
 from 百万馬券を当てる.analysis.betting_summary import BettingSummary  # noqa: E402
+from 百万馬券を当てる.analysis.big_combo_odds import BigComboOdds  # noqa: E402
 from 百万馬券を当てる.analysis.day_race_picker import DayRacePicker  # noqa: E402
 from 百万馬券を当てる.analysis.finish_loader import FinishLoader  # noqa: E402
-from yosou.upset_premise.betting import FormationPlan  # noqa: E402
+from 百万馬券を当てる.analysis.flat_hit_summary import FlatHitSummary  # noqa: E402
 from 百万馬券を当てる.analysis.obi_rules import BIG, CHECK_YEARS, OBI, REFERENCE_FIRST_YEAR  # noqa: E402
-from yosou.upset_premise.betting import ObiStakePlan  # noqa: E402
+from 百万馬券を当てる.analysis.plain_flat_plan import PlainFlatPlan  # noqa: E402
 from 百万馬券を当てる.analysis.prediction_coverage import PredictionCoverage  # noqa: E402
 from 百万馬券を当てる.analysis.race_frame import PAYOUT_CLASS, YEAR, race_frame  # noqa: E402
 from 百万馬券を当てる.analysis.race_horses_builder import RaceHorsesBuilder  # noqa: E402
-from 百万馬券を当てる.analysis.race_selection_scores import BASELINE, RULE, RaceSelectionScores, model_column  # noqa: E402
+from 百万馬券を当てる.analysis.race_selection_scores import (  # noqa: E402
+    BASELINE,
+    BIG_BASELINE,
+    RULE,
+    RaceSelectionScores,
+    big_model_column,
+    model_column,
+)
 from 百万馬券を当てる.analysis.race_table_loader import RaceTableLoader  # noqa: E402
 from 百万馬券を当てる.analysis.selected_combo_odds import SelectedComboOdds  # noqa: E402
+from 百万馬券を当てる.analysis.selection_precision import SelectionPrecision  # noqa: E402
 from 百万馬券を当てる.analysis.selection_summary import SelectionSummary  # noqa: E402
 from 百万馬券を当てる.analysis.ticket_maker import TicketMaker  # noqa: E402
 from 百万馬券を当てる.analysis.ticket_settler import TicketSettler  # noqa: E402
@@ -62,11 +76,100 @@ FORECASTS: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
 }
 #: 着順を読む馬ごとの表。
 FINISH_TABLE = "dscore_race_day"
+#: 「荒れる」と決める線の既定（本番の道具「帯狙い」と同じ。docs/06 の 4）。
+DEFAULT_LINE = 0.40
+#: select で並べる点数の列。
+SELECTION_COLUMNS: tuple[str, ...] = (BASELINE, BIG_BASELINE, *(big_model_column(timing) for timing in PredictionTiming),
+                                      *(model_column(timing) for timing in PredictionTiming), RULE)
+#: flat で比べる組の確率の付け方の名前。
+ADOPTED, PLAIN, USUAL_ONLY = ("採用（1着は荒れる前提・2着3着は両方の3着以内の平均）", "元の Harville（荒れる前提の1着だけ）",
+                             "今の予想だけ（1着は今の1着・2着3着は今の3着以内）")
 
 
 def main() -> None:
     args = _parser().parse_args()
-    {"races": _races, "horses": _horses, "bets": _bets}[args.step](args)
+    {"races": _races, "horses": _horses, "bets": _bets, "select": _select, "flat": _flat}[args.step](args)
+
+
+def _split_years(frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """2021〜2026年の全部と、まだ見ていなかった 2021〜2022年・参考の 2023〜2026年。"""
+    return {"2021〜2026年": frame, **_periods(frame)}
+
+
+def _select(args: argparse.Namespace) -> None:
+    scored = _scored(args)
+    scored = scored[scored[YEAR].ge(min(CHECK_YEARS))]
+    precision = SelectionPrecision()
+    lines = ["# レース選びの精度", "",
+             "点数の高い順に「1開催日あたり n レース」ぶん選んだとき、実際に3連単が 1,000倍以上で決まった割合（docs/06 の 2）。",
+             "選ぶ数を同じにして比べる。AUC は点数の並べ方の良さ（1 なら 1,000倍以上のレースを全部上に並べられている）。",
+             "JV-Data 由来の値を含むため Git の対象外。", ""]
+    for period, frame in _split_years(scored).items():
+        wild = int(frame[PAYOUT_CLASS].isin([OBI, BIG]).sum())
+        lines += [f"## {period}（{len(frame)}レース・うち 1,000倍以上 {wild}・開催日 {frame[RACE_DATE].nunique()}）", "",
+                  precision.table(frame, list(SELECTION_COLUMNS)).to_markdown(index=False), ""]
+    _write(args.root / "レース選びの精度.md", lines)
+
+
+def _flat(args: argparse.Namespace) -> None:
+    scored = _scored(args)
+    picked = scored[scored[YEAR].ge(min(CHECK_YEARS)) & scored[BIG_BASELINE].ge(args.line)]
+    odds = {True: _big_odds(args, picked)}
+    finishes = FinishLoader(args.horse_tables, FINISH_TABLE).finishes(picked[RACE_ID])
+    winners = {race: trifecta_winners(found) for race, found in finishes.items()}
+    horses = {name: builder.build(picked[RACE_ID]) for name, builder in _flat_builders(args).items()}
+    settled = {(name, plan.name): TicketSettler().settle(TicketMaker(plan, f"{plan.name}・{name}").make(picked, horses[name], odds), winners)
+               for name, plan in _flat_plans()}
+    _write_tickets(args.root / "一律の買い目", settled)
+    hits, summary = FlatHitSummary(), BettingSummary()
+    lines = ["# 一律の買い目の結果（1レース 1万円）", "",
+             f"レースの選び方: {BIG_BASELINE} が {args.line} 以上のレースを全部（1日何レースでも）。オッズは確定オッズ。",
+             "買い方: 1,000倍以上の3連単の組を、組の確率の高い順に、一律の金額で予算ぶん買う（docs/06 の 3）。",
+             "JV-Data 由来の値を含むため Git の対象外。", ""]
+    for period, frame in _split_years(picked).items():
+        years = frame[YEAR].nunique()
+        lines += [f"## {period}（{len(frame)}レースを選んだ）", ""]
+        rows = []
+        for (name, plan), tickets in settled.items():
+            part = tickets[tickets[RACE_ID].isin(frame[RACE_ID])]
+            betting = summary.row(part, years)
+            rows.append({"組の確率": name, "買い方": plan, **hits.row(part, frame),
+                         **{key: betting.get(key) for key in ("回収率", "90%の幅（下）", "90%の幅（上）", "いちばん大きい当たりを除いた回収率",
+                                                            "いちばん深い落ち込み", "最大の連敗", "1年の投資")}})
+        lines += [pd.DataFrame(rows).to_markdown(index=False), ""]
+    _write(args.root / "一律の買い目の結果.md", lines)
+
+
+def _flat_builders(args: argparse.Namespace) -> dict[str, RaceHorsesBuilder]:
+    """組の確率の付け方ごとの、出走馬の予想の作り方。"""
+    wild, usual = FORECASTS["荒れる前提の予想"], FORECASTS["今の予想"]
+    store, usual_store = PredictionStore(args.root / "predictions"), PredictionStore(CURRENT_PREDICTIONS)
+    wild_win, wild_top3 = store.read(*wild[0]), store.read(*wild[1])
+    usual_win, usual_top3 = usual_store.read(*usual[0]), usual_store.read(*usual[1])
+    return {ADOPTED: RaceHorsesBuilder(wild_win, wild_top3, usual_top3), PLAIN: RaceHorsesBuilder(wild_win, wild_top3),
+            USUAL_ONLY: RaceHorsesBuilder(usual_win, usual_top3)}
+
+
+def _flat_plans() -> list[tuple[str, TicketPlan]]:
+    """（組の確率の付け方, 買い方）の並び。元の Harville は ``PlainFlatPlan``、ほかは本番の ``FlatPlan``。"""
+    pairs: list[tuple[str, TicketPlan]] = []
+    for stake in FLAT_STAKE_CHOICES:
+        pairs += [(ADOPTED, FlatPlan(stake)), (PLAIN, PlainFlatPlan(stake)), (USUAL_ONLY, FlatPlan(stake))]
+    return pairs
+
+
+def _big_odds(args: argparse.Namespace, picked: pd.DataFrame) -> BigComboOdds:
+    """選んだレースの 1,000倍以上の3連単の確定オッズ。同じ線の2回目からは ``cache/`` から読む。"""
+    cache = args.root / "cache" / f"1000倍以上の組-線{args.line}.pkl"
+    if cache.exists():
+        table = pd.read_pickle(cache)
+        if set(picked[RACE_ID]) <= set(table[RACE_ID]):
+            return BigComboOdds(table)
+    with db.open_db(args.db) as con:
+        found = BigComboOdds.read(con, picked)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    found.table.to_pickle(cache)
+    return found
 
 
 def _periods(frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
@@ -173,7 +276,9 @@ def _write(path: Path, lines: list[str]) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="レース選びと、荒れる前提の予想の買い目を確かめる", allow_abbrev=False)
-    parser.add_argument("step", choices=("races", "horses", "bets"), help="races（手順4）・horses（手順7の前半）・bets（手順7）")
+    parser.add_argument("step", choices=("races", "horses", "bets", "select", "flat"),
+                        help="races（手順4）・horses（手順7の前半）・bets（手順7）・select（docs/06 の 2）・flat（docs/06 の 3）")
+    parser.add_argument("--line", type=float, default=DEFAULT_LINE, help=f"flat で「荒れる」と決める線（既定: {DEFAULT_LINE}）")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="この研究の置き場所（tables/ と predictions/）")
     parser.add_argument("--horse-tables", type=Path, default=DEFAULT_HORSE_TABLES, help="馬ごとの表の置き場所（着順を読む）")
     parser.add_argument("--selection", default=DEFAULT_SELECTION, choices=SELECTIONS, help="第3段で使うレースの選び方")
