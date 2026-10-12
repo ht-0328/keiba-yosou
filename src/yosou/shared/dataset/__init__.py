@@ -39,6 +39,7 @@
 | ``PaceAttachment`` | 学習データ・予測用データに、展開の予想の結果（まとまり P）の 20列を足す（中央の木曜のモデル） |
 | ``RequiredInfoCheck`` | 予測に要る情報（馬番・馬場状態・馬体重・オッズ など）が DB にあるかを確かめる |
 | ``FieldOddsCheck`` | 前日以降の予測で、全頭の単勝オッズがそろっているかを確かめる（レース単位の予想が使う） |
+| ``TrainingRows``・``AllRows`` | 作った学習データから学ぶ行だけを残す決まり（インターフェース）と、全部の行を残す既定。荒れる前提で着順を予想は、荒れたレースの行だけを残す |
 | ``TrainingPeriod`` | 学習データの期間（ウォームアップ・学習・検証・テストの始まりの日） |
 | ``PeriodSplitter``・``SplitData`` | 学習データを時期で、学習・検証・テストに分ける |
 
@@ -99,6 +100,8 @@ from .win_baseline import WinBaseline
 from .win_target_data import WinTargetData
 from .finish_power_free_data import FinishPowerFreeData
 from .training_data import BINARY_LABELS, TrainingData
+from .training_rows import TrainingRows
+from .all_rows import AllRows
 from .training_period import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
@@ -107,7 +110,7 @@ from .training_period import (
 )
 
 __all__ = [
-    "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData",
+    "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData", "TrainingRows", "AllRows",
     "TrainingPeriod", "PeriodSplitter", "SplitData",
     "HistoryRecordsLoader", "RaceRecordsLoader", "AbilitySourcesLoader", "HISTORY_FIRST_DAY", "FinishRecordsLoader",
     "DistanceChangeRecordsLoader", "DISTANCE_CHANGE_KEY",

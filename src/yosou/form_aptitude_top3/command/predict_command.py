@@ -52,7 +52,14 @@ from .yosou_name import YOSOU_NAME
 
 
 class PredictCommand:
-    """``predict``: 1レースの出走馬ごとの「3着以内に入る確率」と「1着になる確率」（と、前日・当日は複勝・単勝の期待値）を出す。"""
+    """``predict``: 1レースの出走馬ごとの「3着以内に入る確率」と「1着になる確率」（と、前日・当日は複勝・単勝の期待値）を出す。
+
+    ``yosou_name`` はモデルの既定の置き場所（``reports/<予想の名前>/models``）を決める。同じ材料・同じ列で学んだ別の予想
+    （荒れる前提で着順を予想。``yosou.upset_premise``）が、自分の置き場所のモデルで予測するために渡す。
+    """
+
+    def __init__(self, yosou_name: str = YOSOU_NAME) -> None:
+        self._yosou_name = yosou_name
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -73,7 +80,7 @@ class PredictCommand:
         )
         FigureCacheArgument().add_to(parser)
         DevelopmentRootArgument().add_to(parser)
-        CommonArguments(YOSOU_NAME).add_to(parser)
+        CommonArguments(self._yosou_name).add_to(parser)
         parser.set_defaults(handler=self.run)
 
     def run(self, args: argparse.Namespace) -> list[Table]:
