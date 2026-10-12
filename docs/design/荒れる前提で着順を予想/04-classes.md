@@ -2,7 +2,7 @@
 
 **この文書で決めること:** ほかの予想とこの予想で、同じ仕事をするクラスをどこに置き、どう使うか。この予想だけに要るクラスは何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。
 
-**結論: 学習データを作る・学習する・予測するクラスは、ほかの予想のものをそのまま使う。荒れる前提の3着以内・1着は、手本の学習・予測のコマンド（`TrainCommand`・`PredictCommand`）に、この予想の名前と「荒れたレースの行だけを残す」決まり（`WildRaceRows`）を渡して使う。この予想だけに作るのは、`WildRaceRows` と買い方（一律・甲・乙・丙）のクラスである。開催日ごとのレース選びと買い目は、道具「帯狙い」（`tools/帯狙い/`）が、荒れ具合の予想の予測の流れ、今週の予想の `RaceForecaster`（この予想のモデルと今の予想のモデルの2回）、この予想の買い方を順に呼んで出す。**
+**結論: 学習データを作る・学習する・予測するクラスは、ほかの予想のものをそのまま使う。荒れる前提の3着以内・1着は、手本の学習・予測のコマンド（`TrainCommand`・`PredictCommand`）に、この予想の名前と「荒れたレースの行だけを残す」決まり（`WildRaceRows`）を渡して使う。この予想だけに作るのは、`WildRaceRows`、レース選びの点数（`BigPayoutChance`・`RaceSelectionScore`）、買い方（一律・甲・乙・丙）のクラスである。開催日ごとのレース選びと買い目は、道具「帯狙い」（`tools/帯狙い/`）が、荒れ具合の予想の予測の流れ、今週の予想の `RaceForecaster`（この予想のモデルと今の予想のモデルの2回）、この予想の買い方を順に呼んで出す。**
 
 用語の意味は [02-glossary.md](02-glossary.md) を参照。
 
@@ -13,8 +13,9 @@
 | 手本の学習のコマンド `TrainCommand` | `src/yosou/form_aptitude_top3/command/train_command.py` | `TrainCommand(YOSOU_NAME, WildRaceRows())` として `train` に使う。学習データの作り方・材料の足し方・保存の形は手本のまま、学ぶ行と置き場所だけが変わる |
 | 手本の予測のコマンド `PredictCommand` | `src/yosou/form_aptitude_top3/command/predict_command.py` | `PredictCommand(YOSOU_NAME)` として `predict` に使う。この予想の置き場所のモデルで、1レースの荒れる前提の確率を出す |
 | 学ぶ行の選び方の決まり `TrainingRows` と既定の `AllRows` | `src/yosou/shared/dataset/` | `TrainCommand` が、学習データを作った直後（元DB を開いている間）に呼ぶ。手本は `AllRows`（全部の行）、この予想は `WildRaceRows` |
-| 荒れ具合の予想の予測の流れ `PredictionWorkflow` と学習済みモデル | `src/yosou/upset_level/workflow/`、`reports/レースの荒れ具合を4段階で予想/models/` | 道具「帯狙い」が、レースごとに3連単が 1,000倍以上になる確率（大荒れ＋超荒れ）を出し、線以上のレースを選ぶ（[15-decisions.md の 1](15-decisions.md#1-レース選びに何を使うか)） |
-| 1レースを予想する `RaceForecaster` | `tools/今週の予想/race_forecaster.py` | 道具「帯狙い」が、この予想の置き場所を渡して、選んだレースを予想する（印・危険な人気馬の判定も今週の予想と同じ）。今の予想の置き場所も渡して同じレースを予想し、その3着以内の確率を2着・3着の重みに使う（[15-decisions.md の 6](15-decisions.md#6-組の確率の2着3着の重み)） |
+| 荒れ具合の予想の予測の流れ `PredictionWorkflow` と学習済みモデル | `src/yosou/upset_level/workflow/`、`reports/レースの荒れ具合を4段階で予想/models/` | 道具「帯狙い」が、レースごとに3連単が 1,000倍以上になる確率（大荒れ＋超荒れ）を出し、予想が見た確率と平均して点数にする（[15-decisions.md の 1](15-decisions.md#1-レース選びに何を使うか)） |
+| 1レースを予想する `RaceForecaster` | `tools/今週の予想/race_forecaster.py` | 道具「帯狙い」が、この予想の置き場所を渡して、選んだレースを予想する（印・危険な人気馬の判定も今週の予想と同じ）。今の予想の置き場所も渡して、その日の全レースを予想し（今週の予想が保存した同じ時点の結果があればそれを読む）、1着の確率を点数（予想が見た確率）に、3着以内の確率を2着・3着の重みに使う（[15-decisions.md の 6・8](15-decisions.md#6-組の確率の2着3着の重み)） |
+| 今週の予想の結果の保存 `ForecastStore` | `tools/今週の予想/forecast_store.py` | 道具「帯狙い」が、保存してある今の予想の結果（同じ時点）を読んで、予想し直す時間を省く |
 
 **手本のコマンドに足したのは、コンストラクタの2つの引数（予想の名前と学ぶ行の選び方）だけである。** 既定の値は手本のままなので、手本の学習と予測は変わらない。同じ材料の作り方を2か所に書かないために、こうした。
 
@@ -27,6 +28,13 @@
 | `WildRaceRows` | 学習データから、荒れたレース（3連単の払戻が 10万円以上）の行だけを残す。`TrainingRows` を守る | `keep(con, data)` | `RacePayoutRepository` |
 
 線（10万円・100万円）は `dataset/obi_rules.py`（定数だけ）。
+
+### selection/ — レース選び
+
+| クラス | 仕事 |
+|---|---|
+| `BigPayoutChance` | 予想が見た 1,000倍以上になる確率。今の予想の1着の確率（`RaceHorses`）から Harville の式で全部の3連単の組の確率を出し、オッズが 1,000倍以上の組の確率を合計する |
+| `RaceSelectionScore` | レースを選ぶ点数。荒れ具合の予想の確率と予想が見た確率の平均（予想が見た確率が無ければ荒れ具合の確率だけ） |
 
 ### betting/ — 買い目
 
@@ -53,7 +61,7 @@
 | クラス | 仕事 |
 |---|---|
 | `ObiDayRun` | 1日の帯狙いを進める（`ObiDayPicker` → 選んだレースごとに `RaceForecaster` を2回（この予想・今の予想） → 買い方）。ほかを順に呼ぶだけ |
-| `ObiDayPicker` | 1日のレースごとに時点を選び、荒れ具合の予想で3連単が 1,000倍以上になる確率を出して高い順に並べ、線以上のレースを選ぶ |
+| `ObiDayPicker` | 1日のレースごとに時点を選び、荒れ具合の予想の確率と予想が見た確率（今の予想の結果と締め切り前の3連単のオッズから）を出して点数にし、高い順に並べ、線以上のレースを選ぶ。点数の種類（`--score`）が「大荒れ＋超荒れ」なら荒れ具合の確率だけ |
 | `ForecastHorses` | `RaceForecaster` の結果（この予想と今の予想）から、馬番・1着の確率・3着以内の確率・今の予想の3着以内の確率を取り出す |
 | `AnnouncedComboOdds` | 1レースの組ごとのオッズを、締め切り前（なければ確定）の断面で読む |
 | `ObiStore`・`ObiTables` | 結果を `reports/帯狙い/<開催日>.json` に書く・表にする |
@@ -65,6 +73,7 @@ src/yosou/upset_premise/
 ├── __init__.py            # この予想の説明と、フォルダの一覧
 ├── __main__.py            # python -m yosou.upset_premise の入口
 ├── command/               # CommandLine・yosou_name.py
+├── selection/             # BigPayoutChance・RaceSelectionScore
 ├── betting/               # RaceHorses・TicketPlan・FlatPlan・ObiStakePlan・FormationPlan・harville.py・betting_rules.py
 ├── dataset/               # WildRaceRows・obi_rules.py
 └── tests/
@@ -73,7 +82,7 @@ src/yosou/upset_premise/
 | 決まり | 理由 |
 |---|---|
 | 1ファイルに1クラス、1クラスに1つの仕事。SQL は `yosou.shared.repository` だけ | ほかの予想と同じ（[手本の 04](../近走と適性から3着以内を予想/04-classes.md)） |
-| 参照の向きは `command` → `betting` → `dataset` の一方向 | 下のものが上のものを知らないようにし、部品を取り替えやすくする |
+| 参照の向きは `command` → `selection` → `betting` → `dataset` の一方向 | 下のものが上のものを知らないようにし、部品を取り替えやすくする |
 | 手本の予想のパッケージは使ってよいが、そちらからこの予想を参照しない | 手本を、この予想が無くても動く形に保つ |
 | モデルの置き場所は `reports/荒れる前提で着順を予想/models/`（Git の対象外）。形は手本と同じ（`<時点>/`・`1着/<時点>/`・`券種オッズなし/`・複勝の見込みの倍率） | JV-Data から作ったものなので公開しない。手本と同じ形なので、`RaceForecaster` に置き場所を渡せば予測できる |
 

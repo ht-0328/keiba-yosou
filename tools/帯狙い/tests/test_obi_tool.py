@@ -56,21 +56,24 @@ def test_買い方は一律甲乙丙で既定は一律() -> None:
         plan_named("丁")
 
 
+def _chance(race_id: str, probability: float) -> RaceChance:
+    return RaceChance(race_id, PredictionTiming.RACE_DAY, probability, probability, None, None)
+
+
 def test_線以上のレースを全部選ぶ() -> None:
-    ranked = [RaceChance("r1", PredictionTiming.RACE_DAY, 0.52), RaceChance("r2", PredictionTiming.RACE_DAY, DEFAULT_LINE),
-              RaceChance("r3", PredictionTiming.RACE_DAY, 0.39)]
+    ranked = [_chance("r1", 0.52), _chance("r2", DEFAULT_LINE), _chance("r3", 0.39)]
     assert [chance.race_id for chance in ObiDayPicker.above(ranked, DEFAULT_LINE)] == ["r1", "r2"]
     assert ObiDayPicker.above(ranked, 0.6) == []
 
 
 def test_結果を開催日ごとに書いて読み戻し表にできる(tmp_path: Path) -> None:
-    pick = {"rid": "r", "title": "架空のレース", "timing": "当日", "probability": 0.48,
+    pick = {"rid": "r", "title": "架空のレース", "timing": "当日", "probability": 0.48, "upset_probability": 0.5, "chance": 0.46,
             "horses": [{"馬番": 1, "馬名": "架空の馬", "印": "◎", "人気": 9, "単勝オッズ": 30.0, "3着以内の確率": 0.3, "1着の確率": 0.1,
                         "今の予想の3着以内の確率": 0.2}],
             "tickets": [{"組": "1-2-3", "掛け金": 100, "オッズ": 1500.0, "払戻の見込み": 150000}], "total_yen": 100, "note": "架空"}
-    result = {"day": "2026-10-18", "plan": "一律 1,000倍以上（3連単・1点100円・100点）", "line": 0.4,
-              "ranking": [{"rid": "r", "title": "架空のレース", "timing": "当日", "probability": 0.48, "chosen": True},
-                          {"rid": "s", "title": "架空のレース2", "timing": "当日", "probability": 0.21, "chosen": False}],
+    result = {"day": "2026-10-18", "plan": "一律 1,000倍以上（3連単・1点100円・100点）", "line": 0.4, "score": "平均",
+              "ranking": [{"rid": "r", "title": "架空のレース", "timing": "当日", "probability": 0.48, "upset_probability": 0.5, "chance": 0.46, "chosen": True},
+                          {"rid": "s", "title": "架空のレース2", "timing": "当日", "probability": 0.21, "upset_probability": 0.21, "chance": None, "chosen": False}],
               "picks": [pick, {**pick, "rid": "t", "tickets": [], "total_yen": 0}]}
     store = ObiStore(tmp_path)
     store.save(date(2026, 10, 18), result)
@@ -79,3 +82,4 @@ def test_結果を開催日ごとに書いて読み戻し表にできる(tmp_pat
     tables = ObiTables().tables(result)
     assert [len(table.rows) for table in tables] == [2, 1, 1, 1, 0]
     assert tables[0].rows[0][-1] == "買う" and tables[0].rows[1][-1] == ""
+    assert tables[0].rows[0][3:6] == [0.5, 0.46, 0.48] and tables[0].rows[1][4] is None

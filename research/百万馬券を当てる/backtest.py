@@ -34,6 +34,7 @@ from yosou.upset_premise.betting import FLAT_STAKE_CHOICES, FlatPlan, FormationP
 
 from 既存モデルの改善.analysis.walk_forward import PredictionStore  # noqa: E402
 from 百万馬券を当てる.analysis.betting_summary import BettingSummary  # noqa: E402
+from 百万馬券を当てる.analysis.big_chance_table import BigChanceTable  # noqa: E402
 from 百万馬券を当てる.analysis.big_combo_odds import BigComboOdds  # noqa: E402
 from 百万馬券を当てる.analysis.day_race_picker import DayRacePicker  # noqa: E402
 from 百万馬券を当てる.analysis.finish_loader import FinishLoader  # noqa: E402
@@ -46,6 +47,7 @@ from 百万馬券を当てる.analysis.race_horses_builder import RaceHorsesBuil
 from 百万馬券を当てる.analysis.race_selection_scores import (  # noqa: E402
     BASELINE,
     BIG_BASELINE,
+    BLEND,
     RULE,
     RaceSelectionScores,
     big_model_column,
@@ -79,8 +81,10 @@ FINISH_TABLE = "dscore_race_day"
 #: 「荒れる」と決める線の既定（本番の道具「帯狙い」と同じ。docs/06 の 4）。
 DEFAULT_LINE = 0.40
 #: select で並べる点数の列。
-SELECTION_COLUMNS: tuple[str, ...] = (BASELINE, BIG_BASELINE, *(big_model_column(timing) for timing in PredictionTiming),
+SELECTION_COLUMNS: tuple[str, ...] = (BASELINE, BIG_BASELINE, BLEND, *(big_model_column(timing) for timing in PredictionTiming),
                                       *(model_column(timing) for timing in PredictionTiming), RULE)
+#: flat でレースを選ぶ点数（--score）。
+FLAT_SCORES: dict[str, str] = {"平均": BLEND, "大荒れ＋超荒れ": BIG_BASELINE}
 #: flat で比べる組の確率の付け方の名前。
 ADOPTED, PLAIN, USUAL_ONLY = ("採用（1着は荒れる前提・2着3着は両方の3着以内の平均）", "元の Harville（荒れる前提の1着だけ）",
                              "今の予想だけ（1着は今の1着・2着3着は今の3着以内）")
@@ -97,7 +101,7 @@ def _split_years(frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 
 def _select(args: argparse.Namespace) -> None:
-    scored = _scored(args)
+    scored = _scored(args, with_chance=True)
     scored = scored[scored[YEAR].ge(min(CHECK_YEARS))]
     precision = SelectionPrecision()
     lines = ["# レース選びの精度", "",
@@ -112,8 +116,9 @@ def _select(args: argparse.Namespace) -> None:
 
 
 def _flat(args: argparse.Namespace) -> None:
-    scored = _scored(args)
-    picked = scored[scored[YEAR].ge(min(CHECK_YEARS)) & scored[BIG_BASELINE].ge(args.line)]
+    score = FLAT_SCORES[args.score]
+    scored = _scored(args, with_chance=score == BLEND)
+    picked = scored[scored[YEAR].ge(min(CHECK_YEARS)) & scored[score].ge(args.line)]
     odds = {True: _big_odds(args, picked)}
     finishes = FinishLoader(args.horse_tables, FINISH_TABLE).finishes(picked[RACE_ID])
     winners = {race: trifecta_winners(found) for race, found in finishes.items()}
@@ -123,7 +128,7 @@ def _flat(args: argparse.Namespace) -> None:
     _write_tickets(args.root / "一律の買い目", settled)
     hits, summary = FlatHitSummary(), BettingSummary()
     lines = ["# 一律の買い目の結果（1レース 1万円）", "",
-             f"レースの選び方: {BIG_BASELINE} が {args.line} 以上のレースを全部（1日何レースでも）。オッズは確定オッズ。",
+             f"レースの選び方: {score} が {args.line} 以上のレースを全部（1日何レースでも）。オッズは確定オッズ。",
              "買い方: 1,000倍以上の3連単の組を、組の確率の高い順に、一律の金額で予算ぶん買う（docs/06 の 3）。",
              "JV-Data 由来の値を含むため Git の対象外。", ""]
     for period, frame in _split_years(picked).items():
@@ -160,7 +165,7 @@ def _flat_plans() -> list[tuple[str, TicketPlan]]:
 
 def _big_odds(args: argparse.Namespace, picked: pd.DataFrame) -> BigComboOdds:
     """選んだレースの 1,000倍以上の3連単の確定オッズ。同じ線の2回目からは ``cache/`` から読む。"""
-    cache = args.root / "cache" / f"1000倍以上の組-線{args.line}.pkl"
+    cache = args.root / "cache" / f"1000倍以上の組-{args.score}-線{args.line}.pkl"
     if cache.exists():
         table = pd.read_pickle(cache)
         if set(picked[RACE_ID]) <= set(table[RACE_ID]):
@@ -177,9 +182,27 @@ def _periods(frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
             "参考（2023〜2026年）": frame[frame[YEAR].ge(REFERENCE_FIRST_YEAR)]}
 
 
-def _scored(args: argparse.Namespace) -> pd.DataFrame:
+def _scored(args: argparse.Namespace, with_chance: bool = False) -> pd.DataFrame:
     races = race_frame(RaceTableLoader(args.root / "tables").read())
-    return RaceSelectionScores(PredictionStore(args.root / "predictions")).scores(races)
+    chance = _chance(args, races[races[YEAR].ge(min(CHECK_YEARS))]) if with_chance else None
+    return RaceSelectionScores(PredictionStore(args.root / "predictions"), chance).scores(races)
+
+
+def _chance(args: argparse.Namespace, races: pd.DataFrame) -> pd.Series:
+    """2021年からの全レースの、予想が見た 1,000倍以上になる確率。2回目からは ``cache/`` から読む（初回は元DB から数分）。"""
+    cache = args.root / "cache" / "予想が見た1000倍以上になる確率.pkl"
+    if cache.exists():
+        saved = pd.read_pickle(cache)
+        if set(races[RACE_ID]) <= set(saved.index):
+            return saved
+    (win_model, win_key), (top3_model, top3_key) = FORECASTS["今の予想"]
+    store = PredictionStore(CURRENT_PREDICTIONS)
+    builder = RaceHorsesBuilder(store.read(win_model, win_key), store.read(top3_model, top3_key))
+    with db.open_db(args.db) as con:
+        found = BigChanceTable(builder).build(con, races)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    found.to_pickle(cache)
+    return found
 
 
 def _races(args: argparse.Namespace) -> None:
@@ -279,6 +302,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("step", choices=("races", "horses", "bets", "select", "flat"),
                         help="races（手順4）・horses（手順7の前半）・bets（手順7）・select（docs/06 の 2）・flat（docs/06 の 3）")
     parser.add_argument("--line", type=float, default=DEFAULT_LINE, help=f"flat で「荒れる」と決める線（既定: {DEFAULT_LINE}）")
+    parser.add_argument("--score", choices=tuple(FLAT_SCORES), default="平均",
+                        help="flat でレースを選ぶ点数（平均: 本番と同じ大荒れ＋超荒れと予想が見た確率の平均 / 大荒れ＋超荒れ。既定: 平均）")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="この研究の置き場所（tables/ と predictions/）")
     parser.add_argument("--horse-tables", type=Path, default=DEFAULT_HORSE_TABLES, help="馬ごとの表の置き場所（着順を読む）")
     parser.add_argument("--selection", default=DEFAULT_SELECTION, choices=SELECTIONS, help="第3段で使うレースの選び方")
