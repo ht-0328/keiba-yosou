@@ -29,5 +29,9 @@ class PredictionStore:
         """予測の表。無ければ ``FileNotFoundError``。"""
         return pd.read_pickle(self._root / model / f"{key}{_PREDICTIONS_SUFFIX}")
 
+    def read_log(self, model: str, key: str) -> pd.DataFrame:
+        """学習の記録。無ければ ``FileNotFoundError``。"""
+        return pd.read_csv(self._root / model / f"{key}{_LOG_SUFFIX}", encoding="utf-8-sig")
+
     def exists(self, model: str, key: str) -> bool:
         return (self._root / model / f"{key}{_PREDICTIONS_SUFFIX}").exists()

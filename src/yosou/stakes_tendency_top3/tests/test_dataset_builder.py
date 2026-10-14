@@ -20,7 +20,7 @@ from yosou.shared.tests.synthetic_season.season_plan import FIELD_SIZE
 
 from ..dataset import TOP3, WIN, ability_dataset_builder, race_day_dataset_builder
 from ..feature import ABILITY_CATALOG, K_FEATURES, RACE_DAY_CATALOG
-from ..feature.stakes_tendency_features import EDITIONS, FRONT_GAP, FRONT_GAP_SELF
+from ..feature.tendency_cut import EDITIONS, RUNS, STATS, cut_keyed
 from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS
 
 #: 架空の1シーズンの重賞（テスト記念）のレース番号と、終わった開催の rid の例（2024年12月の最初の土曜）。
@@ -31,13 +31,14 @@ FLAT_RID = "2024120705010101"
 
 
 def test_the_catalogs_are_the_form_catalogs_plus_the_tendency():
-    """材料は手本と同じ構成に K を足したもの（設計書 15 の 9）。木曜は枠を使う1個を除く K の9個。"""
+    """材料は手本と同じ構成に K を足したもの（設計書 15 の 10）。木曜は枠・オッズ・人気の切り口（12個）を除く K の39個。"""
     k_names = tuple(feature.name for feature in K_FEATURES)
+    assert len(k_names) == 51 and len(set(k_names)) == 51
     assert ABILITY_CATALOG.names == FORM_ABILITY_CATALOG.names + k_names
     assert RACE_DAY_CATALOG.names == FORM_RACE_DAY_CATALOG.names + k_names
-    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.THURSDAY)) == 199 + 9
-    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 210 + 10
-    assert len(RACE_DAY_CATALOG.columns_for(PredictionTiming.RACE_DAY)) == 285 + 10
+    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.THURSDAY)) == 199 + 39
+    assert len(ABILITY_CATALOG.columns_for(PredictionTiming.DAY_BEFORE)) == 210 + 51
+    assert len(RACE_DAY_CATALOG.columns_for(PredictionTiming.RACE_DAY)) == 285 + 51
     assert ABILITY_TIMINGS == (PredictionTiming.THURSDAY, PredictionTiming.DAY_BEFORE) and FORM_TIMINGS == (PredictionTiming.RACE_DAY,)
 
 
@@ -71,14 +72,23 @@ def test_tendency_counts_only_past_editions(race_day_training_data: TrainingData
         assert by_day.is_monotonic_increasing
 
 
-def test_front_gap_interaction_is_zero_for_non_front_styles(race_day_training_data: TrainingData):
-    """「前に行く馬のずれ×前に行くか」は、推定脚質が差し・追込（または不明）の馬では 0。"""
+def test_the_style_cut_counts_the_runners_of_the_horse_s_own_style_band(race_day_training_data: TrainingData):
+    """「脚質が同じ馬」は、推定脚質が前（逃げ・先行）の馬には過去の前の馬を、後ろの馬には後ろの馬を数える。
+
+    同じレースの前の馬どうし（後ろの馬どうし）は同じ値になり、前と後ろで値が違うレースがある。
+    """
     style = race_day_training_data.features["推定脚質"].astype("string")
-    is_front = style.isin(["逃げ", "先行"]).fillna(False).to_numpy()
-    interaction = race_day_training_data.features[FRONT_GAP_SELF].to_numpy()
-    gap = race_day_training_data.features[FRONT_GAP].to_numpy()
-    assert (interaction[~is_front] == 0).all()
-    assert (interaction[is_front] == gap[is_front]).all()
+    runs = race_day_training_data.features[cut_keyed("style").feature_name(RUNS)]
+    frame = pd.DataFrame({"race": race_day_training_data.ids[RACE_ID], "front": style.isin(["逃げ", "先行"]).fillna(False).to_numpy(),
+                          "runs": runs.to_numpy()})
+    with_past = frame[frame["runs"].notna()]
+    assert len(with_past) > 0
+    assert (with_past.groupby(["race", "front"])["runs"].nunique() == 1).all()
+    # 切り口ごとの4つの成績は、出走数が無い（欠損）ならほかの3つも欠損
+    for key in ("prev_race", "frame", "odds", "popularity", "age"):
+        columns = [cut_keyed(key).feature_name(stat) for stat in STATS]
+        table = race_day_training_data.features[columns]
+        assert (table.isna().all(axis=1) | table.notna().all(axis=1)).all()
 
 
 def test_prediction_works_for_a_finished_stakes_race(season_db: Path, figure_cache: Path):

@@ -5,7 +5,8 @@
     uv run python research/既存モデルの改善/walk_forward.py --model form_aptitude_top3 --windows 2025年後半  # 1つの区切りだけ試す
     uv run python research/既存モデルの改善/walk_forward.py --model upset_level                        # 荒れ具合（現行の作り方・券種ごと）
     uv run python research/既存モデルの改善/walk_forward.py --model longshots_in_top3 --variants improved --timing 木曜  # 時点を替える
-    uv run python research/既存モデルの改善/walk_forward.py --model stakes_tendency_top3              # 重賞（1年ずつの7つの区切り）
+
+重賞の予想（stakes_tendency_top3）は、この入口では回さない（入口⑨ stakes_rebuild.py が表を作って回す）。
 
 出るもの: reports/既存モデルの改善/predictions/<予想の名前>/<作り方>.pkl（予測の表）と <作り方>-log.csv（木の数・秒）。
 学習データは build_tables.py で保存した表を読む（元DB は開かない）。ハイパーパラメータは予想の初期値のまま。
@@ -102,7 +103,7 @@ def _default_settings_path(model: str) -> Path:
 
 def _parser():
     parser = cli.build_parser(__doc__, limit=None)
-    parser.add_argument("--model", required=True, help="予想の名前（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level / stakes_tendency_top3）")
+    parser.add_argument("--model", required=True, help="予想の名前（form_aptitude_top3 / longshots_in_top3 / favorites_out_of_top3 / upset_level。重賞は stakes_rebuild.py）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="回す作り方（省略すると全部）")
     parser.add_argument("--windows", nargs="*", default=None, metavar="区切り", help="回す区切り（例 2025年後半。重賞は 2025年。省略すると7つ全部）")
     parser.add_argument("--timing", type=PredictionTiming.parse, default=None, metavar="時点",

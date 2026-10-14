@@ -7,7 +7,7 @@
 | ``PredictCommand`` | ``predict``: 1レース（重賞）の出走馬ごとの「3着以内に入る確率」を出す |
 | ``EvaluateCommand`` | ``evaluate``: 学習に使っていない期間の重賞で、複勝の期待値買いと本命の成績を出す |
 | ``YOSOU_NAME`` | この予想の名前（モデルの置き場所に使う） |
-| ``RETIRED_NOTE`` | この予想が引退していることを、結果の表に添える文（設計書 15 の 9） |
+| ``RETIRED_NOTE`` | この予想が引退していることを、結果の表に添える文（設計書 15 の 9・10） |
 """
 
 from .command_line import CommandLine

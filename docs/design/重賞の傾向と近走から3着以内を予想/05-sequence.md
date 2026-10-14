@@ -33,8 +33,8 @@ sequenceDiagram
     RS->>RS: 重賞の行だけを選ぶ（06-flowchart.md の図1）
     RS-->>D: サンプルにする行
     D->>F: build（記録、当日）
-    F->>F: StakesTendencyFeatures が K の10個を作る（09-features.md の K）
-    F-->>D: 特徴量（当日の材料 295個か、馬の力の材料 223個）
+    F->>F: StakesTendencyFeatures が K の51個を作る（09-features.md の K）
+    F-->>D: 特徴量（当日の材料 336個か、馬の力の材料 261個）
     D->>T: build（サンプルにする行）
     T-->>D: 目的変数（3着以内なら 1）と、1着の列
     D->>B: build（サンプルにする行）
@@ -61,7 +61,7 @@ sequenceDiagram
 
 手本と違うのは次の3つで、ほかは手本の図1と同じである。
 
-- 記録を集めるとき、`StakesTendencyRepository` が重賞の傾向を読む呼び出しが1つ増える（図3）。傾向は出走の記録（`EntryRecords`）の `stakes_tendency` の表として持ち、`FeatureBuilder` の中で `StakesTendencyFeatures` が出走の行と突き合わせて K の10個を作る。
+- 記録を集めるとき、`StakesTendencyRepository` が重賞の傾向を読む呼び出しが1つ増える（図3）。傾向は出走の記録（`EntryRecords`）の `stakes_tendency` の表として持ち、`FeatureBuilder` の中で `StakesTendencyFeatures` が出走の行と突き合わせて K の51個を作る。
 - `RunnerSelector` が、重賞（グレードコード A・B・C の平地）の行だけをサンプルにする（[06-flowchart.md の図1](06-flowchart.md#図1-学習データに入れる行の選び方)）。重賞でないレースの出走も読むが、過去走と傾向の数え上げにだけ使う。
 - 学習データは、手本と同じく材料ごとに2つ作る（当日の材料 295個と、木曜・前日の馬の力の材料。単勝オッズは確定オッズ）。木曜と前日のモデルには、その時点で使う列だけを渡す（[07-prediction-timing.md の「時点ごとに使う特徴量」](07-prediction-timing.md#時点ごとに使う特徴量)）。当日は、券種のオッズが無いレースのために N を外したモデルも学ぶ。モデルは 4つ × 2つで8個になる（手本の 05 の図1と同じ形）。
 
@@ -132,12 +132,12 @@ sequenceDiagram
     L->>ST: read（対象）
     ST->>DB: SQL（重賞の対応表の一時表が無ければ作る）
     DB-->>ST: 対応表（rid → 特別競走番号・グレード）
-    ST->>DB: SQL（対象のレースごとに、それより前の開催の数え上げと基準を付ける）
+    ST->>DB: SQL（対象の重賞ごとに、それより前の開催の出走馬を並べる。対象の馬の前走のレースの鍵も付ける）
     DB-->>ST: 行
-    ST-->>L: stakes_tendency の表（対象の重賞のレースごとに1行）
+    ST-->>L: stakes_tendency の表（対象のレース × 過去の開催の1頭で1行。対象の馬の行も）
 ```
 
-**説明。** 2本の SQL は、どちらも `tools/共通/stakes.py` のもの（実装済み）である。返る表の列は、開催の同定（`race_id`・`stakes_no`・`grade`・`editions`）と、切り口ごとの過去の出走数 `*_n`・3着以内の数 `*_hits`（前・内枠は期待の数 `*_exp` も）、基準 `base_*`（[04-classes.md の 2](04-classes.md#2-shared-に足す変えるもの)）。数えるのは、そのレースの開催日より前の開催・基準だけである（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 6）。予測するレース（確定前の行）も、対応表に入っているので同じ SQL で傾向が付く。`EntryRecordsLoader` がこのリポジトリを受け取っていない予想では、この呼び出しは行われず、`stakes_tendency` は空の表になる。
+**説明。** 2本の SQL は、どちらも `tools/共通/stakes.py` のもの（実装済み）である。返る表の列は、対象のレース `target_race_id`・`is_target`、開催の同定（`race_id`・`stakes_no`・`race_date`・`horse_id`）、その馬の条件と結果、前走のレースの鍵 `prev_key`（[04-classes.md の 2](04-classes.md#2-shared-に足す変えるもの)）。並べるのは、そのレースの開催日より前の開催だけである（[11-leak-prevention.md](11-leak-prevention.md#決まり) の 6）。予測するレース（確定前の行）も、対応表に入っているので同じ SQL で過去の開催が付く。帯に分けて数えるのは SQL ではなく `StakesTendencyFeatures`（図1）で、学習と予測で同じクラスを通る。`EntryRecordsLoader` がこのリポジトリを受け取っていない予想では、この呼び出しは行われず、`stakes_tendency` は空の表になる。
 
 ## 図の中の部分の今の状態
 
