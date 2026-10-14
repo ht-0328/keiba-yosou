@@ -11,10 +11,6 @@ from 共通 import db, race
 from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, FigureCacheArgument, PredictionTable
-from yosou.ability_score import RaceAbilityScoreAttacher
-from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
-from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
-from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
 from yosou.shared.dataset import DatasetBuilder
 from yosou.shared.feature import PredictionTiming
@@ -33,7 +29,6 @@ from ..workflow import (
     PACE_TIMINGS,
     POOL_FREE_FOLDER,
     PROBABILITY,
-    SCORE_TIMINGS,
     SCORE_TOP3_TIMINGS,
     SCORE_WIN_TIMINGS,
     TRACK_BIAS_TOP3_TIMINGS,
@@ -47,6 +42,7 @@ from ..workflow import (
     PredictionWorkflow,
 )
 from .development_root_argument import DevelopmentRootArgument
+from .material_attachers import MaterialAttachers
 from .yosou_name import YOSOU_NAME
 
 
@@ -85,6 +81,7 @@ class PredictCommand:
     def run(self, args: argparse.Namespace) -> list[Table]:
         with db.open_db(args.db) as con:
             race_id = self._race_id(args, con)
+            attachers = MaterialAttachers(con, args.development_root)
             workflow = PredictionWorkflow(
                 self._dataset_builder(con, args), SegmentedPrediction(ModelSegments(), args.models),
                 OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
@@ -92,9 +89,9 @@ class PredictCommand:
                 pace=self._pace(con, args),
                 win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
                 win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
-                extras=self._extras(con, args, SCORE_TOP3_TIMINGS, ABILITY_SCORE_TOP3_TIMINGS, TRACK_BIAS_TOP3_TIMINGS,
+                extras=self._extras(attachers, args.timing, SCORE_TOP3_TIMINGS, ABILITY_SCORE_TOP3_TIMINGS, TRACK_BIAS_TOP3_TIMINGS,
                                     WEIGHT_DISCOUNT_TOP3_TIMINGS),
-                win_extras=self._extras(con, args, SCORE_WIN_TIMINGS, ABILITY_SCORE_WIN_TIMINGS, TRACK_BIAS_WIN_TIMINGS,
+                win_extras=self._extras(attachers, args.timing, SCORE_WIN_TIMINGS, ABILITY_SCORE_WIN_TIMINGS, TRACK_BIAS_WIN_TIMINGS,
                                         WEIGHT_DISCOUNT_WIN_TIMINGS),
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
@@ -113,41 +110,22 @@ class PredictCommand:
         workflow = DevelopmentPaceWorkflow(args.development_root / "models")
         return lambda race_id, timing, given: workflow.run(con, race_id, timing, given)
 
-    def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace, score_timings: tuple[PredictionTiming, ...],
+    def _extras(self, attachers: MaterialAttachers, timing: PredictionTiming, score_timings: tuple[PredictionTiming, ...],
                 ability_score_timings: tuple[PredictionTiming, ...], track_bias_timings: tuple[PredictionTiming, ...],
                 weight_discount_timings: tuple[PredictionTiming, ...]) -> list[DataAttachment]:
-        """そのモデルの予測用データに足す材料の関数。展開スコア（S）を足して学んだ時点（``score_timings``。3着以内は前日）なら、保存した
-        展開のモデルと表 G（展開の予想の置き場所の隣の ``展開スコア/cache/``。元DB が更新されていれば作り直す）でそのレースの S を足す関数。
-        能力スコア（T）を足して学んだ時点（``ability_score_timings``）なら、予測用データの能力指数と斤量から T を足す関数。
-        トラックバイアスの補正（U）を足して学んだ時点（``track_bias_timings``）なら、元DB の終わったレースの傾き（``トラックバイアス/cache/``）と
-        展開の予測④でそのレースの U を足す関数。馬体重の表の割引（V）を足して学んだ時点（``weight_discount_timings``）なら、
-        表 W（``馬体重の表/cache/``）を予測用データの増減・日数・馬齢で引いて V を足す関数。ほかの時点は無し。"""
+        """そのモデルの予測用データに足す材料の関数（``MaterialAttachers``）。展開スコア（S）を足して学んだ時点（``score_timings``。3着以内は前日）なら S、
+        能力スコア（T）を足して学んだ時点（``ability_score_timings``）なら T、トラックバイアスの補正（U）を足して学んだ時点（``track_bias_timings``）なら U、
+        馬体重の表の割引（V）を足して学んだ時点（``weight_discount_timings``）なら V を足す。ほかの時点は無し。"""
         extras: list[DataAttachment] = []
-        if args.timing in score_timings:
-            extras.append(self._attacher(con, args).attach)
-        if args.timing in ability_score_timings:
-            extras.append(RaceAbilityScoreAttacher().attach)
-        if args.timing in track_bias_timings:
-            extras.append(self._bias_attacher(con, args).attach)
-        if args.timing in weight_discount_timings:
-            table = WeightTableStore(weight_cache_folder_beside(args.development_root)).load(con)
-            extras.append(RaceWeightDiscountAttacher(table).attach)
+        if timing in score_timings:
+            extras.append(attachers.score())
+        if timing in ability_score_timings:
+            extras.append(attachers.ability_score())
+        if timing in track_bias_timings:
+            extras.append(attachers.bias())
+        if timing in weight_discount_timings:
+            extras.append(attachers.weight_discount())
         return extras
-
-    def _attacher(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> RaceScoreAttacher:
-        """S を足す部品（1回の predict で1つだけ作り、3着以内と1着で使い回す）。"""
-        if not hasattr(args, "_score_attacher"):
-            table = AdvantageTableStore(cache_folder_beside(args.development_root)).load(con)
-            args._score_attacher = RaceScoreAttacher(con, args.development_root / "models", table)
-        return args._score_attacher
-
-    def _bias_attacher(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> RaceBiasAttacher:
-        """U を足す部品（1回の predict で1つだけ作る。展開の予測は同じレースで1回だけ動かす）。"""
-        if not hasattr(args, "_bias_attacher"):
-            slopes, table = PriorSlopeTableStore(bias_cache_folder_beside(args.development_root)).load(con)
-            forecast = MemoizedPaceForecast(args.development_root / "models").run
-            args._bias_attacher = RaceBiasAttacher(con, forecast, slopes, table)
-        return args._bias_attacher
 
     def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
         """``--odds`` で渡されたオッズ。渡されなければ None。"""

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,19 +19,9 @@ from .forecast_group import ForecastGroup
 from .group_fitter import GroupFitter, ModelSink
 from .kind_datasets import KindDatasets
 from .kind_model_store import KindModelStore
+from .saved_model import SavedModel
 from .walk_forward_predictor import WalkForwardPredictor
 from .walk_forward_schedule import WalkForwardSchedule
-
-
-@dataclass(frozen=True)
-class SavedModel:
-    """保存した1つの予想・時点のモデル。"""
-
-    kind: DevelopmentModelKind
-    timing: PredictionTiming
-    folder: Path
-    tree_counts: tuple[int, ...]
-    order_lambda: float | None
 
 
 class DevelopmentTrainingWorkflow:
@@ -72,8 +61,7 @@ class DevelopmentTrainingWorkflow:
         priors = priors.with_early(self._group(ForecastGroup.EARLY, year, datasets, priors, timing, settings, sink))
         priors = priors.with_late(self._group(ForecastGroup.LATE, year, datasets, priors, timing, settings, sink))
         finish = ForecastGroup.FINISH  # 着順の組は後の組が無いので、前の年の予測は作らない
-        self._fitter.fit_predict(finish, self._schedule.periods(finish, year), datasets, priors, timing, settings, sink,
-                                 prediction_only=True)
+        self._fitter.fit_predict_for_prediction(finish, self._schedule.periods(finish, year), datasets, priors, timing, settings, sink)
         self._progress(f"{timing.label}のモデルを保存した（{len(saved)}つの予想と、既存の予想）")
         return saved
 

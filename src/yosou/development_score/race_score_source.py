@@ -13,7 +13,7 @@ from yosou.shared.feature import PredictionTiming
 
 from .advantage_table import AdvantageTable
 from .development_score import DevelopmentScore
-from .race_course_repository import RaceCourseRepository
+from .repository import RaceCourseRepository
 
 
 class RaceScoreSource:

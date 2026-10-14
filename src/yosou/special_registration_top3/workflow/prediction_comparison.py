@@ -10,7 +10,8 @@ from yosou.shared.dataset import HORSE_ID, RACE_ID
 from yosou.shared.evaluation import ENSEMBLE_NAME
 from yosou.shared.workflow.backtest_workflow import PREDICTION_COLUMNS
 
-from .special_race_evaluation import WINDOW, SpecialRaceRows
+from .special_race_evaluation import WINDOW
+from .special_race_rows import SpecialRaceRows
 
 #: 予測の表の列（レースID・馬ID・平均の確率・期間）と、テスト期間の行の印。
 _RACE, _HORSE, _PROBABILITY, _PERIOD = PREDICTION_COLUMNS[0], PREDICTION_COLUMNS[2], PREDICTION_COLUMNS[4], PREDICTION_COLUMNS[6]

@@ -46,7 +46,8 @@ def main(args) -> None:
     with db.open_db(args.db) as con:
         if args.rebuild:
             print("表 W を 2011年からの全出走から作り直しています …", file=sys.stderr, flush=True)
-        table = WeightTableStore(args.cache).load(con, db.resolve_db(args.db), rebuild=args.rebuild)
+        store = WeightTableStore(args.cache)
+        table = store.rebuild(con, db.resolve_db(args.db)) if args.rebuild else store.load(con, db.resolve_db(args.db))
         results = _table_views(table, args.detail) if args.table else _race_views(con, table, judge, args)
     cli.emit(results, args)
 

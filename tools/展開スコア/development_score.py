@@ -39,7 +39,7 @@ from yosou.development_score import (  # noqa: E402
     RaceScoreWorkflow,
     names,
 )
-from yosou.development_score.entry_name_repository import HORSE_NAME, HORSE_NO  # noqa: E402
+from yosou.development_score.repository import HORSE_NAME, HORSE_NO  # noqa: E402
 from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 
@@ -52,7 +52,8 @@ def main(args) -> None:
     with db.open_db(args.db) as con:
         if args.rebuild:
             print("表 G を 2011年からの全出走から作り直しています …", file=sys.stderr, flush=True)
-        table = AdvantageTableStore(args.cache).load(con, db.resolve_db(args.db), rebuild=args.rebuild)
+        store = AdvantageTableStore(args.cache)
+        table = store.rebuild(con, db.resolve_db(args.db)) if args.rebuild else store.load(con, db.resolve_db(args.db))
         if args.table:
             results = _table_views(table, args)
         else:

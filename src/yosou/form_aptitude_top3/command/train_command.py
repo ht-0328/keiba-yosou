@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -12,15 +11,7 @@ from 共通 import db
 from 共通.render import Table
 
 from yosou.shared.command import CommonArguments, FigureCacheArgument, PlacePriceStep, TrainingReportTables
-from yosou.shared.dataset import (
-    DEFAULT_TEST_FIRST_DAY,
-    DEFAULT_TRAIN_FIRST_DAY,
-    DEFAULT_VALID_FIRST_DAY,
-    AllRows,
-    TrainingData,
-    TrainingPeriod,
-    TrainingRows,
-)
+from yosou.shared.dataset import AllRows, TrainingData, TrainingPeriod, TrainingRows
 from yosou.ability_score import ABILITY_SCORE_NAMES, AbilityScoreAttachment, AbilityScoreFreeData
 from yosou.development_score import (
     DEVELOPMENT_SCORE_NAMES,
@@ -40,7 +31,6 @@ from yosou.shared.repository import ModelRepository
 from yosou.shared.workflow import TrainingWorkflow
 
 from ..dataset import (
-    ABILITY_TRAIN_FIRST_DAY,
     FinishPowerFreeData,
     PaceAttachment,
     PoolFreeData,
@@ -70,10 +60,16 @@ from ..workflow import (
     WIN_FOLDER,
 )
 from .development_root_argument import DevelopmentRootArgument
+from .train_period_arguments import TrainPeriodArguments
 from .yosou_name import YOSOU_NAME
 
 #: 1着のモデルの表の題に付ける言葉。
 _WIN_SUBJECT = "1着"
+#: 学習データに入っている材料（S・T・U・V の列の名前）と、表の題に添える言葉。
+_MATERIAL_LABELS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (DEVELOPMENT_SCORE_NAMES, "展開スコア"), (ABILITY_SCORE_NAMES, "能力スコア"), (TRACK_BIAS_NAMES, "トラックバイアス"),
+    (WEIGHT_DISCOUNT_NAMES, "馬体重の表"),
+)
 
 
 class TrainCommand:
@@ -105,6 +101,7 @@ class TrainCommand:
     def __init__(self, yosou_name: str = YOSOU_NAME, rows: TrainingRows | None = None) -> None:
         self._yosou_name = yosou_name
         self._rows: TrainingRows = AllRows() if rows is None else rows
+        self._periods = TrainPeriodArguments()
 
     def add_parser(self, subparsers: argparse._SubParsersAction) -> None:
         parser = subparsers.add_parser(
@@ -118,7 +115,7 @@ class TrainCommand:
             "--timings", nargs="+", type=PredictionTiming.parse, default=None, metavar="時点",
             help="学習する時点だけに絞る（木曜 前日 当日。省略すると全部）。1つの時点のモデルだけ学び直すときに使う",
         )
-        self._add_period_arguments(parser)
+        self._periods.add_to(parser)
         FigureCacheArgument().add_to(parser)
         DevelopmentRootArgument().add_to(parser)
         CommonArguments(self._yosou_name).add_to(parser)
@@ -126,10 +123,8 @@ class TrainCommand:
 
     def run(self, args: argparse.Namespace) -> list[Table]:
         """元DB を開くのは学習データを読む段だけ。学習は DB を閉じてから行い、ほかの道具を待たせない。"""
-        form_period = TrainingPeriod.starting(
-            args.train_from, args.valid_from, args.test_from, warmup_first_day=args.warmup_from,
-        )
-        ability_period = TrainingPeriod.starting(args.ability_train_from, args.valid_from, args.test_from)
+        form_period = self._periods.form_period_of(args)
+        ability_period = self._periods.ability_period_of(args)
         chosen = tuple(args.timings) if args.timings else TIMINGS
         form_timings = tuple(timing for timing in FORM_TIMINGS if timing in chosen)
         ability_timings = tuple(timing for timing in ABILITY_TIMINGS if timing in chosen)
@@ -180,20 +175,24 @@ class TrainCommand:
         plain = tuple(timing for timing in timings
                       if timing not in paces and timing not in scores and timing not in ABILITY_SCORE_TIMINGS and timing not in biases)
         tables = self._both(data, period, args.models, plain, "馬の力の材料", args.config)[0] if plain else []
-        for timing in timings:
-            if timing in plain:
-                continue
-            attached, subject = data, "馬の力の材料"
-            if timing in paces:
-                attached, subject = PaceAttachment().apply(attached, paces[timing]), f"{subject} ＋ 展開の予想（{timing.label}）"
-            if timing in scores:
-                attached = ScoreAttachment().apply(attached, scores[timing])
-            if timing in ABILITY_SCORE_TIMINGS:
-                attached = AbilityScoreAttachment().apply(attached)
-            if timing in biases:
-                attached = BiasAttachment().apply(attached, biases[timing])
+        for timing in (timing for timing in timings if timing not in plain):
+            attached, subject = self._attached(data, timing, paces, scores, biases)
             tables += self._both(attached, period, args.models, (timing,), subject, args.config)[0]
         return tables
+
+    def _attached(self, data: TrainingData, timing: PredictionTiming, paces: dict[PredictionTiming, pd.DataFrame],
+                  scores: dict[PredictionTiming, pd.DataFrame], biases: dict[PredictionTiming, pd.DataFrame]) -> tuple[TrainingData, str]:
+        """その時点で採用した材料（P・S・T・U）を足した馬の力の材料の学習データと、表の題。"""
+        attached, subject = data, "馬の力の材料"
+        if timing in paces:
+            attached, subject = PaceAttachment().apply(attached, paces[timing]), f"{subject} ＋ 展開の予想（{timing.label}）"
+        if timing in scores:
+            attached = ScoreAttachment().apply(attached, scores[timing])
+        if timing in ABILITY_SCORE_TIMINGS:
+            attached = AbilityScoreAttachment().apply(attached)
+        if timing in biases:
+            attached = BiasAttachment().apply(attached, biases[timing])
+        return attached, subject
 
     def _both(self, data: TrainingData, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...],
               subject: str, config: Path | None) -> tuple[list[Table], TrainingReport]:
@@ -226,38 +225,10 @@ class TrainCommand:
 
     def _subject(self, subject: str, data: TrainingData) -> str:
         """表の題。学習データに S が入っていれば「＋ 展開スコア」、T なら「＋ 能力スコア」、U なら「＋ トラックバイアス」、V なら「＋ 馬体重の表」を添える。"""
-        for names, label in ((DEVELOPMENT_SCORE_NAMES, "展開スコア"), (ABILITY_SCORE_NAMES, "能力スコア"), (TRACK_BIAS_NAMES, "トラックバイアス"),
-                             (WEIGHT_DISCOUNT_NAMES, "馬体重の表")):
-            if any(name in data.features.columns for name in names):
-                subject = f"{subject} ＋ {label}"
-        return subject
+        columns = set(data.features.columns)
+        labels = [label for names, label in _MATERIAL_LABELS if any(name in columns for name in names)]
+        return " ＋ ".join([subject, *labels])
 
     def _workflow(self, period: TrainingPeriod, root: Path, timings: tuple[PredictionTiming, ...]) -> TrainingWorkflow:
         """読んだ学習データで学ぶだけの学習の流れ（学習データは作らない）。"""
         return TrainingWorkflow(None, period, ModelRepository(root, MEMBER_TYPES), timings, DEFAULT_SETTINGS_PATH)
-
-    def _add_period_arguments(self, parser: argparse.ArgumentParser) -> None:
-        """学習データの期間の区切り（設計書 08 の 3）。古い順に ウォームアップ → 学習 → 検証 → テスト。"""
-        group = parser.add_argument_group("学習データの期間")
-        group.add_argument(
-            "--warmup-from", type=date.fromisoformat, default=None,
-            help="今の材料のウォームアップ期間の最初の開催日。この日からの出走を過去走の計算にだけ使い、サンプルにしない"
-                 "（省略すると、学習データの最初の日の前の年の1月1日）",
-        )
-        group.add_argument(
-            "--train-from", type=date.fromisoformat, default=DEFAULT_TRAIN_FIRST_DAY,
-            help=f"今の材料（当日）の学習データの最初の開催日（既定: {DEFAULT_TRAIN_FIRST_DAY}）",
-        )
-        group.add_argument(
-            "--ability-train-from", type=date.fromisoformat, default=ABILITY_TRAIN_FIRST_DAY,
-            help=f"馬の力の材料（木曜・前日）の学習データの最初の開催日（既定: {ABILITY_TRAIN_FIRST_DAY}。"
-                 "ウォームアップはその前の年の1月1日から）",
-        )
-        group.add_argument(
-            "--valid-from", type=date.fromisoformat, default=DEFAULT_VALID_FIRST_DAY,
-            help=f"検証データの最初の開催日（既定: {DEFAULT_VALID_FIRST_DAY}。これより前が学習データ）",
-        )
-        group.add_argument(
-            "--test-from", type=date.fromisoformat, default=DEFAULT_TEST_FIRST_DAY,
-            help=f"テストデータの最初の開催日（既定: {DEFAULT_TEST_FIRST_DAY}）",
-        )

@@ -6,6 +6,7 @@ import pandas as pd
 
 from yosou.shared.feature import RaceRecords, as_numbers
 
+from .race_order import RaceOrder
 from .race_order_statistic import RaceOrderStatistic
 
 #: 「前に行きたい馬」とみなす先団率の線（設計書 09 の P）。
@@ -21,7 +22,8 @@ class PaceMaterialFeatures:
     """
 
     def __init__(self) -> None:
-        self._order = RaceOrderStatistic()
+        self._largest_first = RaceOrderStatistic(RaceOrder.LARGEST_FIRST)
+        self._smallest_first = RaceOrderStatistic(RaceOrder.SMALLEST_FIRST)
 
     def build(self, records: RaceRecords) -> pd.DataFrame:
         features, race = records.horse_features, records.entries["race_id"]
@@ -29,7 +31,7 @@ class PaceMaterialFeatures:
         front = as_numbers(features["先団率"])
         by_race = race.groupby(race, sort=False)
         top = lead.groupby(race, sort=False).max()
-        second = self._order.nth(lead, race, 2, largest=True).reindex(top.index)
+        second = self._largest_first.nth(lead, race, 2).reindex(top.index)
         no_history = (as_numbers(features["近5走の序盤の記録の数"]) == 0).astype("float64")
         return pd.DataFrame({
             "先頭率の合計": lead.groupby(race, sort=False).sum(),
@@ -38,8 +40,8 @@ class PaceMaterialFeatures:
             "先頭率の1位と2位の差": top - second,
             "先団率が 0.5 以上の馬の数": (front >= FRONT_RATE_LINE).astype("float64").groupby(race, sort=False).sum(),
             "先団率の合計": front.groupby(race, sort=False).sum(),
-            "前にいる3頭の序盤の位置の平均": self._order.mean_of_top(
-                as_numbers(features["近5走の序盤の位置の平均"]), race, _FRONT_RUNNERS, largest=False),
+            "前にいる3頭の序盤の位置の平均": self._smallest_first.mean_of_top(
+                as_numbers(features["近5走の序盤の位置の平均"]), race, _FRONT_RUNNERS),
             "序盤の記録が無い馬の割合": no_history.groupby(race, sort=False).mean(),
             "逃げそうな馬の数": as_numbers(records.entries["lead_candidates"]).groupby(race, sort=False).first(),
             "先頭率の1位の馬の相対馬番": self._leader_position(features, race, lead),

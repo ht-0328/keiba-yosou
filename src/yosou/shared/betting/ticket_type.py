@@ -44,18 +44,18 @@ class TicketType(Enum):
     @classmethod
     def parse(cls, text: str) -> TicketType:
         """``3連複`` のような書き方から券種を返す。知らなければ ``ValueError``。"""
-        for ticket_type in cls:
-            if ticket_type.label == text.strip():
-                return ticket_type
-        raise ValueError(f"知らない券種です: {text}（{TICKET_TYPE_CHOICES}）")
+        found = next((ticket_type for ticket_type in cls if ticket_type.label == text.strip()), None)
+        if found is None:
+            raise ValueError(f"知らない券種です: {text}（{TICKET_TYPE_CHOICES}）")
+        return found
 
     @classmethod
     def of_key(cls, key: str) -> TicketType:
         """``trio`` のような英語の短い名前から券種を返す。知らなければ ``ValueError``。"""
-        for ticket_type in cls:
-            if ticket_type.key == key:
-                return ticket_type
-        raise ValueError(f"知らない券種の名前です: {key}")
+        found = next((ticket_type for ticket_type in cls if ticket_type.key == key), None)
+        if found is None:
+            raise ValueError(f"知らない券種の名前です: {key}")
+        return found
 
 
 _SPECS: dict[TicketType, TicketTypeSpec] = {

@@ -18,6 +18,8 @@ from .head_to_head_columns import (
 #: 材料の締めの日の列（対象の行だけ。無ければ、開催日の前日の時点のレーティングを書く）。
 _AS_OF_DATE = "as_of_date"
 _ONE_DAY = np.timedelta64(1, "D")
+#: 日ごとの手順の種類（並べ替えの順。同じ日なら、書いてから更新する）。
+_WRITE, _UPDATE = 0, 1
 
 
 class RatingHistoryBuilder:
@@ -54,25 +56,35 @@ class RatingHistoryBuilder:
         runs_before = np.empty(len(ordered), dtype=int)
         writes = [(write_days[write_order[start]], write_order[start:end]) for start, end in _slices(write_days[write_order])]
         updates = [(race_days[start], start, end) for start, end in _slices(race_days)]
-        write_index = update_index = 0
-        while write_index < len(writes) or update_index < len(updates):
-            write_day = writes[write_index][0] if write_index < len(writes) else None
-            update_day = updates[update_index][0] if update_index < len(updates) else None
-            # 同じ日なら、書いてから更新する（書く日より前のレースの結果だけが入る）
-            if update_day is None or (write_day is not None and write_day <= update_day):
-                rows = writes[write_index][1]
-                before[rows] = ratings[horse_codes[rows]]
-                runs_before[rows] = counts[horse_codes[rows]]
-                write_index += 1
-            else:
-                _, start, end = updates[update_index]
-                self._update_day(race_ids[start:end], start, horse_codes, finishes, ratings, counts)
-                update_index += 1
+
+        def write_ratings(index: int) -> None:
+            """その日に書く行に、その時点のレーティングと対戦数を書く。"""
+            rows = writes[index][1]
+            before[rows] = ratings[horse_codes[rows]]
+            runs_before[rows] = counts[horse_codes[rows]]
+
+        def update_ratings(index: int) -> None:
+            """その日のレースの着順で、レーティングを更新する。"""
+            _, start, end = updates[index]
+            self._update_day(race_ids[start:end], start, horse_codes, finishes, ratings, counts)
+
+        steps = {_WRITE: write_ratings, _UPDATE: update_ratings}
+        for _, step, index in self._schedule(writes, updates):
+            steps[step](index)
         history = pd.DataFrame({
             "race_id": ordered["race_id"].to_numpy(), "horse_id": ordered["horse_id"].to_numpy(),
             "race_date": ordered["race_date"].to_numpy(), RATING: before, RUN_COUNT: runs_before.astype(float),
         }, index=ordered.index)
         return history.loc[runs.index]
+
+    def _schedule(self, writes: list[tuple], updates: list[tuple]) -> list[tuple[np.datetime64, int, int]]:
+        """書く日と更新する日を、日の順に1列に並べたもの（日, 手順の種類, その手順の何番目か）。
+
+        同じ日なら、書いてから更新する（書く日より前のレースの結果だけが入る）。
+        """
+        write_steps = [(day, _WRITE, index) for index, (day, _) in enumerate(writes)]
+        update_steps = [(day, _UPDATE, index) for index, (day, _, _) in enumerate(updates)]
+        return sorted(write_steps + update_steps)
 
     def _write_days(self, ordered: pd.DataFrame, race_days: np.ndarray) -> np.ndarray:
         """行ごとの、レーティングを書く日。締めの日があればその翌日、無ければ開催日。"""

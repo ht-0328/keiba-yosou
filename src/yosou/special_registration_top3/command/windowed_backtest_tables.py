@@ -38,7 +38,10 @@ class WindowedBacktestTables:
 
     def _evaluations(self, label: str, rows: list[tuple[str, list[Evaluation]]], title: str, note: str) -> Table:
         columns = [column.format(label=label) for column in _COLUMNS]
-        return Table(columns, [self._row(name, evaluation) for name, evaluations in rows for evaluation in evaluations], title=title, note=note)
+        table_rows: list[list[object]] = []
+        for name, evaluations in rows:
+            table_rows += [self._row(name, evaluation) for evaluation in evaluations]
+        return Table(columns, table_rows, title=title, note=note)
 
     def _row(self, name: str, evaluation: Evaluation) -> list[object]:
         return [

@@ -20,9 +20,10 @@ class ExtraDataLoader:
 
         ``scope_relation`` は ``race_id`` の列を持つ関係（学習なら対象の期間、予想なら1レース）。
         """
+        unknown = [name for name in names if name not in SOURCES]
+        if unknown:
+            raise ValueError(f"未登録の追加の元データです: {unknown[0]}")
         for name in names:
-            if name not in SOURCES:
-                raise ValueError(f"未登録の追加の元データです: {name}")
             data = SOURCES[name].read(self._con, scope_relation)
             entries = self._joined(entries, data, SOURCES[name].columns)
         return entries

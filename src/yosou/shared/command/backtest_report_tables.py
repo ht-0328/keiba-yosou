@@ -62,6 +62,7 @@ class BacktestReportTables:
         ]
 
     def _prediction_files(self) -> Table:
-        rows = [[label, self._timing_label(timing), str(path)]
-                for label, paths in self._report.prediction_paths.items() for timing, path in paths.items()]
+        rows: list[list[str]] = []
+        for label, paths in self._report.prediction_paths.items():
+            rows += [[label, self._timing_label(timing), str(path)] for timing, path in paths.items()]
         return Table(["目的変数", "時点", "書いた予測の表"], rows, title="予測の表（道具「印の成績」の --form・--win に渡す）")

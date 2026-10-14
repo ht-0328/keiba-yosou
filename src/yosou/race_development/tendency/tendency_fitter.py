@@ -18,7 +18,7 @@ from .tendency_unit import TendencyUnit
 from .unit_table_combiner import UnitTableCombiner
 
 if TYPE_CHECKING:  # 型の注釈にだけ使う（実行時に読み込むと、workflow との参照が循環する）
-    from ..workflow.walk_forward_schedule import YearPeriod
+    from ..workflow.year_period import YearPeriod
 
 #: 学習したモデルを受け取る関数（既存の予想、単位、学習した2つのモデル）。学習（train）が保存に使う。
 TendencySink = Callable[[TendencySource, TendencyUnit, list[Any]], None]

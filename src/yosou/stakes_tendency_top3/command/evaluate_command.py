@@ -67,11 +67,9 @@ class EvaluateCommand:
             data = self._dataset_builder(con, args.timing, args.figure_cache).build_training_data(period)
         predictor = SegmentedHoldoutPrediction(ModelSegments(), args.models)
         estimator = self._place_price(args)
+        parts = (("検証", data.between(args.valid_from, args.test_from)), ("テスト", data.between(args.test_from, None)))
         tables: list[Table] = []
-        for name, part in (("検証", data.between(args.valid_from, args.test_from)),
-                           ("テスト", data.between(args.test_from, None))):
-            if len(part) == 0:
-                continue
+        for name, part in ((name, part) for name, part in parts if len(part) > 0):
             probability = predictor.predict(part, args.timing)
             tables.extend(self._period_tables(name, part, probability, estimator))
         if not tables:

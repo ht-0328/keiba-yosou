@@ -57,12 +57,16 @@ class PredictCommand:
         if args.rid:
             return [args.rid]
         if args.all:
-            if args.date is None:
-                raise ValueError("--all には --date（開催日）を指定してください")
-            races = RegistrationListRepository(con).read(args.date, args.date)
-            if races.empty:
-                raise LookupError(f"{args.date} に特別登録のある平地のレースがありません")
-            return [str(race_id) for race_id in races["race_id"]]
+            return self._all_race_ids(args, con)
         if not (args.date and args.venue and args.race):
             raise ValueError("rid か、--date --venue --race の3つ（または --date と --all）を指定してください")
         return [RegistrationRaceRepository(con).resolve(args.date.isoformat(), args.venue, args.race)]
+
+    def _all_race_ids(self, args: argparse.Namespace, con: duckdb.DuckDBPyConnection) -> list[str]:
+        """``--all``: ``--date`` の日の、特別登録のある平地の全レース。"""
+        if args.date is None:
+            raise ValueError("--all には --date（開催日）を指定してください")
+        races = RegistrationListRepository(con).read(args.date, args.date)
+        if races.empty:
+            raise LookupError(f"{args.date} に特別登録のある平地のレースがありません")
+        return [str(race_id) for race_id in races["race_id"]]

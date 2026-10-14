@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -18,6 +17,7 @@ from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, PredictionWorkfl
 
 from ..repository import EXCHANGE, RegistrationEntryInfoRepository, RegistrationListRepository
 from .prediction_timings import REGISTRATION_TIMING
+from .registration_check_result import RegistrationCheckResult
 
 #: 登録馬の確かめの表の、この流れが足す列。
 RACE_NAME = "競走名"
@@ -26,21 +26,6 @@ RAN = "出走した"
 FILE_NAME = "registrations.pkl"
 #: 確定成績の列（出走の行から読む）。
 _OUTCOME_COLUMNS = ["race_id", "horse_id", "ran", "finish", "popularity", "horse_no"]
-
-
-@dataclass(frozen=True)
-class RegistrationCheckResult:
-    """登録馬の確かめの結果。
-
-    - ``table``: 1行 = 1頭の登録馬。レースID・開催日・競走名・馬ID・馬名・交流区分・3着以内に入る確率・1着になる確率・
-      出走した・確定着順・確定の単勝人気・馬番（確定成績のもの）。予測できなかったレースは入らない。
-    - ``skipped``: 予測できなかったレース（レースID, 理由）。
-    - ``path``: 書いた表のファイル。
-    """
-
-    table: pd.DataFrame
-    path: Path
-    skipped: list[tuple[str, str]] = field(default_factory=list)
 
 
 class RegistrationCheckWorkflow:

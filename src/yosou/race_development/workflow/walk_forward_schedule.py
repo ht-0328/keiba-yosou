@@ -2,23 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date
 
 from .forecast_group import ForecastGroup
+from .year_period import YearPeriod
 
 #: 検証データ（早期終了と、温度・λ）の始まりの月（予測する年の前の年の 10月1日から 12月31日まで。設計書 16 の 7）。
 VALID_FIRST_MONTH = 10
-
-
-@dataclass(frozen=True)
-class YearPeriod:
-    """1つの組の、1つの年の期間。どれも「この日から、次の区切りの前日まで」。"""
-
-    train_first_day: date
-    valid_first_day: date
-    predict_first_day: date
-    predict_end_day: date
 
 
 class WalkForwardSchedule:

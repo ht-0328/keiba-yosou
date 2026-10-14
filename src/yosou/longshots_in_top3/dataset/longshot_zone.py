@@ -23,10 +23,10 @@ class LongshotZone(Enum):
     @classmethod
     def parse(cls, text: str) -> LongshotZone:
         """``中穴`` か ``大穴`` から区分を返す。知らなければ ``ValueError``。"""
-        for zone in cls:
-            if zone.label == text.strip():
-                return zone
-        raise ValueError(f"知らない区分です: {text}（{ZONE_CHOICES}。省略すると穴馬すべて）")
+        found = next((zone for zone in cls if zone.label == text.strip()), None)
+        if found is None:
+            raise ValueError(f"知らない区分です: {text}（{ZONE_CHOICES}。省略すると穴馬すべて）")
+        return found
 
 
 #: 区分の書き方の案内（コマンドの説明と、誤りの文面に使う）。

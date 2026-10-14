@@ -39,10 +39,10 @@ class PaceForecastTableBuilder:
         combined = corner4 + closing
         return pd.DataFrame({
             "race_id": race, "horse_id": source["horse_id"],
-            names.LEADER_P: leader, names.LEADER_RANK: self._rank(leader, race, ascending=False),
+            names.LEADER_P: leader, names.LEADER_RANK: self._rank_descending(leader, race),
             names.LEADER_GAP: leader - leader.groupby(race).transform("max"),
             names.FRONT_P: source[names.FRONT], names.MIDDLE_P: source[names.MIDDLE], names.BACK_P: source[names.BACK],
-            names.FRONT_RANK: self._rank(source[names.FRONT].astype("float64"), race, ascending=False),
+            names.FRONT_RANK: self._rank_descending(source[names.FRONT].astype("float64"), race),
             names.CORNER4_P: corner4, names.CORNER4_RANK: self._rank(corner4, race), names.CORNER4_Z: self._z(corner4, race),
             names.CLOSING_P: closing, names.CLOSING_RANK: self._rank(closing, race), names.CLOSING_Z: self._z(closing, race),
             names.COMBINED: combined, names.COMBINED_RANK: self._rank(combined, race),
@@ -52,9 +52,13 @@ class PaceForecastTableBuilder:
             names.SECOND_DIFF: source[names.SECOND_MIDDLE],
         })
 
-    def _rank(self, values: pd.Series, race: pd.Series, ascending: bool = True) -> pd.Series:
-        """レース内の順位（同じ値は同じ順位）。4コーナーの位置と上がりは小さいほど前・速いので小さい順、確率は高い順。"""
-        return values.groupby(race).rank(method="min", ascending=ascending)
+    def _rank(self, values: pd.Series, race: pd.Series) -> pd.Series:
+        """レース内の順位（同じ値は同じ順位。小さい順）。4コーナーの位置と上がりは小さいほど前・速い。"""
+        return values.groupby(race).rank(method="min", ascending=True)
+
+    def _rank_descending(self, values: pd.Series, race: pd.Series) -> pd.Series:
+        """レース内の順位（同じ値は同じ順位。大きい順）。確率は高いほど上位。"""
+        return values.groupby(race).rank(method="min", ascending=False)
 
     def _z(self, values: pd.Series, race: pd.Series) -> pd.Series:
         """レース内の偏差（平均との差 ÷ 標準偏差）。1頭立てや全頭が同じ値なら欠損値。"""

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import product
+
 import pandas as pd
 
 from 共通.render import Table
@@ -45,7 +47,7 @@ class BacktestTables:
         rules = list(total[_RULE].unique())
         rows = [self._overview_row(ticket_type, total[total[_TYPE] == ticket_type], rules)
                 for ticket_type in total[_TYPE].unique()]
-        columns = ["券種", *[f"{rule} の{name}" for rule in rules for name in ("的中率", "回収率")],
+        columns = ["券種", *[f"{rule} の{name}" for rule, name in product(rules, ("的中率", "回収率"))],
                    f"{_MODEL_VALUE_RULE} で買ったレース"]
         timing = self._report.timing.label
         return Table(columns, rows, title=f"表1. 券種ごとの的中率と回収率（{self._years_text()}年の合計・{timing}の時点）", note=_NOTE)

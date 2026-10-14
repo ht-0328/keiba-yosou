@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from itertools import chain
 from dataclasses import dataclass
 
 #: 「馬番:オッズ」の区切りと、1つの引数に複数の組を書くときの区切り。
@@ -38,7 +39,7 @@ class OddsInput:
     @classmethod
     def _split(cls, texts: Sequence[str]) -> list[str]:
         """引数を「馬番:オッズ」1つずつに分ける。コンマ区切りも、引数を並べる書き方も受け取る。"""
-        parts = [part.strip() for text in texts for part in text.split(_PAIR_SEPARATOR)]
+        parts = [part.strip() for part in chain.from_iterable(text.split(_PAIR_SEPARATOR) for text in texts)]
         written = [part for part in parts if part]
         if not written:
             raise ValueError("--odds には 馬番:オッズ を1つ以上渡してください（例: --odds 3:2.4 7:5.1）")
@@ -70,8 +71,7 @@ class OddsInput:
 
     @classmethod
     def _check_no_duplicates(cls, pairs: Sequence[tuple[int, float]]) -> None:
-        seen: set[int] = set()
-        for horse_no, _ in pairs:
-            if horse_no in seen:
-                raise ValueError(f"同じ馬番 {horse_no} が2回出ています")
-            seen.add(horse_no)
+        horse_nos = [horse_no for horse_no, _ in pairs]
+        duplicated = next((horse_no for at, horse_no in enumerate(horse_nos) if horse_no in horse_nos[:at]), None)
+        if duplicated is not None:
+            raise ValueError(f"同じ馬番 {duplicated} が2回出ています")

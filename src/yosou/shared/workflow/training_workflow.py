@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
 
 from ..dataset import DatasetBuilder, PeriodSplitter, RaceDatasetBuilder, SplitData, TrainingData, TrainingPeriod
 from ..evaluation import ClassEvaluation, Evaluation, ModelEvaluator, TrainingReport
@@ -12,17 +11,10 @@ from ..feature import PredictionTiming
 from ..ml_model import MEMBER_TYPES, EnsembleModel, Member
 from ..repository import ModelRepository
 from ..setting import HyperparameterSettings
+from .evaluator import Evaluator
 
 #: 時点ごとの、学習したモデル（LightGBM と CatBoost）。
 TrainedModels = dict[PredictionTiming, list[Member]]
-
-
-class Evaluator(Protocol):
-    """当たり具合を測るクラスの決まり（``ModelEvaluator`` か ``ClassModelEvaluator``）。"""
-
-    def evaluate(self, timing: PredictionTiming, ensemble: EnsembleModel,
-                 data: TrainingData) -> Sequence[Evaluation | ClassEvaluation]:
-        ...
 
 
 class TrainingWorkflow:

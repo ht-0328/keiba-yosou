@@ -19,7 +19,7 @@
 | ``PaceSourceTable`` | 前半・後半の組の予測を、ほかの予想に渡す元の予測の表（近走と適性の予想のまとまり P の元）にする |
 | ``PriorForecasts`` | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
 | ``StackedColumns`` | 特徴量を予想ごとの一覧に合わせ、前の組の予測の列（V・S・T）を足す |
-| ``RaceOrderStatistic`` | 同じレースの馬の値の、何番目に大きい（小さい）値 |
+| ``RaceOrderStatistic``・``RaceOrder`` | 同じレースの馬の値の、何番目に大きい（小さい）値と、数える向き |
 | ``feature_catalog.py`` | 特徴量の一覧（1回で作る ``HORSE_CATALOG``・``RACE_CATALOG`` と、予想ごとの一覧） |
 | ``history/`` | 過去の記録から数える部品 |
 

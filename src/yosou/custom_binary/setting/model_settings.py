@@ -50,9 +50,9 @@ class ModelSettings:
         except yaml.YAMLError as error:
             raise ValueError(f"YAMLを読み込めません: {path}: {error}") from error
         YamlMapping().check(values, ALLOWED, str(path))
-        for key in REQUIRED:
-            if not isinstance(values.get(key), str) or not values[key].strip():
-                raise ValueError(f"{key}は空でない文字列で指定してください")
+        blank = [key for key in REQUIRED if not isinstance(values.get(key), str) or not values[key].strip()]
+        if blank:
+            raise ValueError(f"{blank[0]}は空でない文字列で指定してください")
         cls._check_identity(values["name"], values["target"], values["timing"])
         timing = PredictionTiming.parse(values["timing"])
         selected = registry.read_selection(path.parent / values["features_file"], timing)
@@ -63,9 +63,9 @@ class ModelSettings:
         """YAMLを読んだ後の値から作る。探索のように設定をプログラムで組み立てるときもここを通す。"""
         cls._check_identity(values["name"], values["target"], values["timing"])
         popularity = YamlMapping().check(values.get("popularity", {}), {"min", "max"}, "popularity")
-        for key, value in popularity.items():
-            if value is None:
-                raise ValueError(f"popularity.{key}は省略するか正の整数にしてください")
+        missing = [key for key, value in popularity.items() if value is None]
+        if missing:
+            raise ValueError(f"popularity.{missing[0]}は省略するか正の整数にしてください")
         return cls(
             values["name"], selected, values["target"], PredictionTiming.parse(values["timing"]),
             PopularityRange(popularity.get("min"), popularity.get("max")),

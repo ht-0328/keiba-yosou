@@ -10,7 +10,7 @@ import pandas as pd
 
 from yosou.review import ReviewStore, names
 from yosou.review.bet_settler import BetSettler
-from yosou.review.review_run_repository import ReviewRunRepository
+from yosou.review.repository import ReviewRunRepository
 
 
 def _db(tmp_path: Path, exacta: bool) -> tuple[duckdb.DuckDBPyConnection, str]:

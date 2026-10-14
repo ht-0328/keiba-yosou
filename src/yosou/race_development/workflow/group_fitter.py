@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import pandas as pd
@@ -21,7 +21,7 @@ from .forecast_group import ForecastGroup
 from .kind_datasets import KindDatasets
 from .kind_forecaster import KindForecaster
 from .kind_trainer import KindTrainer
-from .walk_forward_schedule import YearPeriod
+from .year_period import YearPeriod
 
 #: ⑦ の予測の表に足す、2着・3着の割り当てのならしの指数 λ の列（その年のモデルで決めた値）。
 ORDER_LAMBDA = "order_lambda"
@@ -45,24 +45,33 @@ class GroupFitter:
 
     def fit_predict(self, group: ForecastGroup, period: YearPeriod, datasets: KindDatasets, priors: PriorForecasts,
                     timing: PredictionTiming, settings: HyperparameterSettings, sink: ModelSink | None = None,
-                    tendency_sink: TendencySink | None = None, prediction_only: bool = False) -> GroupForecast:
+                    tendency_sink: TendencySink | None = None) -> GroupForecast:
         """予測する年（``period.predict_first_day`` から）の、組の全部の予想の予測。
 
-        ``prediction_only`` を真にすると、予測に使う予想だけを学習する（比べるためだけの予想を飛ばす。学習（train）の着順の組）。
-        その時点より後から学習する予想（``KindSpec.known_from``）も飛ばす。
+        その時点より後から学習する予想（``KindSpec.known_from``）は飛ばす。
         """
+        return self._fit_predict(group, group.kinds, period, datasets, priors, timing, settings, sink, tendency_sink)
+
+    def fit_predict_for_prediction(self, group: ForecastGroup, period: YearPeriod, datasets: KindDatasets, priors: PriorForecasts,
+                                   timing: PredictionTiming, settings: HyperparameterSettings, sink: ModelSink | None = None,
+                                   tendency_sink: TendencySink | None = None) -> GroupForecast:
+        """``fit_predict`` のうち、予測に使う予想（``KindSpec.for_prediction``）だけを学習して予測する
+        （比べるためだけの予想を飛ばす。学習（train）の着順の組）。"""
+        kinds = tuple(kind for kind in group.kinds if kind.spec.for_prediction)
+        return self._fit_predict(group, kinds, period, datasets, priors, timing, settings, sink, tendency_sink)
+
+    def _fit_predict(self, group: ForecastGroup, kinds: Sequence[DevelopmentModelKind], period: YearPeriod, datasets: KindDatasets,
+                     priors: PriorForecasts, timing: PredictionTiming, settings: HyperparameterSettings, sink: ModelSink | None,
+                     tendency_sink: TendencySink | None) -> GroupForecast:
+        """組の予想のうち ``kinds``（その時点で学習できるものだけ）を学習して予測し、1頭ごと・1レースごとの表にまとめる。"""
         if group is ForecastGroup.TENDENCY:
             return self._tendency.fit_predict(period, datasets.tendency, timing, settings, tendency_sink)
         horse_parts: list[pd.DataFrame] = []
         race_parts: list[pd.DataFrame] = []
-        for kind in (kind for kind in group.kinds if self._fits(kind, timing, prediction_only)):
+        for kind in (kind for kind in kinds if timing.is_at_or_after(kind.spec.known_from)):
             predicted = self._fit_predict_kind(kind, period, datasets, priors, timing, settings, sink)
             (race_parts if kind.spec.per_race else horse_parts).append(predicted)
         return GroupForecast.joined(horse_parts, race_parts)
-
-    def _fits(self, kind: DevelopmentModelKind, timing: PredictionTiming, prediction_only: bool) -> bool:
-        """その予想を学習するか。"""
-        return timing.is_at_or_after(kind.spec.known_from) and (kind.spec.for_prediction or not prediction_only)
 
     def _fit_predict_kind(self, kind: DevelopmentModelKind, period: YearPeriod, datasets: KindDatasets,
                           priors: PriorForecasts, timing: PredictionTiming, settings: HyperparameterSettings,

@@ -13,7 +13,7 @@
 | ``RunHandicaps`` | 終わった出走ごとに3つの不利と程度・次走の扱いを出す |
 | ``HandicapHistory`` | 全出走に、年ごとに「その年より前のレースだけで作った表」で不利を付ける（リークを防ぐ） |
 | ``RaceReviews`` | レースごとの回顧（表2。予想と結果のペース・終わった日のバイアスの傾き・馬場状態） |
-| ``ReviewStore`` | 3つの表を ``reports/回顧/review.duckdb`` に書く・読む |
+| ``ReviewStore`` | 3つの表を ``reports/回顧/review.duckdb`` に書く・読む（``repository/``。元DB を読むリポジトリも同じフォルダ） |
 | ``BetSettler`` | 買い目の記録（表1）の未精算の行に払戻を書き足す |
 | ``ReviewWorkflow`` | 終わったレースの表2・表3を作って保存し、表1を精算する |
 | ``PreviousHandicapColumns`` | 不利の表から、出走ごとの前走の不利（まとまり X）を作る |
@@ -31,12 +31,10 @@ from .handicap_lines import HandicapLines
 from .previous_handicap_attachment import PreviousHandicapAttachment
 from .previous_handicap_columns import PreviousHandicapColumns
 from .previous_handicap_free_data import PreviousHandicapFreeData
-from .previous_run_repository import PreviousRunRepository
 from .race_previous_handicap_attacher import RacePreviousHandicapAttacher
 from .race_reviews import RaceReviews
+from .repository import DEFAULT_REVIEW_DB, PreviousRunRepository, ReviewRunRepository, ReviewStore
 from .result_style import ResultStyle
-from .review_run_repository import ReviewRunRepository
-from .review_store import DEFAULT_REVIEW_DB, ReviewStore
 from .review_workflow import ReviewWorkflow
 from .run_handicaps import RunHandicaps
 from .stored_handicap_lookup import StoredHandicapLookup

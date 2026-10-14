@@ -64,11 +64,9 @@ class UpsetComparisonTables:
 
     def _threshold_table(self) -> Table:
         """時点ごと・しきい値ごとの、選ばれるレース数と、そのうち実際に中荒れ以上だった割合。"""
-        rows = [
-            [timing.label, *(self._cell(value) for value in row)]
-            for timing, frame in self._thresholds.items()
-            for row in frame.itertuples(index=False)
-        ]
+        rows: list[list[object]] = []
+        for timing, frame in self._thresholds.items():
+            rows += [[timing.label, *(self._cell(value) for value in row)] for row in frame.itertuples(index=False)]
         columns = next(iter(self._thresholds.values())).columns if self._thresholds else []
         return Table(
             ["時点", *columns], rows,

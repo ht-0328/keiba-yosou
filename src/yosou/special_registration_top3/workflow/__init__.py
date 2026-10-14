@@ -8,6 +8,7 @@
 | ``SpecialRaceEvaluation`` | テスト期間の特別競走の行だけで当たり具合を測る（頭数から見た割合の行も） |
 | ``PredictionComparison`` | 中央の木曜のモデルの予測と、同じレース・同じ馬で比べる |
 | ``RegistrationCheckWorkflow`` | 登録馬の確かめ（登録馬の全員に予測を出し、確定成績と突き合わせる） |
+| ``WindowedBacktestResult``・``SpecialRaceRows``・``RegistrationCheckResult`` | 確かめの結果の入れ物（区切りごとの当たり具合、特別競走の行と確率、登録馬の確かめの表） |
 | ``TIMINGS``・``TIMING_LABELS``・``WIN_FOLDER`` など | 時点（特別登録の1つ）と表示名、置き場所（``prediction_timings.py``） |
 """
 
@@ -26,16 +27,12 @@ from .prediction_timings import (
     TIMINGS,
     WIN_FOLDER,
 )
-from .registration_check_workflow import FILE_NAME, RACE_NAME, RAN, RegistrationCheckResult, RegistrationCheckWorkflow
-from .special_race_evaluation import SpecialRaceEvaluation, SpecialRaceRows
-from .windowed_backtest_workflow import (
-    ALL_FEATURES,
-    NO_FIELD_COMPARISON,
-    VARIANTS,
-    WHOLE_PERIOD,
-    WindowedBacktestResult,
-    WindowedBacktestWorkflow,
-)
+from .registration_check_result import RegistrationCheckResult
+from .registration_check_workflow import FILE_NAME, RACE_NAME, RAN, RegistrationCheckWorkflow
+from .special_race_evaluation import SpecialRaceEvaluation
+from .special_race_rows import SpecialRaceRows
+from .windowed_backtest_result import WindowedBacktestResult
+from .windowed_backtest_workflow import ALL_FEATURES, NO_FIELD_COMPARISON, VARIANTS, WHOLE_PERIOD, WindowedBacktestWorkflow
 
 __all__ = [
     "PredictionWorkflow", "PROBABILITY", "WIN_PROBABILITY", "registration_prediction_workflow",

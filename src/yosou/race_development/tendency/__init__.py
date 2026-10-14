@@ -22,7 +22,8 @@ from .tendency_fitter import TendencyFitter, TendencySink
 from .tendency_forecaster import TendencyForecaster
 from .tendency_model_store import TENDENCY_FOLDER, TendencyModelStore
 from .tendency_output import TendencyOutput
-from .tendency_source import TendencySource, TendencySpec
+from .tendency_source import TendencySource
+from .tendency_spec import TendencySpec
 from .tendency_unit import TendencyUnit
 from .unit_table_combiner import UnitTableCombiner
 from .upset_output import UpsetOutput

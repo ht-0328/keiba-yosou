@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -21,7 +20,9 @@ from ..dataset import FieldComparisonFreeData
 from .backtest_windows import BacktestWindow
 from .prediction_comparison import PredictionComparison
 from .prediction_timings import REGISTRATION_TIMING, TIMINGS, WIN_FOLDER
-from .special_race_evaluation import SpecialRaceEvaluation, SpecialRaceRows
+from .special_race_evaluation import SpecialRaceEvaluation
+from .special_race_rows import SpecialRaceRows
+from .windowed_backtest_result import WindowedBacktestResult
 
 #: 材料の版の名前（``--variant``）。
 ALL_FEATURES = "全部"
@@ -31,25 +32,8 @@ VARIANTS: tuple[str, ...] = (ALL_FEATURES, NO_FIELD_COMPARISON)
 WHOLE_PERIOD = "全期間"
 #: 予測の表の「レースID」「馬ID」「区切り」の列。
 _RACE_COLUMN, _HORSE_COLUMN, _WINDOW_COLUMN = PREDICTION_COLUMNS[0], PREDICTION_COLUMNS[2], PREDICTION_COLUMNS[5]
-
-
-@dataclass(frozen=True)
-class WindowedBacktestResult:
-    """7つの区切りでの確かめの結果。
-
-    - ``special``: 目的変数 → [(区切りの名前か「全期間」, 特別競走の行の当たり具合)]。
-    - ``all_rows``: 目的変数 → [(区切りの名前, 全レースの行の当たり具合。参考)]。
-    - ``prediction_paths``: 目的変数 → 書いた予測の表（道具「印の成績」が読む形。区切りの列付き）。
-    - ``comparisons``: 目的変数 → 木曜のモデルとの比べ（``--compare`` を渡したときだけ）。
-    - ``feature_count``: 学んだ特徴量の数。``variant``: 材料の版の名前。
-    """
-
-    special: dict[str, list[tuple[str, list[Evaluation]]]]
-    all_rows: dict[str, list[tuple[str, list[Evaluation]]]]
-    prediction_paths: dict[str, Path]
-    feature_count: int
-    variant: str
-    comparisons: dict[str, pd.DataFrame] = field(default_factory=dict)
+#: 1つの区切り・1つの目的変数の結果（区切り, 特別競走の行と確率, 全レースの行の当たり具合）。
+_WindowRows = tuple[BacktestWindow, SpecialRaceRows, list[Evaluation]]
 
 
 class WindowedBacktestWorkflow:
@@ -79,35 +63,56 @@ class WindowedBacktestWorkflow:
 
     def run(self, data: TrainingData, windows: Sequence[BacktestWindow]) -> WindowedBacktestResult:
         """``data`` は全期間の学習データ（T はまだ無くてよい）。"""
-        prepared = AbilityScoreAttachment().apply(data)
-        if self._variant == NO_FIELD_COMPARISON:
-            prepared = FieldComparisonFreeData().training(prepared)
-        special: dict[str, list[tuple[str, list[Evaluation]]]] = {TOP3: [], WIN: []}
-        all_rows: dict[str, list[tuple[str, list[Evaluation]]]] = {TOP3: [], WIN: []}
-        joined: dict[str, SpecialRaceRows | None] = {TOP3: None, WIN: None}
+        prepared = self._prepared(data)
+        windows_rows: dict[str, list[_WindowRows]] = {TOP3: [], WIN: []}
         predictions: dict[str, list[pd.DataFrame]] = {TOP3: [], WIN: []}
         for window in windows:
-            period = window.period(self._warmup_first_day, self._train_first_day)
-            rows = RowsUntil(window.end).keep(None, prepared)
-            root = self._models_root / window.name
-            self._train(rows, period, root)
-            report = BacktestWorkflow(root, TIMINGS, root / "predictions", win_folder=WIN_FOLDER).run(rows, period)
-            test = PeriodSplitter(period).split(rows).test
-            for label, target in ((TOP3, test), (WIN, WinTargetData().training(test))):
-                table = pd.read_pickle(report.prediction_paths[label][REGISTRATION_TIMING]).assign(**{_WINDOW_COLUMN: window.name})
-                window_rows = self._evaluation.rows_of(target, table, window.name)
-                predictions[label].append(self._special_only(table, window_rows))
-                special[label].append((window.name, self._evaluation.evaluate(REGISTRATION_TIMING, window_rows)))
-                all_rows[label].append((window.name, report.evaluations[label]))
-                joined[label] = window_rows if joined[label] is None else joined[label].joined(window_rows)
-        for label in (TOP3, WIN):
-            if joined[label] is not None and len(windows) > 1:
-                special[label].append((WHOLE_PERIOD, self._evaluation.evaluate(REGISTRATION_TIMING, joined[label])))
+            self._run_window(window, prepared, windows_rows, predictions)
+        joined = {label: self._joined(rows) for label, rows in windows_rows.items()}
+        special = {label: self._special_evaluations(rows, joined[label], len(windows)) for label, rows in windows_rows.items()}
+        all_rows = {label: [(window.name, evaluations) for window, _, evaluations in rows] for label, rows in windows_rows.items()}
         paths = {label: self._write(label, pd.concat(tables, ignore_index=True)) for label, tables in predictions.items() if tables}
         comparisons = {label: self._comparison.compare(joined[label], pd.read_pickle(path))
                        for label, path in self._compare.items() if joined.get(label) is not None}
         return WindowedBacktestResult(special, all_rows, paths, len(prepared.catalog.columns_for(REGISTRATION_TIMING)),
                                       self._variant, comparisons)
+
+    def _prepared(self, data: TrainingData) -> TrainingData:
+        """T を足し、材料の版が「相手と比べない」なら相手と比べる材料を外した学習データ。"""
+        prepared = AbilityScoreAttachment().apply(data)
+        if self._variant == NO_FIELD_COMPARISON:
+            return FieldComparisonFreeData().training(prepared)
+        return prepared
+
+    def _run_window(self, window: BacktestWindow, prepared: TrainingData, windows_rows: dict[str, list[_WindowRows]],
+                    predictions: dict[str, list[pd.DataFrame]]) -> None:
+        """1つの区切りで学習して予測し、目的変数ごとの特別競走の行・全レースの当たり具合・予測の表を集める。"""
+        period = window.period(self._warmup_first_day, self._train_first_day)
+        rows = RowsUntil(window.end).keep(None, prepared)
+        root = self._models_root / window.name
+        self._train(rows, period, root)
+        report = BacktestWorkflow(root, TIMINGS, root / "predictions", win_folder=WIN_FOLDER).run(rows, period)
+        test = PeriodSplitter(period).split(rows).test
+        for label, target in ((TOP3, test), (WIN, WinTargetData().training(test))):
+            table = pd.read_pickle(report.prediction_paths[label][REGISTRATION_TIMING]).assign(**{_WINDOW_COLUMN: window.name})
+            window_rows = self._evaluation.rows_of(target, table, window.name)
+            predictions[label].append(self._special_only(table, window_rows))
+            windows_rows[label].append((window, window_rows, report.evaluations[label]))
+
+    def _joined(self, rows: list[_WindowRows]) -> SpecialRaceRows | None:
+        """区切りの特別競走の行を全部つなげたもの（区切りが無ければ None）。"""
+        joined: SpecialRaceRows | None = None
+        for _, window_rows, _ in rows:
+            joined = window_rows if joined is None else joined.joined(window_rows)
+        return joined
+
+    def _special_evaluations(self, rows: list[_WindowRows], joined: SpecialRaceRows | None,
+                             window_count: int) -> list[tuple[str, list[Evaluation]]]:
+        """区切りごとの特別競走の行の当たり具合と、区切りが2つ以上なら全期間をつなげた行の当たり具合。"""
+        evaluations = [(window.name, self._evaluation.evaluate(REGISTRATION_TIMING, window_rows)) for window, window_rows, _ in rows]
+        if joined is None or window_count <= 1:
+            return evaluations
+        return [*evaluations, (WHOLE_PERIOD, self._evaluation.evaluate(REGISTRATION_TIMING, joined))]
 
     def _train(self, rows: TrainingData, period, root: Path) -> None:
         """区切りの行で、3着以内のモデル（``root``）と1着のモデル（``root/1着``）を学んで保存する。"""

@@ -72,11 +72,10 @@ class ClassTrainingReportTables:
     def _confusion_matrices(self) -> Table:
         """アンサンブルの混同行列。1行 = 1つの時点の実際のクラス、列 = いちばん高いクラス。"""
         ensembles = [e for e in self._report.evaluations if e.model == ENSEMBLE_NAME]
-        rows = [
-            [evaluation.timing.label, actual_name, *counts]
-            for evaluation in ensembles
-            for actual_name, counts in zip(self._class_names, evaluation.confusion_matrix, strict=True)
-        ]
+        rows: list[list[object]] = []
+        for evaluation in ensembles:
+            rows += [[evaluation.timing.label, actual_name, *counts]
+                     for actual_name, counts in zip(self._class_names, evaluation.confusion_matrix, strict=True)]
         return Table(
             ["時点", "実際のクラス", *(f"予測: {name}" for name in self._class_names)], rows,
             title=f"{self._subject}混同行列（平均の予測）",

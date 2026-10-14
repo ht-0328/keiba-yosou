@@ -9,7 +9,7 @@ import pandas as pd
 
 from 共通 import facts
 
-from . import names
+from .. import names
 
 #: 読む事実表の列（意味は ``tools/共通/facts.py`` の ``FACT_COLUMNS``）。
 COLUMNS: tuple[str, ...] = (

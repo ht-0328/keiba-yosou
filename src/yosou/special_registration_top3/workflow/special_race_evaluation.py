@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
-import numpy as np
 import pandas as pd
 
 from yosou.shared.dataset import HORSE_ID, RACE_ID, TOP3, TrainingData
@@ -16,6 +15,7 @@ from yosou.shared.workflow import FIELD_SHARE_NAME
 from yosou.shared.workflow.backtest_workflow import PREDICTION_COLUMNS
 
 from ..feature import SPECIAL_RACE
+from .special_race_rows import SpecialRaceRows
 
 #: 予測の表の列（レースID・馬ID・平均の確率・区切り）。
 _RACE, _HORSE, _PROBABILITY, WINDOW = PREDICTION_COLUMNS[0], PREDICTION_COLUMNS[2], PREDICTION_COLUMNS[4], PREDICTION_COLUMNS[5]
@@ -23,24 +23,6 @@ _RACE, _HORSE, _PROBABILITY, WINDOW = PREDICTION_COLUMNS[0], PREDICTION_COLUMNS[
 _EPSILON = 1e-6
 #: 目的変数ごとの、3着以内（1着）に入る頭数。
 _PLACES: dict[str, int] = {TOP3: 3}
-
-
-@dataclass(frozen=True)
-class SpecialRaceRows:
-    """特別競走の行（テスト期間のうち Y = 1 の行）と、行ごとの確率（モデルの名前 → 確率）。区切りをまたいでつなげられる。"""
-
-    data: TrainingData
-    probabilities: dict[str, np.ndarray]
-
-    def joined(self, other: SpecialRaceRows) -> SpecialRaceRows:
-        """2つをつなげたもの（全期間の当たり具合を測るため）。"""
-        data = TrainingData(
-            pd.concat([self.data.ids, other.data.ids]), pd.concat([self.data.features, other.data.features]),
-            pd.concat([self.data.targets, other.data.targets]), pd.concat([self.data.evaluation, other.data.evaluation]),
-            self.data.catalog, self.data.label_name, self.data.class_labels,
-        )
-        probabilities = {name: np.concatenate([self.probabilities[name], other.probabilities[name]]) for name in self.probabilities}
-        return SpecialRaceRows(data, probabilities)
 
 
 class SpecialRaceEvaluation:

@@ -3,6 +3,7 @@
 | クラス | 仕事 |
 |---|---|
 | ``TrainingWorkflow`` | 学習の流れ（設計書 05 の図1）。時点ごとに2つのモデルを学習して保存する |
+| ``Evaluator`` | 当たり具合を測るクラスの決まり（``TrainingWorkflow`` が受け取る。``ModelEvaluator`` か ``ClassModelEvaluator``） |
 | ``ModelSegments`` | 学習データを区分（中穴・大穴、人気帯 など）に分けて、区分ごとに別のモデルで学ぶときの分け方 |
 | ``SegmentedTraining`` | 区分ごとに ``TrainingWorkflow`` で学習して保存する（分けない予想は区分が「全体」1つ） |
 | ``SegmentedPrediction`` | 予測用データの行を区分に分け、区分ごとのモデルで予測して、2つのモデルの確率と平均を返す |
@@ -17,6 +18,7 @@
 
 from .backtest_workflow import FIELD_SHARE_NAME, MARKET_NAME, BacktestWorkflow
 from .calibration_check import CalibrationCheck
+from .evaluator import Evaluator
 from .explained_prediction import ExplainedPrediction
 from .model_segments import WHOLE, ModelSegments
 from .prediction_workflow import PROBABILITY, WIN_PROBABILITY, DataAttachment, PaceSource, PredictionWorkflow
@@ -27,7 +29,7 @@ from .training_workflow import TrainingWorkflow
 
 __all__ = [
     "TrainingWorkflow", "ModelSegments", "WHOLE", "SegmentedTraining", "SegmentedPrediction", "AVERAGE",
-    "SegmentedHoldoutPrediction", "CalibrationCheck",
+    "SegmentedHoldoutPrediction", "CalibrationCheck", "Evaluator",
     "PredictionWorkflow", "ExplainedPrediction", "PROBABILITY", "WIN_PROBABILITY", "PaceSource", "DataAttachment",
     "BacktestWorkflow", "MARKET_NAME", "FIELD_SHARE_NAME",
 ]

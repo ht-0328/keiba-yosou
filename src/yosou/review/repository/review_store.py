@@ -8,10 +8,10 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from . import names
+from .. import names
 
-#: keiba-yosou のリポジトリ直下（src/yosou/review/ から3つ上）と、置き場所の既定（Git の対象外の reports/回顧/）。
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+#: keiba-yosou のリポジトリ直下（src/yosou/review/repository/ から4つ上）と、置き場所の既定（Git の対象外の reports/回顧/）。
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_REVIEW_DB = _PROJECT_ROOT / "reports" / "回顧" / "review.duckdb"
 
 #: 表ごとの列と型（DuckDB の CREATE TABLE）。鍵の列は先頭。

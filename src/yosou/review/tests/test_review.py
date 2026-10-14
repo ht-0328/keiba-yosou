@@ -21,8 +21,8 @@ from ..handicap_lines import HandicapLines
 from ..previous_handicap_attachment import PreviousHandicapAttachment
 from ..previous_handicap_columns import PreviousHandicapColumns
 from ..previous_handicap_free_data import PreviousHandicapFreeData
+from ..repository import ReviewStore
 from ..result_style import ResultStyle
-from ..review_store import ReviewStore
 from ..run_handicaps import RunHandicaps
 
 

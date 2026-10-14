@@ -37,10 +37,10 @@ class BetType(Enum):
     @classmethod
     def parse(cls, text: str) -> BetType:
         """``単勝`` のような書き方から券種を返す。知らなければ ``ValueError``。"""
-        for bet in cls:
-            if bet.label == text.strip():
-                return bet
-        raise ValueError(f"知らない券種です: {text}（{BET_CHOICES}）")
+        found = next((bet for bet in cls if bet.label == text.strip()), None)
+        if found is None:
+            raise ValueError(f"知らない券種です: {text}（{BET_CHOICES}）")
+        return found
 
 
 #: 券種 → 払戻の列の名前の頭。共通の ``PAYOUT_TABLES`` の鍵と同じでなければならない。
