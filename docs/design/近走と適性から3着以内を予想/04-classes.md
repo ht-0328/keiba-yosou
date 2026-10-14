@@ -90,7 +90,7 @@ src/yosou/form_aptitude_top3/   近走と適性から3着以内を予想する
 | `CommandLine` | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
 | `TrainCommand` | `train`: 学習する。期間の引数（`--warmup-from` `--train-from` `--ability-train-from` `--valid-from` `--test-from`）から、今の材料と馬の力の材料の2つの `TrainingPeriod` を作る。学習データごとに、3着以内のモデルと、`WinTargetData` で持ち替えた1着のモデル（`<置き場所>/1着/`）を学ぶ。元DB は学習データを読む段だけ開き、学習のあいだはロックを持たない | `run(引数)` |
 | `PredictCommand` | `predict`: 1レースを予測する。`--odds 馬番:オッズ` で単勝オッズを渡せる。時点で `DatasetBuilder` を選ぶ（木曜・前日は `ability_dataset_builder`、当日は `race_day_dataset_builder`） | `run(引数)` |
-| `FigureCacheArgument` | 2つのサブコマンドに共通の引数 `--figure-cache`（スピード指数をとっておく場所） | `add_to(parser)` |
+| `FigureCacheArgument`（`shared`） | 2つのサブコマンドに共通の引数 `--figure-cache`（スピード指数をとっておく場所）。重賞の傾向の予想と特別登録の予想も使うので `shared/command/` にある | `add_to(parser)` |
 | `DevelopmentRootArgument` | 2つのサブコマンドに共通の引数 `--development-root`（予想「展開から着順を予想」の置き場所。木曜のモデルが展開の予想の結果を読む） | `add_to(parser)` |
 | `CommonArguments`（`shared`） | 2つのサブコマンドに共通の引数（`--models` `--db` `--format` `--out`）。モデルの既定の置き場所に使う予想の名前を受け取る | `add_to(parser)` |
 | `TrainingReportTables`（`shared`） | 学習の結果を表にする | `tables()` |

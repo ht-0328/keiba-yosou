@@ -115,6 +115,16 @@ WC_COLUMNS: tuple[str, ...] = (
     *_HEADER, "トレセン区分", "調教年月日", "調教時刻", "血統登録番号", "コース", "馬場周り", "5ハロンタイム合計(1000M～0M)",
     *_WORKOUT_TIMES,
 )
+#: 特別登録馬（tk）と、その登録馬ごとの子表。値は架空。特別登録の予想（登録馬の行）のテストに使う。
+TK_COLUMNS: tuple[str, ...] = (
+    *_HEADER, *KEY_COLUMNS, "曜日コード", "特別競走番号", "競走名本題", "競走名略称10文字", "グレードコード", "競走種別コード",
+    "競走記号コード", "重量種別コード", "競走条件コード 2歳条件", "競走条件コード 3歳条件", "競走条件コード 4歳条件",
+    "競走条件コード 5歳以上条件", "競走条件コード 最若年条件", "距離", "トラックコード", "コース区分", "ハンデ発表日", "登録頭数",
+)
+TK_RUNNER_COLUMNS: tuple[str, ...] = (
+    *KEY_COLUMNS, "_連番", "連番", "血統登録番号", "馬名", "馬記号コード", "性別コード", "調教師東西所属コード", "調教師コード",
+    "調教師名略称", "負担重量", "交流区分",
+)
 #: 天候馬場状態。変更後・変更前の同じ名前の列は、実DB と同じく2つ目に「#2」が付く。
 WE_COLUMNS: tuple[str, ...] = (
     *_HEADER, *KEY_COLUMNS[:-1], "発表月日時分", "変更識別",
@@ -156,6 +166,7 @@ OPTIONAL_TABLES: dict[str, tuple[str, ...]] = {
     "ck": CK_COLUMNS, "hc": HC_COLUMNS, "wc": WC_COLUMNS,
     "nd": ND_COLUMNS, "nu": NU_COLUMNS, "nu__3代血統情報": PEDIGREE_COLUMNS,
     "we": WE_COLUMNS, "wh": WH_COLUMNS, "wh__馬体重情報": WH_WEIGHT_COLUMNS, "av": AV_COLUMNS,
+    "tk": TK_COLUMNS, "tk__登録馬毎情報": TK_RUNNER_COLUMNS,
     "hr": HR_COLUMNS, "hr__馬連払戻": COMBO_PAYOUT_COLUMNS, "hr__3連複払戻": COMBO_PAYOUT_COLUMNS,
     "hr__3連単払戻": COMBO_PAYOUT_COLUMNS, "hr__ワイド払戻": COMBO_PAYOUT_COLUMNS, "hr__馬単払戻": COMBO_PAYOUT_COLUMNS,
     **{parent: ODDS_HEADER_COLUMNS for parent in ODDS_PARENTS}, **ODDS_TABLES,
@@ -167,11 +178,11 @@ TITLES: dict[str, str] = {
     "wc": "ウッドチップ調教", "we": "天候馬場状態", "wh": "馬体重", "av": "出走取消・競走除外",
     "o1": "オッズ1（単複枠）", "o2": "オッズ2（馬連）", "o3": "オッズ3（ワイド）", "o4": "オッズ4（馬単）",
     "o5": "オッズ5（3連複）", "o6": "オッズ6（3連単）",
-    "nd": "出走別着度数地方", "nu": "競走馬マスタ地方",
+    "nd": "出走別着度数地方", "nu": "競走馬マスタ地方", "tk": "特別登録馬",
 }
 #: 親の表の鍵（実DB の ``_tables`` の keys）。書いていない表は血統登録番号。
 _TABLE_KEYS: dict[str, tuple[str, ...]] = {
-    **{name: KEY_COLUMNS for name in ("ra", "se", "hr", "tm", "dm", "wh", *ODDS_PARENTS)},
+    **{name: KEY_COLUMNS for name in ("ra", "se", "hr", "tm", "dm", "wh", "tk", *ODDS_PARENTS)},
     "ck": (*KEY_COLUMNS, "血統登録番号"), "nd": (*KEY_COLUMNS, "血統登録番号"), "av": (*KEY_COLUMNS, "馬番"),
     "hc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
     "wc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
@@ -437,6 +448,38 @@ def scratch_report(race_row: dict[str, str], num: int, *, announced: str, stage:
                              **key, "発表月日時分": announced, "馬番": f"{num:02d}", "馬名": f"ウマ{num:02d}", "事由区分": "001"})
 
 
+def registration(day: str, no: str, *, venue: str = "05", track: str = "11", distance: str = "1600",
+                 name: str = "合成特別", grade: str = "E", stakes_no: str = "", condition: str = "005",
+                 weight_type: str = "3", stage: str = "2", entries: str = "06", created: str | None = None,
+                 **over: str) -> dict[str, str]:
+    """特別登録のレース1行（既定: 東京 芝・左 1600m の特別競走「合成特別」、月曜の版）。``created`` はデータ作成年月日（既定は開催日の6日前）。"""
+    day_value = pd.Timestamp(day)
+    values = {
+        "レコード種別ID": "TK", "データ区分": stage,
+        "データ作成年月日": created or (day_value - pd.Timedelta(days=6)).strftime("%Y%m%d"),
+        **race_key(day, no, venue=venue),
+        "曜日コード": str(day_value.isoweekday() % 7 + 1), "特別競走番号": stakes_no, "競走名本題": name, "競走名略称10文字": name,
+        "グレードコード": grade, "競走種別コード": "13", "競走記号コード": "000", "重量種別コード": weight_type,
+        "競走条件コード 2歳条件": "000", "競走条件コード 3歳条件": condition, "競走条件コード 4歳条件": condition,
+        "競走条件コード 5歳以上条件": condition, "競走条件コード 最若年条件": condition,
+        "距離": distance, "トラックコード": track, "コース区分": "A ", "ハンデ発表日": "00000000", "登録頭数": entries,
+    }
+    values.update(over)
+    return _row(TK_COLUMNS, values)
+
+
+def registered_horse(registration_row: dict[str, str], seq: int, hid: str, name: str, *, sex: str = "1",
+                     trainer: tuple[str, str] = ("00001", "調教師A"), area: str = "1", carried: str = "570",
+                     exchange: str = "0") -> dict[str, str]:
+    """特別登録の登録馬1頭（子表の1行）。``area`` は調教師の東西所属、``exchange`` は交流区分（0 中央・1 地方馬・2 外国馬）。"""
+    key = {name_: registration_row[name_] for name_ in KEY_COLUMNS}
+    return _row(TK_RUNNER_COLUMNS, {
+        **key, "_連番": str(seq), "連番": f"{seq:03d}", "血統登録番号": hid, "馬名": name, "馬記号コード": "00",
+        "性別コード": sex, "調教師東西所属コード": area, "調教師コード": trainer[0], "調教師名略称": trainer[1],
+        "負担重量": carried, "交流区分": exchange,
+    })
+
+
 @dataclass
 class Sample:
     """合成DB に入れる行の束。表ごとの行のリスト。"""
@@ -457,6 +500,9 @@ class Sample:
     weight: list[dict[str, str]] = field(default_factory=list)
     weights: list[dict[str, str]] = field(default_factory=list)
     scratches: list[dict[str, str]] = field(default_factory=list)
+    #: 特別登録（レースの行と登録馬の行）。特別登録の予想のテストに使う。
+    registrations: list[dict[str, str]] = field(default_factory=list)
+    registered_horses: list[dict[str, str]] = field(default_factory=list)
     #: 払戻の親（券種ごとのフラグ）と、組み合わせの券種の払戻。荒れ具合の予想と馬券の買い方の検証のテストに使う。
     headers: list[dict[str, str]] = field(default_factory=list)
     quinella: list[dict[str, str]] = field(default_factory=list)
@@ -485,6 +531,7 @@ class Sample:
         optional = {
             "ck": self.ck, "hc": self.hill, "wc": self.wood,
             "we": self.going, "wh": self.weight, "wh__馬体重情報": self.weights, "av": self.scratches,
+            "tk": self.registrations, "tk__登録馬毎情報": self.registered_horses,
             "hr": self.headers, "hr__馬連払戻": self.quinella, "hr__3連複払戻": self.trio, "hr__3連単払戻": self.trifecta,
             "hr__ワイド払戻": self.wide, "hr__馬単払戻": self.exacta, **odds_tables,
             "nd": self.nd, "nu": _unique(self.nu, ("血統登録番号",)),

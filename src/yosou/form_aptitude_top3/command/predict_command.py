@@ -10,7 +10,7 @@ import pandas as pd
 from 共通 import db, race
 from 共通.render import Table
 
-from yosou.shared.command import CommonArguments, PredictionTable
+from yosou.shared.command import CommonArguments, FigureCacheArgument, PredictionTable
 from yosou.ability_score import RaceAbilityScoreAttacher
 from yosou.development_score import AdvantageTableStore, RaceScoreAttacher, cache_folder_beside
 from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
@@ -47,7 +47,6 @@ from ..workflow import (
     PredictionWorkflow,
 )
 from .development_root_argument import DevelopmentRootArgument
-from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
 
 

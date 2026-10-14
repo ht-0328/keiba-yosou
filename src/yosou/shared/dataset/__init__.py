@@ -102,6 +102,7 @@ from .finish_power_free_data import FinishPowerFreeData
 from .training_data import BINARY_LABELS, TrainingData
 from .training_rows import TrainingRows
 from .all_rows import AllRows
+from .rows_until import RowsUntil
 from .training_period import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
@@ -110,7 +111,7 @@ from .training_period import (
 )
 
 __all__ = [
-    "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData", "TrainingRows", "AllRows",
+    "DatasetBuilder", "RaceDatasetBuilder", "TrainingData", "BINARY_LABELS", "PredictionData", "TrainingRows", "AllRows", "RowsUntil",
     "TrainingPeriod", "PeriodSplitter", "SplitData",
     "HistoryRecordsLoader", "RaceRecordsLoader", "AbilitySourcesLoader", "HISTORY_FIRST_DAY", "FinishRecordsLoader",
     "DistanceChangeRecordsLoader", "DISTANCE_CHANGE_KEY",

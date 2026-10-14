@@ -78,6 +78,19 @@ JRA_FACTS_SOURCE = FactsSource(
 )
 
 
+@dataclass(frozen=True)
+class EntryRows:
+    """事実表の SQL が、レースの行と出走の行を読む関係。省略すると元DB の ``ra``・``se``。
+
+    特別登録の予想は、特別登録から作った「登録馬の行」（``ra``・``se`` と同じ列）を、そのレースの ``ra``・``se`` の代わりに
+    読ませる（``tools/共通/registration.py``。特別登録の設計書 04 の 3）。``race`` は ``ra`` と同じ列を持つ関係、``runner`` は
+    ``se`` と同じ列を持つ関係（表の名前か、かっこで包んだ SELECT）。
+    """
+
+    race: str = "ra"
+    runner: str = "se"
+
+
 def detect_source(con: duckdb.DuckDBPyConnection) -> FactsSource:
     """元DB の表から、中央か地方かを見分ける。競走馬マスタ地方（``nu``）があれば地方、無ければ中央。"""
     from . import local_codes  # 地方の決めごとはこの部品を使って作るので、ここで読む（読み込みの輪を避ける）
@@ -213,12 +226,12 @@ class EntryScope:
             raise ValueError(f"馬場状態コードは {', '.join(codes.TRACK_CONDITION)} のどれかです: {self.condition_code}")
 
 
-def _row_scope(entry: EntryScope | None, source: FactsSource) -> tuple[str, str, str]:
-    """``ra``・``se``・血統の表から読む行の条件。既定は ``source`` の競馬場の確定成績だけ（血統は全部）。
+def _row_scope(entry: EntryScope | None, source: FactsSource, rows: EntryRows) -> tuple[str, str, str]:
+    """レースの行・出走の行・血統の表から読む行の条件。既定は ``source`` の競馬場の確定成績だけ（血統は全部）。
 
-    ``entry`` があれば、そのレースの行（確定前でもよい）を足し、``se`` はそのレースの出走馬の行だけに絞る。
+    ``entry`` があれば、そのレースの行（確定前でもよい）を足し、出走の行はそのレースの出走馬の行だけに絞る。
     確定前のレースは、いちばん新しいデータ区分の行だけを使う（出走馬名表にだけ居て出馬表で消えた馬を拾わない）。
-    rid は検証済みの16桁の数字なので、そのまま SQL に埋める。
+    ``rows`` は出走の行を読む関係（既定は ``se``）。rid は検証済みの16桁の数字なので、そのまま SQL に埋める。
     """
     venues = source.venue_filter()
     final = f"{venues} AND {keys.final_only()}"
@@ -226,8 +239,8 @@ def _row_scope(entry: EntryScope | None, source: FactsSource) -> tuple[str, str,
         return final, final, "TRUE"
     this_race = f"{keys.rid_expr()} = '{entry.rid}'"
     alive = f"{keys.q('データ区分')} NOT IN {keys.sql_list(_DEAD_STAGES)}"
-    newest = f"(SELECT max({keys.q('データ区分')}) FROM se WHERE {this_race} AND {alive})"
-    horses = f"(SELECT {keys.q(keys.HORSE_KEY)} FROM se WHERE {this_race})"
+    newest = f"(SELECT max({keys.q('データ区分')}) FROM {rows.runner} WHERE {this_race} AND {alive})"
+    horses = f"(SELECT {keys.q(keys.HORSE_KEY)} FROM {rows.runner} WHERE {this_race})"
     race_rows = f"{venues} AND ({keys.final_only()} OR ({this_race} AND {alive}))"
     runner_rows = (f"{venues} AND ({keys.final_only()} OR ({this_race} AND {keys.q('データ区分')} = {newest})) "
                    f"AND {keys.q(keys.HORSE_KEY)} IN {horses}")
@@ -249,16 +262,18 @@ def _condition_code_sql(entry: EntryScope | None) -> str:
 
 
 def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
-              source: FactsSource | None = None) -> str:
+              source: FactsSource | None = None, rows: EntryRows | None = None) -> str:
     """事実表を作る SQL。列の意味は ``FACT_COLUMNS``。
 
     ``entry`` を渡すと、確定成績に加えてそのレースの行も読み、そのレースの出走馬の行だけに絞る
     （``build_entry_facts`` が使う。そのレース以外の行はレース単位の列が正しくないので使わない）。
     ``source`` は元データの決めごと（中央か地方か）。省略すると元DB の表から見分ける（``detect_source``）。
+    ``rows`` はレースの行と出走の行を読む関係（省略すると ``ra``・``se``。特別登録の予想が登録馬の行を渡す）。
     """
     source = source or detect_source(con)
+    rows = rows or EntryRows()
     rid = keys.rid_expr()
-    race_rows, runner_rows, pedigree_rows = _row_scope(entry, source)
+    race_rows, runner_rows, pedigree_rows = _row_scope(entry, source, rows)
     not_ran = keys.sql_list(keys.NOT_RAN_CODES)
     no_place = keys.sql_list(keys.OUT_OF_RACE_CODES)
     win_table = optional_relation(con, "hr__単勝払戻", _PAYOUT_COLUMNS)
@@ -283,7 +298,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
                coalesce(TRY_CAST(NULLIF("出走頭数", '00') AS INTEGER), TRY_CAST(NULLIF("登録頭数", '00') AS INTEGER)) AS field_size,
                TRY_CAST(NULLIF("前3ハロン", '000') AS INTEGER) / 10.0 AS first3f,
                TRY_CAST(NULLIF("後3ハロン", '000') AS INTEGER) / 10.0 AS last3f_race
-        FROM ra
+        FROM {rows.race}
         WHERE {race_rows}
         {keys.latest_qualify(keys.RACE_KEY)}
     ), runner AS (
@@ -313,7 +328,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
                TRY_CAST(NULLIF("マイニング予想順位", '00') AS INTEGER) AS dm_rank,
                "東西所属コード" AS area_code, "ブリンカー使用区分" = '1' AS has_blinker,
                "騎手見習コード" IN {keys.sql_list(_APPRENTICE_CODES)} AS is_apprentice
-        FROM se
+        FROM {rows.runner}
         WHERE {runner_rows}
         {keys.latest_qualify((*keys.RACE_KEY, keys.HORSE_KEY))}
     ), corner_rows AS (
@@ -548,16 +563,17 @@ def build_entry_facts(con: duckdb.DuckDBPyConnection, entry: EntryScope, *,
                       popularity: Mapping[int, int] | None = None,
                       popularity_by_name: Mapping[str, int] | None = None,
                       weights: Mapping[int, tuple[int, int | None]] | None = None, name: str = ENTRY_TABLE,
-                      source: FactsSource | None = None) -> str:
+                      source: FactsSource | None = None, rows: EntryRows | None = None) -> str:
     """1レースの出走馬に事実表と同じ列を付けた一時表を作る（あれば作り直す）。表の名前を返す。
 
     ``popularity`` は 馬番 → 単勝人気、``popularity_by_name`` は 馬名 → 単勝人気、``weights`` は 馬番 → （馬体重, 増減）。
     発走前の DB に無い値を手で与える。馬番がまだ決まっていないレース（木曜の出走馬名表）には、人気を馬名で与える
     （馬名は事実表と同じく前後の空白を除いたもの）。レースが無ければ ``LookupError``、いない馬番・馬名なら ``ValueError``。
-    ``source`` は元データの決めごと（省略すると元DB の表から見分ける）。
+    ``source`` は元データの決めごと（省略すると元DB の表から見分ける）。``rows`` はレースの行と出走の行を読む関係
+    （省略すると ``ra``・``se``。特別登録の予想が登録馬の行を渡す）。
     """
     table = keys.q(name)
-    con.execute(f"CREATE OR REPLACE TEMP TABLE {table} AS SELECT * FROM ({facts_sql(con, entry, source)}) WHERE race_id = '{entry.rid}'")
+    con.execute(f"CREATE OR REPLACE TEMP TABLE {table} AS SELECT * FROM ({facts_sql(con, entry, source, rows)}) WHERE race_id = '{entry.rid}'")
     known = {no for (no,) in con.execute(f"SELECT horse_no FROM {table}").fetchall()}
     if not known:
         con.execute(f"DROP TABLE IF EXISTS {table}")

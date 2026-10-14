@@ -6,6 +6,7 @@
 | クラス | 仕事 |
 |---|---|
 | ``CommonArguments`` | どの予想でも同じ引数（--models --db --format --out） |
+| ``FigureCacheArgument`` | 馬の力の材料を使う予想に共通の引数（--figure-cache。スピード指数の置き場所） |
 | ``TrainingReportTables`` | 二値分類の学習の結果を表にする |
 | ``ClassTrainingReportTables`` | 多クラス分類の学習の結果を表にする（期間・当たり具合・混同行列・保存したモデル） |
 | ``PredictionTable`` | 1頭ごとの予測の結果を、確率の高い順の表にする |
@@ -21,12 +22,13 @@ from .backtest_report_tables import BacktestReportTables
 from .calibration_report_tables import CalibrationReportTables
 from .class_training_report_tables import ClassTrainingReportTables
 from .common_arguments import CommonArguments
+from .figure_cache_argument import FigureCacheArgument
 from .place_price_step import PlacePriceStep
 from .prediction_table import PredictionTable
 from .race_prediction_table import RacePredictionTable
 from .training_report_tables import TrainingReportTables
 
 __all__ = [
-    "CommonArguments", "TrainingReportTables", "ClassTrainingReportTables", "PredictionTable", "RacePredictionTable",
+    "CommonArguments", "FigureCacheArgument", "TrainingReportTables", "ClassTrainingReportTables", "PredictionTable", "RacePredictionTable",
     "PlacePriceStep", "CalibrationReportTables", "BacktestReportTables",
 ]

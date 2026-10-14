@@ -59,6 +59,9 @@ class AbilityTableBuilder:
         typed = runs.assign(**{column: numeric[column] for column in _NUMERIC},
                             race_date=pd.to_datetime(runs["race_date"]),
                             ran=runs["ran"].astype("boolean").fillna(runs["is_target"]).astype(bool))
+        if "as_of_date" in typed.columns:
+            # 材料の締めの日（特別登録の予想の登録日相当。中央の予想では欠損値）。通算と直近の成績がこの日までで数える
+            typed = typed.assign(as_of_date=pd.to_datetime(typed["as_of_date"], errors="coerce"))
         return typed[typed["ran"]].reset_index(drop=True)
 
     def _figure_runs(self, runs: pd.DataFrame, figures: pd.DataFrame) -> pd.DataFrame:

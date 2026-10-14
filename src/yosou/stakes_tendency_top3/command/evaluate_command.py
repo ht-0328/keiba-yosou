@@ -12,7 +12,7 @@ import pandas as pd
 from 共通 import db
 from 共通.render import Table
 
-from yosou.form_aptitude_top3.command.figure_cache_argument import FigureCacheArgument
+from yosou.shared.command import FigureCacheArgument
 from yosou.shared.command import CommonArguments
 from yosou.shared.dataset import DatasetBuilder, TrainingData, TrainingPeriod
 from yosou.shared.dataset import column_names as names

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from .material_cutoff import MaterialCutoff
 from .recent_record_rates import RecentRecordRates
 
 #: 直近の期間（日）。
@@ -15,8 +16,12 @@ class RecentPeopleRates:
 
     騎手の格上げ = 今回の騎手の近1年の勝率 − 前走の騎手の（今回の日付の時点の）近1年の勝率。前走が無ければ欠損値。
     例: 今回の騎手が 0.15、前走の騎手が 0.06 なら +0.09（上手な騎手に乗り替わった）。
-    ``runs`` は出走した馬の行、``rows`` は列を作る行（race_id・horse_id・race_date・jockey_code・trainer_code）。
+    数える期間の終わりは材料の締めの日（``MaterialCutoff``。行に ``as_of_date`` があればその日まで、無ければ開催日の前日まで）。
+    ``runs`` は出走した馬の行、``rows`` は列を作る行（race_id・horse_id・race_date・jockey_code・trainer_code と、あれば as_of_date）。
     """
+
+    def __init__(self) -> None:
+        self._cutoff = MaterialCutoff()
 
     def build(self, runs: pd.DataFrame, rows: pd.DataFrame) -> pd.DataFrame:
         """列は race_id・horse_id と ``RECENT_COLUMNS``。行の並びは ``rows`` と同じ。"""
@@ -27,6 +32,8 @@ class RecentPeopleRates:
         previous = ordered.assign(prev_jockey=ordered.groupby("horse_id")["jockey_code"].shift(1))
         table = rows[["race_id", "horse_id", "race_date", "jockey_code", "trainer_code"]].merge(
             previous[["race_id", "horse_id", "prev_jockey"]], on=["race_id", "horse_id"], how="left")
+        # 直近の成績は「渡した日より前」を数えるので、締めの日の翌日を渡す（締めの日を含めて数える）。merge は左の行の並びを保つ
+        table["race_date"] = self._cutoff.next_day_of(rows).to_numpy()
         now = jockey.rate_on(table["jockey_code"], table["race_date"])
         before = jockey.rate_on(table["prev_jockey"], table["race_date"])
         return pd.DataFrame({

@@ -38,6 +38,13 @@ ENTRY_LIST_RACE_ID = "2025011105010102"  # 2R 出走馬名表（馬番が未定�
 JUMP_CARD_RACE_ID = "2025011105010103"   # 3R 障害の出馬表
 #: 確定前のレースの頭数。
 FUTURE_FIELD_SIZE = 8
+#: 特別登録（特別登録の予想のテスト用）。2R（出走馬名表のレース）には、出走馬名表の8頭に1頭足した9頭の登録がある。
+#: 4R は特別登録だけがあり、出走馬名表はまだ無い（8頭）。どちらも競走名の付いた特別競走（グレード E）。
+REGISTRATION_ONLY_RACE_ID = "2025011105010104"
+REGISTRATION_RACE_NAME = "合成登録特別"
+REGISTRATION_ONLY_FIELD_SIZE = 8
+#: 2R の登録馬のうち、出走馬名表に居ない1頭（馬番は無い）。地方馬（交流区分 1）として登録する。
+EXTRA_REGISTERED_HORSE_EXCHANGE = "1"
 #: 確定前の 1R で、速報で出走取消になる馬番。
 SCRATCHED_HORSE_NO = 8
 #: 確定前の 1R で、最後に発表される芝の馬場状態コード（3 = 重）。

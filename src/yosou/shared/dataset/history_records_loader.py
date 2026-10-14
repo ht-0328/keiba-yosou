@@ -33,6 +33,9 @@ class HistoryRecordsLoader:
     券種ごとのオッズから見た確率・対戦レーティングの元になる過去の全出走の着順。``finish_records`` は勝ち切る材料の元の記録。省略すると読まない）。
     ``facts_source`` は事実表の元データの決めごと（中央か地方か。省略すると元DB の表から見分ける）、``career_counts`` は
     出走別着度数を読むリポジトリ（省略すると中央の ``ck``）。地方の予想が渡す（地方の設計書 04 の 3）。
+    ``as_of_sql`` は、対象の行に「材料の締めの日」の列を足す SQL の式（事実表の列から作る）。渡すと、日付で区切って数える材料
+    （調教・通算と直近の成績・対戦レーティング）をその日までの記録で数える。省略すると今までどおり開催日の前日まで
+    （特別登録の予想が渡す。特別登録の設計書 11 の 6）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection,
@@ -44,8 +47,10 @@ class HistoryRecordsLoader:
                  head_to_head_runs: HeadToHeadRunRepository | None = None,
                  finish_records: FinishRecordsLoader | None = None,
                  facts_source: facts.FactsSource | None = None,
-                 career_counts: CareerCountRepository | None = None) -> None:
+                 career_counts: CareerCountRepository | None = None,
+                 as_of_sql: str | None = None) -> None:
         self._fact_table = FactTableRepository(con, facts_source)
+        self._as_of_sql = as_of_sql
         self._records_loader = EntryRecordsLoader(
             con, race_history, stakes_tendency, market_runs, ability_sources, pool_probabilities, head_to_head_runs, finish_records,
             career_counts=career_counts,
@@ -53,4 +58,4 @@ class HistoryRecordsLoader:
 
     def load(self, first_day: date) -> EntryRecords:
         self._fact_table.ensure()
-        return self._records_loader.load(TargetScope.since(first_day))
+        return self._records_loader.load(TargetScope.since(first_day, self._as_of_sql))

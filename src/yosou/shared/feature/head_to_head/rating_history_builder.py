@@ -1,4 +1,4 @@
-"""出走の記録を開催日の順にたどって、出走ごとの「そのレースの前日までのレーティング」を作る。"""
+"""出走の記録を開催日の順にたどって、出走ごとの「材料の締めの日の時点のレーティング」を作る。"""
 
 from __future__ import annotations
 
@@ -15,14 +15,22 @@ from .head_to_head_columns import (
     RUN_COUNT,
 )
 
+#: 材料の締めの日の列（対象の行だけ。無ければ、開催日の前日の時点のレーティングを書く）。
+_AS_OF_DATE = "as_of_date"
+_ONE_DAY = np.timedelta64(1, "D")
+
 
 class RatingHistoryBuilder:
     """全出走（``runs``。``HeadToHeadRunRepository`` が読んだもの）から、出走ごとのレーティングの履歴を作る。
 
-    開催日ごとに「その日の出走の行に、その時点のレーティングを書く → その日のレースの着順でレーティングを更新する」を
-    くり返す。書くのが先なので、どの行のレーティングも、その開催日より前のレースの結果だけでできている
+    開催日ごとに「その日に書く行に、その時点のレーティングを書く → その日のレースの着順でレーティングを更新する」を
+    くり返す。書くのが先なので、どの行のレーティングも、書く日より前のレースの結果だけでできている
     （同じ日の先に終わったレースも使わない。設計書 11 の 2）。まだ走っていないレース（着順が欠損値）は、書くだけで更新しない。
     着順の付かなかった馬（競走中止など）は、そのレースの勝ち負けに数えない。
+
+    書く日は、ふつうは開催日（開催日の前日までの結果が入る）。行に材料の締めの日（``as_of_date``。特別登録の予想の登録日相当）が
+    あれば、その翌日に書く（締めの日までの結果が入り、締めの日より後の土曜の結果は入らない。特別登録の設計書 11 の 6）。
+    更新はいつも開催日に行う。
 
     列は ``race_id``・``horse_id``・``race_date``・``対戦レーティング``・``対戦レーティングの対戦数``（それまでに勝ち負けを
     数えたレースの数）。行の並びと index は ``runs`` と同じ。
@@ -39,18 +47,40 @@ class RatingHistoryBuilder:
         counts = np.zeros(len(horses), dtype=int)
         # レースID の列は1度だけ配列にする（開催日ごとに列全体を変換し直すと、それだけで1分以上かかる）
         race_ids = ordered["race_id"].to_numpy()
+        race_days = ordered["race_date"].to_numpy(dtype="datetime64[D]")
+        write_days = self._write_days(ordered, race_days)
+        write_order = np.argsort(write_days, kind="stable")
         before = np.empty(len(ordered))
         runs_before = np.empty(len(ordered), dtype=int)
-        for start, end in _slices(ordered["race_date"].to_numpy()):
-            codes = horse_codes[start:end]
-            before[start:end] = ratings[codes]
-            runs_before[start:end] = counts[codes]
-            self._update_day(race_ids[start:end], start, horse_codes, finishes, ratings, counts)
+        writes = [(write_days[write_order[start]], write_order[start:end]) for start, end in _slices(write_days[write_order])]
+        updates = [(race_days[start], start, end) for start, end in _slices(race_days)]
+        write_index = update_index = 0
+        while write_index < len(writes) or update_index < len(updates):
+            write_day = writes[write_index][0] if write_index < len(writes) else None
+            update_day = updates[update_index][0] if update_index < len(updates) else None
+            # 同じ日なら、書いてから更新する（書く日より前のレースの結果だけが入る）
+            if update_day is None or (write_day is not None and write_day <= update_day):
+                rows = writes[write_index][1]
+                before[rows] = ratings[horse_codes[rows]]
+                runs_before[rows] = counts[horse_codes[rows]]
+                write_index += 1
+            else:
+                _, start, end = updates[update_index]
+                self._update_day(race_ids[start:end], start, horse_codes, finishes, ratings, counts)
+                update_index += 1
         history = pd.DataFrame({
             "race_id": ordered["race_id"].to_numpy(), "horse_id": ordered["horse_id"].to_numpy(),
             "race_date": ordered["race_date"].to_numpy(), RATING: before, RUN_COUNT: runs_before.astype(float),
         }, index=ordered.index)
         return history.loc[runs.index]
+
+    def _write_days(self, ordered: pd.DataFrame, race_days: np.ndarray) -> np.ndarray:
+        """行ごとの、レーティングを書く日。締めの日があればその翌日、無ければ開催日。"""
+        if _AS_OF_DATE not in ordered.columns:
+            return race_days
+        as_of = pd.to_datetime(ordered[_AS_OF_DATE], errors="coerce").to_numpy(dtype="datetime64[D]")
+        has_as_of = ~np.isnat(as_of)
+        return np.where(has_as_of, as_of + _ONE_DAY, race_days)
 
     def _update_day(self, race_ids: np.ndarray, start: int, horse_codes: np.ndarray,
                     finishes: np.ndarray, ratings: np.ndarray, counts: np.ndarray) -> None:

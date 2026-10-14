@@ -12,10 +12,14 @@ from .season_plan import (
     ANNOUNCED_TURF_GOING,
     CARD_RACE_ID,
     ENTRY_LIST_RACE_ID,
+    EXTRA_REGISTERED_HORSE_EXCHANGE,
     FUTURE_DAY,
     FUTURE_FIELD_SIZE,
     JUMP_CARD_RACE_ID,
     JUMP_RACE,
+    REGISTRATION_ONLY_FIELD_SIZE,
+    REGISTRATION_ONLY_RACE_ID,
+    REGISTRATION_RACE_NAME,
     SCRATCHED_HORSE_NO,
     VENUE_CODE,
 )
@@ -45,6 +49,7 @@ class FutureRaceRows:
 
     締め切り前の単勝オッズは入れない。単勝オッズが DB に無いときに --odds・--pops を案内して止まることを、
     ほかのテストが確かめているためである（テストは単勝オッズと人気を引数で渡す）。複勝オッズには引数が無いので、DB に入れておく。
+    特別登録（特別登録の予想のテスト用）も足す。2R には出走馬名表の8頭に地方馬1頭を足した9頭の登録、4R には登録だけ（8頭）。
     """
 
     def __init__(self, sample: synth.Sample, careers: CareerCounter, workouts: WorkoutLog) -> None:
@@ -55,10 +60,33 @@ class FutureRaceRows:
     def add(self, horses: Sequence[SyntheticHorse]) -> None:
         """``horses`` の先頭から、レースごとに8頭ずつ使う。"""
         race_rows = {}
+        fields = {}
         for index, (race_id, plan, stage) in enumerate(_FUTURE_RACES):
             field = horses[index * FUTURE_FIELD_SIZE:(index + 1) * FUTURE_FIELD_SIZE]
+            fields[race_id] = field
             race_rows[race_id] = self._add_race(plan, stage, field)
         self._add_announcements(race_rows[CARD_RACE_ID])
+        used = len(_FUTURE_RACES) * FUTURE_FIELD_SIZE
+        extra = horses[used]
+        self._add_registration(ENTRY_LIST_RACE_ID, _FUTURE_RACES[1][1], [*fields[ENTRY_LIST_RACE_ID], extra],
+                               exchange={extra.hid: EXTRA_REGISTERED_HORSE_EXCHANGE})
+        only_field = horses[used + 1:used + 1 + REGISTRATION_ONLY_FIELD_SIZE]
+        self._add_registration(REGISTRATION_ONLY_RACE_ID, RacePlan("04", TURF_TRACK, 1800, _NO_TIME), only_field)
+
+    def _add_registration(self, race_id: str, plan: RacePlan, field: Sequence[SyntheticHorse],
+                          exchange: dict[str, str] | None = None) -> None:
+        """特別登録（月曜の版。開催日の6日前に作成）の行と、登録馬の行。``exchange`` は 馬 → 交流区分（地方馬・外国馬）。"""
+        row = synth.registration(
+            FUTURE_DAY.strftime("%Y%m%d"), race_id[-2:], venue=VENUE_CODE, track=plan.track_code, distance=str(plan.distance_m),
+            name=REGISTRATION_RACE_NAME, entries=f"{len(field):02d}",
+        )
+        self._sample.registrations.append(row)
+        for seq, horse in enumerate(field, start=1):
+            self._workouts.add_before(horse, FUTURE_DAY)
+            self._sample.registered_horses.append(synth.registered_horse(
+                row, seq, horse.hid, horse.name, sex=horse.sex_code, trainer=horse.trainer,
+                exchange=(exchange or {}).get(horse.hid, "0"),
+            ))
 
     def _add_race(self, plan: RacePlan, stage: str, field: Sequence[SyntheticHorse]) -> dict[str, str]:
         race_row = synth.race(

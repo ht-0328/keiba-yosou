@@ -11,7 +11,7 @@ import pandas as pd
 from 共通 import db
 from 共通.render import Table
 
-from yosou.shared.command import CommonArguments, PlacePriceStep, TrainingReportTables
+from yosou.shared.command import CommonArguments, FigureCacheArgument, PlacePriceStep, TrainingReportTables
 from yosou.shared.dataset import (
     DEFAULT_TEST_FIRST_DAY,
     DEFAULT_TRAIN_FIRST_DAY,
@@ -70,7 +70,6 @@ from ..workflow import (
     WIN_FOLDER,
 )
 from .development_root_argument import DevelopmentRootArgument
-from .figure_cache_argument import FigureCacheArgument
 from .yosou_name import YOSOU_NAME
 
 #: 1着のモデルの表の題に付ける言葉。
