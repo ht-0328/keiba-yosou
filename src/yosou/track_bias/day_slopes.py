@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pandas as pd
 
 from yosou.shared.feature import PredictionTiming
@@ -14,6 +16,8 @@ PREVIOUS_DAY_WEIGHT = 0.5
 OTHER_CONDITION_WEIGHT = 0.5
 #: 対象の行・重みの作業用の列。
 _TARGET, _ROW, _DATE, _RACE_NO, _CONDITION, _WEIGHT = "_target", "_row", "_date", "_race_no", "_condition", "_weight"
+#: その日の同じ馬場のレースのうち数えるものを選び、重みを付ける関数（対象の表, 終わったレースの表, 馬場の鍵の列）。
+_SameDayRaces = Callable[[pd.DataFrame, pd.DataFrame, list[str]], pd.DataFrame]
 
 
 class DaySlopes:
@@ -34,16 +38,18 @@ class DaySlopes:
         """列は ``内の傾き``・``前の傾き``（当日の傾き。数えるレースが無ければ欠損値）・``レース数``。index は ``targets`` と同じ。"""
         if timing is PredictionTiming.THURSDAY:
             return self._empty(targets)
-        return self._of(targets, finished, same_day=timing is PredictionTiming.RACE_DAY, whole_day=False)
+        same_day = self._earlier_same_day if timing is PredictionTiming.RACE_DAY else None
+        return self._of(targets, finished, same_day)
 
     def of_finished_day(self, targets: pd.DataFrame, finished: pd.DataFrame) -> pd.DataFrame:
         """終わった日の傾き（その日のほかの全部のレースと前の日のレースから）。列と index は ``of`` と同じ。"""
-        return self._of(targets, finished, same_day=True, whole_day=True)
+        return self._of(targets, finished, self._whole_same_day)
 
-    def _of(self, targets: pd.DataFrame, finished: pd.DataFrame, same_day: bool, whole_day: bool) -> pd.DataFrame:
+    def _of(self, targets: pd.DataFrame, finished: pd.DataFrame, same_day: _SameDayRaces | None) -> pd.DataFrame:
+        """``same_day`` は、その日のレースのうち数えるものを選ぶ関数（None なら前の日のレースだけを数える）。"""
         if finished.empty or targets.empty:
             return self._empty(targets)
-        candidates = self._candidates(targets, finished, same_day, whole_day)
+        candidates = self._candidates(targets, finished, same_day)
         if candidates.empty:
             return self._empty(targets)
         return self._weighted_mean(candidates).reindex(targets.index).fillna({names.RACES: 0.0})
@@ -51,7 +57,7 @@ class DaySlopes:
     def _empty(self, targets: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame({names.INNER_SLOPE: float("nan"), names.FRONT_SLOPE: float("nan"), names.RACES: 0.0}, index=targets.index)
 
-    def _candidates(self, targets: pd.DataFrame, finished: pd.DataFrame, same_day: bool, whole_day: bool) -> pd.DataFrame:
+    def _candidates(self, targets: pd.DataFrame, finished: pd.DataFrame, same_day: _SameDayRaces | None) -> pd.DataFrame:
         """対象のレースごとに、数える終わったレースを並べた表（列 ``_row``・傾き2つ・``_weight``）。"""
         keys = list(names.COURSE_KEY)
         left = targets[[names.RACE_ID, names.RACE_DATE, names.RACE_NO, names.CONDITION_CODE, *keys]].rename(
@@ -59,8 +65,8 @@ class DaySlopes:
         left = left.assign(**{_ROW: targets.index}).astype({key: str for key in keys})
         right = finished[[names.RACE_ID, names.RACE_DATE, names.RACE_NO, names.CONDITION_CODE, *keys, *names.SLOPES]].astype({key: str for key in keys})
         parts = [self._previous_day(left, right, keys)]
-        if same_day:
-            parts.append(self._same_day(left, right, keys, whole_day))
+        if same_day is not None:
+            parts.append(same_day(left, right, keys))
         chosen = pd.concat(parts)
         return chosen[chosen[_WEIGHT] > 0][[_ROW, *names.SLOPES, _WEIGHT]]
 
@@ -70,12 +76,22 @@ class DaySlopes:
         pairs = shifted.merge(right, left_on=[*keys, _DATE], right_on=[*keys, names.RACE_DATE], how="inner")
         return pairs.assign(**{_WEIGHT: PREVIOUS_DAY_WEIGHT})
 
-    def _same_day(self, left: pd.DataFrame, right: pd.DataFrame, keys: list[str], whole_day: bool) -> pd.DataFrame:
-        """その日の同じ馬場のレース（先に終わったものだけ、または自分以外の全部）。馬場状態が違えば 0.5。"""
+    def _earlier_same_day(self, left: pd.DataFrame, right: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
+        """その日の同じ馬場のレースのうち、先に終わったもの（レース番号が小さい）。馬場状態が違えば 0.5。"""
+        pairs = self._same_day_pairs(left, right, keys)
+        return self._weighted_by_condition(pairs[pairs[names.RACE_NO].astype(float) < pairs[_RACE_NO].astype(float)])
+
+    def _whole_same_day(self, left: pd.DataFrame, right: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
+        """その日の同じ馬場の、自分以外の全部のレース（先も後も）。馬場状態が違えば 0.5。"""
+        return self._weighted_by_condition(self._same_day_pairs(left, right, keys))
+
+    def _same_day_pairs(self, left: pd.DataFrame, right: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
+        """対象のレースと、その日の同じ馬場のレース（自分は除く）の組。"""
         pairs = left.merge(right, left_on=[*keys, _DATE], right_on=[*keys, names.RACE_DATE], how="inner")
-        pairs = pairs[pairs[names.RACE_ID] != pairs[_TARGET]]
-        if not whole_day:
-            pairs = pairs[pairs[names.RACE_NO].astype(float) < pairs[_RACE_NO].astype(float)]
+        return pairs[pairs[names.RACE_ID] != pairs[_TARGET]]
+
+    def _weighted_by_condition(self, pairs: pd.DataFrame) -> pd.DataFrame:
+        """馬場状態が対象と同じレースは 1、違うレースは 0.5 の重みを付ける。"""
         other_condition = pairs[names.CONDITION_CODE].astype(str) != pairs[_CONDITION].astype(str)
         return pairs.assign(**{_WEIGHT: other_condition.map({True: OTHER_CONDITION_WEIGHT, False: 1.0}).astype(float)})
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from yosou.race_development.feature.race_order import RaceOrder
 from yosou.race_development.feature.race_order_statistic import RaceOrderStatistic
 
 from .features import DEVIATION, GAP_TO_SECOND, RANK, SCORE
@@ -36,7 +37,7 @@ class AbilityScoreColumns:
         return pd.DataFrame({
             SCORE: score,
             DEVIATION: (score - grouped.transform("mean")) / grouped.transform("std"),
-            GAP_TO_SECOND: score - RaceOrderStatistic().best_other(score, race, largest=True),
+            GAP_TO_SECOND: score - RaceOrderStatistic(RaceOrder.LARGEST_FIRST).best_other(score, race),
             RANK: grouped.rank(ascending=False, method="min"),
         }, index=features.index).astype("float64")
 

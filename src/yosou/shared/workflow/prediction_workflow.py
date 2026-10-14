@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 
 import pandas as pd
 
@@ -23,6 +22,7 @@ from ..feature.group import WIN_ODDS
 from ..place_value import PlaceValueColumns
 from ..win_value import WinValueColumns
 from .explained_prediction import ExplainedPrediction
+from .prepared_prediction import PreparedPrediction
 from .segmented_prediction import AVERAGE, SegmentedPrediction
 
 #: 予測の結果の、アンサンブルの確率の列の名前（3着以内のモデルと1着のモデル）。
@@ -33,21 +33,6 @@ PaceSource = Callable[[str, PredictionTiming, OddsInput | None], pd.DataFrame]
 #: 予測用データに列を足す関数（予測用データ, レースID, 時点, 利用者が渡したオッズ → 列を足した予測用データ）。
 #: その時点の3着以内のモデルにだけ足す材料（展開スコア S）を、コマンドが時点で選んで渡す。
 DataAttachment = Callable[[PredictionData, str, PredictionTiming, OddsInput | None], PredictionData]
-
-
-@dataclass(frozen=True)
-class _Prepared:
-    """予測用データと、それを予測するモデル（3着以内と1着）。当日に券種のオッズが無ければ、N を使わないモデル。
-
-    ``top3_data`` は3着以内のモデルに渡す（Q を外し、``extras`` の列（展開スコア S）を足したもの）。``win_data`` は1着のモデルに渡す
-    （Q を含み、目的変数と基準を1着に持ち替え、``win_extras`` の列を足したもの）。``data`` はその元（ID 列と材料）。
-    """
-
-    data: PredictionData
-    top3_data: PredictionData
-    win_data: PredictionData
-    predictor: SegmentedPrediction
-    win_predictor: SegmentedPrediction | None
 
 
 class PredictionWorkflow:
@@ -110,7 +95,7 @@ class PredictionWorkflow:
             pool_free=prepared.predictor is not self._predictor,
         )
 
-    def _prepared(self, race_id: str, timing: PredictionTiming, given: OddsInput | None) -> _Prepared:
+    def _prepared(self, race_id: str, timing: PredictionTiming, given: OddsInput | None) -> PreparedPrediction:
         """予測用データと、それを予測するモデル（当日に券種のオッズが無ければ、N を使わないモデル）。"""
         odds = self._odds_resolver.resolve(race_id, given)
         data = self._dataset_builder.build_prediction_data(race_id, timing, odds=odds)
@@ -126,9 +111,9 @@ class PredictionWorkflow:
         win_data = self._win_target.prediction(data)
         for attach in self._win_extras:
             win_data = attach(win_data, race_id, timing, given)
-        return _Prepared(data, top3_data, win_data, predictor, win_predictor)
+        return PreparedPrediction(data, top3_data, win_data, predictor, win_predictor)
 
-    def _table(self, prepared: _Prepared) -> pd.DataFrame:
+    def _table(self, prepared: PreparedPrediction) -> pd.DataFrame:
         """予測の結果の表。"""
         data = prepared.data
         predicted = prepared.predictor.predict(prepared.top3_data)
@@ -138,7 +123,7 @@ class PredictionWorkflow:
         win = self._win_columns(prepared)
         return pd.concat([data.ids, self._shown_odds(data), probability, members, extra, win], axis=1)
 
-    def _win_columns(self, prepared: _Prepared) -> pd.DataFrame:
+    def _win_columns(self, prepared: PreparedPrediction) -> pd.DataFrame:
         """1着になる確率（1着のモデルの平均）と、前日・当日は単勝の期待値。1着のモデルが無ければ（前の版で学習したモデル）何も足さない。"""
         win_data = prepared.win_data
         if prepared.win_predictor is None:

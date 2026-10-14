@@ -7,8 +7,8 @@ import pandas as pd
 
 from 共通 import codes, keys
 
-from . import names
-from .race_slopes import meeting_day_of
+from .. import names
+from ..race_slopes import meeting_day_of
 
 
 class RaceEntryRepository:

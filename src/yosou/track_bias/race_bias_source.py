@@ -14,7 +14,7 @@ from . import names
 from .bias_correction import BiasCorrection
 from .day_slopes import DaySlopes
 from .prior_slope_table import PriorSlopeTable
-from .race_entry_repository import RaceEntryRepository
+from .repository import RaceEntryRepository
 from .used_slopes import UsedSlopes
 
 #: 展開の予測を返す関数の形（``DevelopmentPaceWorkflow.run`` と同じ）。

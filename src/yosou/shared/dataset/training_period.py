@@ -29,12 +29,14 @@ class TrainingPeriod:
 
     def __post_init__(self) -> None:
         days = list(self.boundaries().items())
-        for (name, day), (next_name, next_day) in zip(days, days[1:]):
-            if day >= next_day:
-                raise ValueError(
-                    f"{name}（{day}）は、{next_name}（{next_day}）より前の日にしてください。"
-                    "区切りは、ウォームアップ → 学習 → 検証 → テストの順に新しくなります。"
-                )
+        disorder = next((pair for pair in zip(days, days[1:]) if pair[0][1] >= pair[1][1]), None)
+        if disorder is None:
+            return
+        (name, day), (next_name, next_day) = disorder
+        raise ValueError(
+            f"{name}（{day}）は、{next_name}（{next_day}）より前の日にしてください。"
+            "区切りは、ウォームアップ → 学習 → 検証 → テストの順に新しくなります。"
+        )
 
     @classmethod
     def starting(cls, train_first_day: date, valid_first_day: date, test_first_day: date,

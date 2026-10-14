@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from itertools import product
 
 import duckdb
 import pandas as pd
@@ -93,12 +94,12 @@ class RacePayoutRepository:
         """親の表から読むフラグの列（券種 × 不成立・特払）。"""
         return ", ".join(
             f"{keys.q(self._flag_name(kind, bet_name))} AS {self._flag_alias(kind, bet_name)}"
-            for kind in _FLAG_KINDS for _, _, bet_name in PAYOUT_TABLES.values()
+            for kind, (_, _, bet_name) in product(_FLAG_KINDS, PAYOUT_TABLES.values())
         )
 
     def _header_table(self) -> str:
         """親の表。無い DB では、同じ列を持つ空の関係。"""
-        flag_names = [self._flag_name(kind, bet_name) for kind in _FLAG_KINDS for _, _, bet_name in PAYOUT_TABLES.values()]
+        flag_names = [self._flag_name(kind, bet_name) for kind, (_, _, bet_name) in product(_FLAG_KINDS, PAYOUT_TABLES.values())]
         columns = (*keys.RACE_KEY, "データ区分", "データ作成年月日", *flag_names)
         return facts.optional_relation(self._con, _HEADER_TABLE, columns)
 

@@ -9,8 +9,7 @@ import pandas as pd
 
 from . import names
 from .features import PREVIOUS_BIAS, PREVIOUS_HANDICAP_NAMES, PREVIOUS_LATE_START, PREVIOUS_MAX, PREVIOUS_PACE, PREVIOUS_REVIEW
-from .previous_run_repository import PreviousRunRepository
-from .review_store import ReviewStore
+from .repository import PreviousRunRepository, ReviewStore
 
 
 class StoredHandicapLookup:

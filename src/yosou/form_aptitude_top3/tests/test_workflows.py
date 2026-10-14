@@ -13,7 +13,7 @@ import pytest
 from 共通 import db
 
 from yosou.ability_score import RaceAbilityScoreAttacher
-from yosou.development_score import ScoreAttachment
+from yosou.development_score import RaceScoreAttacher, ScoreAttachment
 from yosou.shared.dataset import HORSE_NO
 from yosou.shared.evaluation import ENSEMBLE_NAME
 from yosou.shared.feature import PredictionTiming
@@ -240,7 +240,7 @@ def test_command_shows_the_odds_it_used_on_race_day(season_db: Path, trained, ca
     models, _ = trained
     # 当日の1着のモデルは展開スコア（S）を足して学んだが、展開のモデルは合成DB では学べないので、S の無い表を足す。
     # 表 G は展開の予想の置き場所の隣にできるので、一時フォルダを渡して本物の reports/ を書き換えない
-    monkeypatch.setattr(predict_command.RaceScoreAttacher, "attach", lambda self, data, race_id, timing, given: _no_score(data, race_id, timing, given))
+    monkeypatch.setattr(RaceScoreAttacher, "attach", lambda self, data, race_id, timing, given: _no_score(data, race_id, timing, given))
     code = _run_command([
         "predict", season.CARD_RACE_ID, "--timing", "当日", "--odds", *CARD_ODDS_TEXTS, "--development-root", str(tmp_path / "development"),
         "--db", str(season_db), "--models", str(models), "--format", "csv",

@@ -29,7 +29,7 @@ from 共通.render import Table  # noqa: E402
 
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
 
-from yosou.development_score.entry_name_repository import HORSE_NAME, HORSE_NO, EntryNameRepository  # noqa: E402
+from yosou.development_score.repository import HORSE_NAME, HORSE_NO, EntryNameRepository  # noqa: E402
 from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.track_bias import (  # noqa: E402
@@ -51,7 +51,8 @@ def main(args) -> None:
     with db.open_db(args.db) as con:
         if args.rebuild:
             print("レースごとの傾きと過去の傾きの表を 2011年からの全出走から作り直しています …", file=sys.stderr, flush=True)
-        slopes, table = PriorSlopeTableStore(args.cache).load(con, db.resolve_db(args.db), rebuild=args.rebuild)
+        store = PriorSlopeTableStore(args.cache)
+        slopes, table = store.rebuild(con, db.resolve_db(args.db)) if args.rebuild else store.load(con, db.resolve_db(args.db))
         source = RaceBiasSource(MemoizedPaceForecast(args.development_root / "models").run, slopes, table)
         results = _race_views(con, source, judge, args)
     cli.emit(results, args)

@@ -41,9 +41,12 @@ class GroupColumn:
     def compute_cached(self, records: EntryRecords, dependencies: Mapping[str, pd.Series],
                        cache: dict[str, pd.DataFrame]) -> pd.Series:
         if self.group not in cache:
-            generator = GROUPS[self.group]
-            if self.group == "G":
-                cache[self.group] = generator.build(records.entries, pd.DataFrame(dict(dependencies)))
-            else:
-                cache[self.group] = generator.build(records)
+            cache[self.group] = self._build_group(records, dependencies)
         return cache[self.group][self.name]
+
+    def _build_group(self, records: EntryRecords, dependencies: Mapping[str, pd.Series]) -> pd.DataFrame:
+        """まとまりの全部の列を1回で作る。G（相手との比較）だけは、依存する特徴量の表も渡す。"""
+        generator = GROUPS[self.group]
+        if self.group == "G":
+            return generator.build(records.entries, pd.DataFrame(dict(dependencies)))
+        return generator.build(records)

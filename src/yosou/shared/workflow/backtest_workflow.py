@@ -77,15 +77,19 @@ class BacktestWorkflow:
             win = WinTargetData().training(test)
             targets[win.label_name] = (win, self._models_root / self._win_folder, pool_free_root / self._win_folder)
         for label, (target, root, free_root) in targets.items():
-            report.evaluations[label] = []
-            report.prediction_paths[label] = {}
-            for timing in self._timings:
-                probabilities = self._predict(target, timing, root, free_root)
-                timed = target.for_timing(timing)
-                report.evaluations[label] += self._evaluator.evaluate_probabilities(timing, timed, probabilities)
-                report.evaluations[label] += self._market_evaluation(label, timing, timed)
-                report.prediction_paths[label][timing] = self._write(label, timing, target, probabilities)
+            self._evaluate_target(report, label, target, root, free_root)
         return report
+
+    def _evaluate_target(self, report: BacktestReport, label: str, target: TrainingData, root: Path, free_root: Path) -> None:
+        """1つの目的変数（3着以内か1着）を、時点ごとに保存したモデルで予測して当たり具合を測り、予測の表を書いて ``report`` に足す。"""
+        report.evaluations[label] = []
+        report.prediction_paths[label] = {}
+        for timing in self._timings:
+            probabilities = self._predict(target, timing, root, free_root)
+            timed = target.for_timing(timing)
+            report.evaluations[label] += self._evaluator.evaluate_probabilities(timing, timed, probabilities)
+            report.evaluations[label] += self._market_evaluation(label, timing, timed)
+            report.prediction_paths[label][timing] = self._write(label, timing, target, probabilities)
 
     def _predict(self, target: TrainingData, timing: PredictionTiming, root: Path, pool_free_root: Path) -> dict[str, np.ndarray]:
         """時点のモデルで、行ごとの確率（モデルごとと平均）。N を使う時点（当日）では、券種のオッズの無いレースの行を券種オッズなしのモデルで出す。"""

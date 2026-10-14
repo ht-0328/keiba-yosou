@@ -14,6 +14,7 @@
 | ``Positions`` | 馬番と頭数から内らしさ、位置から前らしさを出す |
 | ``RaceSlopes`` | 終わったレースごとに、内の傾きと前の傾きを出す |
 | ``PriorSlopeTableBuilder``・``PriorSlopeTable`` | 過去の傾きの表（同じ馬場 × 開催の何日目 × 馬場状態）を作る・引く |
+| ``PriorSlopeTableRepository`` | レースごとの傾きと過去の傾きの表の pickle のファイルと元DB の印（``stamp.json``）を書く・読む（``repository/``） |
 | ``PriorSlopeTableStore`` | レースごとの傾きと過去の傾きの表を ``reports/トラックバイアス/cache/`` にとっておき、元DB が変わったら作り直す |
 | ``DaySlopes`` | 対象のレースごとに、当日の先に終わったレースと前の日のレースから当日の傾きとレース数を出す |
 | ``UsedSlopes`` | 当日の傾きと過去の傾きを、レース数で混ぜる |
@@ -34,7 +35,6 @@ from .bias_correction import BiasCorrection
 from .bias_free_data import TrackBiasFreeData
 from .bias_history import BiasHistory
 from .bias_judge import DEFAULT_LINE, BiasJudge
-from .bias_run_repository import BiasRunRepository
 from .day_slopes import DaySlopes
 from .features import TRACK_BIAS_FEATURES, TRACK_BIAS_NAMES
 from .memoized_pace_forecast import MemoizedPaceForecast
@@ -44,14 +44,14 @@ from .prior_slope_table_builder import POOL_WEIGHT, PriorSlopeTableBuilder
 from .prior_slope_table_store import DEFAULT_CACHE_FOLDER, PriorSlopeTableStore, bias_cache_folder_beside
 from .race_bias_attacher import RaceBiasAttacher
 from .race_bias_source import RaceBiasSource
-from .race_entry_repository import RaceEntryRepository
 from .race_slopes import RaceSlopes
+from .repository import BiasRunRepository, PriorSlopeTableRepository, RaceEntryRepository
 from .used_slopes import PRIOR_WEIGHT, UsedSlopes
 from .yearly_bias import YearlyBias
 
 __all__ = [
     "BiasRunRepository", "RaceEntryRepository", "Positions", "RaceSlopes", "PriorSlopeTableBuilder", "PriorSlopeTable",
-    "PriorSlopeTableStore", "DaySlopes", "UsedSlopes", "BiasCorrection", "BiasJudge", "MemoizedPaceForecast", "RaceBiasSource",
+    "PriorSlopeTableRepository", "PriorSlopeTableStore", "DaySlopes", "UsedSlopes", "BiasCorrection", "BiasJudge", "MemoizedPaceForecast", "RaceBiasSource",
     "RaceBiasAttacher", "YearlyBias", "BiasHistory", "BiasAttachment", "TrackBiasFreeData", "TRACK_BIAS_FEATURES", "TRACK_BIAS_NAMES",
     "DEFAULT_LINE", "POOL_WEIGHT", "PRIOR_WEIGHT", "DEFAULT_CACHE_FOLDER", "bias_cache_folder_beside",
 ]

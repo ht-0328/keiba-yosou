@@ -117,15 +117,15 @@ G(脚質 s, ペース p, 競馬場と芝ダ c) = そのマスの馬の、実際�
 
 ## 4. 作ったもの
 
-計算は予想のパッケージ `src/yosou/development_score/`（1クラス1ファイル。一覧は `__init__.py`）、入口は道具 `tools/展開スコア/`。
+計算は予想のパッケージ `src/yosou/development_score/`（1クラス1ファイル。一覧は `__init__.py`。元DB とファイルを読み書きするリポジトリは `repository/`）、入口は道具 `tools/展開スコア/`。
 
 | 場所 | 何をするか |
 |---|---|
 | `DevelopmentRunRepository` | 表 G の材料になる、2011年からの中央・平地の全出走（最初のコーナーの順位・前3ハロン・単勝オッズ・着順）を事実表から読む（1 SQL） |
 | `PreRaceStyle`・`ResultPace`・`AdvantageRuns` | 出走ごとのレース前の脚質、レースごとの結果のペース（③ と同じ基準と線）、市場から見た3着以内率と3着以内をそろえる |
-| `AdvantageTableBuilder`・`AdvantageTable`・`AdvantageTableStore` | 表 G を作る（縮小推定）・引く・`reports/展開スコア/cache/` にとっておく（元DB が更新されたら作り直す） |
+| `AdvantageTableBuilder`・`AdvantageTable`・`AdvantageTableRepository`・`AdvantageTableStore` | 表 G を作る（縮小推定）・引く・pickle のファイルに書く/読む（`repository/`）・`reports/展開スコア/cache/` にとっておく（元DB が更新されたら作り直す。`rebuild` で強制的に作り直す） |
 | `StyleProbabilities`・`DevelopmentScore`・`AdvantageJudge` | ①②③ の予測から脚質とペースの確率を出し、D と脚質ごとの内訳を出し、線で判定する |
-| `RaceScoreWorkflow` | これから走る1レースを、保存した展開のモデル（`DevelopmentPaceWorkflow`）で予測して D と判定を出す |
+| `RaceScoreWorkflow`・`RaceScore` | これから走る1レースを、保存した展開のモデル（`DevelopmentPaceWorkflow`）で予測して D と判定を出す（結果の入れ物が `RaceScore`） |
 | `YearlyScorer`・`ScoreHistory` | 過去の出走に、年ごとの確かめの予測とその年より前だけで作った表 G から D を付ける（線の確かめと研究用） |
 | `DEVELOPMENT_SCORE_FEATURES` | D と内訳を予想の特徴量にするときの一覧（まとまり S。5個） |
 | `tools/展開スコア/development_score.py` | 1レース（または1日）の出走馬ごとの D と判定、各馬の位置とペースの確率を出す。`--table` で表 G を見る。時点は今週の予想と同じ決め方で自動で選ぶ |

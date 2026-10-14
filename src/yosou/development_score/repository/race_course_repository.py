@@ -7,7 +7,7 @@ import pandas as pd
 
 from 共通 import codes, keys
 
-from . import names
+from .. import names
 
 
 class RaceCourseRepository:

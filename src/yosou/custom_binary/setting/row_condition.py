@@ -39,9 +39,9 @@ class RowCondition:
     def _numeric(cls, name: str, spec, kind: FeatureKind) -> "RowCondition":
         if not isinstance(spec, dict) or not spec or spec.keys() - {"min", "max"}:
             raise ValueError(f"conditions.{name}は数値の特徴量です。min・maxで指定してください（例: {{max: 1400}}）")
-        for key, value in spec.items():
-            if type(value) not in (int, float) or not math.isfinite(value):
-                raise ValueError(f"conditions.{name}.{key}は有限な数値にしてください")
+        invalid = [key for key, value in spec.items() if type(value) not in (int, float) or not math.isfinite(value)]
+        if invalid:
+            raise ValueError(f"conditions.{name}.{invalid[0]}は有限な数値にしてください")
         minimum, maximum = spec.get("min"), spec.get("max")
         if minimum is not None and maximum is not None and minimum > maximum:
             raise ValueError(f"conditions.{name}のminはmax以下にしてください")

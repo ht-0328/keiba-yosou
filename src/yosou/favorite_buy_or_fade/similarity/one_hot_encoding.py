@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import chain
+
 import numpy as np
 import pandas as pd
 
@@ -28,12 +30,16 @@ class OneHotEncoding:
     @property
     def column_names(self) -> list[str]:
         """「馬場状態=良」の形。"""
-        return [f"{column}={value}" for column, values in self._categories.items() for value in values]
+        return [f"{column}={value}" for column, value in self._pairs()]
 
     @property
     def sources(self) -> list[str]:
         """列ごとの、元の特徴量の名前（``column_names`` と同じ並び）。"""
-        return [column for column, values in self._categories.items() for _ in values]
+        return [column for column, _ in self._pairs()]
+
+    def _pairs(self) -> list[tuple[str, str]]:
+        """（元の列, 値）の並び。列の順に、その列の値の順。"""
+        return list(chain.from_iterable([(column, value) for value in values] for column, values in self._categories.items()))
 
     def transform(self, values: pd.DataFrame) -> pd.DataFrame:
         parts = [self._one_hot(values[column], categories) for column, categories in self._categories.items()]

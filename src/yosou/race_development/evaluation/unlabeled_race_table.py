@@ -77,9 +77,8 @@ class UnlabeledRaceTable:
 
     def _counted(self, framed: pd.DataFrame, label: str, column: str) -> pd.DataFrame:
         """1つの切り口の、値ごとのレース数と、理由ごとの割合。"""
-        shares = {
-            f"{stage} {reason}": (framed[f"{stage} の理由"] == reason).groupby(framed[column]).mean()
-            for stage, reasons in (("①②", LEADER_REASONS), ("③", HALF_REASONS), ("⑥", HALF_REASONS)) for reason in reasons
-        }
+        shares: dict[str, pd.Series] = {}
+        for stage, reasons in (("①②", LEADER_REASONS), ("③", HALF_REASONS), ("⑥", HALF_REASONS)):
+            shares.update({f"{stage} {reason}": (framed[f"{stage} の理由"] == reason).groupby(framed[column]).mean() for reason in reasons})
         counted = pd.DataFrame({RACES: framed.groupby(column).size(), **shares})
         return counted.rename_axis(VALUE).reset_index().assign(**{ASPECT: label})[[ASPECT, VALUE, RACES, *shares]]

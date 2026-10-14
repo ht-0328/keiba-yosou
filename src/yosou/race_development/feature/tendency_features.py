@@ -16,6 +16,7 @@ from .group_forecast import (
     big_upset_probability,
     calm_probability,
 )
+from .race_order import RaceOrder
 from .race_order_statistic import RaceOrderStatistic
 
 #: 1頭ごとの特徴量の名前（1頭ごとだけのもの）。
@@ -55,14 +56,14 @@ class TendencyFeatures:
     """
 
     def __init__(self) -> None:
-        self._order = RaceOrderStatistic()
+        self._largest_first = RaceOrderStatistic(RaceOrder.LARGEST_FIRST)
 
     def horse(self, ids: pd.DataFrame, tendency: GroupForecast) -> pd.DataFrame:
         """1頭ごとの 16個。``ids`` は学習データ（予測用データ）の ID 列。index は ``ids`` と同じ。"""
         horses = tendency.horse_rows(ids)
         race = ids[RACE_ID]
         top3 = self._column(horses, TOP3_PROBABILITY)
-        leading = self._order.nth_for_rows(top3, race, 1, largest=True)
+        leading = self._largest_first.nth_for_rows(top3, race, 1)
         own = pd.DataFrame({
             TOP3: top3,
             TOP3_RANK: top3.groupby(race).rank(method="min", ascending=False),
@@ -79,7 +80,7 @@ class TendencyFeatures:
         horses = tendency.horses
         race = horses[RACE_ID].astype("str")
         top3 = self._column(horses, TOP3_PROBABILITY)
-        gap = self._order.nth(top3, race, 1, largest=True) - self._order.nth(top3, race, 2, largest=True)
+        gap = self._largest_first.nth(top3, race, 1) - self._largest_first.nth(top3, race, 2)
         upsets: dict[str, pd.Series] = {}
         for key, label in UPSET_BETS.items():
             upsets[calm_feature(label)] = self._column(races, calm_probability(key))

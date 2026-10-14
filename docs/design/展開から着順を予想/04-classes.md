@@ -98,7 +98,7 @@
 | `KindDatasets` | 1頭ごと・1レースごとの学習データと、既存の予想の学習データ（`TendencyDatasets`）を持ち、予想ごとの学習データを `KindStacker` で作る | `of(予想, 前の組の予測の束)`・`labeled(予想, データ)`・`tendency` |
 | `KindTrainer` | 1つの予想の、LightGBM と CatBoost のモデルを学習する（モデルの種類ごとにクラスを選ぶ） | `fit(予想, 学習データ, 検証データ, 設定)` |
 | `KindForecaster` | 1つの予想の2つのモデルで予測し、予測の列の表にする | `predict(予想, 2つのモデル, データ)` |
-| `GroupFitter` | 1つの組の予想を、決めた期間で学習し、予測する年のサンプルを予測する。⑦ は検証データの後半で λ も決める。傾向の組は `TendencyFitter` に任せる。学習（train）は、受け取り口（`sink`・`tendency_sink`）を渡して、学習したモデルを受け取る。`prediction_only` で、予測に使う予想だけを学習する | `fit_predict(組, 期間, 学習データ, 前の組の予測の束, 時点, 設定, sink=省略可, tendency_sink=省略可, prediction_only=省略可)` → `GroupForecast` |
+| `GroupFitter` | 1つの組の予想を、決めた期間で学習し、予測する年のサンプルを予測する。⑦ は検証データの後半で λ も決める。傾向の組は `TendencyFitter` に任せる。学習（train）は、受け取り口（`sink`・`tendency_sink`）を渡して、学習したモデルを受け取る。`fit_predict_for_prediction` は、予測に使う予想だけを学習する（比べるためだけの予想を飛ばす） | `fit_predict(組, 期間, 学習データ, 前の組の予測の束, 時点, 設定, sink=省略可, tendency_sink=省略可)`・`fit_predict_for_prediction(同じ引数)` → `GroupForecast` |
 | `WalkForwardPredictor` | 前の組の「学習に使っていない予測」を、年ごとに `GroupFitter` で作る。作った予測は、作った条件（設定・学習データの範囲・前の組の予測・組の予想と特徴量の一覧・作り方の版）と一緒に `OutOfSampleRepository` に残し、同じ条件なら読むだけにする | `predict(組, 年の並び, 学習データ, 前の組の予測の束, 時点, 設定)` |
 | `KindModelStore` | 予想ごと・時点ごとの学習済みモデル（⑦ は λ も）を、共通の `ModelRepository` で読み書きする | `save(予想, 時点, 2つのモデル, 設定, λ)`・`load(予想, 時点)`・`load_lambda(時点)` |
 | `RaceBetting` | 1レースの1着の確率から3連単の確率の表を作り、印（モデルと人気順）と、3つの買い方の買い目を作る | `tickets(レースID, 1レースの表, λ, 確定オッズ)` |
@@ -154,7 +154,7 @@
 | `PriorForecasts` | ― | 後の組に渡す、前の組の予測（傾向・前半・後半）の束 |
 | `PaceSourceTable` | ― | 前半・後半の組の予測を、近走と適性の予想の材料 P の元の予測の表（1行 = 1頭）にする |
 | `GroupForecast` | ― | 1つの組の予測の入れ物（1頭ごとの表と1レースごとの表）と、予測の列の名前。予想ごとの表を ID 列で横に1つにする（`joined`） |
-| `RaceOrderStatistic` | ― | 同じレースの馬の値の、何番目に大きい（小さい）値。レースごとに関数を呼ばず、1回の並べ替えで出す |
+| `RaceOrderStatistic`・`RaceOrder` | ― | 同じレースの馬の値の、何番目に大きい（小さい）値（数える向きは、作るときに `RaceOrder` で決める）。レースごとに関数を呼ばず、1回の並べ替えで出す |
 | `feature_catalog.py` | ― | 特徴量の一覧。1回で作る `HORSE_CATALOG`（111個）・`RACE_CATALOG`（34個）と、予想ごとの一覧（[09-features.md](09-features.md) の表の写し） |
 
 `feature/history/` — 過去の記録から数える部品（開催日より前のものだけを使う決まりを、ここで守る）

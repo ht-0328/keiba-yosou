@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from collections.abc import Mapping
 from enum import Enum
 
 import duckdb
@@ -14,7 +13,7 @@ from yosou.favorites_out_of_top3.workflow import TIMINGS as FAVORITE_TIMINGS
 from yosou.form_aptitude_top3.dataset import dataset_builder as form_dataset_builder
 from yosou.longshots_in_top3.dataset import dataset_builder as longshots_dataset_builder
 from yosou.longshots_in_top3.workflow import SEGMENTS as LONGSHOT_SEGMENTS
-from yosou.shared.dataset import DatasetBuilder, PredictionData, RaceDatasetBuilder
+from yosou.shared.dataset import PredictionData, RaceDatasetBuilder
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.ml_model import CLASS_MEMBER_TYPES, MEMBER_TYPES
 from yosou.shared.workflow import ModelSegments
@@ -23,6 +22,7 @@ from yosou.upset_level.dataset import race_dataset_builder as upset_dataset_buil
 
 from ..feature import FAVORITE_OUT_PROBABILITY, LONGSHOT_TOP3_PROBABILITY, TOP3_PROBABILITY, UPSET_BETS
 from .probability_output import ProbabilityOutput
+from .tendency_spec import TendencySpec
 from .tendency_unit import TendencyUnit
 from .upset_output import UpsetOutput
 
@@ -31,24 +31,6 @@ if {bet.key: bet.label for bet in BetType} != UPSET_BETS:
 
 #: 前日からの時点（人気とオッズが決まってから）。
 _WITH_ODDS = (PredictionTiming.DAY_BEFORE, PredictionTiming.RACE_DAY)
-
-
-@dataclass(frozen=True)
-class TendencySpec:
-    """1つの既存の予想の決めごと。
-
-    - ``label``: 表に出す名前。
-    - ``per_race``: 1行 = 1レースの予想か（False なら 1行 = 1頭）。
-    - ``builder``: 元DB への接続から、既存の予想の学習データ・予測用データを作るクラスを組み立てる関数（既存の予想のもの）。
-    - ``timings``: 予測を出す時点。既存の予想がモデルを持たない時点は、その列を欠損値にする。
-    - ``units``: 別々に学ぶモデル（区分・券種ごと）。
-    """
-
-    label: str
-    per_race: bool
-    builder: Callable[[duckdb.DuckDBPyConnection], DatasetBuilder | RaceDatasetBuilder]
-    timings: tuple[PredictionTiming, ...]
-    units: tuple[TendencyUnit, ...]
 
 
 class TendencySource(Enum):

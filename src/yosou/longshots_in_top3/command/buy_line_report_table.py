@@ -40,7 +40,9 @@ class BuyLineReportTable:
 
     def __init__(self, frame: pd.DataFrame, lines: dict[PredictionTiming, dict[str, float]], zones: Sequence[str]) -> None:
         self._frame = frame
-        self._lines = {(timing.label, zone): value for timing, by_zone in lines.items() for zone, value in by_zone.items()}
+        self._lines: dict[tuple[str, str], float] = {}
+        for timing, by_zone in lines.items():
+            self._lines.update({(timing.label, zone): value for zone, value in by_zone.items()})
         self._interval = DayBootstrapInterval()
         timings = [timing.label for timing in PredictionTiming]
         self._rank = {

@@ -13,9 +13,9 @@ from .. import names
 from ..advantage_runs import AdvantageRuns
 from ..advantage_table_builder import AdvantageTableBuilder
 from ..advantage_table_store import AdvantageTableStore
-from ..development_run_repository import COLUMNS, DevelopmentRunRepository
-from ..entry_name_repository import HORSE_NAME, HORSE_NO, EntryNameRepository
-from ..race_course_repository import RaceCourseRepository
+from ..repository.development_run_repository import COLUMNS, DevelopmentRunRepository
+from ..repository.entry_name_repository import HORSE_NAME, HORSE_NO, EntryNameRepository
+from ..repository.race_course_repository import RaceCourseRepository
 from ..yearly_scorer import YearlyScorer
 
 

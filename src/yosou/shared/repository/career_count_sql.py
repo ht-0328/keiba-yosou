@@ -57,8 +57,10 @@ class CareerCountSql:
 
     def _venue_cells(self) -> list[Cell]:
         """競馬場 × 芝ダ の欄（例: 東京芝・大井ダ）。欄のある芝ダは競馬場ごとに決まる。"""
-        return [self._venue_cell(venue, surface, SURFACE_PREFIXES[surface])
-                for venue, surfaces in self._layout.venues.items() for surface in surfaces]
+        cells: list[Cell] = []
+        for venue, surfaces in self._layout.venues.items():
+            cells += [self._venue_cell(venue, surface, SURFACE_PREFIXES[surface]) for surface in surfaces]
+        return cells
 
     def _venue_cell(self, venue: str, surface: str, prefix: str) -> Cell:
         entry = self._entry

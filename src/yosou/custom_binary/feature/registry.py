@@ -10,11 +10,12 @@ from .definition import FeatureDefinition
 
 class FeatureRegistry:
     def __init__(self, definitions: Iterable[FeatureDefinition]) -> None:
-        self.definitions: dict[str, FeatureDefinition] = {}
-        for definition in definitions:
-            if definition.name in self.definitions:
-                raise ValueError(f"特徴量の登録名が重複しています: {definition.name}")
-            self.definitions[definition.name] = definition
+        listed = list(definitions)
+        names = [definition.name for definition in listed]
+        duplicated = next((name for at, name in enumerate(names) if name in names[:at]), None)
+        if duplicated is not None:
+            raise ValueError(f"特徴量の登録名が重複しています: {duplicated}")
+        self.definitions: dict[str, FeatureDefinition] = {definition.name: definition for definition in listed}
         # 利用者がまだ選んでいない項目も、登録時に依存先と循環を検査する。
         self.order(tuple(self.definitions))
 
@@ -45,23 +46,25 @@ class FeatureRegistry:
         return tuple(ordered)
 
     def read_selection(self, path: Path, timing: PredictionTiming) -> tuple[str, ...]:
-        selected: list[str] = []
+        """特徴量のテキスト（1行に1つ。空行と ``#`` で始まる行は飛ばす）を読む。重複・未登録・その時点で使えない特徴量は ``ValueError``。"""
+        lines = enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1)
+        named = [(line, text.strip()) for line, text in lines if text.strip() and not text.strip().startswith("#")]
         first_lines: dict[str, int] = {}
-        for line, text in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
-            name = text.strip()
-            if not name or name.startswith("#"):
-                continue
-            if name in first_lines:
-                raise ValueError(f"{path}:{line}: 特徴量が重複しています: {name}（初出 {first_lines[name]}行）")
-            try:
-                self.order((name,), timing)
-            except ValueError as error:
-                raise ValueError(f"{path}:{line}: {error}") from error
+        for line, name in named:
+            self._check_selectable(path, line, name, first_lines, timing)
             first_lines[name] = line
-            selected.append(name)
-        if not selected:
+        if not first_lines:
             raise ValueError(f"{path}:1: 有効な特徴量がありません")
-        return tuple(selected)
+        return tuple(first_lines)
+
+    def _check_selectable(self, path: Path, line: int, name: str, first_lines: dict[str, int], timing: PredictionTiming) -> None:
+        """その行の特徴量が、重複しておらず、登録されていて、その時点で使えるか。"""
+        if name in first_lines:
+            raise ValueError(f"{path}:{line}: 特徴量が重複しています: {name}（初出 {first_lines[name]}行）")
+        try:
+            self.order((name,), timing)
+        except ValueError as error:
+            raise ValueError(f"{path}:{line}: {error}") from error
 
     def catalog(self, selected: tuple[str, ...]) -> FeatureCatalog:
         return FeatureCatalog(tuple(

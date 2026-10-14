@@ -37,6 +37,7 @@
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
 | ``PlacePriceRepository`` | 複勝の見込みの倍率（帯ごとの倍率）のファイル。モデルと一緒に置く |
+| ``DbStamp``・``StampFile`` | 元DB の印（パスと更新時刻）と、とっておいた表の隣の ``stamp.json``。表 G・過去の傾きの表・表 W のキャッシュ（それぞれの予想の ``repository/``）が使う |
 
 ``TargetScope`` は「どの出走について読むか」を表す値、``RaceDayRange`` は「どの開催日の範囲を読むか」を表す値
 （``FinalOddsRepository``・``PayoutRepository``・``PayoutFlagRepository`` が使う）、``CareerCountSql`` は ``CareerCountRepository`` の SQL の式を作る部品。
@@ -52,6 +53,7 @@ from .announced_ticket_odds_repository import AnnouncedTicketOddsRepository
 from .announced_weight_repository import AnnouncedWeightRepository
 from .career_count_layout import JRA_CAREER_LAYOUT, CareerCountLayout
 from .career_count_repository import CareerCountRepository
+from .db_stamp import DbStamp
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
 from .final_odds_repository import FinalOddsRepository
@@ -79,6 +81,7 @@ from .race_payout_repository import PAYOUT_TABLES, RacePayoutRepository
 from .sale_price_repository import SalePriceRepository
 from .scratch_repository import ScratchRepository
 from .speed_figure_repository import SpeedFigureRepository
+from .stamp_file import StampFile
 from .stakes_tendency_repository import StakesTendencyRepository
 from .target_scope import TargetScope
 from .workout_coverage_repository import WorkoutCoverageRepository
@@ -96,4 +99,5 @@ __all__ = [
     "FirstHorsePoolRepository", "AllHorsesPoolRepository", "POOLS", "PoolSpec", "HeadToHeadRunRepository",
     "DistanceChangeTargetRepository", "DistanceChangeRunRepository",
     "HorseFinishRepository", "HORSE_FINISH_NAMES", "PeopleFinishRepository", "PEOPLE_FINISH_NAMES",
+    "DbStamp", "StampFile",
 ]

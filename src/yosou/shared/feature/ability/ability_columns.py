@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from itertools import product
+
 #: 事実表から、そのまま材料にする列（レースの条件・今回の馬の条件・今回より前の累積。26個）。
 CONTEXT_COLUMNS: tuple[str, ...] = (
     "distance_m", "field_size", "class_order", "age", "sex_order", "carried", "body_weight", "weight_change",
@@ -71,12 +73,12 @@ SALE_COLUMNS: tuple[str, ...] = (
 
 def record_columns() -> tuple[str, ...]:
     """通算の成績の列（区分の順に、勝率・3着内率・出走数）。"""
-    return tuple(f"{name}_{suffix}" for name in RECORD_GROUPS for suffix in RECORD_SUFFIXES)
+    return tuple(f"{name}_{suffix}" for name, suffix in product(RECORD_GROUPS, RECORD_SUFFIXES))
 
 
 def relative_columns() -> tuple[str, ...]:
     """レース内の位置の列（元の列の順に、順位・最良との差・偏差）。"""
-    return tuple(f"{column}_{suffix}" for column in RELATIVE_COLUMNS for suffix in RELATIVE_SUFFIXES)
+    return tuple(f"{column}_{suffix}" for column, suffix in product(RELATIVE_COLUMNS, RELATIVE_SUFFIXES))
 
 
 def ability_columns() -> tuple[str, ...]:

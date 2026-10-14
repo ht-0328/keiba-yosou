@@ -11,9 +11,8 @@ class PopularityRange:
     maximum: int | None = None
 
     def __post_init__(self) -> None:
-        for value in (self.minimum, self.maximum):
-            if value is not None and (type(value) is not int or value < 1):
-                raise ValueError("人気範囲は1以上の整数で指定してください")
+        if any(value is not None and (type(value) is not int or value < 1) for value in (self.minimum, self.maximum)):
+            raise ValueError("人気範囲は1以上の整数で指定してください")
         if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
             raise ValueError("人気範囲のminはmax以下にしてください")
 

@@ -6,6 +6,7 @@ import pandas as pd
 
 from yosou.shared.feature import as_numbers
 
+from .race_order import RaceOrder
 from .race_order_statistic import RaceOrderStatistic
 
 
@@ -16,12 +17,12 @@ class ClosingFieldComparisonFeatures:
     """
 
     def __init__(self) -> None:
-        self._order = RaceOrderStatistic()
+        self._smallest_first = RaceOrderStatistic(RaceOrder.SMALLEST_FIRST)
 
     def build(self, entries: pd.DataFrame, features: pd.DataFrame) -> pd.DataFrame:
         race = entries["race_id"]
         closing = as_numbers(features["近5走の上がりの速さの平均"])
-        best_other = self._order.best_other(closing, race, largest=False)
+        best_other = self._smallest_first.best_other(closing, race)
         return pd.DataFrame({
             "近5走の上がりの速さの平均のレース内順位": closing.groupby(race).rank(method="min"),
             "ほかの馬の近5走の上がりの速さの平均の最小": best_other,

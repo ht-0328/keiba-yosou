@@ -1,6 +1,7 @@
 """学習したときのコードの版。"""
 
 import hashlib
+from itertools import chain
 from pathlib import Path
 import subprocess
 
@@ -18,10 +19,10 @@ class CodeVersion:
 
     def _source_digest(self) -> str:
         digest = hashlib.sha256()
-        for folder in (self._root / "src", self._root / "tools"):
-            for path in sorted(folder.rglob("*.py")):
-                digest.update(path.relative_to(self._root).as_posix().encode())
-                digest.update(path.read_bytes())
+        folders = (self._root / "src", self._root / "tools")
+        for path in chain.from_iterable(sorted(folder.rglob("*.py")) for folder in folders):
+            digest.update(path.relative_to(self._root).as_posix().encode())
+            digest.update(path.read_bytes())
         return digest.hexdigest()
 
     def _revision(self) -> str:

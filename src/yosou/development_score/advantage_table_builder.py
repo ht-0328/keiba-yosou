@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from itertools import product
 
 import pandas as pd
 
@@ -51,9 +52,9 @@ class AdvantageTableBuilder:
     def _full_cells(self, by_cell: pd.DataFrame, courses: pd.DataFrame, pool: pd.DataFrame) -> pd.DataFrame:
         """競馬場と芝ダごとに 4 × 3 のマスをそろえ、縮めた差を付けた表。"""
         pool_keyed = pool.set_index(_POOL_KEY)
+        cells = product(courses.itertuples(index=False), names.STYLES, names.PACES)
         grid = pd.MultiIndex.from_tuples(
-            [(style, pace, venue, surface) for venue, surface in courses.itertuples(index=False)
-             for style in names.STYLES for pace in names.PACES], names=_CELL_KEY)
+            [(style, pace, venue, surface) for (venue, surface), style, pace in cells], names=_CELL_KEY)
         filled = by_cell.reindex(grid)
         count = filled["size"].fillna(0).to_numpy()
         raw = filled["mean"].to_numpy()

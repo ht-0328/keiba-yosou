@@ -10,7 +10,7 @@ from yosou.shared.dataset import HORSE_ID, OddsInput, PredictionData
 from yosou.shared.feature import PredictionTiming
 
 from .previous_handicap_attachment import PreviousHandicapAttachment
-from .review_store import ReviewStore
+from .repository import ReviewStore
 from .stored_handicap_lookup import StoredHandicapLookup
 
 

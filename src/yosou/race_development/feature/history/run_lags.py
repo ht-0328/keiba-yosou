@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -34,7 +35,7 @@ class RunLags:
         horses = ordered.groupby("horse_id", sort=False)
         lagged = {
             _LAG_NAME.format(column=column, lag=lag): horses[column].shift(lag)
-            for column in columns for lag in range(self._count)
+            for column, lag in product(columns, range(self._count))
         }
         table = pd.DataFrame(lagged).assign(horse_id=ordered["horse_id"], race_date=ordered["race_date"])
         found = AsOfLookup(entries, "horse_id").latest(DatedRecords(table, "horse_id", "race_date"), days_before=1)

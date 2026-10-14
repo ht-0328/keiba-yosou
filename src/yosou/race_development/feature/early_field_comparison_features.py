@@ -6,6 +6,7 @@ import pandas as pd
 
 from yosou.shared.feature import as_numbers
 
+from .race_order import RaceOrder
 from .race_order_statistic import RaceOrderStatistic
 
 
@@ -17,7 +18,7 @@ class EarlyFieldComparisonFeatures:
     """
 
     def __init__(self) -> None:
-        self._order = RaceOrderStatistic()
+        self._largest_first = RaceOrderStatistic(RaceOrder.LARGEST_FIRST)
 
     def build(self, entries: pd.DataFrame, features: pd.DataFrame) -> pd.DataFrame:
         race = entries["race_id"]
@@ -34,7 +35,7 @@ class EarlyFieldComparisonFeatures:
             "自分より外の馬の先頭率の合計": others_lead - inner_lead,
             "先頭率のレース内順位": lead.groupby(race).rank(method="min", ascending=False),
             "近5走の序盤の位置の平均のレース内順位": recent.groupby(race).rank(method="min"),
-            "先頭率がいちばん高い相手との差": lead - self._order.best_other(lead, race, largest=True),
+            "先頭率がいちばん高い相手との差": lead - self._largest_first.best_other(lead, race),
             "序盤の記録が無い馬の数": no_history.groupby(race).transform("sum") - no_history,
             "相対馬番": as_numbers(entries["horse_no"]) / race.groupby(race).transform("size"),
         }, index=entries.index)

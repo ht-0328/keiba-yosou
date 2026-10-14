@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import replace
+from itertools import product
 
 import numpy as np
 
@@ -50,7 +51,7 @@ class ClassShareBaseline:
                 calculator.confusion_matrix(class_shares),
             ),
         )
-        return [replace(baseline, timing=timing) for timing in timings for baseline in baselines]
+        return [replace(baseline, timing=timing) for timing, baseline in product(timings, baselines)]
 
     def _shares(self, train: TrainingData) -> np.ndarray:
         """学習データの、クラスの番号の順の割合（出てこないクラスは 0）。"""

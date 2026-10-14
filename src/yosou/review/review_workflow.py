@@ -11,8 +11,7 @@ from . import names
 from .bet_settler import BetSettler
 from .handicap_history import HandicapHistory
 from .race_reviews import RaceReviews
-from .review_run_repository import ReviewRunRepository
-from .review_store import ReviewStore
+from .repository import ReviewRunRepository, ReviewStore
 
 
 class ReviewWorkflow:

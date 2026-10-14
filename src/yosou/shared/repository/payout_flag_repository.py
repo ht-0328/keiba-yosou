@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import product
+
 import duckdb
 import pandas as pd
 
@@ -38,7 +40,7 @@ class PayoutFlagRepository:
         self._con = con
 
     def read(self, days: RaceDayRange) -> pd.DataFrame:
-        flag_names = [self._flag_name(kind, ticket_type) for ticket_type in TicketType for kind in _VOID_KINDS]
+        flag_names = [self._flag_name(kind, ticket_type) for ticket_type, kind in product(TicketType, _VOID_KINDS)]
         table = facts.optional_relation(
             self._con, _HEADER_TABLE, (*keys.RACE_KEY, "データ区分", "データ作成年月日", *flag_names, _REFUND_FLAG),
         )
