@@ -156,7 +156,9 @@ def season_con(season_db: Path) -> Iterator[duckdb.DuckDBPyConnection]:
 def test_repository_reads_the_flat_runs_before_the_targets_last_day(season_con):
     first_target_day = date(2024, 6, 1)
     runs = HeadToHeadRunRepository(season_con, season.FIRST_RACE_DAY).read(TargetScope.since(first_target_day))
-    assert list(runs.columns) == ["race_id", "race_date", "horse_id", "finish", "is_target"]
+    assert list(runs.columns) == ["race_id", "race_date", "horse_id", "finish", "as_of_date", "is_target"]
+    # 材料の締めの日の列が無い対象では、締めの日は欠損値（開催日の前日の時点のレーティングのまま）
+    assert runs["as_of_date"].isna().all()
     targets, history = runs[runs["is_target"]], runs[~runs["is_target"]]
     # 対象は 6月以降の出走、過去の出走はシーズンの初めから対象のいちばん遅い日より前で、対象のレースを含まない
     assert targets["race_date"].min() >= pd.Timestamp(first_target_day)

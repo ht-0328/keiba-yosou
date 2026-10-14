@@ -11,7 +11,7 @@ import pandas as pd
 from 共通 import db, race
 from 共通.render import Table
 
-from yosou.form_aptitude_top3.command.figure_cache_argument import FigureCacheArgument
+from yosou.shared.command import FigureCacheArgument
 from yosou.shared.command import CommonArguments, PredictionTable
 from yosou.shared.dataset import DatasetBuilder
 from yosou.shared.feature import PredictionTiming

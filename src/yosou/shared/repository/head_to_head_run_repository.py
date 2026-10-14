@@ -21,7 +21,9 @@ class HeadToHeadRunRepository:
     対戦レーティングは「同じレースを走った馬どうしの着順の勝ち負け」を開催日の順に積み上げて作るので、対象の出走だけでなく、
     その前の全出走（出走した馬だけ）が要る。過去の出走は、対象のいちばん遅い開催日より前で、対象のレースを除いたもの。
     対象の出走（予測するレース。まだ走っていなくてよい）は ``is_target`` が真で、着順はまだ無ければ欠損値。
-    読む列は、レーティングの計算に要るものだけ（レースID・開催日・馬ID・着順）。
+    読む列は、レーティングの計算に要るものだけ（レースID・開催日・馬ID・着順）と、対象の行の材料の締めの日（``as_of_date``。
+    ``scope`` の関係にその列があるとき。無ければ欠損値）。レーティングの履歴を作る部品が、対象の行にその日の時点のレーティングを
+    付ける（特別登録の予想の設計書 11 の 6）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection, first_day: date) -> None:
@@ -29,14 +31,15 @@ class HeadToHeadRunRepository:
         self._first_day = first_day
 
     def read(self, scope: TargetScope) -> pd.DataFrame:
-        """列は ``race_id``・``race_date``（日付型）・``horse_id``・``finish``・``is_target``。開催日・レースID・馬ID の順。"""
+        """列は ``race_id``・``race_date``（日付型）・``horse_id``・``finish``・``as_of_date``（日付型）・``is_target``。開催日・レースID・馬ID の順。"""
         sql = f"""
         WITH target AS (
-            SELECT race_id, CAST(race_date AS DATE) AS race_date, horse_id, finish, TRUE AS is_target
+            SELECT race_id, CAST(race_date AS DATE) AS race_date, horse_id, finish, {scope.as_of_expr()} AS as_of_date,
+                   TRUE AS is_target
             FROM {scope.relation}
             WHERE surface <> '{_JUMP}'
         ), history AS (
-            SELECT race_id, CAST(race_date AS DATE) AS race_date, horse_id, finish, FALSE AS is_target
+            SELECT race_id, CAST(race_date AS DATE) AS race_date, horse_id, finish, NULL::DATE AS as_of_date, FALSE AS is_target
             FROM {facts.FACTS_TABLE}
             WHERE ran AND surface <> '{_JUMP}'
               AND CAST(race_date AS DATE) >= ?
@@ -47,4 +50,4 @@ class HeadToHeadRunRepository:
         ORDER BY race_date, race_id, horse_id
         """
         frame = self._con.execute(sql, [self._first_day.isoformat()]).df()
-        return frame.assign(race_date=pd.to_datetime(frame["race_date"]))
+        return frame.assign(race_date=pd.to_datetime(frame["race_date"]), as_of_date=pd.to_datetime(frame["as_of_date"]))

@@ -29,7 +29,8 @@ class PredictionTiming(Enum):
     def parse(cls, text: str) -> PredictionTiming:
         """``木曜`` か ``thursday`` のような書き方から時点を返す。知らなければ ``ValueError``。
 
-        地方の予想のオッズのまだ無い時点「出馬表」も、同じ枠（``THURSDAY``）として受ける（地方の設計書 07）。
+        地方の予想のオッズのまだ無い時点「出馬表」と、特別登録の予想の時点「特別登録」も、同じ枠（``THURSDAY``）として受ける
+        （地方の設計書 07、特別登録の設計書 07）。
         """
         timing = _TIMING_BY_TEXT.get(text.strip())
         if timing is None:
@@ -47,9 +48,12 @@ _LABELS: dict[PredictionTiming, str] = {
 }
 #: 地方の予想での、オッズのまだ無い時点の呼び名（枠番・馬番の決まった出馬表が 2〜5日前に出る。中央の木曜に当たる）。
 LOCAL_FIRST_TIMING_LABEL = "出馬表"
-#: 時点の書き方（日本語の名前と、英語の値、地方の呼び名）→ 時点。
+#: 特別登録の予想（特別登録馬の近走と適性から3着以内を予想）の時点の呼び名（月曜の特別登録。中央の木曜の枠を使う）。
+REGISTRATION_TIMING_LABEL = "特別登録"
+#: 時点の書き方（日本語の名前と、英語の値、地方と特別登録の呼び名）→ 時点。
 _TIMING_BY_TEXT: dict[str, PredictionTiming] = {
     **{timing.label: timing for timing in PredictionTiming},
     **{timing.value: timing for timing in PredictionTiming},
     LOCAL_FIRST_TIMING_LABEL: PredictionTiming.THURSDAY,
+    REGISTRATION_TIMING_LABEL: PredictionTiming.THURSDAY,
 }

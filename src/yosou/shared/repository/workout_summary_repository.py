@@ -17,10 +17,12 @@ _WOOD_COLUMNS = (keys.HORSE_KEY, "調教年月日", "5ハロンタイム合計(1
 
 
 class WorkoutSummaryRepository:
-    """対象の出走それぞれの、レースの前日までの 14日・30日の調教をまとめた値を読む（1 SQL）。
+    """対象の出走それぞれの、材料の締めの日までの 14日・30日の調教をまとめた値を読む（1 SQL）。
 
     馬の力の材料（研究「馬の力と展開でオッズに勝つ」の調教の材料）。坂路は本数・最速の4ハロンとラスト1ハロン・直前の1本、
     ウッドは本数・最速の5ハロン・4ハロン・ラスト1ハロン・直前の1本のラスト1ハロン。調教の無い出走は欠損値（本数も）。
+    締めの日は、対象の関係に ``as_of_date`` の列があればその日（特別登録の予想。登録日相当まで）、無ければ開催日の前日。
+    「直前からの日数」は、締めの日によらず開催日から数える。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
@@ -33,7 +35,9 @@ class WorkoutSummaryRepository:
         horse = keys.q(keys.HORSE_KEY)
         sql = f"""
         WITH runs AS (
-            SELECT DISTINCT race_id, horse_id, CAST(race_date AS DATE) AS race_date FROM {scope.relation}
+            SELECT DISTINCT race_id, horse_id, CAST(race_date AS DATE) AS race_date,
+                   coalesce({scope.as_of_expr()}, CAST(race_date AS DATE) - 1) AS cutoff
+            FROM {scope.relation}
         ), hill AS (
             SELECT {horse} AS horse_id, try_strptime("調教年月日", '%Y%m%d')::date AS day,
                    {_SECONDS.format(column='"4ハロンタイム合計(800M～0M)"')} AS f4,
@@ -47,14 +51,14 @@ class WorkoutSummaryRepository:
             FROM {wood}
         ), hill_summary AS (
             SELECT runs.race_id, runs.horse_id,
-                   count(*) FILTER (WHERE hill.day >= runs.race_date - 14) AS "坂路_本数14日",
+                   count(*) FILTER (WHERE hill.day >= runs.cutoff - 13) AS "坂路_本数14日",
                    count(*) AS "坂路_本数30日",
-                   min(hill.f4) FILTER (WHERE hill.day >= runs.race_date - 14) AS "坂路_4F最速14日",
-                   min(hill.f1) FILTER (WHERE hill.day >= runs.race_date - 14) AS "坂路_1F最速14日",
+                   min(hill.f4) FILTER (WHERE hill.day >= runs.cutoff - 13) AS "坂路_4F最速14日",
+                   min(hill.f1) FILTER (WHERE hill.day >= runs.cutoff - 13) AS "坂路_1F最速14日",
                    arg_max(hill.f4, hill.day) AS "坂路_直前4F", arg_max(hill.f1, hill.day) AS "坂路_直前1F",
                    min(runs.race_date - hill.day) AS "坂路_直前からの日数"
             FROM runs JOIN hill ON hill.horse_id = runs.horse_id
-             AND hill.day BETWEEN runs.race_date - 30 AND runs.race_date - 1
+             AND hill.day BETWEEN runs.cutoff - 29 AND runs.cutoff
             GROUP BY ALL
         ), wood_summary AS (
             SELECT runs.race_id, runs.horse_id,
@@ -62,7 +66,7 @@ class WorkoutSummaryRepository:
                    min(wood.f5) AS "ウッド_5F最速30日", min(wood.f4) AS "ウッド_4F最速30日",
                    min(wood.f1) AS "ウッド_1F最速30日", arg_max(wood.f1, wood.day) AS "ウッド_直前1F"
             FROM runs JOIN wood ON wood.horse_id = runs.horse_id
-             AND wood.day BETWEEN runs.race_date - 30 AND runs.race_date - 1
+             AND wood.day BETWEEN runs.cutoff - 29 AND runs.cutoff
             GROUP BY ALL
         )
         SELECT runs.race_id, runs.horse_id,

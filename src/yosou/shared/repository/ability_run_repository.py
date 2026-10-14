@@ -36,6 +36,8 @@ class AbilityRunRepository:
     対象の出走（予測するレース。まだ走っていなくてよい）は ``is_target`` が真。
     馬主は、その出走の馬毎レース情報の馬主コード（木曜など、まだ無ければ競走馬マスタの今の馬主コード）。
     生産者と母（繁殖登録番号）は、産駒マスタ（無ければ競走馬マスタの生産者コード）。
+    対象の行には、材料の締めの日（``as_of_date``。``scope`` の関係にその列があるとき。無ければ欠損値）も付けて返す。
+    通算と直近の成績を数える部品が、その日までの記録で数える（特別登録の予想の設計書 11 の 6）。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection, first_day: date) -> None:
@@ -43,7 +45,7 @@ class AbilityRunRepository:
         self._first_day = first_day
 
     def read(self, scope: TargetScope) -> pd.DataFrame:
-        """列は ``RUN_COLUMNS``・``race_date``（日付型）・``is_target``・``owner``・``breeder``・``dam``。"""
+        """列は ``RUN_COLUMNS``・``race_date``（日付型）・``as_of_date``（日付型。対象の行だけ。無ければ欠損値）・``is_target``・``owner``・``breeder``・``dam``。"""
         columns = ", ".join(RUN_COLUMNS)
         horse = keys.q(keys.HORSE_KEY)
         se = facts.optional_relation(self._con, "se", _SE_COLUMNS)
@@ -51,9 +53,11 @@ class AbilityRunRepository:
         sk = facts.optional_relation(self._con, "sk", _SK_COLUMNS)
         sql = f"""
         WITH target AS (
-            SELECT {columns}, CAST(race_date AS DATE) AS race_date, TRUE AS is_target FROM {scope.relation}
+            SELECT {columns}, CAST(race_date AS DATE) AS race_date, {scope.as_of_expr()} AS as_of_date, TRUE AS is_target
+            FROM {scope.relation}
         ), history AS (
-            SELECT {columns}, CAST(race_date AS DATE) AS race_date, FALSE AS is_target FROM {facts.FACTS_TABLE}
+            SELECT {columns}, CAST(race_date AS DATE) AS race_date, NULL::DATE AS as_of_date, FALSE AS is_target
+            FROM {facts.FACTS_TABLE}
             WHERE CAST(race_date AS DATE) >= ?
               AND CAST(race_date AS DATE) < (SELECT max(race_date) FROM target)
               AND race_id NOT IN (SELECT DISTINCT race_id FROM target)

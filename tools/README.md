@@ -89,6 +89,12 @@
 | 地方競馬の1レースを予想する（時点は 出馬表・前日・当日） | `uv run python -m yosou.local_form_aptitude_top3 predict --date 2026-10-15 --venue 大井 --race 11 --timing 当日`（rid でもよい。前日・当日は `--odds 馬番:オッズ` か、nvdata-store で速報を取り込んでおく） |
 | 地方競馬の予想を、学習に使っていないテスト期間で確かめる（モデルと市場の確率のログ損失を比べ、印の成績が読む予測の表を書く） | `uv run python -m yosou.local_form_aptitude_top3 backtest`（結果の表と `reports/地方競馬の近走と適性から3着以内を予想/predictions/<時点>.pkl`・`<時点>-1着.pkl`） |
 | 地方競馬の予想の印の成績（印ごとの成績と全券種の買い目の回収率） | `uv run python tools/印の成績/mark_stats.py --form reports/地方競馬の近走と適性から3着以内を予想/predictions/day_before.pkl --win reports/地方競馬の近走と適性から3着以内を予想/predictions/day_before-1着.pkl --no-danger --scene 地方 --models reports/地方競馬の近走と適性から3着以内を予想/models --out-dir reports/印の成績/地方`（当日は `race_day.pkl`・`race_day-1着.pkl` と `--timing 当日`。`--scene 地方` で地方の元DB を開く） |
+| 特別登録の時点（月曜。発走の5〜6日前）の予想を学習する（3着以内・1着。騎手・枠番・頭数・馬場・馬体重・オッズを使わない 180個の材料。モデルは `reports/特別登録馬の近走と適性から3着以内を予想/models/`） | `uv run python -m yosou.special_registration_top3 train` |
+| 特別登録の登録馬の全員を予想する（出走すれば3着以内・1着になる確率と調教師・負担重量・交流区分。出走馬名表は要らない） | `uv run python -m yosou.special_registration_top3 predict --date 2026-10-18 --venue 東京 --race 11`（rid でもよい。`--date 2026-10-18 --all` でその日の登録のある全レース） |
+| 特別登録の予想を、中央と同じ7つの半年の区切りで学習し直して確かめる（テスト期間の特別競走の行で、頭数から見た割合と比べる。印の成績が読む予測の表を書く。2〜3時間） | `uv run python -m yosou.special_registration_top3 backtest`（`--variant 相手と比べない` で相手と比べる材料を外した版、`--compare <木曜の予測の pkl>` で木曜のモデルと比べる） |
+| 特別登録の登録馬の全員に出した予想を、出走した馬の結果で確かめる（登録馬の中で比べた材料のずれ） | `uv run python -m yosou.special_registration_top3 registrations` |
+| 特別登録の登録馬の全頭評価を書く（有力馬の候補、評価順の表、馬ごとの基本情報・強み・弱み。印・買い目は無い。`reports/全頭評価/<開催日>/<rid>.md`） | `uv run python tools/全頭評価/review.py --date 2026-10-18 --venue 京都 --race 11`（rid でもよい。`--date 2026-10-18 --all` でその日の登録のある全レース） |
+| 特別登録の予想の印の成績（印ごとの成績と全券種の買い目の回収率。オッズを使わない印なので参考） | `uv run python tools/印の成績/mark_stats.py --form reports/特別登録馬の近走と適性から3着以内を予想/predictions/thursday.pkl --win reports/特別登録馬の近走と適性から3着以内を予想/predictions/thursday-1着.pkl --timing 木曜 --no-danger --out-dir reports/印の成績/特別登録` |
 | 検索画面を開く | `uv run python tools/検索画面/web.py --open`（ダブルクリックなら `tools/検索画面/run.bat`） |
 | 実DB なしで試す | `uv run python tools/合成DB/synth.py --out reports/synth.duckdb` → 各ツールに `--db reports/synth.duckdb`（出馬表は `--from 2025-04-19` も付ける。合成DB の確定前のレースがその日）。地方は `uv run python tools/合成DB/local_synth.py --out reports/local_synth.duckdb` |
 | テストを走らせる | `uv run python -m pytest -q` |

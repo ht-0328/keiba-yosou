@@ -5,7 +5,7 @@
 - 各レースで1割の確率で1頭が出走取消、3%の確率で1頭が競走中止。
 - 出走別着度数は、各レースの前の時点の通算の着回数。調教は開催日の3日前と10日前（坂路かウッド）。
 - 最後に、確定前の3レース（2025-01-11 東京）を足す。1R は出馬表（速報の馬場状態・馬体重・取消と、締め切り前の複勝オッズつき）、
-  2R は出走馬名表、3R は障害の出馬表。
+  2R は出走馬名表、3R は障害の出馬表。2R には特別登録（出走馬名表の8頭 + 地方馬1頭）、4R には特別登録だけ（8頭。出走馬名表はまだ無い）もある。
 
 | クラス | 仕事 |
 |---|---|
@@ -27,16 +27,24 @@ from .season_plan import (
     ANNOUNCED_TURF_GOING,
     CARD_RACE_ID,
     ENTRY_LIST_RACE_ID,
+    EXTRA_REGISTERED_HORSE_EXCHANGE,
     FIRST_RACE_DAY,
+    FUTURE_DAY,
+    FUTURE_FIELD_SIZE,
     JUMP_CARD_RACE_ID,
+    REGISTRATION_ONLY_FIELD_SIZE,
+    REGISTRATION_ONLY_RACE_ID,
+    REGISTRATION_RACE_NAME,
     SCRATCHED_HORSE_NO,
     TEST_FIRST_DAY,
     TRAIN_FIRST_DAY,
     VALID_FIRST_DAY,
+    VENUE_NAME,
 )
 
 __all__ = [
     "SeasonBuilder", "CARD_RACE_ID", "ENTRY_LIST_RACE_ID", "JUMP_CARD_RACE_ID",
+    "FUTURE_DAY", "FUTURE_FIELD_SIZE", "VENUE_NAME", "REGISTRATION_ONLY_RACE_ID", "REGISTRATION_RACE_NAME", "REGISTRATION_ONLY_FIELD_SIZE", "EXTRA_REGISTERED_HORSE_EXCHANGE",
     "SCRATCHED_HORSE_NO", "ANNOUNCED_TURF_GOING",
     "FIRST_RACE_DAY", "TRAIN_FIRST_DAY", "VALID_FIRST_DAY", "TEST_FIRST_DAY",
 ]

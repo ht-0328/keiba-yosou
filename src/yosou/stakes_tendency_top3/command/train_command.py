@@ -9,7 +9,7 @@ from pathlib import Path
 from 共通 import db
 from 共通.render import Table
 
-from yosou.form_aptitude_top3.command.figure_cache_argument import FigureCacheArgument
+from yosou.shared.command import FigureCacheArgument
 from yosou.shared.command import CommonArguments, PlacePriceStep, TrainingReportTables
 from yosou.shared.dataset import TrainingData, TrainingPeriod
 from yosou.shared.feature import PredictionTiming
