@@ -32,8 +32,8 @@ class StakesRebuildComparison:
     （重賞の設計書 15 の 9・16 の 3）。
 
     ``predictions`` は作り方の鍵 → 予測の表（手本は ``StakesRowFilter`` で重賞の行にしたもの）。
-    比べるのは、テスト期間の行のうち、5つの作り方すべてにある行だけ。採否は、作り直し（今の K）と K を見直した作り直しの
-    それぞれに同じ基準を当て、どちらかが両方の比べ先に合格すれば、その時点は採用とする。
+    比べるのは、テスト期間の行のうち、4つの作り方すべてにある行だけ。採否は、作り直しに基準を当て、
+    両方の比べ先に合格すれば、その時点は採用とする。
     """
 
     def __init__(self, spec: RebuildComparisonSpec, data: TrainingData, predictions: Mapping[str, pd.DataFrame],
@@ -51,21 +51,19 @@ class StakesRebuildComparison:
         losses = self._losses_by_window()
         return [self._by_window(losses), self._verdict(losses), self._pooled(), self._top_pick()]
 
-    def verdicts(self, candidate: ModelVariant | None = None,
-                 losses: pd.DataFrame | None = None) -> tuple[Verdict, Verdict]:
-        """``candidate``（省略すると作り直し）の（オッズだけに対する判定, 手本に対する判定）。"""
+    def verdicts(self, losses: pd.DataFrame | None = None) -> tuple[Verdict, Verdict]:
+        """作り直しの（オッズだけに対する判定, 手本に対する判定）。"""
         table = self._losses_by_window() if losses is None else losses
-        chosen = self._spec.candidate if candidate is None else candidate
         spec = self._spec
-        return (self._verdict_against(table, chosen, spec.odds_reference), self._verdict_against(table, chosen, spec.general))
+        return (self._verdict_against(table, spec.candidate, spec.odds_reference),
+                self._verdict_against(table, spec.candidate, spec.general))
 
     def adopted(self) -> bool:
-        """その時点で、作り直しか K を見直した作り直しのどちらかが、採用の基準を満たすか。"""
-        losses = self._losses_by_window()
-        return any(self._rule.adopted(*self.verdicts(candidate, losses)) for candidate in self._spec.candidates)
+        """その時点で、作り直しが採用の基準を満たすか。"""
+        return self._rule.adopted(*self.verdicts())
 
     def _common_rows(self, joined: Mapping[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-        """5つの作り方すべてにある行（レースID・馬ID・区切り）だけにし、並びをそろえる。"""
+        """4つの作り方すべてにある行（レースID・馬ID・区切り）だけにし、並びをそろえる。"""
         frames = {key: frame.assign(**{column: frame[column].astype(str) for column in _KEY[:2]}) for key, frame in joined.items()}
         keys = None
         for frame in frames.values():
@@ -105,18 +103,16 @@ class StakesRebuildComparison:
 
     def _verdict(self, losses: pd.DataFrame) -> Table:
         spec = self._spec
-        rows = []
-        for candidate in spec.candidates:
-            against_odds, against_general = self.verdicts(candidate, losses)
-            rows += [self._verdict_row(candidate, spec.odds_reference, against_odds),
-                     self._verdict_row(candidate, spec.general, against_general)]
+        against_odds, against_general = self.verdicts(losses)
+        rows = [self._verdict_row(spec.candidate, spec.odds_reference, against_odds),
+                self._verdict_row(spec.candidate, spec.general, against_general)]
         adopted = self.adopted()
         rows.append({"作り方": "その時点の判断", "比べ先": "両方", "作り直しが小さい区切り": None, "作り直しのログ損失（全期間）": None,
                      "比べ先のログ損失（全期間）": None, "差（×1000）": None, "基準を満たす": "採用" if adopted else "採用しない（引退）"})
         return self._format.table(
             pd.DataFrame(rows), f"{self._subject}: 採用の基準に照らした判定",
             note="差は、作り直しのログ損失 − 比べ先のログ損失 を 1000倍した値で、負なら作り直しのほうが良い。"
-                 "作り直し（今の K か、K の見直し）のどちらかが両方の比べ先に合格した時点だけ、専用モデルを採用する（設計書 15 の 9）。",
+                 "作り直しが両方の比べ先に合格した時点だけ、専用モデルを採用する（設計書 15 の 9・10）。",
         )
 
     def _verdict_row(self, candidate: ModelVariant, reference: ModelVariant, verdict: Verdict) -> dict[str, object]:

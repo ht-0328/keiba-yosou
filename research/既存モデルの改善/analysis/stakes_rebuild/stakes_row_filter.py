@@ -8,6 +8,9 @@ from yosou.shared.dataset import HORSE_ID, RACE_ID
 
 #: 行を突き合わせる鍵。
 _KEY = [RACE_ID, HORSE_ID]
+#: 重賞の行だけにした手本の予測を保存するときに、作り方の名前の後ろに付ける（例 general-race_day-stakes）。
+#: 道具「印の成績」で、専用モデルと同じ重賞のレースについて印と買い目の成績を比べるためのもの。
+STAKES_ROWS_SUFFIX = "-stakes"
 
 
 class StakesRowFilter:

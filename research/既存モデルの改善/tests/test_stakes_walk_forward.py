@@ -1,4 +1,4 @@
-"""重賞の予想のウォークフォワード（1年ずつの区切り・作り方・比べ方の表）。合成データだけを使う。"""
+"""重賞の予想のウォークフォワード（1年ずつの区切り・比べ方の表）。合成データだけを使う。"""
 
 from __future__ import annotations
 
@@ -13,14 +13,12 @@ from yosou.shared.feature import Feature, FeatureCatalog, FeatureKind, Predictio
 from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE
 
 from 既存モデルの改善.analysis.comparison import FormComparison
-from 既存モデルの改善.analysis.tables import STAKES_TABLE_PERIOD, spec_named
-from 既存モデルの改善.analysis.variants import variants_of
+from 既存モデルの改善.analysis.stakes_rebuild import STAKES_RACE_DAY, rebuild_table_named
+from 既存モデルの改善.analysis.tables import STAKES_TABLE_PERIOD
 from 既存モデルの改善.analysis.walk_forward import PART, PART_TEST, PART_VALID, PREDICTION_COLUMN, SEGMENT, WINDOW
 from 既存モデルの改善.analysis.windows import STAKES_WINDOWS, WINDOWS, window_named, windows_of
 
 _STAKES = "stakes_tendency_top3"
-#: 重賞の直す前の作り方（85個）の表の特徴量の一覧（作り直したあとは、研究の側に残してある）。
-STAKES_CATALOG = spec_named(_STAKES).catalog
 
 
 def test_stakes_use_seven_yearly_windows_and_the_others_keep_half_years():
@@ -32,17 +30,7 @@ def test_stakes_use_seven_yearly_windows_and_the_others_keep_half_years():
                                                                                   date(2020, 12, 31))
     assert all(earlier.test_first_day == later.valid_first_day for earlier, later in zip(STAKES_WINDOWS, STAKES_WINDOWS[1:]))
     assert window_named("2025年", STAKES_WINDOWS).test_first_day == date(2025, 1, 1)
-    assert spec_named(_STAKES).period == STAKES_TABLE_PERIOD and STAKES_TABLE_PERIOD.train_first_day == date(2012, 1, 1)
-
-
-def test_stakes_variants_use_columns_known_on_race_day():
-    variants = {variant.key: variant for variant in variants_of(_STAKES)}
-    assert set(variants) == {"odds_only", "default", "without_tendency"}
-    race_day = set(STAKES_CATALOG.columns_for(PredictionTiming.RACE_DAY))
-    assert all(set(variant.columns) <= race_day and variant.uses_baseline for variant in variants.values())
-    # 既定は今の設計の作り方そのもの（当日の 85個）。傾向を外すと、重賞の傾向の10個だけが減る
-    assert set(variants["default"].columns) == race_day and len(variants["default"].columns) == 85
-    assert len(set(variants["default"].columns) - set(variants["without_tendency"].columns)) == 10
+    assert rebuild_table_named(STAKES_RACE_DAY).period == STAKES_TABLE_PERIOD and STAKES_TABLE_PERIOD.train_first_day == date(2012, 1, 1)
 
 
 def _synthetic_stakes(rng: np.random.Generator) -> TrainingData:

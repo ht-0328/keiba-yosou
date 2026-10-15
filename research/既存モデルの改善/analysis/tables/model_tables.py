@@ -1,4 +1,4 @@
-"""4つの予想の学習データの作り方と、作る期間（と、読むだけの重賞の直す前の表・材料の実験の表）。"""
+"""4つの予想の学習データの作り方と、作る期間（と、材料の実験の表）。重賞の予想の表は ``stakes_rebuild/``。"""
 
 from __future__ import annotations
 
@@ -11,8 +11,7 @@ from yosou.form_aptitude_top3.feature import CATALOG as FORM_CATALOG
 from yosou.longshots_in_top3.dataset import dataset_builder as longshots_builder
 from yosou.longshots_in_top3.feature import CATALOG as LONGSHOTS_CATALOG
 from yosou.shared.dataset import TrainingPeriod
-from yosou.shared.feature import BASE_FEATURES, MARKET_FEATURES, FeatureCatalog
-from yosou.stakes_tendency_top3.feature import K_FEATURES as STAKES_TENDENCY_FEATURES
+from yosou.shared.feature import FeatureCatalog
 from yosou.upset_level.dataset import UpsetLevel, race_dataset_builder
 from yosou.upset_level.feature import CATALOG as UPSET_CATALOG
 
@@ -42,28 +41,16 @@ def _not_built_from_the_database(con):
     raise ValueError("form_experiments は build_experiments.py で作る（build_tables.py では作らない）")
 
 
-def _stakes_before_the_rebuild(con):
-    raise ValueError("重賞の直す前の作り方（85個）の表は、作り直したあとは作れない。"
-                     "作り直した表は stakes_rebuild.py tables で作る（stakes_ability・stakes_race_day）")
-
-
 #: 材料の実験の表（全頭の学習データに、実験の材料と区分の列を足したもの。build_experiments.py で作る）。
 EXPERIMENT_TABLES: tuple[ModelTableSpec, ...] = (
     ModelTableSpec("form_experiments", "全頭の予想（材料を足す実験）", _not_built_from_the_database,
                    FeatureCatalog(FORM_CATALOG.features + experiment_features())),
 )
-#: 重賞の予想の、直す前の作り方（A〜J の 75個に K の10個を足した 85個。2026-09-30 に作った表）。予想のパッケージは
-#: 2026-10-02 に手本の新しい材料で作り直したので、この表は作り直せない（保存してある表を比べ方の表に読むためだけに残す）。
-#: 作り直した表と作り方は ``analysis/stakes_rebuild/``。
-STAKES_BEFORE_REBUILD_TABLES: tuple[ModelTableSpec, ...] = (
-    ModelTableSpec("stakes_tendency_top3", "重賞の傾向と近走から3着以内を予想（直す前の作り方）", _stakes_before_the_rebuild,
-                   FeatureCatalog(BASE_FEATURES + MARKET_FEATURES + STAKES_TENDENCY_FEATURES), period=STAKES_TABLE_PERIOD),
-)
 
 
 def spec_named(name: str) -> ModelTableSpec:
-    """名前から ``ModelTableSpec`` を引く（実験の表・重賞の直す前の表も）。知らなければ ``ValueError``。"""
-    known = (*MODEL_TABLES, *EXPERIMENT_TABLES, *STAKES_BEFORE_REBUILD_TABLES)
+    """名前から ``ModelTableSpec`` を引く（実験の表も）。重賞の予想の表は ``stakes_rebuild.rebuild_table_named``。知らなければ ``ValueError``。"""
+    known = (*MODEL_TABLES, *EXPERIMENT_TABLES)
     for spec in known:
         if spec.name == name:
             return spec

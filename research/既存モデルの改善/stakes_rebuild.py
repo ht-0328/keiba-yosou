@@ -1,15 +1,19 @@
-"""重賞の予想を手本の新しい材料で作り直したあと、7つの区切り（1年ずつ）で比べる（研究「既存モデルの改善」の入口⑨）。
+"""重賞の予想を作り直したあと、7つの区切り（1年ずつ）で比べる（研究「既存モデルの改善」の入口⑨）。
 
-    uv run python research/既存モデルの改善/stakes_rebuild.py tables                                  # 学習データの表を作る（元DB を開く。1時間ほど）
+    uv run python research/既存モデルの改善/stakes_rebuild.py tables                                  # 学習データの表を作る（元DB を開く。15分ほど）
     uv run python research/既存モデルの改善/stakes_rebuild.py tables --only stakes_ability stakes_race_day
-    uv run python research/既存モデルの改善/stakes_rebuild.py tables --only stakes_ability_floor stakes_race_day_floor  # K の見直し（保存した表から。数秒）
-    uv run python research/既存モデルの改善/stakes_rebuild.py run                                     # 作り方ごとに7つの区切りで学習する（数時間。済んだものは飛ばす）
+    uv run python research/既存モデルの改善/stakes_rebuild.py run                                     # 作り方ごとに7つの区切りで学習する（1時間ほど。済んだものは飛ばす）
     uv run python research/既存モデルの改善/stakes_rebuild.py run --variants general-race_day       # 1つだけ
-    uv run python research/既存モデルの改善/compare.py --only stakes_tendency_top3                  # 比べ方の表（重賞の表に、作り直しの表が足される）
+    uv run python research/既存モデルの改善/compare.py --only stakes_tendency_top3                  # 比べ方の表（時点ごとの採否）
+    uv run python research/既存モデルの改善/stakes_rebuild.py stakes_rows                          # 手本の予測から重賞の行だけを取り出して保存する（数秒）
+    uv run python tools/印の成績/mark_stats.py --form stakes_race_day/default-race_day --win h2h_pool_ability/win-race_day --timing 当日 --no-danger --out-dir reports/印の成績/重賞   # 専用モデルの印と買い目の成績（当日）
+    uv run python tools/印の成績/mark_stats.py --form form_race_day/general-race_day-stakes --win h2h_pool_ability/win-race_day --timing 当日 --no-danger --out-dir reports/印の成績/重賞  # 手本を同じ重賞だけに使ったとき
 
+``stakes_rows`` は、全レースで学んだ手本の予測（general-*）から重賞の行だけを取り出し、``<表>/general-<時点>-stakes.pkl`` に書く。
+道具「印の成績」に専用モデルの予測と並べて渡すと、同じ重賞のレースについて印ごとの成績と全券種の買い目の回収率を比べられる
+（危険な人気馬の判定は、区切りが半年ずつの人気馬の予想と区切りの名前が合わないので使わない）。
 学習データは予想のパッケージ（``src/yosou/stakes_tendency_top3``・``src/yosou/form_aptitude_top3``）の組み立て関数で作る。
 重賞だけの表（作り直した専用モデル）と全レースの表（手本を重賞だけに使ったときの比べ先）の4つで、どれも 2012年から。
-K の数え方を見直した2つの表（開催の少ないレースの K を 0 にしたもの）は、保存した重賞だけの表から作る（元DB を開かない）。
 区切りと区切りごとの学習（LightGBM と CatBoost。ハイパーパラメータは予想の初期値）はこの研究のもの。
 出るもの（Git 対象外）: ``reports/既存モデルの改善/tables/<表>/``・``predictions/<表>/<作り方>.pkl``。
 学習は、同じマシンのほかの学習とぶつからないように1つずつ走らせ、Windows では P コア（論理 CPU 0〜11）に絞る。
@@ -31,16 +35,14 @@ from yosou.shared.setting import HyperparameterSettings  # noqa: E402
 from yosou.stakes_tendency_top3.setting import DEFAULT_SETTINGS_PATH as STAKES_SETTINGS  # noqa: E402
 
 from 既存モデルの改善.analysis.stakes_rebuild import (  # noqa: E402
-    FLOOR_SOURCES,
     FORM_ABILITY,
     FORM_RACE_DAY,
     REBUILD_TABLES,
     REBUILD_VARIANTS,
     STAKES_ABILITY,
-    STAKES_ABILITY_FLOOR,
     STAKES_RACE_DAY,
-    STAKES_RACE_DAY_FLOOR,
-    TendencyFloor,
+    STAKES_ROWS_SUFFIX,
+    StakesRowFilter,
     rebuild_table_named,
 )
 from 既存モデルの改善.analysis.tables import ModelTableSpec, TableStore  # noqa: E402
@@ -54,29 +56,18 @@ _DEFAULT_PREDICTIONS = _REPO_ROOT / "reports" / "既存モデルの改善" / "pr
 _P_CORES = 0xFFF
 #: 表 → その表で学ぶときのハイパーパラメータの初期値（重賞だけの表は重賞の予想の、全レースの表は手本の初期値）。
 _SETTINGS_OF = {STAKES_ABILITY: STAKES_SETTINGS, STAKES_RACE_DAY: STAKES_SETTINGS,
-                STAKES_ABILITY_FLOOR: STAKES_SETTINGS, STAKES_RACE_DAY_FLOOR: STAKES_SETTINGS,
                 FORM_ABILITY: FORM_SETTINGS, FORM_RACE_DAY: FORM_SETTINGS}
 
 
 def main() -> None:
     args = _parser().parse_args()
-    {"tables": _tables, "run": _run}[args.step](args)
+    {"tables": _tables, "run": _run, "stakes_rows": _stakes_rows}[args.step](args)
 
 
 def _tables(args: argparse.Namespace) -> None:
     store = TableStore(args.tables)
     for table in (table for table in REBUILD_TABLES if not args.only or table.name in args.only):
-        if table.name in FLOOR_SOURCES:
-            _floor(table, store)
-            continue
         _build(table, store, args)
-
-
-def _floor(table: ModelTableSpec, store: TableStore) -> None:
-    """保存した重賞だけの表から、K の数え方を見直した表を作る（元DB は開かない）。"""
-    source = FLOOR_SOURCES[table.name]
-    data = TendencyFloor().apply(store.read(source, rebuild_table_named(source).catalog))
-    print(f"{table.label}: {len(data):,}行 → {store.write(table.name, data)}", flush=True)
 
 
 def _build(table: ModelTableSpec, store: TableStore, args: argparse.Namespace) -> None:
@@ -105,6 +96,20 @@ def _run(args: argparse.Namespace) -> None:
         print(f"{variant.model} / {variant.name}: {predictions.write(variant.model, variant.key, frame, log)}", flush=True)
 
 
+def _stakes_rows(args: argparse.Namespace) -> None:
+    """全レースで学んだ手本の予測（general-*）から重賞の行だけを取り出し、``-stakes`` を付けた名前で保存する。学習の記録はそのまま写す。"""
+    predictions, tables = PredictionStore(args.predictions), TableStore(args.tables)
+    stakes = tables.read(STAKES_RACE_DAY, rebuild_table_named(STAKES_RACE_DAY).catalog)
+    rows = StakesRowFilter(stakes.ids)
+    for variant in (variant for variant in REBUILD_VARIANTS if variant.key.startswith("general-")):
+        if not predictions.exists(variant.model, variant.key):
+            print(f"{variant.model} / {variant.name}: 予測が無いので飛ばします（先に run）", flush=True)
+            continue
+        kept = rows.apply(predictions.read(variant.model, variant.key))
+        path = predictions.write(variant.model, f"{variant.key}{STAKES_ROWS_SUFFIX}", kept, predictions.read_log(variant.model, variant.key))
+        print(f"{variant.model} / {variant.name}: 重賞の行 {len(kept):,} → {path}", flush=True)
+
+
 def _with_threads(settings: HyperparameterSettings, threads: int) -> HyperparameterSettings:
     """学習のスレッド数を ``threads`` にした設定（ほかのハイパーパラメータは予想の初期値のまま）。
 
@@ -129,10 +134,10 @@ def _pin_to_p_cores() -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="重賞の予想の作り直しの確かめ", allow_abbrev=False)
-    parser.add_argument("step", choices=("tables", "run"), help="tables（表を作る）・run（学習する）")
+    parser.add_argument("step", choices=("tables", "run", "stakes_rows"),
+                        help="tables（表を作る）・run（学習する）・stakes_rows（手本の予測から重賞の行だけを取り出す）")
     parser.add_argument("--only", nargs="*", default=None, metavar="表",
-                        help="tables で作る表（stakes_ability / stakes_race_day / form_ability / form_race_day / "
-                             "stakes_ability_floor / stakes_race_day_floor。省略すると全部。見直しの2つは元の表のあとに作る）")
+                        help="tables で作る表（stakes_ability / stakes_race_day / form_ability / form_race_day。省略すると全部）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="run で回す作り方（省略すると全部）")
     parser.add_argument("--force", action="store_true", help="run で、済んだ作り方も回し直す")
     parser.add_argument("--threads", type=int, default=6, help="run の学習のスレッド数（既定: 6）")

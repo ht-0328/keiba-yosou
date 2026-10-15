@@ -15,7 +15,7 @@
 |---|---|---|
 | `repository/`（データの読み書き） | 共通。重賞の傾向を読む `StakesTendencyRepository` を足す（下の 2） | 無し |
 | `dataset/`（学習データ・予測用データを作る） | 共通（`DatasetBuilder`・ローダー・`Top3TargetBuilder`・基準 `Top3Baseline`・`OddsResolver`・`OddsInput`・`TrainingPeriod`・`PeriodSplitter`） | 重賞の行を選ぶ `RunnerSelector` と、部品を渡して組み立てる `dataset_assembly.py` |
-| `feature/`（特徴量を作る） | 共通（手本と同じまとまり A〜N の一覧と作るクラス、過去の記録から数える部品） | まとまり K を作る `StakesTendencyFeatures` と、この予想の特徴量の一覧 `ABILITY_CATALOG`（木曜・前日）・`RACE_DAY_CATALOG`（当日。295個） |
+| `feature/`（特徴量を作る） | 共通（手本と同じまとまり A〜N の一覧と作るクラス、過去の記録から数える部品） | まとまり K を作る `StakesTendencyFeatures`（帯分け `ConditionBands`・数え上げ `EditionStats`・切り口の一覧 `CUTS`）と、この予想の特徴量の一覧 `ABILITY_CATALOG`（木曜・前日）・`RACE_DAY_CATALOG`（当日。336個） |
 | `ml_model/`・`setting/`・`evaluation/`・`place_value/` | 共通 | 初期値の設定ファイルだけ（[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `workflow/`（流れを進める） | 学習は共通の `TrainingWorkflow` | `PredictionWorkflow` と、予測を出す時点の並び `TIMINGS` |
 | `command/` | 部品は共通（`CommonArguments`・`TrainingReportTables`・`PredictionTable`・`PlacePriceStep`） | コマンドの組み立てと、期間の既定（手本と違う。[08-training-data.md の 4](08-training-data.md#4-期間の指定)）、`evaluate` コマンド |
@@ -33,7 +33,8 @@
 | 決まり | 理由 |
 |---|---|
 | `shared` のクラスは、予想のパッケージを参照しない。予想のパッケージどうしも参照しない | 片方の予想の都合が、もう片方に入り込まない（手本と同じ決まり） |
-| 傾向の数え上げの SQL は `tools/共通/stakes.py` のものを使い、同じ SQL を2か所に書かない | 分析ツール（`tools/重賞攻略/`）とモデルで数え方がずれない（[01-overview.md の「関連する道具」](01-overview.md#関連する道具分析ツール重賞攻略)）。事実表（`tools/共通/facts.py`）と同じやり方 |
+| 過去の開催の出走馬を読む SQL は `tools/共通/stakes.py` のものを使い、同じ SQL を2か所に書かない | レースの同定（特別競走番号の対応表）を分析ツール（`tools/重賞攻略/`）と同じにする（[01-overview.md の「関連する道具」](01-overview.md#関連する道具分析ツール重賞攻略)）。事実表（`tools/共通/facts.py`）と同じやり方 |
+| 帯の分け方（枠なら 内・中・外、など）は `ConditionBands` の1か所に書き、過去の開催の馬と予測する馬を同じ決まりで分ける | 学習と予測で「同じ条件」の意味がずれない |
 | `EntryRecords` の `stakes_tendency` は、既定を空の表にし、ローダーがリポジトリを受け取ったときだけ埋める | 重賞の傾向を使わないほかの予想では、SQL が1本も増えない（`race_history` と同じやり方） |
 | 「重賞か」の判断は `RunnerSelector` の1か所に置く | 学習と予測で対象がずれない。予測で重賞でないレースを渡されたら、ここで止まる（下の 4） |
 
@@ -43,8 +44,8 @@
 
 | 置き場所 | 追加・変更 | クラス | 内容 | 理由 |
 |---|---|---|---|---|
-| `shared/repository/` | 追加 | `StakesTendencyRepository` | `read(対象)`。`tools/共通/stakes.py` の SQL で、重賞の対応表の一時表（rid → 特別競走番号・グレード）を用意してから、対象のレースごとに1行の傾向を読む。列は、開催の同定（`race_id`・`stakes_no`・`grade`・`editions` = 過去の開催の数）、切り口ごとの過去の出走数 `*_n`・3着以内の数 `*_hits`（前・内枠は期待の数 `*_exp` も）、基準 `base_*`（前・内枠は超過複勝率 `base_front_excess`・`base_inner_excess`。[09-features.md の「縮めたずれの定義」](09-features.md#縮めたずれの定義)）。重賞でないレースの行は返らない | まとまり K の元。対応表は傾向の SQL の前提の一時表なので、事実表（`FactTableRepository.ensure()`）と同じ扱いで、このリポジトリが用意する |
-| `shared/feature/` | 変更 | `EntryRecords` | 列 `stakes_tendency`（上のリポジトリの表。対象の重賞のレースごとに1行）を足す。既定は空の表 | K を、出走の行と `race_id` で突き合わせて作るため |
+| `shared/repository/` | 追加 | `StakesTendencyRepository` | `read(対象)`。`tools/共通/stakes.py` の SQL（`edition_runners_sql`）で、重賞の対応表の一時表（rid → 特別競走番号・グレード）を用意してから、対象の重賞ごとに「同じ重賞のそれより前の開催の出走馬」を読む（1行 = 対象のレース `target_race_id` × 過去の開催の1頭）。列は、開催の同定（`race_id`・`stakes_no`・`race_date`・`horse_id`）、その馬の条件と結果（`finish`・`popularity`・`win_odds`・`frame_no`・`style`・`interval_days`・`affiliation`・`same_race_places_before`・`age`・`sex`・`prev_finish`・`prev_popularity`・`win_payout`・`place_payout`）、前走のレースの鍵 `prev_key`。対象の馬の行（`is_target` が真。`prev_key` だけを持つ）も付く。重賞でないレースの行は返らない | まとまり K の元。対応表は SQL の前提の一時表なので、事実表（`FactTableRepository.ensure()`）と同じ扱いで、このリポジトリが用意する |
+| `shared/feature/` | 変更 | `EntryRecords` | 列 `stakes_tendency`（上のリポジトリの表）を足す。既定は空の表 | K を、出走の行と対象のレース（と馬）で突き合わせて作るため |
 | `shared/dataset/` | 変更 | `EntryRecordsLoader`・`HistoryRecordsLoader`・`RaceRecordsLoader` | 作られるときに `StakesTendencyRepository` を受け取れるようにする。受け取らなければ呼ばず、`stakes_tendency` は空 | ほかの予想は SQL が増えない（`race_history` の `RaceEarlyRecordRepository` と同じやり方） |
 
 ## 3. パッケージ構成
@@ -85,8 +86,11 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `StakesTendencyFeatures`（`stakes_tendency_features.py`） | まとまり K（重賞の傾向）の 10個を作る。`EntryRecords` の `stakes_tendency` の表を、出走の行と `race_id` で突き合わせ、切り口ごとの「縮めたずれ」と、自分が当てはまるかを掛けた列を作る（作り方は [09-features.md の K](09-features.md#k-重賞の傾向10個)）。`FeatureGroup` を守る | `build(記録)` | ― |
-| `ABILITY_CATALOG`・`RACE_DAY_CATALOG`（`feature_catalog.py`） | この予想の特徴量の一覧。手本と同じ材料に K を足したもの（木曜・前日は `ABILITY_FEATURES + HEAD_TO_HEAD_FEATURES + MARKET_FEATURES + K_FEATURES`、当日は手本の当日の 285個 + `K_FEATURES` の 295個。[09-features.md](09-features.md)）。K の一覧 `K_FEATURES`（10個。名前・まとまり・型・いつから分かるか）も、このファイルに置く | ―（値） | 共通の `FeatureCatalog` |
+| `StakesTendencyFeatures`（`stakes_tendency_features.py`） | まとまり K（重賞の傾向）の 51個を作る。`EntryRecords` の `stakes_tendency` の表（過去の開催の出走馬）と出走の行の両方に `ConditionBands` で帯を付け、切り口ごとに `EditionStats` で「対象のレースの過去の開催で、自分と同じ帯だった馬」の出走数・複勝率・単勝回収率・複勝回収率を数える。レース単位の3個（過去の開催の数、1番人気・1〜3番人気の複勝率）も作る（作り方は [09-features.md の K](09-features.md#k-重賞の傾向51個)）。`FeatureGroup` を守る | `build(記録)` | `ConditionBands`・`EditionStats` |
+| `ConditionBands`（`condition_bands.py`） | 切り口ごとに、馬の条件の値を帯の名前にする（前走のレースの鍵・前走の着順・前走の人気・枠・単勝オッズ・人気・脚質・間隔・所属・好走経験・年齢・性別）。帯の境はここにだけ書く。帯が決まらない値は欠損値 | `prev_race(鍵)`・`frame(枠番)`・`odds(オッズ)`・`popularity_of_odds(オッズ, レースID)`・`style(脚質)` など切り口ごとに1つ | ― |
+| `EditionStats`（`edition_stats.py`） | 1つの切り口について、対象のレース × 帯 ごとに過去の開催の出走馬を数え（出走数・3着以内の数・払戻の合計）、予測する馬の帯に突き合わせて 出走数・複勝率・単勝回収率・複勝回収率 にする。帯が無い馬・過去にその帯の馬がいないレースは欠損値 | `of(過去の側の帯, レースID, 自分の帯)` | ― |
+| `CUTS`・`TendencyCut`・`STATS`（`tendency_cut.py`） | 12個の切り口（鍵・特徴量の名前に使う言葉・自分の帯が分かる時点）と、切り口ごとに数える4つの成績の名前、レース単位の3個の名前。特徴量の名前はここから作る（例: 過去開催の前走のレースが同じ馬の複勝率） | `feature_name(成績)` | ― |
+| `ABILITY_CATALOG`・`RACE_DAY_CATALOG`（`feature_catalog.py`） | この予想の特徴量の一覧。手本と同じ材料に K を足したもの（木曜・前日は `ABILITY_FEATURES + HEAD_TO_HEAD_FEATURES + MARKET_FEATURES + K_FEATURES`、当日は手本の当日の 285個 + `K_FEATURES` の 336個。[09-features.md](09-features.md)）。K の一覧 `K_FEATURES`（51個。名前・まとまり・型・いつから分かるか）は `CUTS` から作る | ―（値） | 共通の `FeatureCatalog` |
 
 ### workflow/ — 流れを進める
 
@@ -127,4 +131,4 @@ src/yosou/stakes_tendency_top3/     重賞の傾向と近走から3着以内を�
 | 項目 | 内容 |
 |---|---|
 | 作成日 | 2026-09-29 |
-| 更新 | 2026-09-29: `shared` への追加とこの予想のパッケージが実装されたのに合わせ、状態と `StakesTendencyRepository` の列（`*_exp`・`base_*_excess`）を直した。2026-10-02: 手本の新しい材料で作り直したので、組み立ての関数・一覧・時点の分け方・券種オッズなしの部品を直した |
+| 更新 | 2026-09-29: `shared` への追加とこの予想のパッケージが実装されたのに合わせ、状態と `StakesTendencyRepository` の列を直した。2026-10-02: 手本の新しい材料で作り直したので、組み立ての関数・一覧・時点の分け方・券種オッズなしの部品を直した。2026-10-15: K を「自分と同じ条件だった馬の成績」に作り直したので、リポジトリの列と K のクラス（`ConditionBands`・`EditionStats`・`CUTS`）を直した |
