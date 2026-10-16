@@ -7,6 +7,7 @@
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py run --variants g1-signs   # 1つだけ
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py summary   # 5. G1の人気馬で比べる表（数秒）
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py marks     # 6. 道具「印の成績」に渡す、G1だけの予測を書く（数秒）
+    uv run python research/G1の危険な人気馬のサイン/g1_signs.py rule_flags      # 7'. サインに1つでも当てはまった人気馬を消にする表を書く（数秒）
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py marks_summary   # 8. 作り方ごとの印の成績を1つの表に並べる（数秒）
 
 6 のあと、作り方ごとに道具「印の成績」で印と全券種の買い目の成績を出し（7。README の「動かし方」）、8 で並べる。
@@ -39,13 +40,14 @@ from 既存モデルの改善.analysis.tables.model_tables import STAKES_TABLE_P
 from 既存モデルの改善.analysis.walk_forward import PredictionStore, WalkForwardRunner  # noqa: E402
 from 既存モデルの改善.analysis.windows import STAKES_WINDOWS  # noqa: E402
 
-from G1の危険な人気馬のサイン.analysis.mark_inputs import MarkInputs  # noqa: E402
+from G1の危険な人気馬のサイン.analysis.mark_inputs import MARKS_FOLDER, MarkInputs  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.mark_summary import MarkSummary  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.race_scope import EVALUATION_SCOPES  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.run_history_repository import RunHistoryRepository  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.scope_comparison import ScopeComparison  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.scoped_window_trainer import ScopedWindowTrainer  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_case_report import SignCaseReport  # noqa: E402
+from G1の危険な人気馬のサイン.analysis.sign_rule_flags import RULE_KEY, RULE_NAME, SignRuleFlags  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_table_builder import SignTableBuilder  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_training_table import SignTrainingTable  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_variants import SIGN_VARIANTS, TABLE_NAME  # noqa: E402
@@ -62,7 +64,7 @@ _P_CORES = 0xFFF
 def main() -> None:
     args = _parser().parse_args()
     {"signs": _signs, "cases": _cases, "base": _base, "run": _run, "summary": _summary, "marks": _marks,
-     "marks_summary": _marks_summary}[args.step](args)
+     "rule_flags": _rule_flags, "marks_summary": _marks_summary}[args.step](args)
 
 
 def _signs(args: argparse.Namespace) -> None:
@@ -120,8 +122,16 @@ def _marks(args: argparse.Namespace) -> None:
         print(path, flush=True)
 
 
+def _rule_flags(args: argparse.Namespace) -> None:
+    data = SignTrainingTable().attach(TableStore(args.out / "tables").read(_BASE_TABLE, FAVORITES_CATALOG), _read_signs(args))
+    path = args.out / "predictions" / MARKS_FOLDER / "rule" / f"{RULE_KEY}.pkl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    SignRuleFlags().build(data).to_pickle(path)
+    print(path, flush=True)
+
+
 def _marks_summary(args: argparse.Namespace) -> None:
-    names = {NO_DANGER: "消を使わない"} | {variant.key: variant.name for variant in SIGN_VARIANTS}
+    names = {NO_DANGER: "消を使わない", RULE_KEY: RULE_NAME} | {variant.key: variant.name for variant in SIGN_VARIANTS}
     tables = [table for scope in EVALUATION_SCOPES for table in MarkSummary(scope).tables(args.out / "印の成績" / scope.key, names)]
     _write(tables, args.out / "印の成績のまとめ.md")
 
@@ -161,9 +171,9 @@ def _pin_to_p_cores() -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="G1の危険な人気馬のサインの確かめ", allow_abbrev=False)
-    parser.add_argument("step", choices=("signs", "cases", "base", "run", "summary", "marks", "marks_summary"),
+    parser.add_argument("step", choices=("signs", "cases", "base", "run", "summary", "marks", "rule_flags", "marks_summary"),
                         help="signs（サインの表）・cases（サインごとの成績）・base（学習データ）・run（学習）・summary（比べる表）・"
-                             "marks（印の成績に渡す予測）・marks_summary（印の成績を並べる）")
+                             "marks（印の成績に渡す予測）・rule_flags（サインで消を決める表）・marks_summary（印の成績を並べる）")
     parser.add_argument("--variants", nargs="*", default=None, metavar="作り方", help="run で回す作り方（省略すると全部）")
     parser.add_argument("--force", action="store_true", help="run で、済んだ作り方も回し直す")
     parser.add_argument("--threads", type=int, default=6, help="run の学習のスレッド数（既定: 6）")

@@ -128,3 +128,20 @@ def test_合成DBから出走の結果を読む(synth_db: Path) -> None:
     assert set(results["race_id"]) == set(race_ids.astype(str))
     assert {"finish", "win_odds", "popularity", "win_payout", "place_payout", "place_odds_low"} <= set(results.columns)
     assert np.isin(results["race_id"].unique(), race_ids.astype(str)).all()
+
+
+def test_決まりで決めた消の表を判定と同じ形で読む(tmp_path: Path) -> None:
+    from 印の成績.danger_flag_file import DangerFlagFile
+    from 印の成績.favorite_danger_judge import COLUMNS
+
+    path = tmp_path / "flags.pkl"
+    pd.DataFrame({"race_id": [1, 1, 1], "horse_id": [10, 11, 12], "favorite_band": ["1番人気", "2〜3番人気", "2〜3番人気"],
+                  "is_danger": [True, True, False]}).to_pickle(path)
+    flags = DangerFlagFile(path).load()
+    assert list(flags.columns) == list(COLUMNS)
+    # 1レースに消が2頭いてもそのまま。線以上の扱いは消と同じ
+    assert flags["is_danger"].tolist() == [True, True, False] and flags["over_line"].tolist() == [True, True, False]
+    assert flags.loc[0, "race_id"] == "1" and flags["danger_score"].isna().all()
+    pd.DataFrame({"race_id": [1]}).to_pickle(path)
+    with pytest.raises(ValueError):
+        DangerFlagFile(path).load()

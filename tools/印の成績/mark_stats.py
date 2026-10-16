@@ -6,6 +6,7 @@
     uv run python tools/印の成績/mark_stats.py --form form_experiments/new --no-danger  # 危険な人気馬の判定を使わない
     uv run python tools/印の成績/mark_stats.py --no-win                                 # 1着の予想を使わない（◎ は3着以内の確率の1位。前の決め方）
     uv run python tools/印の成績/mark_stats.py --danger-bands 1番人気 2〜3番人気 --out-dir reports/印の成績/比べ  # 消にできる人気帯を替えて比べる
+    uv run python tools/印の成績/mark_stats.py --danger-flags reports/…/flags.pkl   # 決まりで決めた消（1レースに何頭でも）を使う
 
 予測は、研究「既存モデルの改善」の入口② walk_forward.py（1着の予想は入口⑪ win_check.py）が書く
 reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切りごとに、それより前で学習したモデルで次の半年を予測したもので、
@@ -30,6 +31,7 @@ reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切�
 「3連単の支持あり」は ◎ の 3連単から見た勝率（3連単の確定オッズから取り出す）が単勝から見た勝率以上のレース。
 オッズは確定オッズ（過去のレースには締め切り前のオッズが無い。表11 だけ、時系列オッズの前日夜と当日朝の断面を使う）。
 危険な人気馬は --danger の予測で、区切りごとに検証期間で線を決め直す。消にできる人気帯は --danger-bands（既定は今週の予想と同じ。1レース1頭で1番人気を優先）。
+--danger-flags を渡すと、モデルの確率でなく、その表で決めた消（列 race_id・horse_id・favorite_band・is_danger。1レースに何頭でも）を使う。
 --timing 木曜 にすると、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝と単勝の期待値・危険な人気馬・絞り込み）を使わずに印を付ける
 （◎ は1着になる確率の1位。☆・注・期待度は付かない）。
 結果は reports/印の成績/<全頭の予想の名前>.md にも書く。元DB の事実表を作り、買い目の払戻とオッズ・3連単のオッズ・時系列オッズも読むので、10〜15分かかる。
@@ -59,6 +61,7 @@ from 今週の予想.torigami_filter import TorigamiFilter  # noqa: E402
 
 from 印の成績.backtest_marker import BacktestMarker  # noqa: E402
 from 印の成績.danger_band_report import DangerBandReport  # noqa: E402
+from 印の成績.danger_flag_file import DangerFlagFile  # noqa: E402
 from 印の成績.favorite_danger_judge import COLUMNS as DANGER_COLUMNS, FavoriteDangerJudge  # noqa: E402
 from 印の成績.line_sensitivity_report import LineSensitivityReport  # noqa: E402
 from 印の成績.mark_report import MarkReport  # noqa: E402
@@ -92,7 +95,8 @@ DEFAULT_OUT_DIR = HERE.parents[1] / "reports" / "印の成績"
 def main(args) -> None:
     form = PredictionFile(args.form)
     win = None if args.no_win else PredictionFile(args.win)
-    danger = None if args.no_danger else PredictionFile(args.danger)
+    flags = DangerFlagFile(args.danger_flags) if args.danger_flags else None
+    danger = None if args.no_danger or flags else PredictionFile(args.danger)
     predictions = form.load()
     tested = predictions[predictions["period"] == TEST]
     if tested.empty:
@@ -115,12 +119,16 @@ def main(args) -> None:
             print("3連単のオッズから見た勝率と、前日夜・当日朝の単勝オッズを読みます", file=sys.stderr, flush=True)
             pools = PoolWinReader().read(con, test_race_ids)
             movements = OddsSnapshotRepository().read(con, test_race_ids)
-    dangers, lines = (FavoriteDangerJudge(tuple(args.danger_bands)).judge(favorites, places) if favorites is not None and odds_known
-                      else (pd.DataFrame(columns=list(DANGER_COLUMNS)), {}))
+    if flags is not None and odds_known:
+        dangers, lines = flags.load(), {}
+    elif favorites is not None and odds_known:
+        dangers, lines = FavoriteDangerJudge(tuple(args.danger_bands)).judge(favorites, places)
+    else:
+        dangers, lines = pd.DataFrame(columns=list(DANGER_COLUMNS)), {}
     wins = WinValueAttacher().attach(win_predictions, places) if win_predictions is not None else None
     marked = marker.mark(tested, places, dangers, wins, pools, movements)
     conditions = (f"時点: {args.timing.label}。全頭の予想: {form.name}。1着の予想: {win.name if win else '使わない'}。"
-                  f"危険な人気馬: {danger.name if danger and odds_known else '使わない'}。"
+                  f"危険な人気馬: {_danger_name(danger, flags) if odds_known else '使わない'}。"
                   f"期間: {marked['race_date'].min():%Y-%m-%d} 〜 {marked['race_date'].max():%Y-%m-%d}（7つの区切りのテスト期間）。")
     tables = MarkReport().tables(marked, conditions, lines)
     tickets = MarkTickets().build(marked)
@@ -145,6 +153,13 @@ def main(args) -> None:
     print(f"\n保存先: {saved}\n買い目: {tickets_csv}", file=sys.stderr)
 
 
+def _danger_name(danger: PredictionFile | None, flags: DangerFlagFile | None) -> str:
+    """結果の条件に書く、危険な人気馬の決め方。"""
+    if flags is not None:
+        return f"決まりで決めた消（{flags.path}）"
+    return danger.name if danger else "使わない"
+
+
 def _estimator(models: Path) -> PlacePriceEstimator | None:
     state = PlacePriceRepository(models).load()
     return PlacePriceEstimator.from_state(state) if state is not None else None
@@ -162,6 +177,9 @@ def build_parser():
     parser.add_argument("--danger", default=DEFAULT_DANGER,
                         help=f"危険な人気馬を判定する人気馬の予想の予測。<予想>/<作り方> か pkl のパス（既定: {DEFAULT_DANGER}）")
     parser.add_argument("--no-danger", action="store_true", help="危険な人気馬の判定を使わない（◎〜△ は確率の順だけで付ける）")
+    parser.add_argument("--danger-flags", type=Path, default=None, metavar="pkl",
+                        help="決まりで決めた消の表（列 race_id・horse_id・favorite_band・is_danger）。渡すと --danger の予測は使わない。"
+                             "1レースに消が何頭いてもよい")
     parser.add_argument("--danger-bands", nargs="+", choices=FAVORITE_BANDS, default=list(MARKED_BANDS), metavar="人気帯",
                         help=f"危険と判定した馬を消にできる人気帯（{'・'.join(FAVORITE_BANDS)}。1レース1頭で、1番人気を優先。"
                              f"既定: 今週の予想と同じ {'・'.join(MARKED_BANDS)}）")
