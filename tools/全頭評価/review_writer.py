@@ -43,4 +43,5 @@ class ReviewWriter:
                  f"出走すれば 3着以内に入る確率 {horse.top3:.1%}、1着になる確率 {horse.win:.1%}。", ""]
         lines += ["**強み**", ""] + ([f"- {text}" for text in horse.strong] or ["- （目立つ強みは無い）"]) + [""]
         lines += ["**弱み**", ""] + ([f"- {text}" for text in horse.weak] or ["- （目立つ弱みは無い）"]) + [""]
+        lines += ["**近走**（古い順。4着以下の走には敗因の候補、最後に評価のことば）", ""] + (horse.story or ["- 中央での過去走が無い"]) + [""]
         return lines

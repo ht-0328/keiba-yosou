@@ -49,3 +49,23 @@ def test_買い目の表は1点1行で外した理由も出す() -> None:
     assert table.rows[0] == ["単勝", "単勝", "3", "1", "", "", "3.1", ""]
     assert table.rows[1] == ["3連単（◎軸・マルチ・期待値 1.0 以上）", "3連単", "3→1→8", "0.1", "1.23", "2.1%", "60.0", "トリガミ"]
     assert "買い目 2 点（買う 1 点）" in table.note and "締め切り前のオッズ" in table.note
+
+
+def test_保存すると全頭の予想根拠の_Markdown_も書く(tmp_path: Path) -> None:
+    store = ForecastStore(tmp_path)
+    forecast = sample_forecast()
+    forecast["horses"][0]["good"][0]["details"] = [{"name": "スピード指数・前走", "value": "90", "effect": 2.0}]
+    forecast["horses"][0]["story"] = {"career_runs": 3, "runs": [], "words": [], "lines": ["- 2025-03-01 未勝利（…）2着。", "- 評価: 上向き（…）"]}
+    store.save(forecast)
+    path = store.reasons_path("2025041905010101")
+    assert path == tmp_path / "2025-04-19" / "2025041905010101.md"
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("# 2025-04-19（土） 東京 1R の全頭の予想根拠")
+    assert "- 印: ◎3" in text and "- 複勝の買い目: なし" in text and "- レースの期待度: 高" in text
+    assert "## 1. ◎ 3 馬A（1番人気 3.1倍）" in text
+    assert "- 確率: 3着以内 42.0%・市場の見立て 40.0%・1着 35.0%・単勝の期待値 1.08・複勝の期待値 1.05" in text
+    assert "- 総合: 総合の文" in text and "- 良い点: 「能力」+3.0ポイント（スピード指数・前走 90）" in text and "- 悪い点: 目立つものはない" in text
+    assert "- 近走（古い順）:\n  - 2025-03-01 未勝利（…）2着。\n  - 評価: 上向き（…）" in text
+    # 近走の文の無い前の版の結果は、近走を省く
+    store.save(sample_forecast("2025041905010102"))
+    assert "近走（古い順）" not in store.reasons_path("2025041905010102").read_text(encoding="utf-8")

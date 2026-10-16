@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,7 @@ from yosou.development_score import names as score_names
 from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
 from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
 from yosou.race_development.workflow import DevelopmentPaceWorkflow
+from yosou.review import ReviewStore
 from yosou.shared.dataset import column_names as ids
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE, WIN_RATE, MarketPlaces
@@ -58,6 +59,7 @@ from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.mark_rule import OUT_MARK as DANGER_MARK
 from 今週の予想.mark_rule import MarkRule
+from 今週の予想.story_attacher import StoryAttacher
 from 今週の予想.timing_chooser import TimingChooser
 
 #: 予想の結果の表の列 → この道具の列。
@@ -87,11 +89,12 @@ class RaceForecaster:
     （設計書「近走と適性から3着以内を予想」の 16 の 6。木曜は期待値が無いので期待度も無い）。
     印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（全券種）を組み、締め切り前のオッズで組の確率とトリガミを付ける（``ForecastTickets``。
     結果の ``tickets``。木曜はオッズが無いので期待値とトリガミは付かない）。
+    各馬には近走の文（``StoryAttacher``。近5走の文・負けた走の敗因の候補・評価のことば。回顧の不利は ``review_store`` から）も付ける。
     ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所。結果は JSON にできる辞書。
     """
 
     def __init__(self, models: Path, favorite_models: Path, figure_cache: Path = FIGURE_CACHE,
-                 development_root: Path = DEFAULT_DEVELOPMENT_ROOT) -> None:
+                 development_root: Path = DEFAULT_DEVELOPMENT_ROOT, review_store: ReviewStore | None = None) -> None:
         self._models = Path(models)
         self._dangers = DangerFinder(favorite_models)
         self._figure_cache = Path(figure_cache)
@@ -102,6 +105,7 @@ class RaceForecaster:
         self._expectation = ExpectationLevel()
         self._tickets = ForecastTickets()
         self._danger_reasons = DangerReasons()
+        self._stories = StoryAttacher(review_store)
         self._score_attacher: RaceScoreAttacher | None = None
 
     def forecast(self, con: duckdb.DuckDBPyConnection, race_id: str,
@@ -114,6 +118,7 @@ class RaceForecaster:
         reason = choice.reason if timing is None else f"{chosen.label}のモデル（指定）"
         explained = self._workflow(con, chosen).explain(race_id, chosen)
         horses, marked = self._horses(explained, self._dangers.find(con, race_id, chosen))
+        self._stories.attach(con, horses, date.fromisoformat(header["日付"]))
         expectation = self._race_expectation(horses)
         odds_known = chosen is not PredictionTiming.THURSDAY
         return {
