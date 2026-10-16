@@ -144,3 +144,20 @@ def test_evaluation_scopes_split_g1_and_lower_stakes():
     grade = pd.Series(["A", "B", "C", "", None, "L"])
     assert G1_RACES.matches(grade).tolist() == [True, False, False, False, False, False]
     assert LOWER_STAKES.matches(grade).tolist() == [False, True, True, False, False, False]
+
+
+def test_most_signs_rule_picks_one_horse_per_race_and_prefers_the_favorite():
+    from yosou.favorites_out_of_top3.dataset import FAVORITE_BAND
+    from yosou.shared.dataset import HORSE_ID, RACE_ID, TrainingData
+    from yosou.shared.feature import Feature, FeatureCatalog, FeatureKind
+
+    from G1の危険な人気馬のサイン.analysis.most_signs_rule_flags import MostSignsRuleFlags
+
+    ids = pd.DataFrame({RACE_ID: ["r1"] * 3 + ["r2"] * 3 + ["r3"] * 2, HORSE_ID: [f"h{i}" for i in range(8)]})
+    # r1: 2番人気がいちばん多い。r2: 1番人気と3番人気が同じ数 → 1番人気。r3: どの馬も当てはまらない → 消なし
+    signs = pd.DataFrame({SIGN_COUNT: [1, 3, 2, 2, 0, 2, 0, 0]})
+    evaluation = pd.DataFrame({"確定の単勝人気": [1, 2, 3, 1, 2, 3, 1, 2], FAVORITE_BAND: "1番人気"})
+    data = TrainingData(ids, signs, pd.DataFrame({"y": [0] * 8}), evaluation,
+                        FeatureCatalog((Feature(SIGN_COUNT, "危険サイン", FeatureKind.NUMERIC),)), "y")
+    flags = MostSignsRuleFlags().build(data)
+    assert flags["is_danger"].tolist() == [False, True, False, True, False, False, False, False]

@@ -7,7 +7,7 @@
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py run --variants g1-signs   # 1つだけ
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py summary   # 5. G1の人気馬で比べる表（数秒）
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py marks     # 6. 道具「印の成績」に渡す、G1だけの予測を書く（数秒）
-    uv run python research/G1の危険な人気馬のサイン/g1_signs.py rule_flags      # 7'. サインに1つでも当てはまった人気馬を消にする表を書く（数秒）
+    uv run python research/G1の危険な人気馬のサイン/g1_signs.py rule_flags      # 7'. サインで消を決める決まりの表を書く（1つでも当てはまったら全部・いちばん多い1頭。数秒）
     uv run python research/G1の危険な人気馬のサイン/g1_signs.py marks_summary   # 8. 作り方ごとの印の成績を1つの表に並べる（数秒）
 
 6 のあと、作り方ごとに道具「印の成績」で印と全券種の買い目の成績を出し（7。README の「動かし方」）、8 で並べる。
@@ -42,6 +42,7 @@ from 既存モデルの改善.analysis.windows import STAKES_WINDOWS  # noqa: E4
 
 from G1の危険な人気馬のサイン.analysis.mark_inputs import MARKS_FOLDER, MarkInputs  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.mark_summary import MarkSummary  # noqa: E402
+from G1の危険な人気馬のサイン.analysis.most_signs_rule_flags import MOST_RULE_KEY, MOST_RULE_NAME, MostSignsRuleFlags  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.race_scope import EVALUATION_SCOPES  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.run_history_repository import RunHistoryRepository  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.scope_comparison import ScopeComparison  # noqa: E402
@@ -124,14 +125,16 @@ def _marks(args: argparse.Namespace) -> None:
 
 def _rule_flags(args: argparse.Namespace) -> None:
     data = SignTrainingTable().attach(TableStore(args.out / "tables").read(_BASE_TABLE, FAVORITES_CATALOG), _read_signs(args))
-    path = args.out / "predictions" / MARKS_FOLDER / "rule" / f"{RULE_KEY}.pkl"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    SignRuleFlags().build(data).to_pickle(path)
-    print(path, flush=True)
+    folder = args.out / "predictions" / MARKS_FOLDER / "rule"
+    folder.mkdir(parents=True, exist_ok=True)
+    for key, rule in ((RULE_KEY, SignRuleFlags()), (MOST_RULE_KEY, MostSignsRuleFlags())):
+        path = folder / f"{key}.pkl"
+        rule.build(data).to_pickle(path)
+        print(path, flush=True)
 
 
 def _marks_summary(args: argparse.Namespace) -> None:
-    names = {NO_DANGER: "消を使わない", RULE_KEY: RULE_NAME} | {variant.key: variant.name for variant in SIGN_VARIANTS}
+    names = {NO_DANGER: "消を使わない", RULE_KEY: RULE_NAME, MOST_RULE_KEY: MOST_RULE_NAME} | {variant.key: variant.name for variant in SIGN_VARIANTS}
     tables = [table for scope in EVALUATION_SCOPES for table in MarkSummary(scope).tables(args.out / "印の成績" / scope.key, names)]
     _write(tables, args.out / "印の成績のまとめ.md")
 
