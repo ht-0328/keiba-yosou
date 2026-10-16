@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 from pathlib import Path
 
 import duckdb
@@ -22,6 +23,9 @@ from .registration_stakes_map import RegistrationStakesMap
 from .review_document import FieldReviewDocument, HorseReview
 from .stakes_edition_repository import StakesEditionRepository
 from .stakes_tendency_points import StakesTendencyPoints
+from 近走の文.past_run_reader import PastRunReader
+from 近走の文.past_run_story import PastRunStory
+from 近走の文.story_writer import StoryWriter
 
 #: 有力馬の候補の数（1着の確率の上位）。
 CANDIDATES = 3
@@ -34,6 +38,7 @@ class FieldReview:
 
     予測は予想「特別登録馬の近走と適性から3着以内を予想」の ``PredictionWorkflow.explain``（登録馬の行から。``models_root`` のモデル）。
     事実は登録馬の行の一時表（``TABLE``。予測のときに作られる）と事実表から読む。重賞（G1〜G3）なら過去の開催の出走馬から傾向の文を足す。
+    馬ごとに近走の文（道具「近走の文」。近5走の文・敗因の候補・評価のことば。基準日はレースの日）も付ける。
     """
 
     def __init__(self, con: duckdb.DuckDBPyConnection, models_root: Path, figure_folder: Path = DEFAULT_FOLDER) -> None:
@@ -46,6 +51,9 @@ class FieldReview:
         self._editions = StakesEditionRepository(con)
         self._points = HorsePoints()
         self._tendency = StakesTendencyPoints()
+        self._runs = PastRunReader(con)
+        self._story = PastRunStory()
+        self._story_writer = StoryWriter()
 
     def build(self, race_id: str) -> FieldReviewDocument:
         """特別登録が無ければ ``LookupError``。"""
@@ -59,8 +67,9 @@ class FieldReview:
         editions = self._editions.read(stakes_no, race["race_date"].date()) if stakes_no else pd.DataFrame()
         table = explained.table.assign(**{HORSE_ID: explained.table[HORSE_ID].astype(str)})
         ordered = table.sort_values(PROBABILITY, ascending=False, kind="stable")
+        stories = self._stories_of(table, race["race_date"].date())
         horses = [self._horse(rank, row, explained.features.loc[index], explained.contributions.loc[index], facts, previous, info,
-                              editions, len(table))
+                              editions, len(table), stories)
                   for rank, (index, row) in enumerate(ordered.iterrows(), start=1)]
         win_column = WIN_PROBABILITY if WIN_PROBABILITY in table.columns else PROBABILITY
         candidates = list(table.sort_values(win_column, ascending=False, kind="stable")[HORSE_NAME].head(CANDIDATES))
@@ -73,8 +82,16 @@ class FieldReview:
             entries=len(table), candidates=candidates, horses=horses, notes=notes,
         )
 
+    def _stories_of(self, table: pd.DataFrame, race_date: date) -> dict[str, list[str]]:
+        """馬ID → 近走の文の箇条書き（中央の過去走が無い地方馬などは「過去走が無い」の1行）。"""
+        ids = [str(horse_id) for horse_id in table[HORSE_ID]]
+        names = dict(zip(ids, table[HORSE_NAME].astype(str)))
+        history = self._runs.read(ids, race_date)
+        return {horse_id: self._story_writer.body(self._story.of(horse_id, names[horse_id], history.get(horse_id, []))) for horse_id in ids}
+
     def _horse(self, rank: int, row: pd.Series, features: pd.Series, contributions: pd.Series, facts: pd.DataFrame,
-               previous: pd.DataFrame, info: pd.DataFrame, editions: pd.DataFrame, entries: int) -> HorseReview:
+               previous: pd.DataFrame, info: pd.DataFrame, editions: pd.DataFrame, entries: int,
+               stories: dict[str, list[str]]) -> HorseReview:
         horse_id = str(row[HORSE_ID])
         fact = facts.loc[horse_id]
         prev = previous.loc[horse_id] if horse_id in previous.index else None
@@ -101,7 +118,7 @@ class FieldReview:
         return HorseReview(
             horse_id=horse_id, name=str(row[HORSE_NAME]), profile=profile, rank=rank, top3=float(row[PROBABILITY]),
             win=win if win is not None else float("nan"), sex_age=sex_age, trainer=trainer, carried=carried, exchange=exchange,
-            strong=strong, weak=weak,
+            strong=strong, weak=weak, story=stories.get(horse_id, []),
         )
 
 

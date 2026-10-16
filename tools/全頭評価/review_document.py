@@ -11,6 +11,7 @@ class HorseReview:
     """1頭の評価。``profile`` は基本情報の1行（性齢・父・母父・調教師・負担重量・交流）。確率はモデルの平均。
 
     ``strong``・``weak`` は強み・弱みの文（定型。根拠の数字付き）。``rank`` は 3着以内の確率の高い順の評価順。
+    ``story`` は近走の文の箇条書き（道具「近走の文」の ``StoryWriter.body``。近5走の文・敗因の候補・評価のことば）。
     """
 
     horse_id: str
@@ -25,6 +26,7 @@ class HorseReview:
     exchange: str
     strong: list[str] = field(default_factory=list)
     weak: list[str] = field(default_factory=list)
+    story: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

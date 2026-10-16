@@ -59,7 +59,7 @@ _RID = card.CARD_LIST_HEADERS.index("rid")
 def main(args) -> None:
     store = ForecastStore(args.out_dir)
     review = ReviewStore(args.review_db)
-    forecaster = RaceForecaster(args.models, args.favorite_models)
+    forecaster = RaceForecaster(args.models, args.favorite_models, review_store=review)
     tables: list[Table] = []
     with db.open_db(args.db) as con:
         if not args.no_review:
@@ -79,10 +79,12 @@ def main(args) -> None:
                 print(f"  予想できません: {error}", file=sys.stderr, flush=True)
                 continue
             store.save(forecast)
+            print(f"  全頭の予想根拠: {store.reasons_path(race_id)}", file=sys.stderr, flush=True)
             tables.append(ForecastTable().table(forecast))
             tables.append(TicketTable().table(forecast))
             if args.detail:
                 tables.append(_detail_table(forecast))
+                tables.append(_story_table(forecast))
         if not args.no_plan:
             tables += _plan_days(con, store, review, race_ids)
     cli.emit(tables, args)
@@ -143,6 +145,14 @@ def _detail_table(forecast: dict) -> Table:
     """各馬の総合の理由の表。"""
     rows = [[horse["mark"], horse["horse_no"], horse["horse_name"], horse["summary"]] for horse in forecast["horses"]]
     return Table(["印", "馬番", "馬名", "総合"], rows, title=f"{forecast['title']} の各馬の理由")
+
+
+def _story_table(forecast: dict) -> Table:
+    """各馬の近走の文の表（1行 = 1走の文か、敗因の候補・評価の行）。"""
+    rows = [[horse["mark"], horse["horse_no"], horse["horse_name"], line]
+            for horse in forecast["horses"] for line in (horse.get("story") or {}).get("lines", [])]
+    return Table(["印", "馬番", "馬名", "近走（古い順）"], rows, title=f"{forecast['title']} の各馬の近走の文",
+                 note="近5走を1走ずつ文にしたもの。4着以下の走には敗因の候補、最後に評価のことば（上向き・大敗続き）。道具「近走の文」と同じ。")
 
 
 def build_parser():

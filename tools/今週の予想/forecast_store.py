@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from 今週の予想.mark_rule import NO_MARK
+from 今週の予想.reason_document import ReasonDocument
 
 #: keiba-yosou のリポジトリ直下（tools/今週の予想/ から2つ上）。
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,8 @@ DEFAULT_FOLDER = _PROJECT_ROOT / "reports" / "今週の予想"
 
 class ForecastStore:
     """1レースの予想の結果（``RaceForecaster.forecast`` の辞書）を、``<置き場所>/<開催日>/<rid>.json`` に書く・読む。
+
+    書くときは、人が読む全頭の予想根拠（``ReasonDocument``）も同じフォルダの ``<rid>.md`` に書く。
 
     画面は、ここに書いてある結果を読んで見せる（予想には1レース数十秒かかるので、先にまとめて作っておく）。
     """
@@ -31,7 +34,12 @@ class ForecastStore:
         path = self._path(forecast["rid"])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(forecast, ensure_ascii=False, indent=1), encoding="utf-8")
+        self.reasons_path(forecast["rid"]).write_text(ReasonDocument().markdown(forecast), encoding="utf-8", newline="\n")
         return path
+
+    def reasons_path(self, race_id: str) -> Path:
+        """全頭の予想根拠の Markdown の場所。"""
+        return self._path(race_id).with_suffix(".md")
 
     def load(self, race_id: str) -> dict[str, Any] | None:
         """書いてある結果。無ければ None。"""

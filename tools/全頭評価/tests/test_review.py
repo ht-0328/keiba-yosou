@@ -37,6 +37,9 @@ def test_the_review_covers_every_registered_horse_with_points(season_db: Path, r
         assert "父:" in horse.profile and "調教師:" in horse.profile and "負担重量: 57kg" in horse.profile
         assert horse.strong or horse.weak
         assert any(text.startswith("前走 ") for text in horse.strong + horse.weak)
+        # 近走の文（道具「近走の文」）。シーズンを走った馬なので、レースの日より前の走の文が1行以上ある
+        assert horse.story and all(line.startswith(("- ", "  - ")) for line in horse.story)
+        assert any(line.startswith("- 20") for line in horse.story)
     # 重賞ではないので、過去の同じレースの傾向は出さない
     assert any("重賞ではない" in note for note in document.notes)
 
@@ -54,6 +57,7 @@ def test_the_markdown_has_the_table_and_a_section_per_horse(season_db: Path, rev
     assert text.startswith(f"# {season.REGISTRATION_RACE_NAME}（{season.FUTURE_DAY.isoformat()} ")
     assert "**有力馬の候補**" in text and "| 評価順 | 馬名 |" in text
     assert text.count("\n## ") == season.REGISTRATION_ONLY_FIELD_SIZE and "**強み**" in text and "**弱み**" in text
+    assert text.count("**近走**") == season.REGISTRATION_ONLY_FIELD_SIZE
     for word in ("◎", "印", "期待度", "買い目"):
         assert word not in text
 
