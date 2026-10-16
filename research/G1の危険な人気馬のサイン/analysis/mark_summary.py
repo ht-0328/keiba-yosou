@@ -9,6 +9,8 @@ import pandas as pd
 
 from 共通.render import Table
 
+from .race_scope import RaceScope
+
 #: 並べる元の買い目（印のルールの買い方。設計書「買うレースと買い目を決める」08 の 2）。
 ORIGINAL_BETS: tuple[str, ...] = (
     "単勝", "複勝", "ワイド", "馬連", "馬単", "3連複（◎−○▲☆−○▲△☆）", "3連単（◎→○▲☆→○▲△☆）",
@@ -19,9 +21,12 @@ _DANGER_HEADER = "### 1. 印ごとの成績"
 
 
 class MarkSummary:
-    """``<root>/<作り方>/`` にある道具「印の成績」の結果（買い目の CSV と Markdown）から、作り方ごとの
+    """``scope`` のレースについて、``<root>/<作り方>/`` にある道具「印の成績」の結果（買い目の CSV と Markdown）から、作り方ごとの
     元の買い目の券種ごとの回収率と合計、消の成績を並べる。``names`` は作り方 → 表に出す名前（並べる順）。
     """
+
+    def __init__(self, scope: RaceScope) -> None:
+        self._scope = scope
 
     def tables(self, root: Path, names: Mapping[str, str]) -> list[Table]:
         made = {key: name for key, name in names.items() if (Path(root) / key).is_dir()}
@@ -39,7 +44,7 @@ class MarkSummary:
             record["合計（元の買い目）"] = _roi(original)
             record["合計の投資（100円単位）"] = f"{int(original['単位'].sum()):,}"
             records.append(record)
-        return Table.from_records(records, title="5. G1 のレースの、元の買い目の券種ごとの回収率（道具「印の成績」。1点 100円 × 単位）",
+        return Table.from_records(records, title=f"{self._scope.label}: 5. 元の買い目の券種ごとの回収率（道具「印の成績」。1点 100円 × 単位）",
                                   note="作り方で変わるのは消（危険な人気馬）だけ。消の馬は ◎〜注 に入らないので、印と買い目が変わる。"
                                        "トリガミで外した点は数えない。")
 
@@ -51,7 +56,7 @@ class MarkSummary:
                 row = rows.get(label)
                 if row is not None:
                     records.append({"作り方": name, "印": label, **row})
-        return Table.from_records(records, title="6. 消（危険な人気馬）の成績（道具「印の成績」の表1）",
+        return Table.from_records(records, title=f"{self._scope.label}: 6. 消（危険な人気馬）の成績（道具「印の成績」の表1）",
                                   note="消の馬の成績なので、複勝率・回収率が低いほど、危険な馬を当てている。")
 
 

@@ -12,8 +12,9 @@ from yosou.shared.feature.odds import TOP3_RATE
 
 from 既存モデルの改善.analysis.walk_forward import PART, PART_TEST, PREDICTION_COLUMN, SEGMENT, WINDOW
 
-from G1の危険な人気馬のサイン.analysis.g1_comparison import G1Comparison
-from G1の危険な人気馬のサイン.analysis.g1_test_rows import G1TestRows
+from G1の危険な人気馬のサイン.analysis.race_scope import G1_RACES, LOWER_STAKES
+from G1の危険な人気馬のサイン.analysis.scope_comparison import ScopeComparison
+from G1の危険な人気馬のサイン.analysis.scope_test_rows import ScopeTestRows
 from G1の危険な人気馬のサイン.analysis.sign_columns import SIGN_COUNT
 from G1の危険な人気馬のサイン.analysis.sign_training_table import GRADE
 
@@ -52,7 +53,7 @@ def test_rows_keep_only_g1_favorites_shared_by_every_variant():
     data = _data(np.random.default_rng(0))
     market = 1 - data.evaluation[TOP3_RATE]
     predictions = {"odds_only": _predictions(data, market), "g1-signs": _predictions(data, market, only_g1=True)}
-    rows = G1TestRows().build(data, predictions)
+    rows = ScopeTestRows(G1_RACES).build(data, predictions)
     assert set(rows["variant"]) == {"odds_only", "g1-signs"}
     # G1 は 2年 × 10レース × 5頭
     assert rows.groupby("variant").size().tolist() == [100, 100]
@@ -67,9 +68,18 @@ def test_comparison_counts_windows_against_odds_only_and_the_current_model():
         "all-current": _predictions(data, market * 0.98 + 0.01),
         "g1-signs": _predictions(data, (market * 0.5 + label * 0.5).clip(0.01, 0.99), only_g1=True),  # 答えを混ぜた作り方
     }
-    tables = G1Comparison().tables(data, predictions)
-    assert [table.title[:2] for table in tables] == ["1.", "2.", "3.", "4."]
+    tables = ScopeComparison(G1_RACES).tables(data, predictions)
+    assert [table.title[:6] for table in tables] == ["G1: 1.", "G1: 2.", "G1: 3.", "G1: 4."]
     scores = {row[0]: row for row in tables[0].rows}
     signs = scores["G1だけで学ぶ・今の材料 ＋ サイン"]
     assert signs[tables[0].columns.index("オッズだけより小さい区切り")] == "2/2（不合格）"  # 区切りが2つしかないので5つに届かない
     assert len(tables[1].rows) == 2
+
+
+def test_rows_of_another_scope_use_the_g1_model_predictions_there_too():
+    data = _data(np.random.default_rng(2))
+    market = 1 - data.evaluation[TOP3_RATE]
+    # G1 で学んだモデルも、全部の行に予測がある（ScopedWindowTrainer の出力）
+    predictions = {"odds_only": _predictions(data, market), "g1-signs": _predictions(data, market)}
+    rows = ScopeTestRows(LOWER_STAKES).build(data, predictions)
+    assert rows.groupby("variant").size().tolist() == [100, 100]

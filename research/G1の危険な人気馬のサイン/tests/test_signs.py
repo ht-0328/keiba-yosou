@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 
 from G1の危険な人気馬のサイン.analysis.danger_signs import DangerSigns
-from G1の危険な人気馬のサイン.analysis.g1_favorites import LOST, G1Favorites
+from G1の危険な人気馬のサイン.analysis.race_scope import G1_RACES, LOWER_STAKES
+from G1の危険な人気馬のサイン.analysis.scope_favorites import LOST, ScopeFavorites
 from G1の危険な人気馬のサイン.analysis.gate_bias_features import GateBiasFeatures
 from G1の危険な人気馬のサイン.analysis.horse_history_features import HorseHistoryFeatures
 from G1の危険な人気馬のサイン.analysis.sign_case_report import SignCaseReport
@@ -121,10 +122,10 @@ def test_g1_favorites_and_case_report():
                          "horse_no": no, "field_size": 14, "popularity": float(no), "finish": float(15 - no),
                          "grade_code": "A", "win_payout": 0, "place_payout": 0})
     table = SignTableBuilder().build(_runs(rows))
-    chosen = G1Favorites().select(table)
+    chosen = ScopeFavorites(G1_RACES).select(table)
     # 14頭立てなので 1〜5番人気
     assert len(chosen) == 10 and chosen[LOST].eq(1).all()
-    tables = SignCaseReport().tables(table)
+    tables = SignCaseReport(G1_RACES).tables(table)
     assert [len(t) for t in tables[:1]] == [1]
     assert len(tables[1]) == len(SIGN_COLUMNS)
 
@@ -137,3 +138,9 @@ def test_variants_cover_three_scopes_with_and_without_signs():
     assert len(signs.variant.columns) == len(current.variant.columns) + 30
     assert signs.variant.segment_column is None
     assert next(variant for variant in SIGN_VARIANTS if variant.key == "all-current").variant.segment_column is not None
+
+
+def test_evaluation_scopes_split_g1_and_lower_stakes():
+    grade = pd.Series(["A", "B", "C", "", None, "L"])
+    assert G1_RACES.matches(grade).tolist() == [True, False, False, False, False, False]
+    assert LOWER_STAKES.matches(grade).tolist() == [False, True, True, False, False, False]

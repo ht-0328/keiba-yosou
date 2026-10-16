@@ -1,6 +1,6 @@
 # G1の危険な人気馬のサイン
 
-**何をする研究か。** G1 で危険な人気馬（4着以下になる人気馬）を見抜く10のサインを、人気馬の予想（「人気馬が4着以下になるかを予想」。今週の予想の「消」に使っているモデル）の材料に足し、G1 で今より見抜けるようになるかを確かめる。サインを学ぶレースの範囲は、**G1だけ・重賞（G1〜G3）・全レース**の3通りにして、どれも **G1 の人気馬で**比べる。
+**何をする研究か。** G1 で危険な人気馬（4着以下になる人気馬）を見抜く10のサインを、人気馬の予想（「人気馬が4着以下になるかを予想」。今週の予想の「消」に使っているモデル）の材料に足し、今より見抜けるようになるかを確かめる。サインを学ぶレースの範囲は **G1だけ・重賞（G1〜G3）・全レース** の3通りにする。G1 のために作ったその予想方法で、**G1 と G2・G3** を予想して、それぞれで比べる（重賞以外のレースは確かめない）（[docs/01 の 5](docs/01-仮定と進め方.md#5-g1-のために作った予想をほかのレースにも当てる)）。
 
 **なぜ始めたか。** 利用者が、G1 にだけ現れる危険な人気馬の10のパターンを示し、「G1 に絞ってこの考え方を予想に取り入れたらどうなるか。G1に絞ったモデル、G1以外の重賞を含む、その他レースを含むの3通りで試して」と頼んだ（2026-10-17）。
 
@@ -19,7 +19,7 @@
 | 9 | 人気薄で激走からの人気背負い | 人気薄で好走したあと、次走で人気になる |
 | 10 | 断然人気がいる時の2・3番人気 | 断然の1番人気がいるとき、2・3番人気の評価が雑になる |
 
-**結果（[docs/02-結果.md](docs/02-結果.md)）。** 10のサインは、どの範囲で学んでも G1 の危険な人気馬を今より見抜けるようにはしなかった。G1だけで学ぶと数が少なすぎてオッズだけにも負け、危険の線も決められない（消が付かない）。重賞で学ぶとオッズだけと同じくらい。全レースで学ぶときにサインを足すと、G1 の確率の誤差がかえって大きくなり、G1 の印の買い目の回収率も下がった。人気馬の予想は今の本番（全レースで学ぶ・サインなし）のままにする。
+**結果（[docs/02-結果.md](docs/02-結果.md)）。** 10のサインは、どの範囲で学んでも G1 の危険な人気馬を今より見抜けるようにはしなかった。G1だけで学ぶと数が少なすぎてオッズだけにも負け、危険の線も決められない（消が付かない）。重賞で学ぶとオッズだけと同じくらい。全レースで学ぶときにサインを足すと、G1 の確率の誤差がかえって大きくなり、G1 の印の買い目の回収率も下がった。G1 のために作った予想を G2・G3 に当てても同じで、G1 で学んだモデルはオッズだけに負け、サインを足しても確率と買い目の回収率は今の本番より良くならない。人気馬の予想は今の本番（全レースで学ぶ・サインなし）のままにする。
 
 ## フォルダの中身
 
@@ -41,11 +41,12 @@
 | `danger_signs.py` | 材料から10のサインとサインの数を決める（線はここにだけ書く） |
 | `sign_columns.py`・`sign_features.py` | 列の名前と、学習データの特徴量にするときの一覧 |
 | `sign_table_builder.py` | 出走ごとのサインの表を作る |
-| `g1_favorites.py`・`sign_case_report.py` | G1 の人気馬を取り出し、サインごとの成績（事例の表）を数える |
+| `scope_favorites.py`・`sign_case_report.py` | 確かめる範囲の人気馬を取り出し、サインごとの成績（事例の表）を数える |
 | `sign_training_table.py` | 人気馬の予想の学習データにサインの30列とグレードを足す |
-| `race_scope.py`・`sign_variants.py` | 学習に使うレースの範囲（G1だけ・重賞・全レース）と、比べる作り方 |
-| `g1_test_rows.py`・`g1_comparison.py` | G1 の人気馬のテスト期間で、作り方どうしを比べる表 |
-| `mark_inputs.py` | 道具「印の成績」に渡す、G1 だけの全頭の予測と、人気帯を付けた人気馬の予測を書く |
+| `race_scope.py`・`sign_variants.py` | レースの範囲（学習に使う G1だけ・重賞・全レースと、確かめる G1・G2とG3）と、比べる作り方 |
+| `scoped_window_trainer.py` | 学ぶのは作り方の範囲のレースだけ、予測は全部のレースに出す区切りごとの学習 |
+| `scope_test_rows.py`・`scope_comparison.py` | 確かめる範囲（G1・G2とG3）の人気馬のテスト期間で、作り方どうしを比べる表 |
+| `mark_inputs.py` | 道具「印の成績」に渡す、確かめる範囲ごとの全頭の予測と、人気帯を付けた人気馬の予測を書く |
 | `mark_summary.py` | 作り方ごとの印の成績（元の買い目の券種ごとの回収率と、消の成績）を1つの表に並べる |
 
 区切り・学習・予測の保存は、研究「既存モデルの改善」の部品（`analysis/windows`・`walk_forward`・`tables`）をそのまま使う。
@@ -56,14 +57,14 @@
 
 ```bash
 uv run python research/G1の危険な人気馬のサイン/g1_signs.py signs     # 1. 全出走のサインの表（元DB を開く。1分ほど）
-uv run python research/G1の危険な人気馬のサイン/g1_signs.py cases     # 2. G1の人気馬で、サインごとの成績（事例.md）
+uv run python research/G1の危険な人気馬のサイン/g1_signs.py cases     # 2. G1 と G2・G3 の人気馬で、サインごとの成績（事例.md）
 uv run python research/G1の危険な人気馬のサイン/g1_signs.py base      # 3. 人気馬の予想の学習データを 2012年から（元DB を開く。3分ほど）
-uv run python research/G1の危険な人気馬のサイン/g1_signs.py run       # 4. 7つの作り方を7つの区切りで学習（済んだものは飛ばす）
-uv run python research/G1の危険な人気馬のサイン/g1_signs.py summary   # 5. G1の人気馬で比べる表（結果.md）
+uv run python research/G1の危険な人気馬のサイン/g1_signs.py run       # 4. 7つの作り方を7つの区切りで学習。学ぶのは作り方の範囲だけ、予測は全部のレースに出す（済んだものは飛ばす）
+uv run python research/G1の危険な人気馬のサイン/g1_signs.py summary   # 5. G1 と G2・G3 の人気馬で比べる表（結果.md）
 uv run python research/G1の危険な人気馬のサイン/g1_signs.py marks     # 6. 印の成績に渡す予測を書く
-# 7. 作り方ごとに、G1 のレースの印と全券種の買い目の成績（<作り方> は odds_only・g1-current・g1-signs・stakes-current・stakes-signs・all-current・all-signs）
-uv run python tools/印の成績/mark_stats.py --form reports/G1の危険な人気馬のサイン/predictions/印の成績の入力/form/general-race_day-g1.pkl --no-win --timing 当日 --danger reports/G1の危険な人気馬のサイン/predictions/印の成績の入力/danger/<作り方>.pkl --out-dir reports/G1の危険な人気馬のサイン/印の成績/<作り方>
-#    比べる元の「消を使わない」は --danger の代わりに --no-danger、--out-dir は reports/G1の危険な人気馬のサイン/印の成績/no_danger
+# 7. 確かめる範囲（g1・g2g3）× 作り方ごとに、印と全券種の買い目の成績（<作り方> は odds_only・g1-current・g1-signs・stakes-current・stakes-signs・all-current・all-signs）
+uv run python tools/印の成績/mark_stats.py --form reports/G1の危険な人気馬のサイン/predictions/印の成績の入力/form/general-race_day-<範囲>.pkl --no-win --timing 当日 --danger reports/G1の危険な人気馬のサイン/predictions/印の成績の入力/danger/<作り方>.pkl --out-dir reports/G1の危険な人気馬のサイン/印の成績/<範囲>/<作り方>
+#    比べる元の「消を使わない」は --danger の代わりに --no-danger、--out-dir は reports/G1の危険な人気馬のサイン/印の成績/<範囲>/no_danger
 uv run python research/G1の危険な人気馬のサイン/g1_signs.py marks_summary   # 8. 作り方ごとの印の成績を1つの表に並べる（印の成績のまとめ.md）
 ```
 

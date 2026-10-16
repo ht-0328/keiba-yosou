@@ -36,13 +36,15 @@ from yosou.shared.setting import HyperparameterSettings  # noqa: E402
 
 from 既存モデルの改善.analysis.tables import TableStore  # noqa: E402
 from 既存モデルの改善.analysis.tables.model_tables import STAKES_TABLE_PERIOD  # noqa: E402
-from 既存モデルの改善.analysis.walk_forward import PredictionStore, WalkForwardRunner, WindowTrainer  # noqa: E402
+from 既存モデルの改善.analysis.walk_forward import PredictionStore, WalkForwardRunner  # noqa: E402
 from 既存モデルの改善.analysis.windows import STAKES_WINDOWS  # noqa: E402
 
-from G1の危険な人気馬のサイン.analysis.g1_comparison import G1Comparison  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.mark_inputs import MarkInputs  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.mark_summary import MarkSummary  # noqa: E402
+from G1の危険な人気馬のサイン.analysis.race_scope import EVALUATION_SCOPES  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.run_history_repository import RunHistoryRepository  # noqa: E402
+from G1の危険な人気馬のサイン.analysis.scope_comparison import ScopeComparison  # noqa: E402
+from G1の危険な人気馬のサイン.analysis.scoped_window_trainer import ScopedWindowTrainer  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_case_report import SignCaseReport  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_table_builder import SignTableBuilder  # noqa: E402
 from G1の危険な人気馬のサイン.analysis.sign_training_table import SignTrainingTable  # noqa: E402
@@ -75,8 +77,8 @@ def _signs(args: argparse.Namespace) -> None:
 
 
 def _cases(args: argparse.Namespace) -> None:
-    tables = SignCaseReport().tables(_read_signs(args))
-    _write(tables, args.out / "事例.md")
+    signs = _read_signs(args)
+    _write([table for scope in EVALUATION_SCOPES for table in SignCaseReport(scope).tables(signs)], args.out / "事例.md")
 
 
 def _base(args: argparse.Namespace) -> None:
@@ -93,12 +95,13 @@ def _run(args: argparse.Namespace) -> None:
     data = SignTrainingTable().attach(TableStore(args.out / "tables").read(_BASE_TABLE, FAVORITES_CATALOG), _read_signs(args))
     predictions = PredictionStore(args.out / "predictions")
     settings = _with_threads(HyperparameterSettings.load(None, defaults=FAVORITES_SETTINGS), args.threads)
-    runner = WalkForwardRunner(WindowTrainer(settings), STAKES_WINDOWS)
     for chosen in (variant for variant in SIGN_VARIANTS if not args.variants or variant.key in args.variants):
         if predictions.exists(TABLE_NAME, chosen.key) and not args.force:
             print(f"{chosen.name}: 済んでいるので飛ばします", flush=True)
             continue
-        frame, log = runner.run(chosen.scope.apply(data), chosen.variant)
+        # 学ぶのは作り方の範囲のレースだけ、予測は全部のレースに出す（G1 で学んだモデルを G2・G3 にも当てるため）
+        runner = WalkForwardRunner(ScopedWindowTrainer(settings, chosen.scope), STAKES_WINDOWS)
+        frame, log = runner.run(data, chosen.variant)
         print(f"{chosen.name}: {predictions.write(TABLE_NAME, chosen.key, frame, log)}", flush=True)
 
 
@@ -107,19 +110,20 @@ def _summary(args: argparse.Namespace) -> None:
     predictions = PredictionStore(args.out / "predictions")
     made = {variant.key: predictions.read(TABLE_NAME, variant.key) for variant in SIGN_VARIANTS
             if predictions.exists(TABLE_NAME, variant.key)}
-    _write(G1Comparison().tables(data, made), args.out / "結果.md")
+    _write([table for scope in EVALUATION_SCOPES for table in ScopeComparison(scope).tables(data, made)], args.out / "結果.md")
 
 
 def _marks(args: argparse.Namespace) -> None:
     data = SignTrainingTable().attach(TableStore(args.out / "tables").read(_BASE_TABLE, FAVORITES_CATALOG), _read_signs(args))
     inputs = MarkInputs(args.out / "predictions", _REPO_ROOT / "reports" / "既存モデルの改善" / "predictions")
-    for path in inputs.write(data, [variant.key for variant in SIGN_VARIANTS]):
+    for path in inputs.write(data, SIGN_VARIANTS):
         print(path, flush=True)
 
 
 def _marks_summary(args: argparse.Namespace) -> None:
     names = {NO_DANGER: "消を使わない"} | {variant.key: variant.name for variant in SIGN_VARIANTS}
-    _write(MarkSummary().tables(args.out / "印の成績", names), args.out / "印の成績のまとめ.md")
+    tables = [table for scope in EVALUATION_SCOPES for table in MarkSummary(scope).tables(args.out / "印の成績" / scope.key, names)]
+    _write(tables, args.out / "印の成績のまとめ.md")
 
 
 def _read_signs(args: argparse.Namespace) -> pd.DataFrame:

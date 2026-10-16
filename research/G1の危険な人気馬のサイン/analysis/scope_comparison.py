@@ -1,4 +1,4 @@
-"""G1の人気馬のテスト期間で、作り方どうしを比べる表。"""
+"""決めた範囲のレースの人気馬のテスト期間で、作り方どうしを比べる表。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ from 既存モデルの改善.analysis.scores import BinaryScores
 from 既存モデルの改善.analysis.stakes_rebuild import AdoptionRule
 from 既存モデルの改善.analysis.walk_forward import WINDOW
 
-from .g1_test_rows import BAND, LOST, MARKET_OUT, PLACE_PAYOUT, POPULARITY, WIN_PAYOUT, G1TestRows
+from .race_scope import RaceScope
+from .scope_test_rows import BAND, LOST, MARKET_OUT, PLACE_PAYOUT, POPULARITY, WIN_PAYOUT, ScopeTestRows
 from .sign_columns import SIGN_COUNT
 from .sign_variants import ODDS_ONLY, SIGN_VARIANTS
 
@@ -29,8 +30,8 @@ _RULE_SIGNS = 2
 _ROUND = 4
 
 
-class G1Comparison:
-    """作り方ごとの予測を、G1の人気馬のテスト期間（2020〜2026年の7つの区切り）で比べる。
+class ScopeComparison:
+    """作り方ごとの予測を、``scope`` のレースの人気馬のテスト期間（2020〜2026年の7つの区切り）で比べる。
 
     1. 確率の誤差（ログ損失）と見分けやすさ（AUC・人気別AUC）。オッズだけ・今の本番と、区切りごとに比べた採否（7つのうち5つ以上で小さく、
        全期間でも小さい）。
@@ -40,8 +41,11 @@ class G1Comparison:
        （学習しないルール）の 4着以下率・市場から見た4着以下率・差・単勝と複勝の回収率。
     """
 
+    def __init__(self, scope: RaceScope) -> None:
+        self._scope = scope
+
     def tables(self, data: TrainingData, predictions: Mapping[str, pd.DataFrame]) -> list[Table]:
-        rows = G1TestRows().build(data, predictions)
+        rows = ScopeTestRows(self._scope).build(data, predictions)
         rows = pd.concat([rows, self._market_rows(rows)], ignore_index=True)
         rows["danger"] = rows["probability"] - rows[MARKET_OUT]
         names = {variant.key: variant.name for variant in SIGN_VARIANTS} | {MARKET: "市場の見立てそのまま（学習しない）"}
@@ -65,7 +69,7 @@ class G1Comparison:
             for reference, label in ((ODDS_ONLY.key, "オッズだけ"), (CURRENT, "今の本番")):
                 record[f"{label}より小さい区切り"] = self._verdict_text(losses, overall, key, reference)
             records.append(record)
-        return Table.from_records(records, title="1. G1の人気馬の確率の誤差（7つの区切りのテスト期間を合わせて）",
+        return Table.from_records(records, title=f"{self._scope.label}: 1. 人気馬の確率の誤差（7つの区切りのテスト期間を合わせて）",
                                   note="採否の基準: 7つの区切りのうち5つ以上でログ損失が小さく、全期間でも小さい（研究「既存モデルの改善」と同じ）。")
 
     def _verdict_text(self, losses: dict, overall: dict, key: str, reference: str) -> str:
@@ -79,7 +83,7 @@ class G1Comparison:
         counts = rows[rows["variant"].eq(order[0])].groupby(WINDOW).size()
         records = [{"区切り": window, "頭数": int(counts[window]), **{name: round(value, _ROUND) for name, value in row.items()}}
                    for window, row in table.iterrows()]
-        return Table.from_records(records, title="2. 区切りごとのログ損失（G1の人気馬。区切りは1年ずつ）")
+        return Table.from_records(records, title=f"{self._scope.label}: 2. 区切りごとのログ損失（人気馬。区切りは1年ずつ）")
 
     def _bands(self, rows: pd.DataFrame, order: list[str], names: dict[str, str]) -> Table:
         records = []
@@ -87,7 +91,7 @@ class G1Comparison:
             record = {"人気帯": band, "頭数": int(part["variant"].eq(order[0]).sum())}
             record |= {names[key]: round(self._loss(part[part["variant"].eq(key)]), _ROUND) for key in order}
             records.append(record)
-        return Table.from_records(records, title="3. 人気帯ごとのログ損失（G1の人気馬）")
+        return Table.from_records(records, title=f"{self._scope.label}: 3. 人気帯ごとのログ損失（人気馬）")
 
     def _picks(self, rows: pd.DataFrame, order: list[str], names: dict[str, str]) -> Table:
         records = []
@@ -104,11 +108,11 @@ class G1Comparison:
         base = rows[rows["variant"].eq(order[0])]
         records.append({"作り方": "サインの数だけ（学習しない）", "選び方": f"サインが {_RULE_SIGNS}つ以上",
                         **self._measures(base[base[SIGN_COUNT].ge(_RULE_SIGNS)])})
-        records.append({"作り方": "（比べる元）", "選び方": "G1の人気馬の全部", **self._measures(base)})
-        records.append({"作り方": "（比べる元）", "選び方": "G1の1番人気の全部", **self._measures(base[base[POPULARITY].eq(1)])})
-        return Table.from_records(records, title="4. 消の候補の成績（G1の人気馬・テスト期間）",
+        records.append({"作り方": "（比べる元）", "選び方": "人気馬の全部", **self._measures(base)})
+        records.append({"作り方": "（比べる元）", "選び方": "1番人気の全部", **self._measures(base[base[POPULARITY].eq(1)])})
+        return Table.from_records(records, title=f"{self._scope.label}: 4. 消の候補の成績（人気馬・テスト期間）",
                                   note="差 = 4着以下率 − 市場から見た4着以下率（ポイント）。プラスほど、市場の見立てより負けた。"
-                                       "単勝オッズから出す市場の見立ては、G1 の1番人気の負けを少なく見る（比べる元の1番人気の行）ので、"
+                                       "単勝オッズから出す市場の見立ては、1番人気の負けを少なく見ることがある（比べる元の1番人気の行）ので、"
                                        "差はどの選び方でもプラスに寄る。作り方どうしは同じ選び方の行で比べる。"
                                        "回収率はその馬の単勝・複勝を買い続けたとき（消す馬なので低いほどよい）。")
 
