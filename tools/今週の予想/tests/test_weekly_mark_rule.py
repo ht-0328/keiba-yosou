@@ -24,7 +24,8 @@ def test_単勝の期待値が1位の馬を二重丸にして残りは3着以内
     odds = [2.0, 6.0, 4.0, 8.0, 10.0, 15.0, 30.0]
     market = [0.72, 0.40, 0.50, 0.30, 0.25, 0.20, 0.10]
     wins = [0.42, 0.21, 0.20, 0.08, 0.05, 0.03, 0.01]
-    race = _race(probabilities, odds, market, [0.9] * 7).assign(**{WIN_PROBABILITY: wins})
+    # 7番は複勝の期待値を空にして ☆ の候補から外し、無印の理由を確かめる
+    race = _race(probabilities, odds, market, [0.9] * 6 + [np.nan]).assign(**{WIN_PROBABILITY: wins})
     race[WIN_VALUE] = race[WIN_PROBABILITY] * race["win_odds"]
     marked = MarkRule().assign(race).set_index("horse_no")
     assert marked.loc[2, MARK] == "◎" and "単勝の期待値がレース内1位" in marked.loc[2, "mark_reason"] and "1.26" in marked.loc[2, "mark_reason"]
@@ -50,7 +51,7 @@ def test_単勝30倍を超える馬は期待値が1位でも二重丸にしな�
     probabilities = [0.70, 0.45, 0.52, 0.30, 0.25, 0.20, 0.02]
     odds = [2.0, 6.0, 4.0, 8.0, 10.0, 15.0, 150.0]
     wins = [0.42, 0.21, 0.20, 0.08, 0.05, 0.03, 0.01]
-    race = _race(probabilities, odds, [0.72, 0.40, 0.50, 0.30, 0.25, 0.20, 0.03], [0.9] * 7).assign(**{WIN_PROBABILITY: wins})
+    race = _race(probabilities, odds, [0.72, 0.40, 0.50, 0.30, 0.25, 0.20, 0.03], [0.9] * 6 + [np.nan]).assign(**{WIN_PROBABILITY: wins})
     race[WIN_VALUE] = race[WIN_PROBABILITY] * race["win_odds"]
     marked = MarkRule().assign(race).set_index("horse_no")
     assert marked.loc[2, MARK] == "◎" and "30倍以下の馬の中で" in marked.loc[2, "mark_reason"]
@@ -77,7 +78,7 @@ def test_木曜は確率の順に6頭へ印を付け残りは無印() -> None:
     assert "1着の予想が無い" in marked["mark_reason"].iloc[0]  # 1着の予想が無ければ、前の決め方（3着以内の確率の1位）
 
 
-def test_穴馬で複勝の期待値が線以上なら星を付ける() -> None:
+def test_穴馬で複勝の期待値が1位の馬に星を付ける() -> None:
     # 9頭立て: 人気馬は1〜3番人気。7位の馬（8番人気・期待値 1.4）に ☆
     probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2, 0.1, 0.05]
     odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 30.0, 20.0, 40.0]
@@ -88,9 +89,21 @@ def test_穴馬で複勝の期待値が線以上なら星を付ける() -> None:
     assert marked.loc[4, MARK] == "△"  # ◎〜△ の馬には ☆ を付けない
 
 
-def test_星は線より下なら付けない() -> None:
+def test_星は複勝の期待値が低くても毎レース付ける() -> None:
+    # 9頭立て: 印の付いていない穴馬（4番人気以下）は 7〜9番。期待値はどれも 1 未満だが、いちばん高い 9番に ☆
+    probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2, 0.1, 0.05]
+    odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 30.0, 20.0, 40.0]
+    market = [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.25, 0.15, 0.05]
+    values = [0.9, 0.9, 0.9, 1.0, 1.0, 1.0, 0.5, 0.6, 0.7]
+    marked = MarkRule().assign(_race(probabilities, odds, market, values)).set_index("horse_no")
+    assert marked.loc[9, MARK] == "☆" and "0.70" in marked.loc[9, "mark_reason"]
+    assert "☆ にもならない" in marked.loc[7, "mark_reason"]
+
+
+def test_星は穴馬がみな印の付いた馬なら付けない() -> None:
+    # 7頭立て: ◎○▲△△△ で6頭、残る1頭は1番人気（人気馬）なので ☆ の候補がいない
     probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2]
-    odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 30.0]
+    odds = [8.0, 3.0, 4.0, 5.0, 9.0, 30.0, 2.0]
     market = [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.25]
     values = [0.9, 0.9, 0.9, 1.0, 1.0, 1.0, 1.2]
     marked = MarkRule().assign(_race(probabilities, odds, market, values))
@@ -101,10 +114,10 @@ def test_注は市場より来ると見る度合いが最大の馬() -> None:
     probabilities = [0.6, 0.5, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15]
     odds = [2.0, 3.0, 4.0, 5.0, 8.0, 9.0, 10.0, 12.0]
     market = [0.7, 0.55, 0.45, 0.3, 0.3, 0.3, 0.25, 0.05]
-    values = [0.9, 0.9, 0.9, 1.0, 1.0, 1.0, 0.8, 1.1]
+    values = [0.9, 0.9, 0.9, 1.0, 1.0, 1.0, 1.1, 0.8]
     marked = MarkRule().assign(_race(probabilities, odds, market, values)).set_index("horse_no")
     assert marked.loc[8, MARK] == "注"
-    assert marked.loc[7, MARK] == NO_MARK
+    assert marked.loc[7, MARK] == "☆"  # 線に届かない ☆ は 注 のあとに、残りの穴馬から選ぶ
 
 
 def test_注は市場より低く見ている馬には付けない() -> None:
@@ -135,7 +148,7 @@ def test_危険な人気馬は消にして残りの馬に二重丸から付け�
     assert marked.loc[1, MARK] == OUT_MARK and "危険な人気馬" in marked.loc[1, "mark_reason"]
     assert [marked.loc[no, MARK] for no in range(2, 8)] == ["◎", "○", "▲", "△", "△", "△"]
     assert "レース内2位" in marked.loc[2, "mark_reason"]  # ◎ は危険な人気馬を除いた1位（全頭では2位）
-    assert marked.loc[8, MARK] in (NO_MARK, "注")
+    assert marked.loc[8, MARK] == "注"  # 注 を先に選ぶ（線以上の ☆ がいないので、表示だけの ☆ は 注 のあと）
     assert (marked[MARK] == OUT_MARK).sum() == 1  # 消は危険な人気馬だけ
 
 

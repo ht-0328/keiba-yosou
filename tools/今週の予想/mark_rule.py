@@ -25,6 +25,7 @@ from 今週の予想.forecast_columns import (
     WIN_PROBABILITY,
     WIN_VALUE,
 )
+from 今週の予想.ticket_rules import PLACE_VALUE_LINE
 
 #: ◎ のあとに、3着以内の確率の順で付ける印（○・▲と、△は3頭。利用者の指示「白三角は3点で」）。
 TOP_MARK = "◎"
@@ -37,8 +38,6 @@ OUT_MARK = "消"
 NO_MARK = "－"
 #: 印の並び（画面の凡例と、並べ替えに使う）。
 MARK_ORDER: tuple[str, ...] = (TOP_MARK, "○", "▲", "△", VALUE_MARK, NOTE_MARK, OUT_MARK, NO_MARK)
-#: ☆ を付ける複勝の期待値の下限（設計書「買うレースと買い目を決める」07 の 2。研究「回収率100超」で決めた買う線）。
-VALUE_LINE = 1.25
 #: ◎ の候補にする単勝オッズの上限（利用者の決定。設計書 07 の 5）。これより高い大穴は、単勝の期待値が1位でも ◎ にしない
 #: （期待値の高い大穴は当たりが少なく成績が運で振れるうえ、3着以内の確率が最下位の馬が ◎ になることがあった）。
 TOP_ODDS_LIMIT = 30.0
@@ -61,8 +60,11 @@ class MarkRule:
       全レースに1頭付ける。30倍以下の馬がいないか、オッズの無い木曜は、1着になる確率が1位の馬。1着の予想が無ければ（前の版のモデル）、
       3着以内の確率が1位の馬。
     - ○▲△: 消と ◎ を除いて、3着以内の確率の 1〜5位（○・▲と、△の3頭）。
-    - ☆: 穴馬（人気馬の範囲より下の人気）のうち、印の付いていない馬で、複勝の期待値がいちばん高い馬。
-      期待値が ``VALUE_LINE``（1.25）以上のときだけ。オッズの無い時点（木曜）は、期待値が無いので付かない。
+    - ☆: 穴馬（人気馬の範囲より下の人気）のうち、印の付いていない馬で、複勝の期待値がいちばん高い馬。毎レース付ける（利用者の決定）。
+      期待値が線（``PLACE_VALUE_LINE``。1.25）以上の ☆ だけを買い目の相手に入れ（``MarkTickets``）、線に届かない ☆ は表示だけ。
+      線以上の ☆ を 注 より先に付け、線以上の馬がいないレースだけ、注 を付けたあとの残りの穴馬に表示だけの ☆ を付ける
+      （注 の選び方と買い目が、表示だけの ☆ を足す前と同じになる）。候補がいない（頭数が少なく穴馬がみな印の付いた馬）か、
+      オッズの無い時点（木曜。期待値が無い）は付かない。複勝を実際に買うかは、☆ とは別に複勝の期待値の線で決める。
     - 注: 印の付いていない馬のうち、上げ下げ（logit(予想) − logit(市場の見立て)）がいちばん大きい馬。上げ下げが正（市場より来ると見る）のときだけ。
       オッズの無い時点（木曜）は、市場の見立てが無いので付かない。
     - 無印（``NO_MARK``）: ほかの全部の馬（買わない馬）。
@@ -95,8 +97,12 @@ class MarkRule:
             table.loc[row, MARK_REASON] = self._danger_reason(table.loc[row])
         self._mark_top_and_ranks(table, any_danger=len(dangers) > 0)
         self._mark_axis(table)
-        self._mark_value(table)
+        # ☆ は2段: 買い目の相手に入れる ☆（期待値が線以上）を先に付けてから 注 を選び、☆ の無いレースだけ、残りの穴馬に表示だけの ☆ を付ける
+        # （注 の選び方と買い目を、表示だけの ☆ を足す前と同じにするため）
+        self._mark_value(table, PLACE_VALUE_LINE)
         self._mark_note(table)
+        if not (table[MARK] == VALUE_MARK).any():
+            self._mark_value(table, -np.inf)
         for row in table.index[table[MARK] == NO_MARK]:
             table.loc[row, MARK_REASON] = self._out_reason(table.loc[row], any_danger=len(dangers) > 0)
         return table
@@ -144,17 +150,21 @@ class MarkRule:
         table.loc[row, MARK_REASON] = f"3着以内に入る確率がレース内{table.loc[row, RANK]:.0f}位（1着の予想が無いので、3着以内の確率で選んだ）"
         return row
 
-    def _mark_value(self, table: pd.DataFrame) -> None:
-        """穴馬で、複勝の期待値がいちばん高い馬に ☆（線以上のときだけ）。"""
-        favorites = _favorite_count(len(table))
-        free = (table[MARK] == NO_MARK) & (table[POPULARITY] > favorites)
-        candidates = table[free][PLACE_VALUE].dropna()
-        if candidates.empty or candidates.max() < VALUE_LINE:
+    def _mark_value(self, table: pd.DataFrame, minimum: float) -> None:
+        """印の付いていない穴馬のうち、複勝の期待値がいちばん高い馬に ☆（その期待値が ``minimum`` 以上のときだけ）。"""
+        candidates = table[self._value_candidates(table)][PLACE_VALUE].dropna()
+        if candidates.empty or candidates.max() < minimum:
             return
         row = candidates.idxmax()
+        value = table.loc[row, PLACE_VALUE]
+        use = (f"線の {PLACE_VALUE_LINE:.2f} 以上なので買い目の相手に入れる" if value >= PLACE_VALUE_LINE
+               else f"線の {PLACE_VALUE_LINE:.2f} に届かないので表示だけで、買い目の相手には入れない")
         table.loc[row, MARK] = VALUE_MARK
-        table.loc[row, MARK_REASON] = (f"穴馬（{table.loc[row, POPULARITY]:.0f}番人気）の中で複勝の期待値がいちばん高く、"
-                                       f"{table.loc[row, PLACE_VALUE]:.2f} が線の {VALUE_LINE:.2f} 以上")
+        table.loc[row, MARK_REASON] = f"穴馬（{table.loc[row, POPULARITY]:.0f}番人気）の中で複勝の期待値がいちばん高い（{value:.2f}。{use}）"
+
+    def _value_candidates(self, table: pd.DataFrame) -> pd.Series:
+        """☆ の候補（真偽）: 印の付いていない、人気馬の範囲より下の人気の馬。"""
+        return (table[MARK] == NO_MARK) & (table[POPULARITY] > _favorite_count(len(table)))
 
     def _mark_note(self, table: pd.DataFrame) -> None:
         """印の無い馬のうち、市場の見立てより来ると見る度合いがいちばん大きい馬に 注（正のときだけ）。"""
@@ -184,7 +194,7 @@ class MarkRule:
         elif pd.notna(row[WIN_VALUE]):
             reason += f"。単勝の期待値 {row[WIN_VALUE]:.2f} も◎ではない"
         if pd.notna(row[PLACE_VALUE]):
-            reason += f"。複勝の期待値 {row[PLACE_VALUE]:.2f} も☆の条件に当たらない"
+            reason += f"。複勝の期待値 {row[PLACE_VALUE]:.2f} で、☆ にもならない"
         return reason
 
 

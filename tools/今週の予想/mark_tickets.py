@@ -19,7 +19,7 @@ from 今週の予想.forecast_columns import (
     PROBABILITY,
     WIN_PROBABILITY,
 )
-from 今週の予想.mark_rule import TOP_MARK
+from 今週の予想.mark_rule import TOP_MARK, VALUE_MARK
 
 from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
 from 今週の予想.filter_columns import AGREEMENT, MEMBERS, POOL_BACKED, member_column
@@ -91,8 +91,10 @@ class MarkTickets:
         return pd.DataFrame(rows, columns=list(COLUMNS))
 
     def _horses_by_mark(self, race: pd.DataFrame) -> dict[str, list[int]]:
-        """印 → 馬番の並び（3着以内の確率の高い順）。"""
-        return {mark: [int(no) for no in group[HORSE_NO]] for mark, group in race.groupby(MARK, sort=False)}
+        """印 → 馬番の並び（3着以内の確率の高い順）。☆ は複勝の期待値が線以上の馬だけ（線に届かない ☆ は表示だけで、買い目の相手に入れない。
+        ``MarkRule`` の ☆）。"""
+        shown_only = (race[MARK] == VALUE_MARK) & ~(race[PLACE_VALUE] >= PLACE_VALUE_LINE)
+        return {mark: [int(no) for no in group[HORSE_NO]] for mark, group in race[~shown_only].groupby(MARK, sort=False)}
 
     def _axes(self, race: pd.DataFrame, by_mark: dict[str, list[int]]) -> dict[str, int]:
         """パターン → 軸の馬番。◎ がいなければどちらの軸も無い。軸の列が無い（前の形の表）なら軸馬も ◎。"""
