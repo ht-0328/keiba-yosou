@@ -56,6 +56,17 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label}
 
 
+def test_複勝の期待値が線に届かない星は表示だけで買い目の相手に入れない() -> None:
+    race = _marked_race()
+    race.loc[race["horse_no"] == 8, "place_value"] = 1.0  # ☆ の 8番が線（1.25）に届かない
+    by_rule = _by_rule(MarkTickets().build(race))
+    assert by_rule["ワイド"] == ["0309"]  # ◎ − 注 だけ
+    assert by_rule["馬連"] == ["0103", "0305"]
+    assert by_rule["馬単"] == ["0301", "0305"]
+    assert all("08" not in [combo[at:at + 2] for at in range(0, len(combo), 2)]
+               for rule, combos in by_rule.items() if rule.startswith("3連") for combo in combos)
+
+
 def test_複勝の馬を軸にしたワイドと馬連は二重丸と丸と三角に流し同じ組は1点にする() -> None:
     by_rule = _by_rule(MarkTickets().build(_marked_race()))
     # 複勝の馬は 8番と 3番。8番 − ◎3・○1・▲5、3番（◎）− ○1・▲5。3番と 8番の組は1点
