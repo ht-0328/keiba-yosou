@@ -30,7 +30,7 @@ class ForecastTickets:
     締め切り前のオッズ（``AnnouncedTicketOddsRepository``）で組の確率とトリガミ（``TorigamiFilter``）を付けて、JSON にできる辞書の並びにする。
 
     オッズの無い時点（木曜）は、買い目は組むがオッズ・期待値・トリガミは付かない（複勝と、期待値で絞る3連単・3連複は0点になる）。
-    当日の予想（``race_day``）では、実際に買う組の期待値の馬連・馬単（``COMBO_VALUE_RULES`` の採用したもの。``ComboValuePicker``）も、
+    当日の予想（``race_day``）では、実際に買う組の期待値の買い目（``COMBO_VALUE_RULES`` の採用したもの。``ComboValuePicker``）も、
     締め切り前のオッズの板で組を選んで足す。重み（``weights``。モデルの置き場所の ``combo_blend.json``）が無ければ足さない。
     組の期待値の買い目の ``probability`` は、重みで合わせた組の確率（期待値 ÷ オッズ）。
     1点は ``TICKET_KEYS`` の鍵を持つ。``combo`` は組番（馬番を2桁ずつ）、``horses`` は馬番の並び、``label`` は人が読む並び
