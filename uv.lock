@@ -274,6 +274,7 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pyyaml" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "tabulate" },
 ]
 
@@ -291,6 +292,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=21" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "scikit-learn", specifier = ">=1.5" },
+    { name = "scipy", specifier = ">=1.14" },
     { name = "tabulate", specifier = ">=0.9" },
 ]
 

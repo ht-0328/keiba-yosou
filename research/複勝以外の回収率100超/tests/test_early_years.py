@@ -8,7 +8,7 @@ from yosou.shared.feature import PredictionTiming
 
 from 既存モデルの改善.analysis.material_check.current_production import current_production
 from 既存モデルの改善.analysis.windows import WINDOWS
-from 複勝以外の回収率100超.analysis.early_windows import EARLY_WINDOWS
+from 複勝以外の回収率100超.analysis.early_windows import EARLIEST_WINDOWS, EARLY_WINDOWS, WINDOW_SETS
 from 複勝以外の回収率100超.analysis.retrain_targets import RETRAIN_TARGETS, retrain_target_named
 
 
@@ -36,3 +36,19 @@ def test_今の本番の列と表のまま学び直し本番の予測と合わ�
     assert target.production_path(Path("reports")) == Path("reports") / current.research / "predictions" / current.table / f"{current.key}.pkl"
     favorites = retrain_target_named("危険な人気馬")
     assert not favorites.win and favorites.production == "既存モデルの改善/favorites_out_of_top3/people_market"
+
+
+def test_手順5の区切りは2019年と2020年で手順4の区切りの前にすき間なく続く() -> None:
+    assert [window.name for window in EARLIEST_WINDOWS] == ["2019年前半", "2019年後半", "2020年前半", "2020年後半"]
+    assert (EARLY_WINDOWS[0].test_first_day - EARLIEST_WINDOWS[-1].test_last_day).days == 1
+    assert WINDOW_SETS["2019"] == (EARLIEST_WINDOWS, "predictions-2019") and WINDOW_SETS["2021"] == (EARLY_WINDOWS, "predictions")
+
+
+def test_手順6の区切りは2015年前半から2018年後半の8つで手順5の区切りの前にすき間なく続く() -> None:
+    from 複勝以外の回収率100超.analysis.early_windows import OLDEST_WINDOWS
+
+    assert [window.name for window in OLDEST_WINDOWS][:2] == ["2015年前半", "2015年後半"] and len(OLDEST_WINDOWS) == 8
+    assert (EARLIEST_WINDOWS[0].test_first_day - OLDEST_WINDOWS[-1].test_last_day).days == 1
+    for before, after in zip(OLDEST_WINDOWS, OLDEST_WINDOWS[1:], strict=False):
+        assert (after.test_first_day - before.test_last_day).days == 1
+    assert WINDOW_SETS["2015"] == (OLDEST_WINDOWS, "predictions-2015")

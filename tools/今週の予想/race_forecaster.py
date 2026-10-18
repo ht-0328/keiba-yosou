@@ -46,7 +46,7 @@ from yosou.shared.dataset import column_names as ids
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE, WIN_RATE, MarketPlaces
 from yosou.shared.place_value import PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
-from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
+from yosou.shared.repository import AnnouncedOddsRepository, ComboBlendWeightsRepository, PlacePriceRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER as FIGURE_CACHE
 from yosou.shared.win_value import WIN_VALUE, ExpectationLevel
 from yosou.shared.workflow import ModelSegments, SegmentedPrediction
@@ -103,7 +103,7 @@ class RaceForecaster:
         self._marks = MarkRule()
         self._evaluator = HorseEvaluator()
         self._expectation = ExpectationLevel()
-        self._tickets = ForecastTickets()
+        self._tickets = ForecastTickets(ComboBlendWeightsRepository(self._models).load())
         self._danger_reasons = DangerReasons()
         self._stories = StoryAttacher(review_store)
         self._score_attacher: RaceScoreAttacher | None = None
@@ -126,7 +126,7 @@ class RaceForecaster:
             "timing": chosen.label, "timing_reason": reason, "pool_free": explained.pool_free,
             "expectation": expectation, "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
-            "tickets": self._tickets.build(con, race_id, marked, expectation, odds_known),
+            "tickets": self._tickets.build(con, race_id, marked, expectation, odds_known, chosen is PredictionTiming.RACE_DAY),
             "pace": self._pace(race_id),
         }
 

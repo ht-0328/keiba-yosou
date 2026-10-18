@@ -8,6 +8,7 @@ from itertools import product
 from yosou.shared.betting import TicketType
 
 from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
+from 今週の予想.combo_value_rule import ALL_RACES, HIGH_RACES, TOP_COMBOS, ComboValueRule
 from 今週の予想.place_axis_ticket_rule import PlaceAxisTicketRule
 
 #: 1単位の金額（円）。08 の 2 の「1点の額」は単位で書いてあるので、合計を金額で出すときに使う。
@@ -95,9 +96,24 @@ PLACE_AXIS_RULES: tuple[PlaceAxisTicketRule, ...] = (
 #: 当日の期待度「高」のレースで実際に買う買い方（研究「複勝以外の回収率100超」の手順4 で採用の基準を満たした。08 の 2）。
 #: 金額は印の単位ではなく、単勝・馬単用の財布から決める（``Wallet.point_yen``）。
 HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.WIN.label, TicketType.EXACTA.label)
-#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、複勝の馬を軸にした行は単勝の次）。
+#: 組の期待値で組を選ぶ買い方（研究「複勝以外の回収率100超」の docs/04・05）。線・上限・対象は結果を見る前に決め、まだ見ていない年で確かめた。
+#: 馬単は docs/04（2023〜2026年で決め、2019〜2020年で確かめ、2016〜2018年でも基準を満たした）。ワイド・3連複・3連単は docs/05
+#: （直前1年の重みで 2020〜2026年で決め、2016〜2018年で確かめた）。採用したものは当日の予想で実際に買う（08 の 2。金額は組の期待値用の財布から
+#: ``Wallet.point_yen``）。馬連は 2019〜2020年では基準を満たしたが、2016〜2018年でどちらの重みでも届かなかったので、比べるための行にした。
+#: どれも合計には入らない。組の期待値は、市場とモデルを重みで合わせた組の確率（``ComboBlend``。重みはモデルの置き場所の ``combo_blend.json``）× オッズ。
+COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
+    ComboValueRule(TicketType.QUINELLA, ALL_RACES, 1.1, 100, adopted=False),
+    ComboValueRule(TicketType.EXACTA, ALL_RACES, 1.1, 30, adopted=True),
+    ComboValueRule(TicketType.WIDE, HIGH_RACES, 1.0, 300, adopted=True, max_points=3, rolling=True),
+    ComboValueRule(TicketType.TRIO, TOP_COMBOS, 1.2, 1000, adopted=True, max_points=3, rolling=True),
+    ComboValueRule(TicketType.TRIFECTA, ALL_RACES, 1.3, 3000, adopted=True, rolling=True),
+)
+#: 当日の予想で実際に買う、組の期待値の買い方の名前。
+COMBO_VALUE_LABELS: tuple[str, ...] = tuple(rule.label for rule in COMBO_VALUE_RULES if rule.adopted)
+#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、複勝の馬を軸にした行は単勝の次。組の期待値の行は馬単の次）。
 RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in PLACE_AXIS_RULES),
-                                *(rule.label for rule in BET_RULES[1:]))
+                                *(rule.label for rule in BET_RULES[1:4]), *(rule.label for rule in COMBO_VALUE_RULES),
+                                *(rule.label for rule in BET_RULES[4:]))
 #: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。
 TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {
     group: (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in (*PLACE_AXIS_RULES, *BET_RULES[1:]) if group in rule.totals))

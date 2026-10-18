@@ -17,8 +17,8 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.mark_rule import OUT_MARK, TOP_MARK
 from 今週の予想.race_plan import NO_BET, PlacePick, RacePlan
 from 今週の予想.ticket_pick import TicketPick
-from 今週の予想.ticket_rules import HIGH_RACE_LABELS, PLACE_LABEL, PLACE_VALUE_LINE
-from 今週の予想.wallet import WIN_WALLET, Wallet
+from 今週の予想.ticket_rules import COMBO_VALUE_LABELS, COMBO_VALUE_RULES, HIGH_RACE_LABELS, PLACE_LABEL, PLACE_VALUE_LINE
+from 今週の予想.wallet import COMBO_WALLET, WIN_WALLET, Wallet
 
 #: 勝負レースの1日の上限（重賞は別枠。利用者の決定）。
 RACES_PER_DAY = 3
@@ -45,6 +45,8 @@ class DayPlanner:
     4. 複勝とは別に、当日の予想で期待度「高」（◎ の単勝の期待値 1.00 以上）のレースは全部、◎ の単勝と馬単（◎→○▲☆）を買う
        （勝負（単勝・馬単）。08 の 2）。1点の額は単勝・馬単用の財布から（``Wallet.point_yen``）。前日の予想では買わない
        （まだ見ていない年で基準を満たしたのは当日の予想だけ）。トリガミとオッズの無い組は買わない。
+    5. さらに別に、当日の予想では、組の期待値で選ぶ馬単・ワイド・3連複・3連単（買い目の ``<券種>（組の期待値）``。決まりは ``COMBO_VALUE_RULES``）を買う
+       （勝負（組の期待値）。08 の 2）。1点の額は組の期待値用の財布から（``Wallet.point_yen``）。前日の予想では買わない。
 
     金額は財布（``Wallet``）の予算から。勝負は1点 = 予算 ÷ 3（期待値 1.40 以上は 2単位、ただしケリー基準の4分の1とレースの予算の中）、
     ノルマ参加（重賞）は予算を最大2点に分け、ノルマ参加（日）は1点。複勝1点はその複勝プールの売上の見込みの 0.5% まで。
@@ -182,11 +184,14 @@ class DayPlanner:
                 if plan.kind == names.MATCH and plan.rid not in kept else plan for plan in plans]
 
     def _with_tickets(self, plans: list[RacePlan], forecasts: list[dict[str, Any]], day: date) -> list[RacePlan]:
-        """当日の期待度「高」のレースに、◎ の単勝と馬単を足す（4.）。"""
+        """当日の期待度「高」のレースに ◎ の単勝と馬単を足し（4.）、当日の予想の組の期待値の買い目を足す（5.）。"""
         by_rid = {forecast["rid"]: forecast for forecast in forecasts}
         stopped = self._wallet.stopped(day, WIN_WALLET)
         yen = {label: self._wallet.point_yen(label, day) for label in HIGH_RACE_LABELS}
-        return [self._ticketed(plan, by_rid[plan.rid], yen, stopped) for plan in plans]
+        combo_stopped = self._wallet.stopped(day, COMBO_WALLET)
+        combo_yen = {rule.label: self._wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET) for rule in COMBO_VALUE_RULES if rule.adopted}
+        ticketed = [self._ticketed(plan, by_rid[plan.rid], yen, stopped) for plan in plans]
+        return [self._combo_ticketed(plan, by_rid[plan.rid], combo_yen, combo_stopped) for plan in ticketed]
 
     def _ticketed(self, plan: RacePlan, forecast: dict[str, Any], yen: dict[str, int], stopped: bool) -> RacePlan:
         if forecast.get(columns.EXPECTATION) != HIGH:
@@ -205,3 +210,24 @@ class DayPlanner:
         note = f"（{'・'.join(skipped)}は1点が 100円に届かないので買わない）" if skipped else ""
         value = f"（◎ の単勝の期待値 {top_value:.2f}）" if top_value is not None else ""
         return replace(plan, tickets=tickets, ticket_reason=f"当日の予想で期待度「高」{value}なので、◎ の単勝と馬単を買う{note}")
+
+    def _combo_ticketed(self, plan: RacePlan, forecast: dict[str, Any], yen: dict[str, int], stopped: bool) -> RacePlan:
+        """当日の予想なら、組の期待値の買い目（トリガミとオッズの無い組を除く）を、組の期待値用の財布の券種ごとの1点の額で足す。"""
+        chosen = [ticket for ticket in forecast.get("tickets", []) if ticket.get("rule") in COMBO_VALUE_LABELS and not ticket.get("dropped")]
+        if forecast.get("timing") != PredictionTiming.RACE_DAY.label or not chosen:
+            return plan
+        if stopped:
+            return replace(plan, ticket_reason=_joined(plan.ticket_reason, "組の期待値用の財布が初めの 70% を下回ったので、組の期待値の買い目を止めて見直す"))
+        picks = tuple(TicketPick(ticket["ticket_type"], str(ticket["combo"]), str(ticket["label"]), ticket.get("value"), ticket.get("odds"),
+                                 yen[ticket["rule"]], names.MATCH_COMBO)
+                      for ticket in chosen if yen[ticket["rule"]] > 0)
+        skipped = [label for label in COMBO_VALUE_LABELS if yen[label] == 0 and any(ticket["rule"] == label for ticket in chosen)]
+        note = f"（{'・'.join(skipped)}は1点が 100円に届かないので買わない）" if skipped else ""
+        kinds = "・".join(dict.fromkeys(ticket["ticket_type"] for ticket in chosen))
+        reason = f"当日の予想で、組の期待値が線以上の組（{kinds}）が {len(chosen)}点あるので買う{note}"
+        return replace(plan, tickets=plan.tickets + picks, ticket_reason=_joined(plan.ticket_reason, reason))
+
+
+def _joined(first: str, second: str) -> str:
+    """理由の文をつなぐ（片方が空ならもう片方だけ）。"""
+    return "。".join(part for part in (first, second) if part)

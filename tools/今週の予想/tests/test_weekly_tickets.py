@@ -14,7 +14,7 @@ import pytest
 
 from 今週の予想.forecast_tickets import TICKET_KEYS, ForecastTickets
 from 今週の予想.mark_tickets import ODDS, RULE, VALUE, MarkTickets
-from 今週の予想.ticket_rules import RULE_LABELS
+from 今週の予想.ticket_rules import COMBO_VALUE_RULES, RULE_LABELS
 from 今週の予想.torigami_filter import DROPPED, NO_ODDS, TORIGAMI, TorigamiFilter
 
 #: 9頭のレースの印。◎3・○1・▲5・△2,4,6・☆8・注9・消7。軸馬は ○ の 1番（3着以内の確率が ◎ より高い）。
@@ -52,8 +52,9 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
                                              "030506", "030508", "030608"]
     assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
-    # モデルごとの確率の無い表では、2モデル一致の行は出ない
-    assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label}
+    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行はオッズの板から ComboValuePicker が作るので、ここでは出ない
+    combo_value = {rule.label for rule in COMBO_VALUE_RULES}
+    assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label and label not in combo_value}
 
 
 def test_複勝の期待値が線に届かない星は表示だけで買い目の相手に入れない() -> None:
@@ -176,7 +177,35 @@ def test_今週の予想の買い目は締め切り前のオッズで期待値�
     trio = {combo: by_key[("3連複（◎軸・流し）", combo)] for combo in ("010308", "010305", "020308")}
     assert trio["010308"]["label"] == "1-3-8" and trio["010308"]["dropped"] == "トリガミ"
     assert trio["010305"]["dropped"] == "" and trio["020308"]["dropped"] == "オッズ無し"
+    assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in tickets)   # 当日の予想でなければ組の期待値の買い目は無い
     # オッズの無い時点（木曜）は、組むだけでオッズ・期待値・トリガミは付かない
     thursday = ForecastTickets().build(con, race_id, _marked_race().drop(columns=["market_top3", "market_win"]), None, odds_known=False)
     assert thursday and all(ticket["odds"] is None and ticket["dropped"] == "" and ticket["value"] is None for ticket in thursday)
     assert not any(ticket["rule"].endswith("以上）") for ticket in thursday)
+
+
+def test_当日の予想では締め切り前の板から組の期待値の3連単を足す(tmp_path: Path) -> None:
+    from yosou.shared.betting import TicketType
+    from yosou.shared.combo_value import ComboBlendWeights
+
+    from 共通 import keys
+    from 合成DB import synth
+
+    # 締め切り前の断面: 3連単は 3→1→8 だけ 60.0倍（作れる組がこれだけなので、市場だけの重みでも組の確率は 1）
+    sample = synth.simple_race()
+    ra = sample.ra[0]
+    at = "04061200"
+    sample.odds.append(("o6", synth.odds_header(ra, "o6", stage="1", announced=at)))
+    sample.odds.append(("o6__3連単オッズ", synth.odds_row(ra, "o6__3連単オッズ", "030108", 600, announced=at)))
+    con = duckdb.connect(str(synth.build_db(tmp_path / "combo.duckdb", sample)), read_only=True)
+    race_id = "".join(ra[column] for column in keys.RACE_KEY)
+    weights = {ticket_type: ComboBlendWeights(1.0, 0.0, 0.0, 0.0) for ticket_type in TicketType if ticket_type.is_combination}
+
+    tickets = ForecastTickets(weights).build(con, race_id, _marked_race(), "低", odds_known=True, race_day=True)
+    chosen = [ticket for ticket in tickets if ticket["rule"] == "3連単（組の期待値）"]
+    # 期待値は 1 × 60.0 = 60.0（線 1.3 以上・3,000倍以下）
+    assert [(ticket["combo"], ticket["odds"], ticket["dropped"]) for ticket in chosen] == [("030108", 60.0, "")]
+    assert chosen[0]["value"] == pytest.approx(60.0) and chosen[0]["probability"] == pytest.approx(1.0)
+    assert not any(ticket["rule"] == "馬連（組の期待値）" for ticket in tickets)   # 馬連は採用していないので今週の予想には出さない
+    before = ForecastTickets(weights).build(con, race_id, _marked_race(), "低", odds_known=True, race_day=False)
+    assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in before)
