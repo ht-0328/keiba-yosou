@@ -45,12 +45,15 @@ class WalkForwardReport:
     """開催日ごとの成績 [開催日, 4]（``WalkForwardSelector`` か ``CurrentTickets`` の形）から、数える年の成績（``Summary``）を出し、
     今の本番と比べて採用の基準の4つを満たすかを判定する。"""
 
-    def __init__(self, days: Sequence[pd.Timestamp]) -> None:
+    def __init__(self, days: Sequence[pd.Timestamp], years: Sequence[int] = TEST_YEARS,
+                 halves: Sequence[tuple[int, int]] = HALVES) -> None:
         self._days = pd.DatetimeIndex(days)
         self._years = self._days.year.to_numpy()
+        self._test_years = tuple(years)
+        self._halves = tuple(halves)
 
     def summary(self, name: str, daily: np.ndarray) -> Summary:
-        inside = np.isin(self._years, TEST_YEARS)
+        inside = np.isin(self._years, self._test_years)
         cells = daily[inside]
         points, payout = cells[:, POINTS].sum(), cells[:, PAYOUT].sum()
         races, hits = cells[:, RACES].sum(), cells[:, HIT_RACES].sum()
@@ -60,8 +63,8 @@ class WalkForwardReport:
         profit = (cells[:, PAYOUT] - 100.0 * cells[:, POINTS])[:, None]
         lower_profit = float(ProfitBootstrap(len(cells)).lower(profit)[0])
         return Summary(name, int(races), int(points), int(hits), self._ratio(hits, races), self._ratio(payout, 100.0 * points),
-                       low, high, lower_profit, tuple(self._payback(daily, first, last) for first, last in HALVES),
-                       {year: self._payback(daily, year, year) for year in TEST_YEARS})
+                       low, high, lower_profit, tuple(self._payback(daily, first, last) for first, last in self._halves),
+                       {year: self._payback(daily, year, year) for year in self._test_years})
 
     def verdict(self, candidate: Summary, current: Summary) -> tuple[bool, bool, bool, bool]:
         """採用の基準 1〜4 を満たすか（docs/01 の 6）。"""

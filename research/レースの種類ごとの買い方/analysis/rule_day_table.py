@@ -18,17 +18,19 @@ POINTS, PAYOUT, RACES, HIT_RACES = range(4)
 
 class RuleDayTable:
     """期待値を付けた組（``FoldValuer`` の表。1券種・1案）から、決まりの候補ごとに、
-    配列 [決まり, 種類（芝ダ × クラス）, 開催日, 4] を作る。4 は点数・払戻（100円あたりの合計）・買ったレース・当たったレース。
+    配列 [決まり, 種類（既定は芝ダ × クラス。``group_column`` の列の値ごと）, 開催日, 4] を作る。4 は点数・払戻（100円あたりの合計）・買ったレース・当たったレース。
 
     数え方は道具「印の成績」と同じ: 1レースで決まりに合う組を期待値の高い順に点数の上限まで選び、そのうえでトリガミ
     （どれが当たっても、そのレースのその買い方の投資より少なく戻る組）を外す（``TorigamiFilter`` と同じ決まり。ワイドは最低オッズ）。
     年ごとに決まりを選び直すときは、この配列の開催日の範囲を足し合わせるだけで済む。
     """
 
-    def __init__(self, ticket_type: TicketType, days: Sequence[pd.Timestamp], groups: Sequence[str] = KIND_GROUPS) -> None:
+    def __init__(self, ticket_type: TicketType, days: Sequence[pd.Timestamp], groups: Sequence[str] = KIND_GROUPS,
+                 group_column: str = KIND_GROUP) -> None:
         self._ticket_type = ticket_type
         self._days = pd.DatetimeIndex(days)
         self._groups = list(groups)
+        self._group_column = group_column
 
     def build(self, valued: pd.DataFrame, rules: Sequence[BuyRule]) -> np.ndarray:
         frame = valued.sort_values(["race_id", "value"], ascending=[True, False], kind="stable").reset_index(drop=True)
@@ -44,7 +46,7 @@ class RuleDayTable:
 
     def _arrays(self, frame: pd.DataFrame) -> dict[str, np.ndarray]:
         day = self._days.get_indexer(pd.to_datetime(frame["race_date"]))
-        group = pd.Index(self._groups).get_indexer(frame[KIND_GROUP])
+        group = pd.Index(self._groups).get_indexer(frame[self._group_column])
         if (day < 0).any() or (group < 0).any():
             raise ValueError("開催日か種類が、数える範囲に無い組があります")
         return {"race": pd.factorize(frame["race_id"], sort=True)[0], "value": frame["value"].to_numpy(dtype=float),

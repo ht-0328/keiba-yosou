@@ -201,11 +201,14 @@ def test_当日の予想では締め切り前の板から組の期待値の3連�
     race_id = "".join(ra[column] for column in keys.RACE_KEY)
     weights = {ticket_type: ComboBlendWeights(1.0, 0.0, 0.0, 0.0) for ticket_type in TicketType if ticket_type.is_combination}
 
-    tickets = ForecastTickets(weights).build(con, race_id, _marked_race(), "低", odds_known=True, race_day=True)
+    # 3連単は ◎ の単勝の期待値が 0.99 以下のレースだけ買う（研究「レースの種類ごとの買い方」の docs/03）
+    tickets = ForecastTickets(weights).build(con, race_id, _marked_race().assign(win_value=0.95), "低", odds_known=True, race_day=True)
     chosen = [ticket for ticket in tickets if ticket["rule"] == "3連単（組の期待値）"]
     # 期待値は 1 × 60.0 = 60.0（線 1.3 以上・3,000倍以下）
     assert [(ticket["combo"], ticket["odds"], ticket["dropped"]) for ticket in chosen] == [("030108", 60.0, "")]
     assert chosen[0]["value"] == pytest.approx(60.0) and chosen[0]["probability"] == pytest.approx(1.0)
+    above = ForecastTickets(weights).build(con, race_id, _marked_race().assign(win_value=1.2), "低", odds_known=True, race_day=True)
+    assert not any(ticket["rule"] == "3連単（組の期待値）" for ticket in above)
     assert not any(ticket["rule"] == "馬連（組の期待値）" for ticket in tickets)   # 馬連は採用していないので今週の予想には出さない
     before = ForecastTickets(weights).build(con, race_id, _marked_race(), "低", odds_known=True, race_day=False)
     assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in before)

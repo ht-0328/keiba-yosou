@@ -10,6 +10,7 @@ from yosou.shared.betting import TicketType
 from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
 from 今週の予想.combo_value_rule import ALL_RACES, HIGH_RACES, TOP_COMBOS, ComboValueRule
 from 今週の予想.place_axis_ticket_rule import PlaceAxisTicketRule
+from 今週の予想.race_condition import FAVORITE_ODDS, FIELD_SIZE, TOP_VALUE, RaceCondition
 
 #: 1単位の金額（円）。08 の 2 の「1点の額」は単位で書いてあるので、合計を金額で出すときに使う。
 UNIT_YEN = 1000
@@ -101,12 +102,16 @@ HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.WIN.label, TicketType.EXACTA.lab
 #: （直前1年の重みで 2020〜2026年で決め、2016〜2018年で確かめた）。採用したものは当日の予想で実際に買う（08 の 2。金額は組の期待値用の財布から
 #: ``Wallet.point_yen``）。馬連は 2019〜2020年では基準を満たしたが、2016〜2018年でどちらの重みでも届かなかったので、比べるための行にした。
 #: どれも合計には入らない。組の期待値は、市場とモデルを重みで合わせた組の確率（``ComboBlend``。重みはモデルの置き場所の ``combo_blend.json``）× オッズ。
+#: 馬単・ワイド・3連単は、券種ごとに向いたレースの中身の条件に合うレースだけ買う（研究「レースの種類ごとの買い方」の docs/03。
+#: 条件は 2016〜2018年だけで決め、2019〜2026年で、絞らないときより回収率が高く幅の下の端が 100% を超えた）。
 COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
     ComboValueRule(TicketType.QUINELLA, ALL_RACES, 1.1, 100, adopted=False),
-    ComboValueRule(TicketType.EXACTA, ALL_RACES, 1.1, 30, adopted=True),
-    ComboValueRule(TicketType.WIDE, HIGH_RACES, 1.0, 300, adopted=True, max_points=3, rolling=True),
+    ComboValueRule(TicketType.EXACTA, ALL_RACES, 1.1, 30, adopted=True, race_condition=RaceCondition(FIELD_SIZE, None, 15, "15頭以下")),
+    ComboValueRule(TicketType.WIDE, HIGH_RACES, 1.0, 300, adopted=True, max_points=3, rolling=True,
+                   race_condition=RaceCondition(FAVORITE_ODDS, 2.9, None, "1番人気が 2.9倍以上")),
     ComboValueRule(TicketType.TRIO, TOP_COMBOS, 1.2, 1000, adopted=True, max_points=3, rolling=True),
-    ComboValueRule(TicketType.TRIFECTA, ALL_RACES, 1.3, 3000, adopted=True, rolling=True),
+    ComboValueRule(TicketType.TRIFECTA, ALL_RACES, 1.3, 3000, adopted=True, rolling=True,
+                   race_condition=RaceCondition(TOP_VALUE, None, 0.99, "◎ の単勝の期待値が 0.99 以下")),
 )
 #: 当日の予想で実際に買う、組の期待値の買い方の名前。
 COMBO_VALUE_LABELS: tuple[str, ...] = tuple(rule.label for rule in COMBO_VALUE_RULES if rule.adopted)
