@@ -1,4 +1,4 @@
-"""まだ見ていない年で確かめる区切り（手順4 の 2021年前半〜2022年後半の4つと、手順5 の 2019年前半〜2020年後半の4つ）。"""
+"""まだ見ていない年で確かめる区切り（手順4 の 2021〜2022年、手順5 の 2019〜2020年、手順6 の 2015〜2018年）。"""
 
 from __future__ import annotations
 
@@ -25,8 +25,19 @@ EARLIEST_WINDOWS: tuple[TestWindow, ...] = (
     TestWindow("2020年前半", date(2019, 7, 1), date(2020, 1, 1), date(2020, 6, 30)),
     TestWindow("2020年後半", date(2020, 1, 1), date(2020, 7, 1), date(2020, 12, 31)),
 )
+#: 手順6（docs/05）で確かめる、さらに前の8つの区切り。2019〜2026年はどれも結果を見てしまったので、一度も数えていないのはこの4年だけである。
+#: 2017年1月からの表では学習が足りないので、2012年1月からの表（``TABLES_2012``）で学ぶ。学習は 2年半（2015年前半）〜6年（2018年後半）。
+OLDEST_WINDOWS: tuple[TestWindow, ...] = tuple(
+    window
+    for year in range(2015, 2019)
+    for window in (
+        TestWindow(f"{year}年前半", date(year - 1, 7, 1), date(year, 1, 1), date(year, 6, 30)),
+        TestWindow(f"{year}年後半", date(year, 1, 1), date(year, 7, 1), date(year, 12, 31)),
+    )
+)
 #: 区切りの組の名前（最初の年）→（区切り、予測の置き場所のフォルダ名）。
 WINDOW_SETS: dict[str, tuple[tuple[TestWindow, ...], str]] = {
     "2021": (EARLY_WINDOWS, "predictions"),
     "2019": (EARLIEST_WINDOWS, "predictions-2019"),
+    "2015": (OLDEST_WINDOWS, "predictions-2015"),
 }

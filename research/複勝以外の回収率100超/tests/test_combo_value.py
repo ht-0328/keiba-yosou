@@ -57,3 +57,17 @@ def test_運用の目安は重みで金額を決め_落ち込みと連敗を数�
     assert "回収率: 133.3%" in lines[3]
     assert "いちばん深い落ち込み: 600円" in lines[4]   # 2019年の当たりのあと、4レース続けて外れて 200円 × 3 = 600円 下がる
     assert lines[5] == "- いちばん長い連敗: 3 レース"
+
+
+def test_区切りごとの重みは書き足して読み戻せ_道具の読み方とも同じになる(tmp_path) -> None:
+    from yosou.shared.combo_value import ComboBlendWeights
+
+    from 印の成績.fold_weights_reader import read_fold_weights
+    from 複勝以外の回収率100超.analysis.fold_weights_file import FoldWeightsFile
+
+    store = FoldWeightsFile(tmp_path / "w.json")
+    store.save("2016年前半", {TicketType.WIDE: ComboBlendWeights(0.1, 0.2, 0.3, 0.4)})
+    store.save("2016年後半", {TicketType.TRIO: ComboBlendWeights(0.5, 0.0, 0.4, 0.8)})
+    assert store.has("2016年前半") and not store.has("2017年前半")
+    assert store.load() == read_fold_weights(tmp_path / "w.json")
+    assert read_fold_weights(tmp_path / "w.json")["2016年後半"][TicketType.TRIO].ratio == pytest.approx(0.8)
