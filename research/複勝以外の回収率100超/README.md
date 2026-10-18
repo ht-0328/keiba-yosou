@@ -29,8 +29,9 @@
 | `docs/` | 進め方と、分かったこと |
 | `cases.py` | 入口①。前半の年で、券種どうしの値段の食い違いが大きかったレースを集める |
 | `backtest.py` | 入口②。すべての作り方で、線を前半で決めて後半で確かめる |
-| `early_years.py` | 入口③。印のルールの買い目を、まだ見ていない 2021〜2022年で確かめるために、今の本番のモデルをその年の区切りで学習し、今の本番の予測と合わせる（docs/03） |
-| `analysis/` | 市場の組の確率を作る部品（`market_combo_table.py`・`pool_derivation.py`・`horse_uplift.py`・`market_source.py`・`trifecta_corrections.py`・`variant.py`・`gap_cases.py`）と、入口③の区切りと学び直すモデル（`early_windows.py`・`retrain_target.py`・`retrain_targets.py`） |
+| `early_years.py` | 入口③。印のルールの買い目を、まだ見ていない 2021〜2022年で確かめるために、今の本番のモデルをその年の区切りで学習し、今の本番の予測と合わせる（docs/03）。`--from-year 2019` で、手順5 の 2019〜2020年の区切りも作る（docs/04） |
+| `combo_value.py` | 入口④。組の期待値（市場とモデルを重みで合わせた組の確率 × オッズ）で組を選ぶ買い方の、印付け・重みの推定・線の選び方・期間ごとの成績（docs/04） |
+| `analysis/` | 市場の組の確率を作る部品（`market_combo_table.py`・`pool_derivation.py`・`horse_uplift.py`・`market_source.py`・`trifecta_corrections.py`・`variant.py`・`gap_cases.py`）と、入口③の区切りと学び直すモデル（`early_windows.py`・`retrain_target.py`・`retrain_targets.py`）と、入口④の部品（`backtest_marking.py`・`combo_month_frames.py`・`combo_rule_grid.py`・`combo_period_report.py`・`combo_operation_report.py`。組の確率そのものは本番と同じ `src/yosou/shared/combo_value/`） |
 | `prompts/` | 事例の見方 |
 | `tests/` | 架空の値で部品を確かめるテスト |
 | `reports/複勝以外の回収率100超/`（Git 対象外） | 実測の数値。JV-Data 由来の値はここにだけ置く |
@@ -42,6 +43,7 @@
 1. [docs/01-進め方.md](docs/01-進め方.md) — 何をどの順で確かめるか
 2. [docs/02-結果.md](docs/02-結果.md) — 事例から分かったことと、検証の結果
 3. [docs/03-印の買い目の確かめ.md](docs/03-印の買い目の確かめ.md) — 印のルールの買い目を、まだ見ていない年で確かめる手順と採用の基準（手順4）
+4. [docs/04-組の期待値で選ぶ買い方.md](docs/04-組の期待値で選ぶ買い方.md) — 組ごとの期待値で組を選ぶ買い方と、2019〜2020年で確かめる手順・基準・結果（手順5）
 
 ## 動かし方
 
@@ -52,5 +54,11 @@ uv run python research/複勝以外の回収率100超/cases.py      # 事例を�
 uv run python research/複勝以外の回収率100超/backtest.py   # すべての作り方を確かめる
 uv run python research/複勝以外の回収率100超/early_years.py run       # 手順4: 今の本番のモデルを 2021〜2022年の区切りで学習する（1時間ほど）
 uv run python research/複勝以外の回収率100超/early_years.py combine   # 手順4: 今の本番の予測と合わせる（そのあと道具「印の成績」で数える。docs/03）
+uv run python research/複勝以外の回収率100超/early_years.py run --from-year 2019      # 手順5: 2019〜2020年の区切りで学習する（1時間ほど）
+uv run python research/複勝以外の回収率100超/early_years.py combine --from-year 2019  # 手順5: 2021年からの予測と合わせる
+uv run python research/複勝以外の回収率100超/combo_value.py mark                      # 手順5: 2019年からの当日の予測に印を付ける
+uv run python research/複勝以外の回収率100超/combo_value.py fit                       # 手順5: 2023〜2026年で組の確率の重みを推定する
+uv run python research/複勝以外の回収率100超/combo_value.py grid                      # 手順5: 2023〜2026年で線・上限・対象を数える
+uv run python research/複勝以外の回収率100超/combo_value.py check                     # 手順5: 道具「印の成績」の買い目から期間ごとの成績を出す（docs/04）
 uv run python -m pytest -q research/複勝以外の回収率100超                                  # 部品のテスト（架空の値だけ）
 ```
