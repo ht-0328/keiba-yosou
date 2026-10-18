@@ -430,7 +430,7 @@ async function forecastRaceList(main, params) {
     forecastLegend(data.legend), cliBlock(cliLine(TOOLS.forecast, {date: params.from, venue: params.venue}) + " --skip-saved")));
   appendRaceDays(main, data.cards, "forecast", (r) => {
     const saved = data.saved[r.rid];
-    const kind = saved && saved.plan_ticket_yen ? (saved.plan_kind === "買わない" ? "勝負（単勝・馬単）" : saved.plan_kind + "＋単勝・馬単") : (saved && saved.plan_kind);
+    const kind = saved && saved.plan_ticket_yen ? (saved.plan_kind === "買わない" ? "勝負（単勝・馬単・馬連）" : saved.plan_kind + "＋単勝・馬単・馬連") : (saved && saved.plan_kind);
     const plan = kind ? "［" + kind + (saved.plan_yen ? " " + saved.plan_yen.toLocaleString() + "円" : "") + "］ " : "";
     return saved ? el("span", {class: "sub", title: "作成 " + saved.made_at}, plan + "予想済み（" + saved.timing + (saved.expectation ? "・期待度 " + saved.expectation : "") + "） " + saved.marks)
                  : el("span", {class: "sub"}, "未予想");
@@ -553,7 +553,7 @@ function showForecast(main, data) {
       head.append(el("div", {class: "note"}, el("b", {}, "買うレース: " + p.kind), "。" + p.reason + "。"
         + (picks ? " 複勝 " + picks + "（合計 " + (p.place_yen ?? p.stake_yen).toLocaleString() + "円）。" : "")
         + (p.ticket_reason ? " " + p.ticket_reason + "。" : "")
-        + (tickets ? " " + tickets + "（合計 " + p.ticket_yen.toLocaleString() + "円。単勝・馬単用の財布から）。" : "")
+        + (tickets ? " " + tickets + "（合計 " + p.ticket_yen.toLocaleString() + "円。◎ の単勝・馬単は単勝・馬単用、組の期待値の馬連・馬単は組の期待値用の財布から）。" : "")
         + " 見込みの利益 E = " + Number(p.profit_units).toFixed(2) + "単位。計画は設計書「買うレースと買い目を決める」03・08 の 1 の決まりで、財布（reports/回顧/財布.json）の予算から決める。"));
     }
   }

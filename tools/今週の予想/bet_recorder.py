@@ -13,8 +13,8 @@ from 今週の予想.race_plan import NO_BET, RacePlan
 
 
 class BetRecorder:
-    """計画（``DayPlanner.plan``）の複勝と単勝・馬単の買い目を、表1「買い目の記録」に書く（買い目を決めたときに書き、レースのあとに払戻を書き足す）。
-    単勝・馬単の参加の種類は「勝負（単勝・馬単）」（単勝・馬単用の財布から出す）。
+    """計画（``DayPlanner.plan``）の複勝と、単勝・馬単・馬連の買い目を、表1「買い目の記録」に書く（買い目を決めたときに書き、レースのあとに払戻を書き足す）。
+    複勝のほかの買い目の参加の種類は、その1点の ``kind``（「勝負（単勝・馬単）」か「勝負（組の期待値）」。それぞれの財布から出す）。
 
     同じレースの未精算の行は書き直す（前日の計画を当日に作り直したときに、古い買い目を残さない）。
     記録だけの行は作らない（今の決まりで買わない券種は記録もしない）。
@@ -31,7 +31,7 @@ class BetRecorder:
             if plan.kind != NO_BET:
                 rows += [self._row(plan.rid, day, plan.kind, TicketType.PLACE.label, f"{pick.horse_no:02d}", pick.yen, pick.probability,
                                    pick.value, pick.odds, odds_at) for pick in plan.picks]
-            rows += [self._row(plan.rid, day, names.MATCH_WIN, ticket.ticket_type, ticket.combo, ticket.yen, None, ticket.value, ticket.odds, odds_at)
+            rows += [self._row(plan.rid, day, ticket.kind, ticket.ticket_type, ticket.combo, ticket.yen, None, ticket.value, ticket.odds, odds_at)
                      for ticket in plan.tickets]
         return self._store.write(names.BETS_TABLE, pd.DataFrame(rows)) if rows else 0
 

@@ -21,6 +21,8 @@ reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切�
 軸の1頭から ○▲△☆ への流し（3連複）とマルチ（3連単。組の期待値が 1.0 以上の買い目だけ）を、◎軸・軸馬の2パターンで足す）の買い方ごとの成績
 （点数・投資・払戻・回収率・90% の幅。トリガミは外す。合計は「元の買い目だけ」と、それに ◎軸・軸馬の買い目を足したものの3つ。
 対象は 全レース・期待度「高」・高で2モデル一致・高で3連単の支持あり・その両方。複勝と期待値で絞った3連複・3連単には「2モデル一致」の行も添える）、
+表7・表8 には、組の期待値で組を選ぶ買い方（研究「複勝以外の回収率100超」の docs/04。市場とモデルを重みで合わせた組の確率 × 確定オッズが線以上で、
+オッズが上限以下の組を全部。馬連・馬単は実際に買う買い方、ワイド・3連複・3連単は比べるための行）も出す。重みは --models の combo_blend.json。
 8. 買い方ごとの年ごとの回収率、9. 期待値の線を動かしたときの 3連複・3連単の成績（参考）、
 10. 場面（クラス・競馬場・頭数・単勝の売上・芝ダ）ごとの ◎ の成績と上乗せ（参考）、
 11. 前日夜 → 当日朝の単勝オッズの動きごとの ◎ の単勝の成績（参考。時系列オッズのある約1年のレースだけ）、
@@ -53,13 +55,16 @@ from yosou.favorites_out_of_top3.dataset import FavoriteBand  # noqa: E402
 from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.shared.place_value import PlacePriceEstimator  # noqa: E402
-from yosou.shared.repository import PlacePriceRepository  # noqa: E402
+from yosou.shared.repository import ComboBlendWeightsRepository, PlacePriceRepository  # noqa: E402
 
 from 今週の予想.danger_picker import MARKED_BANDS  # noqa: E402
+from 今週の予想.combo_value_picker import ComboValuePicker  # noqa: E402
 from 今週の予想.mark_tickets import MarkTickets  # noqa: E402
+from 今週の予想.ticket_rules import COMBO_VALUE_RULES  # noqa: E402
 from 今週の予想.torigami_filter import TorigamiFilter  # noqa: E402
 
 from 印の成績.backtest_marker import BacktestMarker  # noqa: E402
+from 印の成績.combo_value_tickets import ComboValueTickets  # noqa: E402
 from 印の成績.danger_band_report import DangerBandReport  # noqa: E402
 from 印の成績.danger_flag_file import DangerFlagFile  # noqa: E402
 from 印の成績.favorite_danger_judge import COLUMNS as DANGER_COLUMNS, FavoriteDangerJudge  # noqa: E402
@@ -132,8 +137,11 @@ def main(args) -> None:
                   f"期間: {marked['race_date'].min():%Y-%m-%d} 〜 {marked['race_date'].max():%Y-%m-%d}（7つの区切りのテスト期間）。")
     tables = MarkReport().tables(marked, conditions, lines)
     tickets = MarkTickets().build(marked)
-    print(f"買い目 {len(tickets):,} 点の払戻と確定オッズを読みます", file=sys.stderr, flush=True)
     with db.open_db(args.db, default=database) as con:
+        if odds_known:
+            picker = ComboValuePicker(COMBO_VALUE_RULES, ComboBlendWeightsRepository(args.models).load())
+            tickets = pd.concat([tickets, ComboValueTickets(con, picker).build(marked)], ignore_index=True)
+        print(f"買い目 {len(tickets):,} 点の払戻と確定オッズを読みます", file=sys.stderr, flush=True)
         tickets = TorigamiFilter().apply(TicketPayouts(con).attach(tickets))
     report = TicketReport()
     tables += report.tables(tickets, marked["race_id"].nunique(), marked["race_date"].nunique())
@@ -186,7 +194,8 @@ def build_parser():
     parser.add_argument("--scene", choices=tuple(SCENE_SCHEMES), default=JRA_SCENE_SCHEME.name,
                         help="場面の表（表10）のクラス・競馬場の帯の区分（既定: 中央）。地方の予想の予測を数えるときは 地方（--db を省くと地方の元DB を開く）")
     parser.add_argument("--models", type=Path, default=DEFAULT_MODELS,
-                        help="複勝の見込みの倍率（place_price.json）の置き場所（既定: reports/近走と適性から3着以内を予想/models）")
+                        help="複勝の見込みの倍率（place_price.json）と組の確率の重み（combo_blend.json）の置き場所"
+                             "（既定: reports/近走と適性から3着以内を予想/models）")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="結果を書く場所（既定: reports/印の成績）")
     return parser
 
