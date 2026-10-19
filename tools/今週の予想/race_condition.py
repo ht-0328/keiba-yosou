@@ -6,9 +6,11 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-#: 条件に使えるレースの中身の列。頭数・1番人気の単勝オッズ・◎ の単勝の期待値（作るのは ``ComboRaceTraits``）。
+#: 条件に使えるレースの中身の列（作るのは ``ComboRaceTraits``）。頭数・1番人気の単勝オッズ・◎ の単勝の期待値・市場の勝率の上位3頭の和・
+#: 危険な人気馬がいるか（1 か 0）・2モデル一致のレースか（1 か 0）。
 FIELD_SIZE, FAVORITE_ODDS, TOP_VALUE = "field_size", "favorite_odds", "top_value"
-TRAIT_COLUMNS: tuple[str, ...] = (FIELD_SIZE, FAVORITE_ODDS, TOP_VALUE)
+TOP3_SHARE, HAS_DANGER, AGREED = "top3_share", "has_danger", "agreed"
+TRAIT_COLUMNS: tuple[str, ...] = (FIELD_SIZE, FAVORITE_ODDS, TOP_VALUE, TOP3_SHARE, HAS_DANGER, AGREED)
 
 
 @dataclass(frozen=True)

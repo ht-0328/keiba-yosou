@@ -50,6 +50,7 @@ from yosou.shared.repository import AnnouncedOddsRepository, ComboBlendWeightsRe
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER as FIGURE_CACHE
 from yosou.shared.win_value import WIN_VALUE, ExpectationLevel
 from yosou.shared.workflow import ModelSegments, SegmentedPrediction
+from yosou.shared.workflow.prediction_workflow import WIN_VALUE_MEMBER
 
 from 今週の予想 import forecast_columns as columns
 from 今週の予想.danger_finder import DangerFinder
@@ -57,6 +58,7 @@ from 今週の予想.danger_reasons import DangerReasons
 from 今週の予想.forecast_tickets import ForecastTickets
 from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.horse_evaluator import HorseEvaluator
+from 今週の予想.filter_columns import MEMBER_SOURCES, member_column
 from 今週の予想.mark_rule import OUT_MARK as DANGER_MARK
 from 今週の予想.mark_rule import MarkRule
 from 今週の予想.story_attacher import StoryAttacher
@@ -67,6 +69,7 @@ _RENAMES: dict[str, str] = {
     ids.HORSE_ID: columns.HORSE_ID, ids.HORSE_NO: columns.HORSE_NO, ids.HORSE_NAME: columns.HORSE_NAME,
     PROBABILITY: columns.PROBABILITY, WIN_ODDS: columns.WIN_ODDS, TOP3_RATE: columns.MARKET_TOP3, PLACE_VALUE: columns.PLACE_VALUE,
     WIN_PROBABILITY: columns.WIN_PROBABILITY, WIN_VALUE: columns.WIN_VALUE,
+    **{WIN_VALUE_MEMBER.format(member=source): member_column(columns.WIN_VALUE, member) for source, member in MEMBER_SOURCES.items()},
 }
 #: 1頭の結果に入れる、表の列。
 _HORSE_COLUMNS: tuple[str, ...] = (
