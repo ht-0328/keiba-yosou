@@ -37,7 +37,7 @@ from レースの種類ごとの買い方.analysis.cross_pool_features import CR
 from レースの種類ごとの買い方.analysis.current_tickets import CurrentTickets  # noqa: E402
 from レースの種類ごとの買い方.analysis.filter_selector import FilterSelector  # noqa: E402
 from レースの種類ごとの買い方.analysis.fold_valuer import FoldValuer, frames_by_fold  # noqa: E402
-from レースの種類ごとの買い方.analysis.hit_rate_selector import HitRateSelector  # noqa: E402
+from レースの種類ごとの買い方.analysis.hit_rate_selector import HitRatePick, HitRateSelector  # noqa: E402
 from レースの種類ごとの買い方.analysis.horse_bets import HorseBets  # noqa: E402
 from レースの種類ごとの買い方.analysis.race_traits import SUBSETS, TRAITS  # noqa: E402
 from レースの種類ごとの買い方.analysis.rule_day_table import HIT_RACES, RACES, RuleDayTable  # noqa: E402
@@ -77,6 +77,11 @@ SECOND_TRIAL_CAPS: dict[str, float] = {"単勝": 30, "馬連": 100, "ワイド":
 #: 3回目（docs/04 の 8）で選び直す券種と、選ぶ期間の年のうち回収率 100% 以上が要る割合。
 THIRD_TRIAL: tuple[str, ...] = ("馬連", "ワイド", "馬単", "3連複")
 THIRD_GOOD_SHARE = 2 / 3
+#: 6回目（docs/04 の 11）の決まりが1つの券種: 名前 → （組の確率の置き場所, 決まり, 買うレースの条件（中身, 下限, 上限））。
+SIXTH_FIXED: dict[str, tuple[str, BuyRule, tuple[str, float | None, float | None]]] = {
+    "ワイド": ("cross", BuyRule("高", 1.0, 300, 5), ("favorite_odds", 2.9, None)),
+    "3連複": ("now", BuyRule("◎", 1.2, 1000, 5), ("has_danger", None, 0.0)),
+}
 #: 4回目（docs/04 の 9）で選び直す券種（ファイルの名前）。
 FOURTH_TRIAL: dict[str, str] = {"ワイド": "wide", "馬単": "exacta", "3連複": "trio"}
 
@@ -195,13 +200,13 @@ def _report(args: argparse.Namespace) -> None:
     verdicts = []
     for name, key, ticket_type, label, expectation in TICKETS:
         targets = {1: [item[0] for item in TICKETS], 2: list(SECOND_TRIAL_CAPS), 3: list(THIRD_TRIAL), 4: list(FOURTH_TRIAL),
-                   5: list(FOURTH_TRIAL)}[args.trial]
+                   5: list(FOURTH_TRIAL), 6: list(FOURTH_TRIAL)}[args.trial]
         if name not in targets:
             continue
         loaded = np.load(OUT / "filters" / (f"{key}-cross.npz" if args.trial == 5 else f"{key}.npz"))
         rules = rules_of(ticket_type)
         tables = {trait: loaded[trait] for trait in TRAITS}
-        if args.trial == 4:
+        if args.trial in (4, 6):
             for subset in SUBSETS:
                 part = np.load(OUT / "filters" / f"{key}-{subset}.npz")
                 tables.update({f"{subset}:{trait}": part[trait] for trait in TRAITS})
@@ -212,8 +217,11 @@ def _report(args: argparse.Namespace) -> None:
             base_daily = current.rule(label, expectation)
         select = np.isin(years, SELECT_YEARS)
         base_hit = base_daily[select, HIT_RACES].sum() / max(base_daily[select, RACES].sum(), 1.0)
-        if args.trial >= 3:
-            pick, cells = _walk_forward(HitRateSelector(selector, days, rules), base_daily, years, SECOND_TRIAL_CAPS[name])
+        if args.trial == 6 and name in SIXTH_FIXED:
+            pick, cells = _fixed(name, key, ticket_type, days)
+        elif args.trial >= 3:
+            pick, cells = _walk_forward(HitRateSelector(selector, days, rules), base_daily, years, SECOND_TRIAL_CAPS[name],
+                                        fallback=args.trial == 6)
         else:
             pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit, min_good_share=1.0 if second else None,
                                                                       max_cap=SECOND_TRIAL_CAPS[name] if second else None)
@@ -238,8 +246,23 @@ def _report(args: argparse.Namespace) -> None:
     print(lines[-1], flush=True)
 
 
-def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.ndarray, max_cap: float):
+def _fixed(name: str, key: str, ticket_type: TicketType, days: pd.DatetimeIndex):
+    """6回目（docs/04 の 11）の決まりが1つの券種: その決まりと買うレースの条件の、開催日ごとの成績。"""
+    folder, rule, (trait, low, high) = SIXTH_FIXED[name]
+    _, _, traits = _bins()
+    values = traits[trait]
+    passes = values.notna() & (values >= low if low is not None else True) & (values <= high if high is not None else True)
+    flags = pd.DataFrame({"race_id": traits["race_id"], "pass": np.where(passes, "1", "0")})
+    valued = pd.read_parquet(OUT / "valued" / folder / f"{key}.parquet")
+    valued = valued[valued["race_date"] >= FIRST_DAY].merge(flags, on="race_id", how="inner")
+    cells = RuleDayTable(ticket_type, days, ["0", "1"], "pass").build(valued, [rule])[0, 1]
+    text = {"favorite_odds": f"1番人気が {low}倍以上", "has_danger": "危険な人気馬がいない"}[trait]
+    return HitRatePick(rule, f"{text}（組の確率: {'5回目' if folder == 'cross' else '今'}）", float("nan"), float("nan"), float("nan"), 1), cells
+
+
+def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.ndarray, max_cap: float, fallback: bool = False):
     """3回目（docs/04 の 8）: 2019〜2026年の各年について、その年より前の全部で選び直し、その年の成績をつなぐ。
+    ``fallback`` なら、選べない年は比べる相手（今の決まり）の成績を使う（6回目。docs/04 の 11）。
     （最後の年に選んだもの（成績の表の名前に使う）, つないだ開催日ごとの成績 [開催日, 4]）。"""
     result = np.zeros_like(base_daily)
     last = None
@@ -252,6 +275,9 @@ def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.n
         texts.append(f"{year}: {pick.rule.text + '・' + pick.filter_text if pick.rule else '買わない'}")
         if cells is not None:
             result[years == year] = cells[years == year]
+        elif fallback:
+            result[years == year] = base_daily[years == year]
+            texts[-1] = f"{year}: 今の決まり（選べない）"
         last = pick
     print("  " + " / ".join(texts), flush=True)
     return replace(last, filter_text=f"{last.filter_text}（年ごとに選び直し）") if last is not None and last.rule else last, result
@@ -261,7 +287,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
     parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "cross", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
-    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4, 5), default=1, help="report の何回目の選び方か（docs/04 の 4・7・8・9・10）")
+    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4, 5, 6), default=1, help="report の何回目の選び方か（docs/04 の 4・7〜11）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 
