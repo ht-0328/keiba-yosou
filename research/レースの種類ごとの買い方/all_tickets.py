@@ -3,7 +3,8 @@
     uv run python research/レースの種類ごとの買い方/all_tickets.py bracket   # 枠連の組の表を作り、区切りごとに重みを推定して期待値を付ける（十数分）
     uv run python research/レースの種類ごとの買い方/all_tickets.py horses    # 単勝・複勝の買い目の候補を作る
     uv run python research/レースの種類ごとの買い方/all_tickets.py tables    # 単勝・複勝・枠連の、中身の帯 × 決まりの開催日の表（ほかの券種は race_filters.py tables）
-    uv run python research/レースの種類ごとの買い方/all_tickets.py report    # 2016〜2018年で選び、2019〜2026年で確かめる
+    uv run python research/レースの種類ごとの買い方/all_tickets.py subsets   # 4回目: 2モデル一致・3連単の支持ありのレースだけの表
+    uv run python research/レースの種類ごとの買い方/all_tickets.py report --trial 1   # 手順6 の1〜4回目の選び方で選び、2019〜2026年で確かめる
 
 出るものは全部 Git 対象外の ``reports/レースの種類ごとの買い方/``。
 """
@@ -35,7 +36,7 @@ from レースの種類ごとの買い方.analysis.filter_selector import Filter
 from レースの種類ごとの買い方.analysis.fold_valuer import FoldValuer, frames_by_fold  # noqa: E402
 from レースの種類ごとの買い方.analysis.hit_rate_selector import HitRateSelector  # noqa: E402
 from レースの種類ごとの買い方.analysis.horse_bets import HorseBets  # noqa: E402
-from レースの種類ごとの買い方.analysis.race_traits import TRAITS  # noqa: E402
+from レースの種類ごとの買い方.analysis.race_traits import SUBSETS, TRAITS  # noqa: E402
 from レースの種類ごとの買い方.analysis.rule_day_table import HIT_RACES, RACES, RuleDayTable  # noqa: E402
 from レースの種類ごとの買い方.analysis.walk_forward_report import WalkForwardReport  # noqa: E402
 from レースの種類ごとの買い方.analysis.weight_method import WeightMethod  # noqa: E402
@@ -73,11 +74,13 @@ SECOND_TRIAL_CAPS: dict[str, float] = {"単勝": 30, "馬連": 100, "ワイド":
 #: 3回目（docs/04 の 8）で選び直す券種と、選ぶ期間の年のうち回収率 100% 以上が要る割合。
 THIRD_TRIAL: tuple[str, ...] = ("馬連", "ワイド", "馬単", "3連複")
 THIRD_GOOD_SHARE = 2 / 3
+#: 4回目（docs/04 の 9）で選び直す券種（ファイルの名前）。
+FOURTH_TRIAL: dict[str, str] = {"ワイド": "wide", "馬単": "exacta", "3連複": "trio"}
 
 
 def main() -> None:
     args = _parser().parse_args()
-    {"bracket": _bracket, "horses": _horses, "tables": _tables, "report": _report}[args.step](args)
+    {"bracket": _bracket, "horses": _horses, "tables": _tables, "subsets": _subsets, "report": _report}[args.step](args)
 
 
 def _bracket(args: argparse.Namespace) -> None:
@@ -130,6 +133,28 @@ def _tables(args: argparse.Namespace) -> None:
         print(f"帯の表: {key} → {path}", flush=True)
 
 
+def _subsets(args: argparse.Namespace) -> None:
+    """4回目（docs/04 の 9）: 2モデル一致・3連単の支持ありのレースだけで、中身の帯 × 決まりの開催日の表を作る。"""
+    bins, labels, traits = _bins()
+    days = _days()
+    for name, key in FOURTH_TRIAL.items():
+        ticket_type = next(item[2] for item in TICKETS if item[0] == name)
+        valued = pd.read_parquet(OUT / "valued" / "now" / f"{key}.parquet")
+        valued = valued[valued["race_date"] >= FIRST_DAY].merge(labels, on="race_id", how="inner")
+        rules = rules_of(ticket_type)
+        for subset in SUBSETS:
+            path = OUT / "filters" / f"{key}-{subset}.npz"
+            if path.exists() and not args.force:
+                print(f"済み: {path}", flush=True)
+                continue
+            races = set(traits.loc[traits[subset] == 1, "race_id"])
+            part = valued[valued["race_id"].isin(races)]
+            arrays = {trait: RuleDayTable(ticket_type, days, bins.labels(trait), f"bin_{trait}").build(part, rules).astype(np.float32)
+                      for trait in TRAITS}
+            np.savez(path, **arrays)
+            print(f"絞りの表: {name}・{SUBSETS[subset]} → {path}", flush=True)
+
+
 def _report(args: argparse.Namespace) -> None:
     days = _days()
     years = days.year.to_numpy()
@@ -139,18 +164,24 @@ def _report(args: argparse.Namespace) -> None:
     lines = [f"# 8券種で回収率 100% 超えと的中率の向上（docs/04。2016〜2018年で選び、2019〜2026年で確かめる。手順6 の{args.trial}回目）\n"]
     verdicts = []
     for name, key, ticket_type, label, expectation in TICKETS:
-        if (second and name not in SECOND_TRIAL_CAPS) or (args.trial == 3 and name not in THIRD_TRIAL):
+        targets = {1: [item[0] for item in TICKETS], 2: list(SECOND_TRIAL_CAPS), 3: list(THIRD_TRIAL), 4: list(FOURTH_TRIAL)}[args.trial]
+        if name not in targets:
             continue
         loaded = np.load(OUT / "filters" / f"{key}.npz")
         rules = rules_of(ticket_type)
-        selector = FilterSelector({trait: loaded[trait] for trait in TRAITS}, days, rules)
+        tables = {trait: loaded[trait] for trait in TRAITS}
+        if args.trial == 4:
+            for subset in SUBSETS:
+                part = np.load(OUT / "filters" / f"{key}-{subset}.npz")
+                tables.update({f"{subset}:{trait}": part[trait] for trait in TRAITS})
+        selector = FilterSelector(tables, days, rules)
         if label is None:
             base_daily = selector.stack[0, rules.index(BRACKET_BASE)].astype(float)
         else:
             base_daily = current.rule(label, expectation)
         select = np.isin(years, SELECT_YEARS)
         base_hit = base_daily[select, HIT_RACES].sum() / max(base_daily[select, RACES].sum(), 1.0)
-        if args.trial == 3:
+        if args.trial >= 3:
             pick, cells = _walk_forward(HitRateSelector(selector, days, rules), base_daily, years, SECOND_TRIAL_CAPS[name])
         else:
             pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit, min_good_share=1.0 if second else None,
@@ -197,9 +228,9 @@ def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.n
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
-    parser.add_argument("step", choices=("bracket", "horses", "tables", "report"))
+    parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
-    parser.add_argument("--trial", type=int, choices=(1, 2, 3), default=1, help="report の何回目の選び方か（docs/04 の 4・7・8）")
+    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4), default=1, help="report の何回目の選び方か（docs/04 の 4・7・8・9）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 

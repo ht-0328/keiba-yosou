@@ -13,13 +13,15 @@ TRAITS: dict[str, str] = {
     "top_value": "◎ の単勝の期待値",
     "has_danger": "危険な人気馬がいるか（1 か 0）",
 }
+#: レースを絞る2つの印（docs/04 の 9。1 か 0）。帯には分けず、そのレースだけに絞る形で使う。
+SUBSETS: dict[str, str] = {"agreement": "2モデル一致のレース", "pool_backed": "3連単の支持ありのレース"}
 
 
 class RaceTraits:
     """印を付けた予測の表（研究「複勝以外の回収率100超」の ``marked-<年>から.parquet``。1行 = 1頭）から、レースごとの中身の列 ``TRAITS`` を作る。
 
     使う列: ``race_id``・``win_odds``・``market_win``（オッズから見た勝率）・``win_probability``（モデルの勝率）・``field_size``・
-    ``mark``・``win_value``・``is_danger``。例: 1番人気が 1.8倍、上位3頭の市場の勝率が 0.40・0.20・0.10 なら、favorite_odds 1.8・top3_share 0.70。
+    ``mark``・``win_value``・``is_danger``（あれば ``SUBSETS`` の ``agreement``・``pool_backed`` も写す）。例: 1番人気が 1.8倍、上位3頭の市場の勝率が 0.40・0.20・0.10 なら、favorite_odds 1.8・top3_share 0.70。
     """
 
     def of(self, marked: pd.DataFrame) -> pd.DataFrame:
@@ -31,5 +33,6 @@ class RaceTraits:
         table = pd.DataFrame({
             "favorite_odds": race["win_odds"].min(), "top3_share": top3, "field_size": race["field_size"].first(),
             "model_gap": gap, "top_value": top_value, "has_danger": race["is_danger"].max().astype(float),
+            **{name: race[name].max().astype(float) for name in SUBSETS if name in frame.columns},
         })
         return table.reset_index()

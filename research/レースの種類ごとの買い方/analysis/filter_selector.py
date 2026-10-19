@@ -85,12 +85,18 @@ class FilterSelector:
 
     @staticmethod
     def _candidates_of(tables: Mapping[str, np.ndarray]) -> list[_Candidate]:
+        """名前が ``<絞り>:<中身>`` の表は、その絞りのレースだけで作った表（docs/04 の 9）。絞りごとに「そのレースだけ」の候補も足す。"""
         names = list(tables)
         first = names[0]
         items = [_Candidate(first, 0, tables[first].shape[1] - 1, "絞らない")]
+        prefixes: set[str] = set()
         for trait in names:
             count = tables[trait].shape[1]
-            if trait == "has_danger":
+            prefix, _, base = trait.rpartition(":")
+            if prefix and prefix not in prefixes:
+                prefixes.add(prefix)
+                items.append(_Candidate(trait, 0, count - 1, f"{prefix} だけ"))
+            if base == "has_danger":
                 items += [_Candidate(trait, 0, 0, "危険な人気馬がいない"), _Candidate(trait, 1, 1, "危険な人気馬がいる")]
                 continue
             items += [_Candidate(trait, 0, top, f"{trait} の帯 {top + 1} 以下") for top in range(count - 1)]
