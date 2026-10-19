@@ -50,7 +50,7 @@ from 今週の予想.plan_table import PlanTable  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
-from 今週の予想.ticket_rules import COMBO_VALUE_RULES  # noqa: E402
+from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES  # noqa: E402
 from 今週の予想.wallet import COMBO_WALLET, MATCH_WALLET, POINT_RATE, POLICY_WALLET, WIN_WALLET, Wallet  # noqa: E402
 
 _RID = card.CARD_LIST_HEADERS.index("rid")
@@ -114,7 +114,7 @@ def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[st
                    "予算": {kind: wallet.budget(kind, day) for kind in (review_names.MATCH, review_names.POLICY_STAKES, review_names.POLICY_DAY)},
                    "1点": wallet.unit(day), "単勝・馬単の1点": {label: wallet.point_yen(label, day) for label in POINT_RATE[WIN_WALLET]},
                    "組の期待値の1点": {rule.ticket_type.label: wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET)
-                                    for rule in COMBO_VALUE_RULES if rule.adopted}}
+                                    for rule in ALL_COMBO_VALUE_RULES if rule.adopted}}
         plans_store.save(day, plans, summary)
         odds_at = max((forecast.get("made_at") or "" for forecast in forecasts), default="")
         recorder.record(plans, odds_at)

@@ -55,7 +55,7 @@ from yosou.favorites_out_of_top3.dataset import FavoriteBand  # noqa: E402
 from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.shared.place_value import PlacePriceEstimator  # noqa: E402
-from yosou.shared.repository import ComboBlendWeightsRepository, PlacePriceRepository  # noqa: E402
+from yosou.shared.repository import BracketBlendWeightsRepository, ComboBlendWeightsRepository, PlacePriceRepository  # noqa: E402
 
 from 今週の予想.danger_picker import MARKED_BANDS  # noqa: E402
 from 今週の予想.combo_value_picker import ComboValuePicker  # noqa: E402
@@ -64,6 +64,8 @@ from 今週の予想.ticket_rules import COMBO_VALUE_RULES  # noqa: E402
 from 今週の予想.torigami_filter import TorigamiFilter  # noqa: E402
 
 from 印の成績.backtest_marker import BacktestMarker  # noqa: E402
+from 印の成績.bracket_fold_weights_reader import read_bracket_fold_weights  # noqa: E402
+from 印の成績.bracket_value_tickets import BracketValueTickets  # noqa: E402
 from 印の成績.combo_value_tickets import ComboValueTickets  # noqa: E402
 from 印の成績.danger_band_report import DangerBandReport  # noqa: E402
 from 印の成績.danger_flag_file import DangerFlagFile  # noqa: E402
@@ -143,6 +145,9 @@ def main(args) -> None:
             picker = ComboValuePicker(COMBO_VALUE_RULES, ComboBlendWeightsRepository(args.models).load())
             fold_weights = read_fold_weights(args.combo_fold_weights) if args.combo_fold_weights else None
             tickets = pd.concat([tickets, ComboValueTickets(con, picker, fold_weights).build(marked)], ignore_index=True)
+            bracket_folds = read_bracket_fold_weights(args.bracket_fold_weights) if args.bracket_fold_weights else None
+            bracket = BracketValueTickets(con, BracketBlendWeightsRepository(args.models).load(), bracket_folds).build(marked)
+            tickets = pd.concat([tickets, bracket], ignore_index=True)
         print(f"買い目 {len(tickets):,} 点の払戻と確定オッズを読みます", file=sys.stderr, flush=True)
         tickets = TorigamiFilter().apply(TicketPayouts(con).attach(tickets))
     report = TicketReport()
@@ -201,6 +206,9 @@ def build_parser():
     parser.add_argument("--combo-fold-weights", type=Path, default=None, metavar="json",
                         help="組の期待値の買い方で、区切りごとに使う重み（研究「複勝以外の回収率100超」の combo_value.py rolling が書く JSON）。"
                              "省略すると --models の combo_blend.json の重みを全部の区切りに使う")
+    parser.add_argument("--bracket-fold-weights", type=Path, default=None, metavar="json",
+                        help="枠連の組の期待値の買い方で、区切りごとに使う重み（研究「レースの種類ごとの買い方」の all_tickets.py bracket-weights が書く JSON）。"
+                             "省略すると --models の bracket_blend.json の重みを全部の区切りに使う")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="結果を書く場所（既定: reports/印の成績）")
     return parser
 

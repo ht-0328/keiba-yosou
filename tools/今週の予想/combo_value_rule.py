@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from yosou.shared.betting import TicketType
+from yosou.shared.betting import BracketTicket, TicketType
 
 from 今週の予想.race_condition import RaceCondition
 
@@ -26,7 +26,7 @@ class ComboValueRule:
     例: ワイド・期待度「高」・線 1.0・上限 300倍・3点なら、期待度「高」のレースで、組の期待値が 1.0 以上で 300倍以下のワイドを、期待値の高い順に3点まで買う。
     """
 
-    ticket_type: TicketType
+    ticket_type: TicketType | BracketTicket
     scope: str
     value_line: float
     odds_cap: float

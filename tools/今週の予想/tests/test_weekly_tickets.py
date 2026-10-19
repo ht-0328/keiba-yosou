@@ -14,7 +14,7 @@ import pytest
 
 from 今週の予想.forecast_tickets import TICKET_KEYS, ForecastTickets
 from 今週の予想.mark_tickets import ODDS, RULE, VALUE, MarkTickets
-from 今週の予想.ticket_rules import COMBO_VALUE_RULES, RULE_LABELS
+from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES, RULE_LABELS
 from 今週の予想.torigami_filter import DROPPED, NO_ODDS, TORIGAMI, TorigamiFilter
 
 #: 9頭のレースの印。◎3・○1・▲5・△2,4,6・☆8・注9・消7。軸馬は ○ の 1番（3着以内の確率が ◎ より高い）。
@@ -52,13 +52,13 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert by_rule["ワイド"] == ["0308", "0309"]
     assert by_rule["馬連"] == ["0103", "0305", "0308"]
     assert by_rule["馬単"] == ["0301", "0305", "0308"]  # ◎ を1着に固定
-    assert by_rule["複勝"] == ["03", "08"]  # 期待値 1.25 以上（高い順は 8 → 3）
+    assert by_rule["複勝"] == ["03", "08"]  # 期待値 1.1 以上・複勝 5倍以下（高い順は 8 → 3）
     # 元の3連複: ◎ − ○▲☆ − ○▲△△△☆ で、同じ馬を含まない組（順不同）。元の3連単: ◎→(○▲☆)→残り5頭
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
                                              "030506", "030508", "030608"]
     assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
-    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行はオッズの板から ComboValuePicker が作るので、ここでは出ない
-    combo_value = {rule.label for rule in COMBO_VALUE_RULES}
+    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行（枠連を含む）はオッズの板から作るので、ここでは出ない
+    combo_value = {rule.label for rule in ALL_COMBO_VALUE_RULES}
     assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label and label not in combo_value}
 
 

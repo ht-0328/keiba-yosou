@@ -17,7 +17,7 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.mark_rule import OUT_MARK, TOP_MARK
 from 今週の予想.race_plan import NO_BET, PlacePick, RacePlan
 from 今週の予想.ticket_pick import TicketPick
-from 今週の予想.ticket_rules import COMBO_VALUE_LABELS, COMBO_VALUE_RULES, HIGH_RACE_LABELS, PLACE_LABEL, WIN_VALUE_LABEL
+from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES, COMBO_VALUE_LABELS, HIGH_RACE_LABELS, PLACE_LABEL, WIN_VALUE_LABEL
 from 今週の予想.wallet import COMBO_WALLET, WIN_WALLET, Wallet
 
 #: 勝負レースの1日の上限（重賞は別枠。利用者の決定）。
@@ -48,7 +48,8 @@ class DayPlanner:
     4. 複勝とは別に、当日の予想では、単勝（期待値）（1番人気が 2.3倍以上のレースで、単勝の期待値 1.0 以上・5倍以下の馬を1点）を買い、
        期待度「高」（◎ の単勝の期待値 1.00 以上）のレースは馬単（◎→○▲☆）も買う（勝負（単勝・馬単）。08 の 2）。1点の額は単勝・馬単用の財布から
        （``Wallet.point_yen``）。前日の予想では買わない（確かめたのは当日の予想だけ）。トリガミとオッズの無い組は買わない。
-    5. さらに別に、当日の予想では、組の期待値で選ぶ馬単・ワイド・3連複・3連単（買い目の ``<券種>（組の期待値）``。決まりは ``COMBO_VALUE_RULES``）を買う
+    5. さらに別に、当日の予想では、組の期待値で選ぶ枠連・馬連・馬単・ワイド・3連複・3連単（買い目の ``<券種>（組の期待値）``。決まりは
+       ``ALL_COMBO_VALUE_RULES``）を買う
        （勝負（組の期待値）。08 の 2）。1点の額は組の期待値用の財布から（``Wallet.point_yen``）。前日の予想では買わない。
 
     金額は財布（``Wallet``）の予算から。勝負は1点 = 予算 ÷ 3（期待値 1.40 以上は 2単位、ただしケリー基準の4分の1とレースの予算の中）、
@@ -192,7 +193,7 @@ class DayPlanner:
         stopped = self._wallet.stopped(day, WIN_WALLET)
         yen = {label: self._wallet.point_yen(ticket_type, day) for label, ticket_type in _WIN_WALLET_RULES.items()}
         combo_stopped = self._wallet.stopped(day, COMBO_WALLET)
-        combo_yen = {rule.label: self._wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET) for rule in COMBO_VALUE_RULES if rule.adopted}
+        combo_yen = {rule.label: self._wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET) for rule in ALL_COMBO_VALUE_RULES if rule.adopted}
         ticketed = [self._ticketed(plan, by_rid[plan.rid], yen, stopped) for plan in plans]
         return [self._combo_ticketed(plan, by_rid[plan.rid], combo_yen, combo_stopped) for plan in ticketed]
 

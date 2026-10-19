@@ -169,6 +169,7 @@ OPTIONAL_TABLES: dict[str, tuple[str, ...]] = {
     "tk": TK_COLUMNS, "tk__登録馬毎情報": TK_RUNNER_COLUMNS,
     "hr": HR_COLUMNS, "hr__馬連払戻": COMBO_PAYOUT_COLUMNS, "hr__3連複払戻": COMBO_PAYOUT_COLUMNS,
     "hr__3連単払戻": COMBO_PAYOUT_COLUMNS, "hr__ワイド払戻": COMBO_PAYOUT_COLUMNS, "hr__馬単払戻": COMBO_PAYOUT_COLUMNS,
+    "hr__枠連払戻": COMBO_PAYOUT_COLUMNS,
     **{parent: ODDS_HEADER_COLUMNS for parent in ODDS_PARENTS}, **ODDS_TABLES,
 }
 #: 親の表の表題（実DB の ``_tables`` と同じ）。
@@ -510,6 +511,8 @@ class Sample:
     trifecta: list[dict[str, str]] = field(default_factory=list)
     wide: list[dict[str, str]] = field(default_factory=list)
     exacta: list[dict[str, str]] = field(default_factory=list)
+    #: 枠連の払戻（組番は枠の番号を1桁ずつ並べた2文字）。枠連の買い目の精算のテストに使う。
+    bracket: list[dict[str, str]] = field(default_factory=list)
     #: オッズの親と子の行。（表の名前, 行）の並び。表ごとに分けるのは ``tables()``。
     odds: list[tuple[str, dict[str, str]]] = field(default_factory=list)
     #: 地方の表（出走別着度数地方・競走馬マスタ地方とその3代血統情報）。地方の合成DB（``local_synth.py``）だけが入れる。
@@ -533,7 +536,7 @@ class Sample:
             "we": self.going, "wh": self.weight, "wh__馬体重情報": self.weights, "av": self.scratches,
             "tk": self.registrations, "tk__登録馬毎情報": self.registered_horses,
             "hr": self.headers, "hr__馬連払戻": self.quinella, "hr__3連複払戻": self.trio, "hr__3連単払戻": self.trifecta,
-            "hr__ワイド払戻": self.wide, "hr__馬単払戻": self.exacta, **odds_tables,
+            "hr__ワイド払戻": self.wide, "hr__馬単払戻": self.exacta, "hr__枠連払戻": self.bracket, **odds_tables,
             "nd": self.nd, "nu": _unique(self.nu, ("血統登録番号",)),
             "nu__3代血統情報": _unique(self.nu_pedigree, ("血統登録番号", "_連番")),
         }

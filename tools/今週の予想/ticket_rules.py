@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import product
 
-from yosou.shared.betting import TicketType
+from yosou.shared.betting import BRACKET, TicketType
 
 from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
 from 今週の予想.combo_value_rule import ALL_RACES, HIGH_RACES, HIGH_TOP_COMBOS, TOP_COMBOS, ComboValueRule
@@ -119,7 +119,7 @@ COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
                    race_conditions=(RaceCondition(FAVORITE_ODDS, None, 1.8, "1番人気が 1.9倍未満"),)),
     ComboValueRule(TicketType.EXACTA, ALL_RACES, 1.0, 30, adopted=True, max_points=1, rolling=True,
                    race_conditions=(RaceCondition(AGREED, 1.0, None, "2モデル一致"),
-                                    RaceCondition(TOP3_SHARE, 0.6752, None, "市場の勝率の上位3頭の和が 0.6752 以上"))),
+                                    RaceCondition(TOP3_SHARE, 0.67522, None, "市場の勝率の上位3頭の和が 0.6752 以上"))),
     ComboValueRule(TicketType.WIDE, HIGH_RACES, 1.0, 300, adopted=True, max_points=3, rolling=True,
                    race_conditions=(RaceCondition(FAVORITE_ODDS, 2.9, None, "1番人気が 2.9倍以上"),)),
     ComboValueRule(TicketType.TRIO, TOP_COMBOS, 1.2, 1000, adopted=True, max_points=5, rolling=True,
@@ -127,11 +127,18 @@ COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
     ComboValueRule(TicketType.TRIFECTA, HIGH_TOP_COMBOS, 1.0, 300, adopted=True, rolling=True,
                    race_conditions=(RaceCondition(FIELD_SIZE, 15, None, "15頭以上"),)),
 )
+#: 枠連の組の期待値の買い方（研究「レースの種類ごとの買い方」の docs/04 の手順6）: 期待度「高」で、市場の勝率の上位3頭の和が 0.6231 未満
+#: （人気が上位3頭に集まっていない）レースで、枠連の組の期待値が 1.1 以上・300倍以下の枠の組を全部。組の確率は馬連の組を枠の組に足し合わせて作り
+#: （``BracketValuePicker``）、重みはモデルの置き場所の ``bracket_blend.json``（直前1年で推定し直す）。
+BRACKET_VALUE_RULE = ComboValueRule(BRACKET, HIGH_RACES, 1.1, 300, adopted=True, rolling=True,
+                                    race_conditions=(RaceCondition(TOP3_SHARE, None, 0.62312, "市場の勝率の上位3頭の和が 0.6231 未満"),))
+#: 実際に買う組の期待値の買い方の全部（枠連を含む。枠連は ``ComboValuePicker`` では作らないので ``COMBO_VALUE_RULES`` とは分ける）。
+ALL_COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (*COMBO_VALUE_RULES, BRACKET_VALUE_RULE)
 #: 当日の予想で実際に買う、組の期待値の買い方の名前。
-COMBO_VALUE_LABELS: tuple[str, ...] = tuple(rule.label for rule in COMBO_VALUE_RULES if rule.adopted)
+COMBO_VALUE_LABELS: tuple[str, ...] = tuple(rule.label for rule in ALL_COMBO_VALUE_RULES if rule.adopted)
 #: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、複勝の馬を軸にした行は単勝の次。組の期待値の行は馬単の次）。
 RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, WIN_VALUE_LABEL, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in PLACE_AXIS_RULES),
-                                *(rule.label for rule in BET_RULES[1:4]), *(rule.label for rule in COMBO_VALUE_RULES),
+                                *(rule.label for rule in BET_RULES[1:4]), *(rule.label for rule in ALL_COMBO_VALUE_RULES),
                                 *(rule.label for rule in BET_RULES[4:]))
 #: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。
 TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {

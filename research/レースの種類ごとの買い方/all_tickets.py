@@ -1,6 +1,7 @@
 """8券種で、回収率 100% 超えと的中率の向上を探す（docs/04 の手順6）。
 
     uv run python research/レースの種類ごとの買い方/all_tickets.py bracket   # 枠連の組の表を作り、区切りごとに重みを推定して期待値を付ける（十数分）
+    uv run python research/レースの種類ごとの買い方/all_tickets.py bracket-weights   # 枠連の区切りごとの重みと、本番の重み（bracket_blend.json）を書く
     uv run python research/レースの種類ごとの買い方/all_tickets.py horses    # 単勝・複勝の買い目の候補を作る
     uv run python research/レースの種類ごとの買い方/all_tickets.py tables    # 単勝・複勝・枠連の、中身の帯 × 決まりの開催日の表（ほかの券種は race_filters.py tables）
     uv run python research/レースの種類ごとの買い方/all_tickets.py subsets   # 4回目: 2モデル一致・3連単の支持ありのレースだけの表
@@ -27,7 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 from 共通 import db  # noqa: E402
 
 from yosou.shared.betting import TicketType  # noqa: E402
-from yosou.shared.repository import RaceDayRange  # noqa: E402
+from yosou.shared.combo_value import BracketBlendWeights  # noqa: E402
+from yosou.shared.combo_value.bracket_blend_weights import BRACKET_WEIGHT_NAMES  # noqa: E402
+from yosou.shared.repository import BracketBlendWeightsRepository, RaceDayRange  # noqa: E402
 
 from レースの種類ごとの買い方.analysis.bracket_features import BRACKET_FEATURES, BracketFeatures  # noqa: E402
 from レースの種類ごとの買い方.analysis.bracket_source import BracketSource  # noqa: E402
@@ -36,7 +39,9 @@ from レースの種類ごとの買い方.analysis.combo_features import BASE_FE
 from レースの種類ごとの買い方.analysis.cross_pool_features import CROSS_FEATURES, CrossPoolFeatures  # noqa: E402
 from レースの種類ごとの買い方.analysis.current_tickets import CurrentTickets  # noqa: E402
 from レースの種類ごとの買い方.analysis.filter_selector import FilterSelector  # noqa: E402
-from レースの種類ごとの買い方.analysis.fold_valuer import FoldValuer, frames_by_fold  # noqa: E402
+from レースの種類ごとの買い方.analysis.design_matrix import DesignMatrix  # noqa: E402
+from レースの種類ごとの買い方.analysis.fold_valuer import FoldValuer, fold_order, frames_by_fold  # noqa: E402
+from レースの種類ごとの買い方.analysis.penalized_blend_fitter import PenalizedBlendFitter  # noqa: E402
 from レースの種類ごとの買い方.analysis.hit_rate_selector import HitRatePick, HitRateSelector  # noqa: E402
 from レースの種類ごとの買い方.analysis.horse_bets import HorseBets  # noqa: E402
 from レースの種類ごとの買い方.analysis.race_traits import SUBSETS, TRAITS  # noqa: E402
@@ -44,6 +49,8 @@ from レースの種類ごとの買い方.analysis.rule_day_table import HIT_RAC
 from レースの種類ごとの買い方.analysis.walk_forward_report import WalkForwardReport  # noqa: E402
 from レースの種類ごとの買い方.analysis.weight_method import WeightMethod  # noqa: E402
 from レースの種類ごとの買い方.race_filters import _bins, _days  # noqa: E402
+
+from 今週の予想.model_folders import DEFAULT_MODELS  # noqa: E402
 
 _REPORTS = Path(__file__).resolve().parents[2] / "reports"
 OUT = _REPORTS / "レースの種類ごとの買い方"
@@ -88,7 +95,8 @@ FOURTH_TRIAL: dict[str, str] = {"ワイド": "wide", "馬単": "exacta", "3連�
 
 def main() -> None:
     args = _parser().parse_args()
-    {"bracket": _bracket, "horses": _horses, "tables": _tables, "subsets": _subsets, "cross": _cross, "report": _report}[args.step](args)
+    {"bracket": _bracket, "bracket-weights": _bracket_weights, "horses": _horses, "tables": _tables, "subsets": _subsets, "cross": _cross,
+     "report": _report}[args.step](args)
 
 
 def _bracket(args: argparse.Namespace) -> None:
@@ -110,6 +118,35 @@ def _bracket(args: argparse.Namespace) -> None:
     valued.to_parquet(path)
     path.with_suffix(".json").write_text(json.dumps([asdict(log) for log in logs], ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(valued):,}組 → {path}", flush=True)
+
+
+def _bracket_weights(args: argparse.Namespace) -> None:
+    """枠連の重みを書く。区切りごとの重み（``bracket`` の段が推定したもの。道具「印の成績」の ``--bracket-fold-weights`` に渡す）と、
+    これからのレースに使う本番の重み（いちばん新しい2つの区切りで推定し、``--models`` の ``bracket_blend.json`` に書く）。"""
+    logs = json.loads((OUT / "valued" / "now" / f"{BRACKET_KEY}.json").read_text(encoding="utf-8"))
+    folds = {log["fold"]: dict(zip(BRACKET_WEIGHT_NAMES, log["weights"], strict=True)) for log in logs}
+    path = OUT / "bracket_fold_weights.json"
+    path.write_text(json.dumps(folds, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"区切りごとの枠連の重み: {len(folds)}区切り → {path}", flush=True)
+    kinds = pd.read_parquet(OUT / "kinds.parquet")
+    with db.open_db(args.db) as con:
+        source = BracketSource(con)
+        tables = []
+        for year in (YEARS[-2], YEARS[-1]):
+            days = RaceDayRange(pd.Timestamp(f"{year}-01-01").date(), pd.Timestamp(f"{year}-12-31").date())
+            quinella = pd.read_parquet(SOURCE / "combos" / f"quinella_{year}.parquet",
+                                       columns=["rid", "h1", "h2", "q", "t", "hv", "race_date", "expectation", "fold", "top"])
+            tables.append(BracketFeatures().build(quinella, source.frames(days), source.odds(days), source.payouts(days), kinds))
+    table = pd.concat(tables, ignore_index=True)
+    last = sorted(table["fold"].unique(), key=fold_order)[-2:]
+    train = table[table["fold"].isin(last)]
+    train = train[train.groupby("race_id", sort=False)["hit"].transform("sum") > 0].sort_values("race_id", kind="stable")
+    race = train["race_id"].to_numpy()
+    starts = np.flatnonzero(np.r_[True, race[1:] != race[:-1]])
+    design = DesignMatrix(BRACKET_METHOD)
+    values = PenalizedBlendFitter().fit(design.of(train), train["hit"].to_numpy(dtype=bool), starts, design.penalized())
+    weights = BracketBlendWeights(*map(float, values))
+    print(f"本番の枠連の重み（{'・'.join(last)} で推定）: {weights} → {BracketBlendWeightsRepository(args.models).save(weights)}", flush=True)
 
 
 def _horses(args: argparse.Namespace) -> None:
@@ -308,11 +345,12 @@ def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.n
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
-    parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "cross", "report"))
+    parser.add_argument("step", choices=("bracket", "bracket-weights", "horses", "tables", "subsets", "cross", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
     parser.add_argument("--cross", action="store_true", help="subsets で、5回目の組の確率で作る（8回目。ワイドだけ）")
     parser.add_argument("--trial", type=int, choices=tuple(range(1, 9)), default=1, help="report の何回目の選び方か（docs/04 の 4・7〜13）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
+    parser.add_argument("--models", type=Path, default=DEFAULT_MODELS, help="bracket-weights で本番の重みを書くモデルの置き場所（既定: 今の本番）")
     return parser
 
 

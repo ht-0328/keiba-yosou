@@ -38,6 +38,8 @@
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
 | ``PlacePriceRepository`` | 複勝の見込みの倍率（帯ごとの倍率）のファイル。モデルと一緒に置く |
 | ``ComboBlendWeightsRepository`` | 組の確率の重み（券種ごと）のファイル。モデルと一緒に置く（設計書「買うレースと買い目を決める」07 の 2） |
+| ``BracketBlendWeightsRepository`` | 枠連の組の確率の重みのファイル（もとの数が違うので別のファイル） |
+| ``FrameRepository`` | 出走馬の枠番を期間ぶん読む（枠連の組を作るのに使う） |
 | ``DbStamp``・``StampFile`` | 元DB の印（パスと更新時刻）と、とっておいた表の隣の ``stamp.json``。表 G・過去の傾きの表・表 W のキャッシュ（それぞれの予想の ``repository/``）が使う |
 
 ``TargetScope`` は「どの出走について読むか」を表す値、``RaceDayRange`` は「どの開催日の範囲を読むか」を表す値
@@ -54,11 +56,13 @@ from .announced_ticket_odds_repository import AnnouncedTicketOddsRepository
 from .announced_weight_repository import AnnouncedWeightRepository
 from .career_count_layout import JRA_CAREER_LAYOUT, CareerCountLayout
 from .career_count_repository import CareerCountRepository
+from .bracket_blend_weights_repository import BracketBlendWeightsRepository
 from .combo_blend_weights_repository import ComboBlendWeightsRepository
 from .db_stamp import DbStamp
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
 from .final_odds_repository import FinalOddsRepository
+from .frame_repository import FrameRepository
 from .ticket_odds_repository import TicketOddsRepository
 from .first_horse_pool_repository import FirstHorsePoolRepository
 from .head_to_head_run_repository import HeadToHeadRunRepository
@@ -91,6 +95,7 @@ from .workout_repository import WorkoutRepository
 from .workout_summary_repository import WorkoutSummaryRepository
 
 __all__ = [
+    "BracketBlendWeightsRepository", "FrameRepository",
     "TargetScope", "FactTableRepository", "RaceEntryTableRepository", "EntryRepository",
     "CareerCountRepository", "CareerCountLayout", "JRA_CAREER_LAYOUT", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository", "MarketRunRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
