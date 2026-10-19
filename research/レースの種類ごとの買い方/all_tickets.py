@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import numpy as np
@@ -70,6 +70,9 @@ TICKETS: tuple[tuple[str, str, TicketType, str | None, str | None], ...] = (
 BRACKET_BASE = BuyRule("全", 1.1, 100, 0)
 #: 2回目（docs/04 の 7）で選び直す券種と、オッズの上限（比べる相手の上限）。
 SECOND_TRIAL_CAPS: dict[str, float] = {"単勝": 30, "馬連": 100, "ワイド": 300, "馬単": 30, "3連複": 1000}
+#: 3回目（docs/04 の 8）で選び直す券種と、選ぶ期間の年のうち回収率 100% 以上が要る割合。
+THIRD_TRIAL: tuple[str, ...] = ("馬連", "ワイド", "馬単", "3連複")
+THIRD_GOOD_SHARE = 2 / 3
 
 
 def main() -> None:
@@ -132,9 +135,12 @@ def _report(args: argparse.Namespace) -> None:
     years = days.year.to_numpy()
     report = WalkForwardReport(days, TEST_YEARS, HALVES)
     current = CurrentTickets(CURRENT_CSV, days)
-    lines = ["# 8券種で回収率 100% 超えと的中率の向上（docs/04。2016〜2018年で選び、2019〜2026年で確かめる。手順6 の1回目）\n"]
+    second = args.trial >= 2
+    lines = [f"# 8券種で回収率 100% 超えと的中率の向上（docs/04。2016〜2018年で選び、2019〜2026年で確かめる。手順6 の{args.trial}回目）\n"]
     verdicts = []
     for name, key, ticket_type, label, expectation in TICKETS:
+        if (second and name not in SECOND_TRIAL_CAPS) or (args.trial == 3 and name not in THIRD_TRIAL):
+            continue
         loaded = np.load(OUT / "filters" / f"{key}.npz")
         rules = rules_of(ticket_type)
         selector = FilterSelector({trait: loaded[trait] for trait in TRAITS}, days, rules)
@@ -144,13 +150,17 @@ def _report(args: argparse.Namespace) -> None:
             base_daily = current.rule(label, expectation)
         select = np.isin(years, SELECT_YEARS)
         base_hit = base_daily[select, HIT_RACES].sum() / max(base_daily[select, RACES].sum(), 1.0)
-        pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit, yearly_floor=second,
-                                                                  max_cap=SECOND_TRIAL_CAPS[name] if second else None)
+        if args.trial == 3:
+            pick, cells = _walk_forward(HitRateSelector(selector, days, rules), base_daily, years, SECOND_TRIAL_CAPS[name])
+        else:
+            pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit, min_good_share=1.0 if second else None,
+                                                                      max_cap=SECOND_TRIAL_CAPS[name] if second else None)
         base = report.summary(f"比べる相手（{label or '枠連・' + BRACKET_BASE.text}）", base_daily)
         rows = [base]
         passed = False
         if cells is not None:
-            chosen = report.summary(f"選んだもの: {pick.rule.text}・{pick.filter_text}", cells)
+            title = f"{pick.rule.text}・{pick.filter_text}" if pick is not None and pick.rule else "年ごとに選び直し（最後の年は選べず）"
+            chosen = report.summary(f"選んだもの: {title}", cells)
             rows.append(chosen)
             passed = (chosen.payback > 1.0 and chosen.low > 1.0 and chosen.hit_rate > base.hit_rate and chosen.good_years >= GOOD_YEARS)
         verdicts.append((name, passed))
@@ -166,11 +176,30 @@ def _report(args: argparse.Namespace) -> None:
     print(lines[-1], flush=True)
 
 
+def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.ndarray, max_cap: float):
+    """3回目（docs/04 の 8）: 2019〜2026年の各年について、その年より前の全部で選び直し、その年の成績をつなぐ。
+    （最後の年に選んだもの（成績の表の名前に使う）, つないだ開催日ごとの成績 [開催日, 4]）。"""
+    result = np.zeros_like(base_daily)
+    last = None
+    texts = []
+    for year in TEST_YEARS:
+        window = tuple(range(SELECT_YEARS[0], year))
+        inside = np.isin(years, window)
+        base_hit = base_daily[inside, HIT_RACES].sum() / max(base_daily[inside, RACES].sum(), 1.0)
+        pick, cells = selector.pick(window, base_hit, min_good_share=THIRD_GOOD_SHARE, max_cap=max_cap)
+        texts.append(f"{year}: {pick.rule.text + '・' + pick.filter_text if pick.rule else '買わない'}")
+        if cells is not None:
+            result[years == year] = cells[years == year]
+        last = pick
+    print("  " + " / ".join(texts), flush=True)
+    return replace(last, filter_text=f"{last.filter_text}（年ごとに選び直し）") if last is not None and last.rule else last, result
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
     parser.add_argument("step", choices=("bracket", "horses", "tables", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
-    parser.add_argument("--trial", type=int, choices=(1, 2), default=1, help="report の何回目の選び方か（docs/04 の 4・7）")
+    parser.add_argument("--trial", type=int, choices=(1, 2, 3), default=1, help="report の何回目の選び方か（docs/04 の 4・7・8）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 
