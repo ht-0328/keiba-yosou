@@ -48,6 +48,16 @@ class FilterSelector:
         self._candidates = self._candidates_of(tables)
         self._stack = np.stack([tables[item.trait][:, item.low:item.high + 1].sum(axis=1) for item in self._candidates]).astype(np.float32)
 
+    @property
+    def stack(self) -> np.ndarray:
+        """候補の配列 [絞り方, 決まり, 開催日, 4]。"""
+        return self._stack
+
+    @property
+    def filter_texts(self) -> list[str]:
+        """絞り方の候補の名前（``stack`` の最初の軸の順）。"""
+        return [item.text for item in self._candidates]
+
     def run(self, years: Sequence[int]) -> tuple[np.ndarray, list[FilterChoice]]:
         """（開催日ごとの成績 [開催日, 4]。選んだ年以外は 0, 選んだ一覧）。"""
         result = np.zeros(self._stack.shape[2:], dtype=float)

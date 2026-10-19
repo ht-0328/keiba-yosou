@@ -13,9 +13,12 @@ SCOPES: tuple[str, ...] = ("全", "高", "◎", "高◎")
 LINES: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3, 1.5)
 #: 券種ごとのオッズの上限の候補。
 CAPS: dict[TicketType, tuple[float, ...]] = {
+    TicketType.WIN: (5, 10, 30, 50), TicketType.PLACE: (3, 5, 10, 30, 200),
     TicketType.WIDE: (30, 100, 300), TicketType.QUINELLA: (30, 100, 300, 1000), TicketType.EXACTA: (30, 100, 300, 1000),
     TicketType.TRIO: (100, 300, 1000, 3000), TicketType.TRIFECTA: (300, 1000, 3000, 10000),
 }
+#: 券種ごとの線の候補（無い券種は ``LINES``）。複勝は今の本番の線 1.25 も入れる（docs/04 の 2）。
+LINES_OF: dict[TicketType, tuple[float, ...]] = {TicketType.PLACE: (1.0, 1.1, 1.2, 1.25, 1.3, 1.5)}
 #: 1レースの点数の上限の候補（0 は上限なし）。
 POINTS: tuple[int, ...] = (1, 3, 5, 0)
 
@@ -41,7 +44,7 @@ class BuyRule:
 
 def rules_of(ticket_type: TicketType) -> tuple[BuyRule, ...]:
     """その券種の決まりの候補（対象 × 線 × 上限 × 点数）。"""
-    return tuple(BuyRule(*values) for values in product(SCOPES, LINES, CAPS[ticket_type], POINTS))
+    return tuple(BuyRule(*values) for values in product(SCOPES, LINES_OF.get(ticket_type, LINES), CAPS[ticket_type], POINTS))
 
 
 #: 今の本番の決まり（``tools/今週の予想/ticket_rules.py`` の ``COMBO_VALUE_RULES`` を、この研究の形にしたもの）。

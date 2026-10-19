@@ -25,6 +25,16 @@ class CurrentTickets:
         self._path = Path(path)
         self._days = pd.DatetimeIndex(days)
 
+    def rule(self, label: str, expectation: str | None = None) -> np.ndarray:
+        """買い方 ``label``（例 ``単勝``）の、外した理由の無い買い目の配列 [開催日, 4]。``expectation`` があれば、その期待度のレースだけ。"""
+        where = f"買い方 = '{label}'" + (f" AND 期待度 = '{expectation}'" if expectation else "")
+        races = duckdb.sql(f"""
+            SELECT レースID AS race_id, any_value(開催日) AS race_date, count(*) AS points, sum(CAST("払戻（100円あたり）" AS DOUBLE)) AS payout
+            FROM read_csv('{self._path.as_posix()}', header=true, all_varchar=true)
+            WHERE {where} AND coalesce(外した理由, '') = ''
+            GROUP BY ALL""").df()
+        return self._days_of(races)
+
     def read(self) -> dict[TicketType, np.ndarray]:
         races = duckdb.sql(f"""
             SELECT 券種 AS ticket, レースID AS race_id, any_value(開催日) AS race_date, count(*) AS points,
