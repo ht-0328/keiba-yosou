@@ -4,6 +4,7 @@
     uv run python research/レースの種類ごとの買い方/all_tickets.py horses    # 単勝・複勝の買い目の候補を作る
     uv run python research/レースの種類ごとの買い方/all_tickets.py tables    # 単勝・複勝・枠連の、中身の帯 × 決まりの開催日の表（ほかの券種は race_filters.py tables）
     uv run python research/レースの種類ごとの買い方/all_tickets.py subsets   # 4回目: 2モデル一致・3連単の支持ありのレースだけの表
+    uv run python research/レースの種類ごとの買い方/all_tickets.py cross     # 5回目: ほかの券種の市場を足した組の確率で表を作る（1時間ほど）
     uv run python research/レースの種類ごとの買い方/all_tickets.py report --trial 1   # 手順6 の1〜4回目の選び方で選び、2019〜2026年で確かめる
 
 出るものは全部 Git 対象外の ``reports/レースの種類ごとの買い方/``。
@@ -31,6 +32,8 @@ from yosou.shared.repository import RaceDayRange  # noqa: E402
 from レースの種類ごとの買い方.analysis.bracket_features import BRACKET_FEATURES, BracketFeatures  # noqa: E402
 from レースの種類ごとの買い方.analysis.bracket_source import BracketSource  # noqa: E402
 from レースの種類ごとの買い方.analysis.buy_rule import BuyRule, rules_of  # noqa: E402
+from レースの種類ごとの買い方.analysis.combo_features import BASE_FEATURES, ComboFeatures  # noqa: E402
+from レースの種類ごとの買い方.analysis.cross_pool_features import CROSS_FEATURES, CrossPoolFeatures  # noqa: E402
 from レースの種類ごとの買い方.analysis.current_tickets import CurrentTickets  # noqa: E402
 from レースの種類ごとの買い方.analysis.filter_selector import FilterSelector  # noqa: E402
 from レースの種類ごとの買い方.analysis.fold_valuer import FoldValuer, frames_by_fold  # noqa: E402
@@ -80,7 +83,7 @@ FOURTH_TRIAL: dict[str, str] = {"ワイド": "wide", "馬単": "exacta", "3連�
 
 def main() -> None:
     args = _parser().parse_args()
-    {"bracket": _bracket, "horses": _horses, "tables": _tables, "subsets": _subsets, "report": _report}[args.step](args)
+    {"bracket": _bracket, "horses": _horses, "tables": _tables, "subsets": _subsets, "cross": _cross, "report": _report}[args.step](args)
 
 
 def _bracket(args: argparse.Namespace) -> None:
@@ -155,6 +158,33 @@ def _subsets(args: argparse.Namespace) -> None:
             print(f"絞りの表: {name}・{SUBSETS[subset]} → {path}", flush=True)
 
 
+def _cross(args: argparse.Namespace) -> None:
+    """5回目（docs/04 の 10）: ほかの券種の市場を足した組の確率で期待値を付け、中身の帯 × 決まりの開催日の表を作る。"""
+    kinds = pd.read_parquet(OUT / "kinds.parquet")
+    combos, cross = ComboFeatures(SOURCE / "combos"), CrossPoolFeatures(SOURCE / "combos")
+    bins, labels, _ = _bins()
+    days = _days()
+    for name, key in FOURTH_TRIAL.items():
+        ticket_type = next(item[2] for item in TICKETS if item[0] == name)
+        path = OUT / "filters" / f"{key}-cross.npz"
+        if path.exists() and not args.force:
+            print(f"済み: {path}", flush=True)
+            continue
+        method = WeightMethod("他の市場", "cross", (*BASE_FEATURES, *CROSS_FEATURES[ticket_type]), with_kinds=False)
+        valued, logs = FoldValuer(ticket_type, method).run(
+            frames_by_fold(lambda year: cross.add(ticket_type, combos.of(ticket_type, year, kinds), year), YEARS))
+        saved = OUT / "valued" / "cross" / f"{key}.parquet"
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        valued.to_parquet(saved)
+        saved.with_suffix(".json").write_text(json.dumps([asdict(log) for log in logs], ensure_ascii=False, indent=1), encoding="utf-8")
+        valued = valued[valued["race_date"] >= FIRST_DAY].merge(labels, on="race_id", how="inner")
+        rules = rules_of(ticket_type)
+        arrays = {trait: RuleDayTable(ticket_type, days, bins.labels(trait), f"bin_{trait}").build(valued, rules).astype(np.float32)
+                  for trait in TRAITS}
+        np.savez(path, **arrays)
+        print(f"他の市場: {name} → {path}（重み: {[round(w, 3) for w in logs[-1].weights]}）", flush=True)
+
+
 def _report(args: argparse.Namespace) -> None:
     days = _days()
     years = days.year.to_numpy()
@@ -164,10 +194,11 @@ def _report(args: argparse.Namespace) -> None:
     lines = [f"# 8券種で回収率 100% 超えと的中率の向上（docs/04。2016〜2018年で選び、2019〜2026年で確かめる。手順6 の{args.trial}回目）\n"]
     verdicts = []
     for name, key, ticket_type, label, expectation in TICKETS:
-        targets = {1: [item[0] for item in TICKETS], 2: list(SECOND_TRIAL_CAPS), 3: list(THIRD_TRIAL), 4: list(FOURTH_TRIAL)}[args.trial]
+        targets = {1: [item[0] for item in TICKETS], 2: list(SECOND_TRIAL_CAPS), 3: list(THIRD_TRIAL), 4: list(FOURTH_TRIAL),
+                   5: list(FOURTH_TRIAL)}[args.trial]
         if name not in targets:
             continue
-        loaded = np.load(OUT / "filters" / f"{key}.npz")
+        loaded = np.load(OUT / "filters" / (f"{key}-cross.npz" if args.trial == 5 else f"{key}.npz"))
         rules = rules_of(ticket_type)
         tables = {trait: loaded[trait] for trait in TRAITS}
         if args.trial == 4:
@@ -228,9 +259,9 @@ def _walk_forward(selector: HitRateSelector, base_daily: np.ndarray, years: np.n
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
-    parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "report"))
+    parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "cross", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
-    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4), default=1, help="report の何回目の選び方か（docs/04 の 4・7・8・9）")
+    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4, 5), default=1, help="report の何回目の選び方か（docs/04 の 4・7・8・9・10）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 
