@@ -68,6 +68,8 @@ TICKETS: tuple[tuple[str, str, TicketType, str | None, str | None], ...] = (
 )
 #: 枠連の比べる相手（馬連の今の決まりと同じ形。docs/04 の 4）。
 BRACKET_BASE = BuyRule("全", 1.1, 100, 0)
+#: 2回目（docs/04 の 7）で選び直す券種と、オッズの上限（比べる相手の上限）。
+SECOND_TRIAL_CAPS: dict[str, float] = {"単勝": 30, "馬連": 100, "ワイド": 300, "馬単": 30, "3連複": 1000}
 
 
 def main() -> None:
@@ -142,7 +144,8 @@ def _report(args: argparse.Namespace) -> None:
             base_daily = current.rule(label, expectation)
         select = np.isin(years, SELECT_YEARS)
         base_hit = base_daily[select, HIT_RACES].sum() / max(base_daily[select, RACES].sum(), 1.0)
-        pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit)
+        pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit, yearly_floor=second,
+                                                                  max_cap=SECOND_TRIAL_CAPS[name] if second else None)
         base = report.summary(f"比べる相手（{label or '枠連・' + BRACKET_BASE.text}）", base_daily)
         rows = [base]
         passed = False
@@ -167,6 +170,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
     parser.add_argument("step", choices=("bracket", "horses", "tables", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
+    parser.add_argument("--trial", type=int, choices=(1, 2), default=1, help="report の何回目の選び方か（docs/04 の 4・7）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 

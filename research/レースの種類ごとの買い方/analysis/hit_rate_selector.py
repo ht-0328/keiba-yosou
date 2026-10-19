@@ -39,8 +39,12 @@ class HitRateSelector:
         self._years = pd.DatetimeIndex(days).year.to_numpy()
         self._rules = list(rules)
 
-    def pick(self, years: Sequence[int], base_hit_rate: float) -> tuple[HitRatePick, np.ndarray | None]:
-        """（選んだもの, その組み合わせの開催日ごとの成績 [開催日, 4]。選べなければ None）。"""
+    def pick(self, years: Sequence[int], base_hit_rate: float, yearly_floor: bool = False,
+             max_cap: float | None = None) -> tuple[HitRatePick, np.ndarray | None]:
+        """（選んだもの, その組み合わせの開催日ごとの成績 [開催日, 4]。選べなければ None）。
+
+        ``yearly_floor`` なら、選ぶ期間の各年で回収率 100% 以上の組み合わせだけ。``max_cap`` があれば、オッズの上限がそれ以下の決まりだけ
+        （docs/04 の 7 の2回目）。"""
         stack = self._selector.stack
         inside = np.flatnonzero(np.isin(self._years, list(years)))
         flat = stack.reshape(-1, *stack.shape[2:])[:, inside, :].astype(float)
@@ -50,6 +54,13 @@ class HitRateSelector:
             payback = payout / (100.0 * points)
             hit_rate = hits / races
         eligible = (hits >= MIN_HITS) & (payback >= MIN_PAYBACK) & (hit_rate >= HIT_RATE_RATIO * base_hit_rate)
+        if yearly_floor:
+            for year in years:
+                cells = flat[:, self._years[inside] == year, :]
+                eligible &= cells[:, :, PAYOUT].sum(axis=1) >= 100.0 * cells[:, :, POINTS].sum(axis=1)
+        if max_cap is not None:
+            allowed = np.array([rule.cap <= max_cap for rule in self._rules])
+            eligible &= np.tile(allowed, len(self._selector.filter_texts))
         if not eligible.any():
             return HitRatePick(None, "選べない", float("nan"), float("nan"), float("nan"), 0), None
         chosen = np.flatnonzero(eligible)
