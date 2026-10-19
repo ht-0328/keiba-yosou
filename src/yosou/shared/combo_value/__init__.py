@@ -13,6 +13,7 @@
 | ``PoolFolding`` | 3連単の組の確率を足し合わせて、馬単・馬連・ワイド・3連複の組の確率にする |
 | ``ComboBlendFeatures`` | 1つの券種の全部の組に、4つのもと（その券種自身の市場・3連単から見た市場・モデルの Harville・モデルの比）の対数を付ける |
 | ``ComboBlendWeights`` | 4つのもとの重み（1つの券種ぶん） |
+| ``BracketBlendWeights`` | 枠連の組の確率の4つのもと（枠連の市場・馬連の市場・3連単から見た市場・モデルの Harville）の重み |
 | ``ComboBlend`` | 重みを掛けて組の確率（レースで合計 1）と期待値（確率 × オッズ）を出す |
 | ``ComboBlendFitter`` | 重みを、当たった組に合わせて推定する（条件付きロジット） |
 
@@ -24,6 +25,7 @@
 重みは市場とモデルのどちらをどれだけ信じるかで、当たった組に合わせて推定する。
 """
 
+from .bracket_blend_weights import BracketBlendWeights
 from .combo_blend import ComboBlend
 from .combo_blend_features import FEATURE_COLUMNS, ComboBlendFeatures
 from .combo_blend_fitter import HIT, ComboBlendFitter
@@ -35,6 +37,6 @@ from .horse_strength import HorseStrength
 from .pool_folding import PoolFolding
 from .trifecta_sources import HARVILLE, MARKET, TrifectaSources
 
-__all__ = ["ComboExpectedValue", "HorseRatio", "WIN_RATIO", "TOP3_RATIO", "HorseStrength", "TrifectaSources", "MARKET", "HARVILLE",
+__all__ = ["BracketBlendWeights", "ComboExpectedValue", "HorseRatio", "WIN_RATIO", "TOP3_RATIO", "HorseStrength", "TrifectaSources", "MARKET", "HARVILLE",
            "PoolFolding", "ComboBlendFeatures", "FEATURE_COLUMNS", "ComboBlendWeights", "ComboBlend", "ComboBlendFitter", "HIT",
            "horse_columns", "split_combo", "join_combo"]

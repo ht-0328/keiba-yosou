@@ -17,6 +17,7 @@ from ..dataset import (
     PredictionData,
     WinTargetData,
 )
+from ..dataset.column_names import PLACE_ODDS_LOW
 from ..feature import PredictionTiming
 from ..feature.group import WIN_ODDS
 from ..place_value import PlaceValueColumns
@@ -28,6 +29,9 @@ from .segmented_prediction import AVERAGE, SegmentedPrediction
 #: 予測の結果の、アンサンブルの確率の列の名前（3着以内のモデルと1着のモデル）。
 PROBABILITY = "3着以内に入る確率"
 WIN_PROBABILITY = "1着になる確率"
+#: モデルごとの単勝の期待値の列の名前（例 ``単勝の期待値（LightGBM）``）。2モデル一致（◎ の単勝の期待値が、2つのモデルのそれぞれの確率でも
+#: 線以上）を見るのに使う（研究「レースの種類ごとの買い方」の docs/04 の 9）。
+WIN_VALUE_MEMBER = "単勝の期待値（{member}）"
 #: 1レースの展開の予想の予測（まとまり P の元の予測の表）を返す関数（レースID, 時点, 利用者が渡したオッズ）。
 PaceSource = Callable[[str, PredictionTiming, OddsInput | None], pd.DataFrame]
 #: 予測用データに列を足す関数（予測用データ, レースID, 時点, 利用者が渡したオッズ → 列を足した予測用データ）。
@@ -124,7 +128,8 @@ class PredictionWorkflow:
         return pd.concat([data.ids, self._shown_odds(data), probability, members, extra, win], axis=1)
 
     def _win_columns(self, prepared: PreparedPrediction) -> pd.DataFrame:
-        """1着になる確率（1着のモデルの平均）と、前日・当日は単勝の期待値。1着のモデルが無ければ（前の版で学習したモデル）何も足さない。"""
+        """1着になる確率（1着のモデルの平均）と、前日・当日は単勝の期待値（平均の確率と、モデルごとの確率のそれぞれで出したもの）。
+        1着のモデルが無ければ（前の版で学習したモデル）何も足さない。"""
         win_data = prepared.win_data
         if prepared.win_predictor is None:
             return pd.DataFrame(index=win_data.ids.index)
@@ -133,10 +138,16 @@ class PredictionWorkflow:
         except FileNotFoundError:
             return pd.DataFrame(index=win_data.ids.index)
         probability = predicted[AVERAGE].rename(WIN_PROBABILITY)
-        return pd.concat([probability, self._win_value.of(probability, win_data)], axis=1)
+        members = [self._win_value.of(predicted[name], win_data).rename(columns=lambda _, n=name: WIN_VALUE_MEMBER.format(member=n))
+                   for name in predicted.columns if name != AVERAGE]
+        return pd.concat([probability, self._win_value.of(probability, win_data), *members], axis=1)
 
     def _shown_odds(self, data: PredictionData) -> pd.DataFrame:
-        """結果の表に出す単勝オッズ。オッズを使わない時点は、列を出さない（設計書 07）。"""
+        """結果の表に出す単勝オッズと複勝の最低オッズ。オッズを使わない時点は、列を出さない（設計書 07）。
+        複勝の最低オッズは、複勝の買い目のオッズの上限（研究「レースの種類ごとの買い方」の docs/04）を見るのに使う。"""
         if WIN_ODDS not in data.features.columns:
             return pd.DataFrame(index=data.ids.index)
-        return data.features[[WIN_ODDS]]
+        shown = data.features[[WIN_ODDS]]
+        if data.market is not None and PLACE_ODDS_LOW in data.market.columns:
+            shown = shown.assign(**{PLACE_ODDS_LOW: data.market[PLACE_ODDS_LOW].to_numpy()})
+        return shown

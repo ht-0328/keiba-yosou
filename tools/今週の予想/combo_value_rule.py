@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from yosou.shared.betting import TicketType
+from yosou.shared.betting import BracketTicket, TicketType
 
-#: 対象。全レース、当日の期待度「高」のレースだけ、◎ を含む組だけ（着順を区別する券種は ◎ が1着の組だけ）。
-ALL_RACES, HIGH_RACES, TOP_COMBOS = "全レース", "期待度「高」", "◎ を含む組"
+from 今週の予想.race_condition import RaceCondition
+
+#: 対象。全レース、当日の期待度「高」のレースだけ、◎ を含む組だけ（着順を区別する券種は ◎ が1着の組だけ）、期待度「高」のレースの ◎ を含む組だけ。
+ALL_RACES, HIGH_RACES, TOP_COMBOS, HIGH_TOP_COMBOS = "全レース", "期待度「高」", "◎ を含む組", "期待度「高」の ◎ を含む組"
 
 
 @dataclass(frozen=True)
@@ -20,10 +22,11 @@ class ComboValueRule:
     ``rolling`` は、組の確率の重みを直前1年で推定し直す券種か（研究 docs/05。真なら、道具「印の成績」で区切りごとの重みを渡したとき、それを使う。
     偽の券種は、どの区切りでも combo_blend.json の重みのまま）。
     ``stake_units`` は 08 の 2 の単位（合計には入らないので、表の列を埋めるためだけ）。
+    ``race_conditions`` があれば、その条件の全部に合うレースだけ買う（研究「レースの種類ごとの買い方」の docs/03・04。券種ごとに向いたレースの中身）。
     例: ワイド・期待度「高」・線 1.0・上限 300倍・3点なら、期待度「高」のレースで、組の期待値が 1.0 以上で 300倍以下のワイドを、期待値の高い順に3点まで買う。
     """
 
-    ticket_type: TicketType
+    ticket_type: TicketType | BracketTicket
     scope: str
     value_line: float
     odds_cap: float
@@ -31,6 +34,7 @@ class ComboValueRule:
     max_points: int | None = None
     rolling: bool = False
     stake_units: float = 0.5
+    race_conditions: tuple[RaceCondition, ...] = ()
 
     @property
     def label(self) -> str:
@@ -41,4 +45,5 @@ class ComboValueRule:
     def condition(self) -> str:
         """人が読む決まり。例: ``全レース・期待値 1.1 以上・100倍以下``。"""
         points = f"・1レース {self.max_points}点まで" if self.max_points else ""
-        return f"{self.scope}・期待値 {self.value_line:.1f} 以上・{self.odds_cap:,.0f}倍以下{points}"
+        race = f"・{'・'.join(condition.text for condition in self.race_conditions)}のレースだけ" if self.race_conditions else ""
+        return f"{self.scope}・期待値 {self.value_line:.1f} 以上・{self.odds_cap:,.0f}倍以下{points}{race}"

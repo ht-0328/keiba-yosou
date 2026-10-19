@@ -7,7 +7,7 @@ from collections.abc import Iterable
 import duckdb
 import pandas as pd
 
-from yosou.shared.betting import TicketType
+from yosou.shared.betting import BracketTicket, TicketType, ticket_kind
 from yosou.shared.repository import PayoutRepository, RaceDayRange
 from yosou.shared.repository.payout_repository import COMBO, YEN
 from yosou.shared.repository.ticket_odds_repository import TicketOddsRepository
@@ -35,7 +35,7 @@ class TicketPayouts:
         race_ids = set(tickets["race_id"].astype(str))
         parts = []
         for label, group in tickets.groupby("ticket_type", sort=False):
-            ticket_type = TicketType.parse(label)
+            ticket_type = ticket_kind(label)
             payouts = self._payouts(ticket_type, days, race_ids)
             odds = TicketOddsRepository(self._con, ticket_type).read(group).rename(columns={"odds": ODDS})
             merged = group.merge(payouts, on=["race_id", "combo"], how="left").merge(odds, on=["race_id", "combo"], how="left")
@@ -44,7 +44,7 @@ class TicketPayouts:
         table[PAYOUT] = table[PAYOUT].fillna(0.0).astype(float)
         return table
 
-    def _payouts(self, ticket_type: TicketType, days: RaceDayRange, race_ids: Iterable[str]) -> pd.DataFrame:
+    def _payouts(self, ticket_type: TicketType | BracketTicket, days: RaceDayRange, race_ids: Iterable[str]) -> pd.DataFrame:
         rows = PayoutRepository(self._con, ticket_type).read(days)
         rows = rows[rows["race_id"].astype(str).isin(set(race_ids))]
         return rows.groupby(["race_id", COMBO], as_index=False)[YEN].sum().rename(columns={COMBO: "combo", YEN: PAYOUT})

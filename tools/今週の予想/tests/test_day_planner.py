@@ -99,11 +99,12 @@ def test_買い目の記録は_計画の複勝を書き_同じレースの未精
 
 
 def _high_forecast(rid: str, timing: str = "当日", expectation: str = "高") -> dict:
-    """期待度つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝 1点と馬単 3点（1点はトリガミで外した）。"""
+    """期待度つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝（期待値）1点（3番）と、◎ の単勝・馬単 3点（1点はトリガミで外した）。"""
     forecast = _forecast(rid, "1勝クラス", [1.0, 1.0, 1.0, 1.0])
     forecast["horses"][2].update({columns.MARK: "◎", columns.WIN_VALUE: 1.12})
     forecast.update(timing=timing, expectation=expectation, tickets=[
-        {"rule": "単勝", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 8.0, "dropped": ""},
+        {"rule": "単勝", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 4.0, "dropped": ""},
+        {"rule": "単勝（期待値）", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 4.0, "value": 1.12, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0301", "label": "3→1", "odds": 30.0, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0302", "label": "3→2", "odds": 60.0, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0304", "label": "3→4", "odds": 1.5, "dropped": "トリガミ"},
@@ -119,26 +120,27 @@ def test_単勝と馬単の1点は単勝馬単用の財布の割合で100円に�
     wallet = Wallet(store, path)
     assert wallet.initial()[WIN_WALLET] == 100_000 and WIN_WALLET in json.loads(path.read_text(encoding="utf-8"))
     day = date(2026, 10, 11)
-    assert wallet.point_yen("単勝", day) == 100 and wallet.point_yen("馬単", day) == 0   # 馬単は 30円で 100円に届かない
-    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
-    assert wallet.point_yen("単勝", day) == 400 and wallet.point_yen("馬単", day) == 100
+    assert wallet.point_yen("単勝", day) == 300 and wallet.point_yen("馬単", day) == 0   # 単勝は 370円の切り捨て、馬単は 12円で 100円に届かない
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 1_000_000}), encoding="utf-8")
+    assert wallet.point_yen("単勝", day) == 3_700 and wallet.point_yen("馬単", day) == 100
 
 
-def test_当日の期待度高のレースは複勝と別に単勝と馬単を買い_前日と期待度低では買わない(store: ReviewStore, tmp_path: Path, con):
+def test_当日の予想は複勝と別に単勝期待値を買い_期待度高なら馬単も買い_前日は買わない(store: ReviewStore, tmp_path: Path, con):
     import json
     path = tmp_path / "財布.json"
-    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 1_000_000}), encoding="utf-8")
     planner = DayPlanner(Wallet(store, path))
     forecasts = [_high_forecast("2026101105040401"), _high_forecast("2026101105040402", timing="前日"),
                  _high_forecast("2026101105040403", expectation="低"), _forecast("2026101105040409", "1勝クラス", [1.6, 1.0])]   # 09 は複勝の勝負
     plans = {plan.rid[-2:]: plan for plan in planner.plan(con, date(2026, 10, 11), forecasts)}
     bought = plans["01"]
     assert bought.kind == NO_BET and bought.buys   # 複勝は買わないが、単勝と馬単は買う
-    assert [(ticket.ticket_type, ticket.combo, ticket.yen) for ticket in bought.tickets] == [("単勝", "03", 400), ("馬単", "0301", 100), ("馬単", "0302", 100)]
+    assert [(ticket.ticket_type, ticket.combo, ticket.yen) for ticket in bought.tickets] == [("単勝", "03", 3_700), ("馬単", "0301", 100), ("馬単", "0302", 100)]
     assert bought.tickets[0].value == pytest.approx(1.12) and bought.tickets[1].value is None
-    assert bought.ticket_yen == 600 and bought.stake_yen == 600 and "期待度「高」" in bought.ticket_reason
+    assert bought.ticket_yen == 3_900 and bought.stake_yen == 3_900 and "期待度「高」" in bought.ticket_reason
     assert plans["02"].tickets == () and "前日" in plans["02"].ticket_reason
-    assert plans["03"].tickets == () and plans["03"].ticket_reason == "" and not plans["03"].buys
+    # 期待度「低」でも単勝（期待値）は買う（◎ の馬単は買わない）
+    assert [(ticket.ticket_type, ticket.combo) for ticket in plans["03"].tickets] == [("単勝", "03")] and "馬単" not in plans["03"].ticket_reason
 
 
 def test_財布が小さいうちは馬単を買わず_単勝馬単用が止まりの線を割れば単勝も止める(store: ReviewStore, tmp_path: Path, con):
@@ -157,14 +159,14 @@ def test_財布が小さいうちは馬単を買わず_単勝馬単用が止ま�
 def test_買い目の記録は_単勝と馬単を勝負単勝馬単として書く(store: ReviewStore, tmp_path: Path, con):
     import json
     path = tmp_path / "財布.json"
-    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
+    path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 1_000_000}), encoding="utf-8")
     forecasts = [_high_forecast("2026101105040401"), _forecast("2026101105040409", "1勝クラス", [1.6, 1.0])]   # 09 は複勝の勝負
     plans = DayPlanner(Wallet(store, path)).plan(con, date(2026, 10, 11), forecasts)
     assert BetRecorder(store).record(plans, "2026-10-11T10:00:00") == 3 + 1
     bets = store.read(names.BETS_TABLE).sort_values(names.COMBO)
     bets = bets[bets[names.RACE_ID] == "2026101105040401"]
     assert list(bets[names.TICKET_TYPE]) == ["単勝", "馬単", "馬単"] and set(bets[names.PARTICIPATION]) == {names.MATCH_WIN}
-    assert list(bets[names.STAKE_YEN]) == [400, 100, 100] and bets.iloc[1][names.BOUGHT_ODDS] == pytest.approx(30.0)
+    assert list(bets[names.STAKE_YEN]) == [3_700, 100, 100] and bets.iloc[1][names.BOUGHT_ODDS] == pytest.approx(30.0)
 
 
 def _combo_forecast(rid: str, timing: str = "当日") -> dict:
@@ -187,13 +189,13 @@ def _combo_wallet(store: ReviewStore, tmp_path: Path, combo_yen: int = 1_000_000
     return Wallet(store, path)
 
 
-def test_組の期待値の1点は組の期待値用の財布の券種ごとの割合で決め_既定の50万円なら馬単200円だけ(store: ReviewStore, tmp_path: Path):
+def test_組の期待値の1点は組の期待値用の財布の券種ごとの割合で決め_既定の50万円なら馬単600円とワイド100円(store: ReviewStore, tmp_path: Path):
     day = date(2026, 10, 11)
     wallet = Wallet(store, tmp_path / "財布.json")
-    assert [wallet.point_yen(label, day, COMBO_WALLET) for label in ("馬単", "ワイド", "3連複", "3連単")] == [200, 0, 0, 0]
+    assert [wallet.point_yen(label, day, COMBO_WALLET) for label in ("馬単", "ワイド", "3連複", "3連単")] == [600, 100, 0, 0]
     (tmp_path / "rich").mkdir()
     rich = _combo_wallet(store, tmp_path / "rich", 15_000_000)
-    assert [rich.point_yen(label, day, COMBO_WALLET) for label in ("馬単", "ワイド", "3連複", "3連単")] == [6_000, 2_400, 400, 100]
+    assert [rich.point_yen(label, day, COMBO_WALLET) for label in ("馬単", "ワイド", "3連複", "3連単")] == [18_000, 3_400, 1_000, 1_400]
 
 
 def test_当日の予想は組の期待値の買い目を券種ごとの額で買い_100円に届かない券種と前日は買わない(store: ReviewStore, tmp_path: Path, con):
@@ -202,8 +204,8 @@ def test_当日の予想は組の期待値の買い目を券種ごとの額で�
         _combo_forecast("2026101105040401"), _combo_forecast("2026101105040402", timing="前日")])}
     bought = plans["01"]
     assert [(ticket.ticket_type, ticket.combo, ticket.yen, ticket.kind) for ticket in bought.tickets] == [
-        ("ワイド", "0102", 100, names.MATCH_COMBO), ("ワイド", "0204", 100, names.MATCH_COMBO), ("馬単", "0401", 400, names.MATCH_COMBO)]
-    assert bought.tickets[0].value == pytest.approx(1.05) and bought.ticket_yen == 600
+        ("ワイド", "0102", 200, names.MATCH_COMBO), ("ワイド", "0204", 200, names.MATCH_COMBO), ("馬単", "0401", 1_200, names.MATCH_COMBO)]
+    assert bought.tickets[0].value == pytest.approx(1.05) and bought.ticket_yen == 1_600
     assert "組の期待値" in bought.ticket_reason and "3連複（組の期待値）は1点が 100円に届かない" in bought.ticket_reason
     assert plans["02"].tickets == () and not plans["02"].buys
 
@@ -215,7 +217,7 @@ def test_組の期待値用が止まりの線を割れば組の期待値の買�
     assert BetRecorder(store).record(plans, "2026-10-11T10:00:00") == 3 + 1   # その日1レースだけなので、ノルマ（日）の複勝1点も入る
     bets = store.read(names.BETS_TABLE)
     combos = bets[bets[names.PARTICIPATION] == names.MATCH_COMBO]
-    assert list(combos[names.TICKET_TYPE]) == ["ワイド", "ワイド", "馬単"] and sorted(combos[names.STAKE_YEN]) == [100, 100, 400]
+    assert list(combos[names.TICKET_TYPE]) == ["ワイド", "ワイド", "馬単"] and sorted(combos[names.STAKE_YEN]) == [200, 200, 1_200]
     store.write(names.BETS_TABLE, pd.DataFrame([
         {names.RACE_ID: "r1", names.TICKET_TYPE: "3連単", names.COMBO: "010203", names.RACE_DATE: date(2026, 9, 20),
          names.PARTICIPATION: names.MATCH_COMBO, names.RECORD_ONLY: False, names.STAKE_YEN: 400_000, names.PAYOUT_YEN: 0, names.SETTLED: True},

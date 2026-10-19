@@ -11,6 +11,8 @@ PROBABILITY = "probability"
 WIN_PROBABILITY = "win_probability"
 #: 単勝オッズ（前日・当日だけ。木曜は欠損値）。
 WIN_ODDS = "win_odds"
+#: 複勝の最低オッズ（前日・当日だけ。複勝の買い目のオッズの上限を見るのに使う）。
+PLACE_ODDS_LOW = "place_odds_low"
 #: 単勝の期待値（1着になる確率 × 単勝オッズ。前日・当日だけ。◎ を決めるのに使う）。
 WIN_VALUE = "win_value"
 #: 単勝人気（単勝オッズの低い順。オッズが無ければ欠損値）。

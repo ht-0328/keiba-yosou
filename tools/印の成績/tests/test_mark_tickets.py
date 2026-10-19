@@ -70,7 +70,7 @@ def test_買い方ごとの表は絞り込みごとに出し合計は軸のパ�
     priced = int((tickets[RULE] == "3連単（◎軸・マルチ・期待値 1.0 以上）").sum() / 2)
     assert rows[(total_label("◎軸"), HIGH_RACES.label)][3] == f"{base + 15 + priced}"
     assert (total_label("軸馬"), ALL_RACES.label) in rows
-    assert [row[0] for row in tables[1].rows[:3]] == ["単勝", "複勝", "複勝（2モデル一致）"]
+    assert [row[0] for row in tables[1].rows[:4]] == ["単勝", "単勝（期待値）", "複勝", "複勝（2モデル一致）"]
     assert {row[1] for row in tables[0].rows} == {target.label for target in TARGETS}
     csv = TicketReport().csv_frame(tickets)
     assert list(csv.columns)[:6] == ["レースID", "開催日", "区切り", "期待度", "買い方", "券種"] and len(csv) == len(tickets)

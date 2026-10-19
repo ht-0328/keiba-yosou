@@ -56,3 +56,27 @@ def test_馬単の払戻がまだ取り込まれていなければ精算せず_D
     assert BetSettler(store).settle(runs, con) == 1            # 取消を含む組の返還だけ（払戻の明細が無い組は待つ）
     pending = store.read(names.BETS_TABLE, f"NOT {names.SETTLED}")
     assert sorted(pending[names.COMBO]) == ["0401", "0402"]
+
+
+def test_枠連は払戻の明細から精算し_枠の馬が全部取消なら返還する(tmp_path: Path) -> None:
+    """合成DB の簡単なレースは馬番がそのまま枠番。1着 4番・2着 2番で、6番（6枠）は出走取消。枠連 2-4 の払戻は 100円あたり 1,200円。"""
+    from 共通 import keys
+    from 合成DB import synth
+
+    sample = synth.simple_race()
+    ra = sample.ra[0]
+    sample.headers.append(synth.payout_header(ra))
+    sample.bracket.append(synth.combo_payout(ra, "24", 1200, table="hr__枠連払戻"))
+    con = duckdb.connect(str(synth.build_db(tmp_path / "bracket.duckdb", sample)), read_only=True)
+    rid = "".join(ra[column] for column in keys.RACE_KEY)
+    rows = [("24", 200), ("14", 100), ("46", 100)]
+    store = ReviewStore(tmp_path / "review.duckdb")
+    store.write(names.BETS_TABLE, pd.DataFrame([
+        {names.RACE_ID: rid, names.TICKET_TYPE: "枠連", names.COMBO: combo, names.RACE_DATE: date(2024, 4, 6),
+         names.PARTICIPATION: names.MATCH_COMBO, names.RECORD_ONLY: False, names.STAKE_YEN: yen, names.PAYOUT_YEN: None,
+         names.SETTLED: False} for combo, yen in rows]))
+    assert BetSettler(store).settle(ReviewRunRepository(con).read(), con) == 3
+    settled = store.read(names.BETS_TABLE).set_index(names.COMBO)
+    assert settled.loc["24", names.PAYOUT_YEN] == 2_400   # 1,200円 × 2
+    assert settled.loc["14", names.PAYOUT_YEN] == 0       # 外れ
+    assert settled.loc["46", names.PAYOUT_YEN] == 100     # 6枠の馬は全部取消なので返還

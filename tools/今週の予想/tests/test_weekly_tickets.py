@@ -14,7 +14,7 @@ import pytest
 
 from 今週の予想.forecast_tickets import TICKET_KEYS, ForecastTickets
 from 今週の予想.mark_tickets import ODDS, RULE, VALUE, MarkTickets
-from 今週の予想.ticket_rules import COMBO_VALUE_RULES, RULE_LABELS
+from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES, RULE_LABELS
 from 今週の予想.torigami_filter import DROPPED, NO_ODDS, TORIGAMI, TorigamiFilter
 
 #: 9頭のレースの印。◎3・○1・▲5・△2,4,6・☆8・注9・消7。軸馬は ○ の 1番（3着以内の確率が ◎ より高い）。
@@ -25,11 +25,16 @@ _WIN_RATIO = {3: 1.5, 1: 1.0, 5: 1.0, 2: 1.0, 4: 1.0, 6: 1.0, 8: 1.2, 9: 1.0, 7:
 
 
 def _marked_race(race_id: str = "R", expectation: str = "高") -> pd.DataFrame:
-    """複勝の期待値は 8番と 3番が線以上。並びは3着以内の確率の高い順（軸馬の 1番が先頭）。"""
+    """複勝の期待値は 8番と 3番が線（☆ の 1.25）以上。16頭立てとし、複勝の買い方（期待値 1.1 以上・複勝 5倍以下）に合うのも 8番と 3番だけ
+    （9番・4番は期待値 1.1 以上だが複勝 5倍を超える）。並びは3着以内の確率の高い順（軸馬の 1番が先頭）。"""
     values = {3: 1.30, 8: 1.40, 1: 0.9, 5: 0.8, 2: 1.0, 4: 1.1, 6: 0.7, 9: 1.2, 7: 0.5}
+    place_odds = {3: 1.8, 8: 4.0, 9: 8.0, 4: 6.0}
     order = sorted(_MARKS, key=lambda no: -_TOP3_RATIO[no])
     return pd.DataFrame({
         "race_id": race_id, "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "expectation": expectation,
+        "field_size": 16, "place_odds_low": [place_odds.get(no, 2.0) for no in order],
+        # 単勝（期待値）: 1番人気は 2.5倍。単勝の期待値 1.0 以上・5倍以下は 3番（4.0倍・1.05）だけ
+        "win_odds": [4.0 if no == 3 else 2.5 + no for no in order], "win_value": [1.05 if no == 3 else 0.8 for no in order],
         "horse_no": order, "mark": [_MARKS[no] for no in order], "place_value": [values[no] for no in order],
         "probability": [0.5 * _TOP3_RATIO[no] for no in order], "market_top3": 0.5,
         "win_probability": [0.1 * _WIN_RATIO[no] for no in order], "market_win": 0.1,
@@ -47,13 +52,13 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert by_rule["ワイド"] == ["0308", "0309"]
     assert by_rule["馬連"] == ["0103", "0305", "0308"]
     assert by_rule["馬単"] == ["0301", "0305", "0308"]  # ◎ を1着に固定
-    assert by_rule["複勝"] == ["03", "08"]  # 期待値 1.25 以上（高い順は 8 → 3）
+    assert by_rule["複勝"] == ["03", "08"]  # 期待値 1.1 以上・複勝 5倍以下（高い順は 8 → 3）
     # 元の3連複: ◎ − ○▲☆ − ○▲△△△☆ で、同じ馬を含まない組（順不同）。元の3連単: ◎→(○▲☆)→残り5頭
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
                                              "030506", "030508", "030608"]
     assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
-    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行はオッズの板から ComboValuePicker が作るので、ここでは出ない
-    combo_value = {rule.label for rule in COMBO_VALUE_RULES}
+    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行（枠連を含む）はオッズの板から作るので、ここでは出ない
+    combo_value = {rule.label for rule in ALL_COMBO_VALUE_RULES}
     assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label and label not in combo_value}
 
 
@@ -106,7 +111,9 @@ def test_3連単は軸の1頭からのマルチで90点になり期待値が線�
     trio = tickets[tickets[RULE] == "3連複（◎軸・流し）"].set_index("combo")
     assert trio.loc["010308", VALUE] == pytest.approx(0.75 * 1.2 * 1.1 * 1.5)
     assert sorted(tickets[tickets[RULE] == "3連複（◎軸・流し・期待値 1.0 以上）"]["combo"]) == ["010308", "020308", "030408", "030508", "030608"]
-    assert tickets[tickets["ticket_type"].isin(["単勝", "複勝", "ワイド", "馬連", "馬単"])][VALUE].isna().all()
+    marks_only = tickets[tickets["ticket_type"].isin(["単勝", "複勝", "ワイド", "馬連", "馬単"]) & (tickets[RULE] != "単勝（期待値）")]
+    assert marks_only[VALUE].isna().all()
+    assert tickets[tickets[RULE] == "単勝（期待値）"][VALUE].tolist() == [1.05]   # 単勝（期待値）は馬の単勝の期待値を持つ
 
 
 def test_軸の列が無ければ軸馬も二重丸で市場の見立てが無ければ期待値は付かない() -> None:
@@ -179,7 +186,7 @@ def test_今週の予想の買い目は締め切り前のオッズで期待値�
     assert trio["010305"]["dropped"] == "" and trio["020308"]["dropped"] == "オッズ無し"
     assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in tickets)   # 当日の予想でなければ組の期待値の買い目は無い
     # オッズの無い時点（木曜）は、組むだけでオッズ・期待値・トリガミは付かない
-    thursday = ForecastTickets().build(con, race_id, _marked_race().drop(columns=["market_top3", "market_win"]), None, odds_known=False)
+    thursday = ForecastTickets().build(con, race_id, _marked_race().drop(columns=["market_top3", "market_win", "win_odds", "win_value", "place_odds_low"]), None, odds_known=False)
     assert thursday and all(ticket["odds"] is None and ticket["dropped"] == "" and ticket["value"] is None for ticket in thursday)
     assert not any(ticket["rule"].endswith("以上）") for ticket in thursday)
 
@@ -201,11 +208,15 @@ def test_当日の予想では締め切り前の板から組の期待値の3連�
     race_id = "".join(ra[column] for column in keys.RACE_KEY)
     weights = {ticket_type: ComboBlendWeights(1.0, 0.0, 0.0, 0.0) for ticket_type in TicketType if ticket_type.is_combination}
 
-    tickets = ForecastTickets(weights).build(con, race_id, _marked_race(), "低", odds_known=True, race_day=True)
+    # 3連単は期待度「高」で15頭以上のレースの ◎（3番）が1着の組だけ買う（研究「レースの種類ごとの買い方」の docs/04）
+    tickets = ForecastTickets(weights).build(con, race_id, _marked_race().assign(field_size=16), "高", odds_known=True, race_day=True)
     chosen = [ticket for ticket in tickets if ticket["rule"] == "3連単（組の期待値）"]
     # 期待値は 1 × 60.0 = 60.0（線 1.3 以上・3,000倍以下）
     assert [(ticket["combo"], ticket["odds"], ticket["dropped"]) for ticket in chosen] == [("030108", 60.0, "")]
     assert chosen[0]["value"] == pytest.approx(60.0) and chosen[0]["probability"] == pytest.approx(1.0)
-    assert not any(ticket["rule"] == "馬連（組の期待値）" for ticket in tickets)   # 馬連は採用していないので今週の予想には出さない
-    before = ForecastTickets(weights).build(con, race_id, _marked_race(), "低", odds_known=True, race_day=False)
+    for marked, expectation in ((_marked_race().assign(field_size=12), "高"), (_marked_race().assign(field_size=16), "低")):
+        other = ForecastTickets(weights).build(con, race_id, marked, expectation, odds_known=True, race_day=True)
+        assert not any(ticket["rule"] == "3連単（組の期待値）" for ticket in other)   # 14頭以下か、期待度「低」なら買わない
+    assert not any(ticket["rule"] == "馬連（組の期待値）" for ticket in tickets)   # 馬連の板が無いので、馬連の組の期待値の買い目は出ない
+    before = ForecastTickets(weights).build(con, race_id, _marked_race().assign(field_size=16), "高", odds_known=True, race_day=False)
     assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in before)

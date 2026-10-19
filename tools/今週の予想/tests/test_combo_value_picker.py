@@ -9,9 +9,11 @@ import pandas as pd
 from yosou.shared.betting import TicketType
 from yosou.shared.combo_value import ComboBlendWeights
 
+from 今週の予想.combo_race_traits import ComboRaceTraits
 from 今週の予想.combo_value_picker import ComboValuePicker
 from 今週の予想.combo_value_rule import ALL_RACES, HIGH_RACES, TOP_COMBOS, ComboValueRule
 from 今週の予想.mark_tickets import COLUMNS, RULE
+from 今週の予想.race_condition import AGREED, FAVORITE_ODDS, FIELD_SIZE, TOP3_SHARE, TOP_VALUE, RaceCondition
 
 #: 市場だけを信じる重み（組の確率 = その券種のオッズの逆数をそろえた値）。
 _MARKET_ONLY = ComboBlendWeights(1.0, 0.0, 0.0, 0.0)
@@ -73,3 +75,33 @@ def test_区切りの重みに差し替えるのは直前1年の重みを使う�
     other = ComboBlendWeights(0.5, 0.0, 0.0, 1.0)
     swapped = picker.with_weights({TicketType.QUINELLA: other, TicketType.WIDE: other})
     assert swapped._weights[TicketType.QUINELLA] == _MARKET_ONLY and swapped._weights[TicketType.WIDE] == other
+
+
+def test_レースの条件のあるルールは_条件に合うレースだけ買う() -> None:
+    # r1 は1番人気 1.8倍・◎ の単勝の期待値 0.95、r2 は1番人気 3.5倍・◎ の期待値 1.20。どちらも3頭立て。
+    marked = pd.concat([_marked("r1", "高").assign(win_odds=[1.8, 4.0, 9.0], win_value=0.95, mark=["◎", "○", "▲"]),
+                        _marked("r2", "高").assign(win_odds=[3.5, 4.0, 5.0], win_value=1.20, mark=["◎", "○", "▲"])], ignore_index=True)
+    weights = {TicketType.QUINELLA: _MARKET_ONLY}
+    def races(condition: RaceCondition) -> set[str]:
+        rules = (ComboValueRule(TicketType.QUINELLA, ALL_RACES, 1.1, 100, adopted=True, race_conditions=(condition,)),)
+        return set(ComboValuePicker(rules, weights).pick(marked, _boards(["r1", "r2"]))["race_id"])
+    assert races(RaceCondition(FAVORITE_ODDS, 2.9, None, "1番人気が 2.9倍以上")) == {"r2"}
+    assert races(RaceCondition(TOP_VALUE, None, 0.99, "◎ の単勝の期待値が 0.99 以下")) == {"r1"}
+    assert races(RaceCondition(FIELD_SIZE, None, 2, "2頭以下")) == set()               # 頭数は行の数（3頭）
+    traits = ComboRaceTraits().of(marked).set_index("race_id")[[FIELD_SIZE, FAVORITE_ODDS, TOP_VALUE, TOP3_SHARE]]
+    assert traits.loc["r1"].tolist() == [3.0, 1.8, 0.95, 1.0] and traits.loc["r2"].tolist() == [3.0, 3.5, 1.2, 1.0]   # 市場の勝率は 3頭で合計 1
+
+
+def test_2モデル一致は本命のモデルごとの単勝の期待値がどちらも線以上() -> None:
+    marked = pd.concat([_marked(rid, "高").assign(mark=["◎", "○", "▲"], win_value_lightgbm=[lgb, 0.9, 0.9], win_value_catboost=[cat, 0.9, 0.9])
+                        for rid, lgb, cat in (("r1", 1.05, 1.10), ("r2", 1.20, 0.98))], ignore_index=True)
+    traits = ComboRaceTraits().of(marked).set_index("race_id")
+    assert traits.loc["r1", AGREED] == 1.0 and traits.loc["r2", AGREED] == 0.0
+
+
+def test_中身の分からないレースは条件のあるルールでは買わない() -> None:
+    condition = RaceCondition(TOP_VALUE, None, 0.99, "")
+    assert condition.passes(pd.DataFrame({TOP_VALUE: [0.9, float("nan"), 1.0]})).tolist() == [True, False, False]
+    rule = ComboValueRule(TicketType.TRIFECTA, ALL_RACES, 1.3, 3000, adopted=True,
+                          race_conditions=(RaceCondition(TOP_VALUE, None, 0.99, "◎ の単勝の期待値が 0.99 以下"),))
+    assert rule.condition == "全レース・期待値 1.3 以上・3,000倍以下・◎ の単勝の期待値が 0.99 以下のレースだけ"

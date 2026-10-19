@@ -20,7 +20,8 @@ from yosou.shared.combo_value import (
 from yosou.shared.combo_value.combo_blend import VALUE
 from yosou.shared.win_value import HIGH
 
-from 今週の予想.combo_value_rule import HIGH_RACES, TOP_COMBOS, ComboValueRule
+from 今週の予想.combo_race_traits import ComboRaceTraits
+from 今週の予想.combo_value_rule import HIGH_RACES, HIGH_TOP_COMBOS, TOP_COMBOS, ComboValueRule
 from 今週の予想.filter_columns import AGREEMENT, POOL_BACKED
 from 今週の予想.forecast_columns import EXPECTATION, HORSE_NO, MARK
 from 今週の予想.mark_rule import TOP_MARK
@@ -39,7 +40,8 @@ class ComboValuePicker:
     組の確率は、3連単の板から市場とモデルの Harville を作って券種の組に足し合わせ（``TrifectaSources``・``PoolFolding``）、
     その券種の板と馬ごとの比と合わせて、重み（``weights``）で1つにする（``ComboBlendFeatures``・``ComboBlend``）。
     3連単の板か、その券種の板か、重みが無い券種は 0点。期待度「高」のレースだけのルールは、ほかのレースの組を落とし、
-    ◎ を含む組だけのルールは ◎ を含まない組（馬単・3連単は ◎ が1着でない組）を落とす。1レースの点数の上限があれば、組の期待値の高い順に残す。
+    ◎ を含む組だけのルールは ◎ を含まない組（馬単・3連単は ◎ が1着でない組）を落とす。レースの条件（``race_conditions``）のあるルールは、
+    条件のどれかに合わないレース（中身は ``ComboRaceTraits``）の組を落とす。1レースの点数の上限があれば、組の期待値の高い順に残す。
     """
 
     def __init__(self, rules: tuple[ComboValueRule, ...], weights: dict[TicketType, ComboBlendWeights]) -> None:
@@ -80,10 +82,12 @@ class ComboValuePicker:
         valued = self._blend.of(rule.ticket_type, features, weights)
         chosen = valued[(valued[VALUE] >= rule.value_line) & (valued["odds"] <= rule.odds_cap)]
         chosen = chosen.merge(races, on="race_id", how="inner")
-        if rule.scope == HIGH_RACES:
+        if rule.scope in (HIGH_RACES, HIGH_TOP_COMBOS):
             chosen = chosen[chosen[EXPECTATION] == HIGH]
-        if rule.scope == TOP_COMBOS:
+        if rule.scope in (TOP_COMBOS, HIGH_TOP_COMBOS):
             chosen = chosen[self._has_top(rule.ticket_type, chosen)]
+        for condition in rule.race_conditions:
+            chosen = chosen[condition.passes(chosen)]
         if rule.max_points:
             chosen = chosen[chosen.groupby("race_id")[VALUE].rank(ascending=False, method="first") <= rule.max_points]
         return chosen.assign(**{RULE: rule.label, "ticket_type": rule.ticket_type.label, "stake_units": rule.stake_units})[list(COLUMNS)]
@@ -96,7 +100,7 @@ class ComboValuePicker:
         return chosen[list(names)].eq(chosen[_TOP], axis=0).any(axis=1)
 
     def _races(self, marked: pd.DataFrame) -> pd.DataFrame:
-        """1行 = 1レースの、買い目に写す列と ◎ の馬番（印が無ければ欠損）。"""
+        """1行 = 1レースの、買い目に写す列と ◎ の馬番（印が無ければ欠損）と、レースの中身（``ComboRaceTraits``）。"""
         first = marked.groupby("race_id", sort=False).first().reset_index()
         columns = {name: (first[name] if name in first.columns else np.nan) for name in _RACE_COLUMNS}
         races = pd.DataFrame(columns, index=first.index)
@@ -106,4 +110,4 @@ class ComboValuePicker:
         races[_TOP] = races["race_id"].map(top_of)
         for flag in (AGREEMENT, POOL_BACKED):
             races[flag] = races[flag].fillna(False).astype(bool)
-        return races
+        return races.merge(ComboRaceTraits().of(marked), on="race_id", how="left")

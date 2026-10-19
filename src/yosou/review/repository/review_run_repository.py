@@ -10,10 +10,10 @@ import pandas as pd
 from 共通 import facts
 
 #: 読む事実表の列（意味は ``tools/共通/facts.py`` の ``FACT_COLUMNS``）。表 G の材料（展開スコア）・傾きの材料（トラックバイアス）・
-#: 不利の判定（最初のコーナーの順位・4コーナーの順位・着順）に要る列をそろえる。
+#: 不利の判定（最初のコーナーの順位・4コーナーの順位・着順）と、枠連の買い目の精算（枠番）に要る列をそろえる。
 COLUMNS: tuple[str, ...] = (
     "race_id", "venue_code", "surface", "track_code", "condition_code", "race_no", "distance_m", "class_order", "field_size",
-    "horse_id", "horse_no", "popularity", "win_odds", "finish", "first_corner_rank", "corner4", "first3f", "last3f_race",
+    "horse_id", "horse_no", "frame_no", "popularity", "win_odds", "finish", "first_corner_rank", "corner4", "first3f", "last3f_race",
     "win_payout", "place_payout",
 )
 #: 読み始める開催日（事実表の最初の年）。

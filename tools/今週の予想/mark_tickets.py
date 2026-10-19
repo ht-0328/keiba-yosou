@@ -7,6 +7,7 @@ import pandas as pd
 
 from yosou.shared.betting import TicketType
 from yosou.shared.combo_value import ComboExpectedValue, HorseRatio
+from yosou.shared.win_value import HIGH
 
 from 今週の予想.forecast_columns import (
     AXIS,
@@ -15,9 +16,12 @@ from 今週の予想.forecast_columns import (
     MARK,
     MARKET_TOP3,
     MARKET_WIN,
+    PLACE_ODDS_LOW,
     PLACE_VALUE,
     PROBABILITY,
+    WIN_ODDS,
     WIN_PROBABILITY,
+    WIN_VALUE,
 )
 from 今週の予想.mark_rule import TOP_MARK, VALUE_MARK
 
@@ -27,10 +31,17 @@ from 今週の予想.ticket_rules import (
     BET_RULES,
     PLACE_AGREE_LABEL,
     PLACE_AXIS_RULES,
+    PLACE_BUY_LINE,
     PLACE_LABEL,
     PLACE_MAX_POINTS,
+    PLACE_MIN_FIELD,
+    PLACE_ODDS_CAP,
     PLACE_STAKE_UNITS,
     PLACE_VALUE_LINE,
+    WIN_FAVORITE_MIN,
+    WIN_ODDS_CAP,
+    WIN_VALUE_LABEL,
+    WIN_VALUE_LINE,
     TicketRule,
     combo_text,
 )
@@ -81,6 +92,8 @@ class MarkTickets:
                 rows += [{**head, RULE: rule.label, "ticket_type": rule.ticket_type.label, "combo": combo_text(combo),
                           "stake_units": rule.stake_units, VALUE: value}
                          for combo, value, keep in zip(combos, values, kept, strict=True) if keep]
+            rows += [{**head, RULE: WIN_VALUE_LABEL, "ticket_type": TicketType.WIN.label, "combo": combo_text((horse,)),
+                      "stake_units": 1.0, VALUE: value} for horse, value in self._win_value_horses(race)]
             for label, agreement in ((PLACE_LABEL, False), (PLACE_AGREE_LABEL, True)):
                 rows += [{**head, RULE: label, "ticket_type": TicketType.PLACE.label, "combo": combo_text((horse,)),
                           "stake_units": PLACE_STAKE_UNITS, VALUE: np.nan} for horse in self._place_horses(race, agreement)]
@@ -131,12 +144,26 @@ class MarkTickets:
                     kept &= member >= rule.value_line
         return kept
 
+    def _win_value_horses(self, race: pd.DataFrame) -> list[tuple[int, float]]:
+        """単勝（期待値）: 1番人気が ``WIN_FAVORITE_MIN`` 倍以上のレースで、単勝の期待値が線以上・単勝オッズが上限以下の馬を、期待値の高い順に1点。
+        単勝オッズか単勝の期待値の列が無ければ（木曜・前の形の表）買わない。"""
+        if WIN_ODDS not in race.columns or WIN_VALUE not in race.columns or not (race[WIN_ODDS].min() >= WIN_FAVORITE_MIN):
+            return []
+        priced = race[(race[WIN_VALUE] >= WIN_VALUE_LINE) & (race[WIN_ODDS] <= WIN_ODDS_CAP)].sort_values(WIN_VALUE, ascending=False).head(1)
+        return [(int(no), float(value)) for no, value in zip(priced[HORSE_NO], priced[WIN_VALUE], strict=True)]
+
     def _place_horses(self, race: pd.DataFrame, agreement: bool) -> list[int]:
-        """複勝: 期待値が線以上の馬を高い順に最大3点。2モデル一致なら、そのうちモデルごとの期待値も線以上の馬だけ。"""
-        priced = race[race[PLACE_VALUE] >= PLACE_VALUE_LINE].sort_values(PLACE_VALUE, ascending=False).head(PLACE_MAX_POINTS)
+        """複勝: 期待度「高」で ``PLACE_MIN_FIELD`` 頭以上のレースで、期待値が ``PLACE_BUY_LINE`` 以上・複勝の最低オッズが ``PLACE_ODDS_CAP`` 倍以下の馬を
+        高い順に最大3点。2モデル一致なら、そのうちモデルごとの期待値も線以上の馬だけ。頭数は列 ``field_size`` があればその値、無ければ行の数。
+        複勝の最低オッズの列が無ければ（前の形の表）買わない。"""
+        field = race["field_size"].iloc[0] if "field_size" in race.columns else len(race)
+        if race[EXPECTATION].iloc[0] != HIGH or not (field >= PLACE_MIN_FIELD) or PLACE_ODDS_LOW not in race.columns:
+            return []
+        chosen = (race[PLACE_VALUE] >= PLACE_BUY_LINE) & (race[PLACE_ODDS_LOW] <= PLACE_ODDS_CAP)
+        priced = race[chosen].sort_values(PLACE_VALUE, ascending=False).head(PLACE_MAX_POINTS)
         if agreement:
             for member in MEMBERS:
                 column = member_column("place_value", member)
                 values = priced[column] if column in priced.columns else pd.Series(np.nan, index=priced.index)
-                priced = priced[values >= PLACE_VALUE_LINE]
+                priced = priced[values >= PLACE_BUY_LINE]
         return [int(no) for no in priced[HORSE_NO]]
