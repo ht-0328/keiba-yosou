@@ -200,7 +200,7 @@ def _report(args: argparse.Namespace) -> None:
     verdicts = []
     for name, key, ticket_type, label, expectation in TICKETS:
         targets = {1: [item[0] for item in TICKETS], 2: list(SECOND_TRIAL_CAPS), 3: list(THIRD_TRIAL), 4: list(FOURTH_TRIAL),
-                   5: list(FOURTH_TRIAL), 6: list(FOURTH_TRIAL)}[args.trial]
+                   5: list(FOURTH_TRIAL), 6: list(FOURTH_TRIAL), 7: ["ワイド"]}[args.trial]
         if name not in targets:
             continue
         loaded = np.load(OUT / "filters" / (f"{key}-cross.npz" if args.trial == 5 else f"{key}.npz"))
@@ -217,7 +217,9 @@ def _report(args: argparse.Namespace) -> None:
             base_daily = current.rule(label, expectation)
         select = np.isin(years, SELECT_YEARS)
         base_hit = base_daily[select, HIT_RACES].sum() / max(base_daily[select, RACES].sum(), 1.0)
-        if args.trial == 6 and name in SIXTH_FIXED:
+        if args.trial == 7:
+            pick, cells = _wide_seventh(base_hit, days)
+        elif args.trial == 6 and name in SIXTH_FIXED:
             pick, cells = _fixed(name, key, ticket_type, days)
         elif args.trial >= 3:
             pick, cells = _walk_forward(HitRateSelector(selector, days, rules), base_daily, years, SECOND_TRIAL_CAPS[name],
@@ -244,6 +246,22 @@ def _report(args: argparse.Namespace) -> None:
     lines.append("\n## まとめ\n\n" + "\n".join(f"- {name}: {'満たす' if passed else '満たさない'}" for name, passed in verdicts))
     (OUT / "全券種-手順6.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(lines[-1], flush=True)
+
+
+def _wide_seventh(base_hit: float, days: pd.DatetimeIndex) -> tuple[HitRatePick, np.ndarray | None]:
+    """7回目（docs/04 の 12）: ワイドの点数 × 線の9つから、2016〜2018年だけで選ぶ。"""
+    folder, rule, (trait, low, _) = SIXTH_FIXED["ワイド"]
+    rules = [BuyRule(rule.scope, line, rule.cap, points) for points in (3, 4, 5) for line in (1.0, 1.1, 1.2)]
+    _, _, traits = _bins()
+    flags = pd.DataFrame({"race_id": traits["race_id"], "pass": np.where(traits[trait] >= low, "1", "0")})
+    valued = pd.read_parquet(OUT / "valued" / folder / "wide.parquet")
+    valued = valued[valued["race_date"] >= FIRST_DAY].merge(flags, on="race_id", how="inner")
+    table = RuleDayTable(TicketType.WIDE, days, ["0", "1"], "pass").build(valued, rules)[:, 1]
+    selector = FilterSelector({"pass": table[:, None, :, :]}, days, rules)
+    pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit)
+    if pick.rule is not None:
+        pick = replace(pick, filter_text=f"1番人気が {low}倍以上（組の確率: 5回目。点数 × 線の9つから 2016〜2018年で選ぶ）")
+    return pick, cells
 
 
 def _fixed(name: str, key: str, ticket_type: TicketType, days: pd.DatetimeIndex):
@@ -287,7 +305,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
     parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "cross", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
-    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4, 5, 6), default=1, help="report の何回目の選び方か（docs/04 の 4・7〜11）")
+    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4, 5, 6, 7), default=1, help="report の何回目の選び方か（docs/04 の 4・7〜12）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 
