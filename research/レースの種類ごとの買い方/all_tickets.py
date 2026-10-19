@@ -142,16 +142,20 @@ def _tables(args: argparse.Namespace) -> None:
 
 
 def _subsets(args: argparse.Namespace) -> None:
-    """4回目（docs/04 の 9）: 2モデル一致・3連単の支持ありのレースだけで、中身の帯 × 決まりの開催日の表を作る。"""
+    """4回目（docs/04 の 9）: 2モデル一致・3連単の支持ありのレースだけで、中身の帯 × 決まりの開催日の表を作る。
+    ``--cross`` なら、5回目の組の確率で作る（8回目。docs/04 の 13。ワイドだけ）。"""
     bins, labels, traits = _bins()
     days = _days()
+    folder, suffix = ("cross", "-cross") if args.cross else ("now", "")
     for name, key in FOURTH_TRIAL.items():
+        if args.cross and name != "ワイド":
+            continue
         ticket_type = next(item[2] for item in TICKETS if item[0] == name)
-        valued = pd.read_parquet(OUT / "valued" / "now" / f"{key}.parquet")
+        valued = pd.read_parquet(OUT / "valued" / folder / f"{key}.parquet")
         valued = valued[valued["race_date"] >= FIRST_DAY].merge(labels, on="race_id", how="inner")
         rules = rules_of(ticket_type)
         for subset in SUBSETS:
-            path = OUT / "filters" / f"{key}-{subset}.npz"
+            path = OUT / "filters" / f"{key}{suffix}-{subset}.npz"
             if path.exists() and not args.force:
                 print(f"済み: {path}", flush=True)
                 continue
@@ -200,15 +204,16 @@ def _report(args: argparse.Namespace) -> None:
     verdicts = []
     for name, key, ticket_type, label, expectation in TICKETS:
         targets = {1: [item[0] for item in TICKETS], 2: list(SECOND_TRIAL_CAPS), 3: list(THIRD_TRIAL), 4: list(FOURTH_TRIAL),
-                   5: list(FOURTH_TRIAL), 6: list(FOURTH_TRIAL), 7: ["ワイド"]}[args.trial]
+                   5: list(FOURTH_TRIAL), 6: list(FOURTH_TRIAL), 7: ["ワイド"], 8: ["ワイド"]}[args.trial]
         if name not in targets:
             continue
-        loaded = np.load(OUT / "filters" / (f"{key}-cross.npz" if args.trial == 5 else f"{key}.npz"))
+        suffix = "-cross" if args.trial in (5, 8) else ""
+        loaded = np.load(OUT / "filters" / f"{key}{suffix}.npz")
         rules = rules_of(ticket_type)
         tables = {trait: loaded[trait] for trait in TRAITS}
-        if args.trial in (4, 6):
+        if args.trial in (4, 6, 8):
             for subset in SUBSETS:
-                part = np.load(OUT / "filters" / f"{key}-{subset}.npz")
+                part = np.load(OUT / "filters" / f"{key}{suffix}-{subset}.npz")
                 tables.update({f"{subset}:{trait}": part[trait] for trait in TRAITS})
         selector = FilterSelector(tables, days, rules)
         if label is None:
@@ -223,7 +228,7 @@ def _report(args: argparse.Namespace) -> None:
             pick, cells = _fixed(name, key, ticket_type, days)
         elif args.trial >= 3:
             pick, cells = _walk_forward(HitRateSelector(selector, days, rules), base_daily, years, SECOND_TRIAL_CAPS[name],
-                                        fallback=args.trial == 6)
+                                        fallback=args.trial in (6, 8))
         else:
             pick, cells = HitRateSelector(selector, days, rules).pick(SELECT_YEARS, base_hit, min_good_share=1.0 if second else None,
                                                                       max_cap=SECOND_TRIAL_CAPS[name] if second else None)
@@ -305,7 +310,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="8券種で回収率 100% 超えと的中率の向上を探す（docs/04）", allow_abbrev=False)
     parser.add_argument("step", choices=("bracket", "horses", "tables", "subsets", "cross", "report"))
     parser.add_argument("--force", action="store_true", help="済んだものも作り直す")
-    parser.add_argument("--trial", type=int, choices=(1, 2, 3, 4, 5, 6, 7), default=1, help="report の何回目の選び方か（docs/04 の 4・7〜12）")
+    parser.add_argument("--cross", action="store_true", help="subsets で、5回目の組の確率で作る（8回目。ワイドだけ）")
+    parser.add_argument("--trial", type=int, choices=tuple(range(1, 9)), default=1, help="report の何回目の選び方か（docs/04 の 4・7〜13）")
     parser.add_argument("--db", type=Path, default=None, help="元DB の場所")
     return parser
 
