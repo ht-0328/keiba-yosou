@@ -99,11 +99,12 @@ def test_買い目の記録は_計画の複勝を書き_同じレースの未精
 
 
 def _high_forecast(rid: str, timing: str = "当日", expectation: str = "高") -> dict:
-    """期待度つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝 1点と馬単 3点（1点はトリガミで外した）。"""
+    """期待度つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝（期待値）1点（3番）と、◎ の単勝・馬単 3点（1点はトリガミで外した）。"""
     forecast = _forecast(rid, "1勝クラス", [1.0, 1.0, 1.0, 1.0])
     forecast["horses"][2].update({columns.MARK: "◎", columns.WIN_VALUE: 1.12})
     forecast.update(timing=timing, expectation=expectation, tickets=[
-        {"rule": "単勝", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 8.0, "dropped": ""},
+        {"rule": "単勝", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 4.0, "dropped": ""},
+        {"rule": "単勝（期待値）", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 4.0, "value": 1.12, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0301", "label": "3→1", "odds": 30.0, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0302", "label": "3→2", "odds": 60.0, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0304", "label": "3→4", "odds": 1.5, "dropped": "トリガミ"},
@@ -124,7 +125,7 @@ def test_単勝と馬単の1点は単勝馬単用の財布の割合で100円に�
     assert wallet.point_yen("単勝", day) == 400 and wallet.point_yen("馬単", day) == 100
 
 
-def test_当日の期待度高のレースは複勝と別に単勝と馬単を買い_前日と期待度低では買わない(store: ReviewStore, tmp_path: Path, con):
+def test_当日の予想は複勝と別に単勝期待値を買い_期待度高なら馬単も買い_前日は買わない(store: ReviewStore, tmp_path: Path, con):
     import json
     path = tmp_path / "財布.json"
     path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 400_000}), encoding="utf-8")
@@ -138,7 +139,8 @@ def test_当日の期待度高のレースは複勝と別に単勝と馬単を�
     assert bought.tickets[0].value == pytest.approx(1.12) and bought.tickets[1].value is None
     assert bought.ticket_yen == 600 and bought.stake_yen == 600 and "期待度「高」" in bought.ticket_reason
     assert plans["02"].tickets == () and "前日" in plans["02"].ticket_reason
-    assert plans["03"].tickets == () and plans["03"].ticket_reason == "" and not plans["03"].buys
+    # 期待度「低」でも単勝（期待値）は買う（◎ の馬単は買わない）
+    assert [(ticket.ticket_type, ticket.combo) for ticket in plans["03"].tickets] == [("単勝", "03")] and "馬単" not in plans["03"].ticket_reason
 
 
 def test_財布が小さいうちは馬単を買わず_単勝馬単用が止まりの線を割れば単勝も止める(store: ReviewStore, tmp_path: Path, con):

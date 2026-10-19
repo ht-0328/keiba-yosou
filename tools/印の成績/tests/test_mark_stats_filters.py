@@ -124,6 +124,8 @@ def _marked_race_with_members() -> pd.DataFrame:
     cat_top3 = {no: (0.5 if no == 8 else top3[no]) for no in marks}
     return pd.DataFrame({
         "race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "expectation": "高", AGREEMENT: True, POOL_BACKED: False,
+        # 16頭立て。複勝の買い方（期待値 1.1 以上・複勝 5倍以下）に合うのは 3番と 8番（9番・4番は 5倍を超える）
+        "field_size": 16, "place_odds_low": [8.0 if no in (9, 4) else 2.0 for no in order],
         "horse_no": order, "mark": [marks[no] for no in order], "place_value": [values[no] for no in order],
         "place_value_lightgbm": [values[no] for no in order], "place_value_catboost": [values[no] - (0.5 if no == 8 else 0.0) for no in order],
         "probability": [0.5 * top3[no] for no in order], "market_top3": 0.5,

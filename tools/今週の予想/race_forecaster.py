@@ -68,7 +68,7 @@ from 今週の予想.timing_chooser import TimingChooser
 _RENAMES: dict[str, str] = {
     ids.HORSE_ID: columns.HORSE_ID, ids.HORSE_NO: columns.HORSE_NO, ids.HORSE_NAME: columns.HORSE_NAME,
     PROBABILITY: columns.PROBABILITY, WIN_ODDS: columns.WIN_ODDS, TOP3_RATE: columns.MARKET_TOP3, PLACE_VALUE: columns.PLACE_VALUE,
-    WIN_PROBABILITY: columns.WIN_PROBABILITY, WIN_VALUE: columns.WIN_VALUE,
+    WIN_PROBABILITY: columns.WIN_PROBABILITY, WIN_VALUE: columns.WIN_VALUE, ids.PLACE_ODDS_LOW: columns.PLACE_ODDS_LOW,
     **{WIN_VALUE_MEMBER.format(member=source): member_column(columns.WIN_VALUE, member) for source, member in MEMBER_SOURCES.items()},
 }
 #: 1頭の結果に入れる、表の列。

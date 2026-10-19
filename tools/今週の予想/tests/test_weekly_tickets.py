@@ -25,11 +25,16 @@ _WIN_RATIO = {3: 1.5, 1: 1.0, 5: 1.0, 2: 1.0, 4: 1.0, 6: 1.0, 8: 1.2, 9: 1.0, 7:
 
 
 def _marked_race(race_id: str = "R", expectation: str = "高") -> pd.DataFrame:
-    """複勝の期待値は 8番と 3番が線以上。並びは3着以内の確率の高い順（軸馬の 1番が先頭）。"""
+    """複勝の期待値は 8番と 3番が線（☆ の 1.25）以上。16頭立てとし、複勝の買い方（期待値 1.1 以上・複勝 5倍以下）に合うのも 8番と 3番だけ
+    （9番・4番は期待値 1.1 以上だが複勝 5倍を超える）。並びは3着以内の確率の高い順（軸馬の 1番が先頭）。"""
     values = {3: 1.30, 8: 1.40, 1: 0.9, 5: 0.8, 2: 1.0, 4: 1.1, 6: 0.7, 9: 1.2, 7: 0.5}
+    place_odds = {3: 1.8, 8: 4.0, 9: 8.0, 4: 6.0}
     order = sorted(_MARKS, key=lambda no: -_TOP3_RATIO[no])
     return pd.DataFrame({
         "race_id": race_id, "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "expectation": expectation,
+        "field_size": 16, "place_odds_low": [place_odds.get(no, 2.0) for no in order],
+        # 単勝（期待値）: 1番人気は 2.5倍。単勝の期待値 1.0 以上・5倍以下は 3番（4.0倍・1.05）だけ
+        "win_odds": [4.0 if no == 3 else 2.5 + no for no in order], "win_value": [1.05 if no == 3 else 0.8 for no in order],
         "horse_no": order, "mark": [_MARKS[no] for no in order], "place_value": [values[no] for no in order],
         "probability": [0.5 * _TOP3_RATIO[no] for no in order], "market_top3": 0.5,
         "win_probability": [0.1 * _WIN_RATIO[no] for no in order], "market_win": 0.1,
@@ -106,7 +111,9 @@ def test_3連単は軸の1頭からのマルチで90点になり期待値が線�
     trio = tickets[tickets[RULE] == "3連複（◎軸・流し）"].set_index("combo")
     assert trio.loc["010308", VALUE] == pytest.approx(0.75 * 1.2 * 1.1 * 1.5)
     assert sorted(tickets[tickets[RULE] == "3連複（◎軸・流し・期待値 1.0 以上）"]["combo"]) == ["010308", "020308", "030408", "030508", "030608"]
-    assert tickets[tickets["ticket_type"].isin(["単勝", "複勝", "ワイド", "馬連", "馬単"])][VALUE].isna().all()
+    marks_only = tickets[tickets["ticket_type"].isin(["単勝", "複勝", "ワイド", "馬連", "馬単"]) & (tickets[RULE] != "単勝（期待値）")]
+    assert marks_only[VALUE].isna().all()
+    assert tickets[tickets[RULE] == "単勝（期待値）"][VALUE].tolist() == [1.05]   # 単勝（期待値）は馬の単勝の期待値を持つ
 
 
 def test_軸の列が無ければ軸馬も二重丸で市場の見立てが無ければ期待値は付かない() -> None:
@@ -179,7 +186,7 @@ def test_今週の予想の買い目は締め切り前のオッズで期待値�
     assert trio["010305"]["dropped"] == "" and trio["020308"]["dropped"] == "オッズ無し"
     assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in tickets)   # 当日の予想でなければ組の期待値の買い目は無い
     # オッズの無い時点（木曜）は、組むだけでオッズ・期待値・トリガミは付かない
-    thursday = ForecastTickets().build(con, race_id, _marked_race().drop(columns=["market_top3", "market_win"]), None, odds_known=False)
+    thursday = ForecastTickets().build(con, race_id, _marked_race().drop(columns=["market_top3", "market_win", "win_odds", "win_value", "place_odds_low"]), None, odds_known=False)
     assert thursday and all(ticket["odds"] is None and ticket["dropped"] == "" and ticket["value"] is None for ticket in thursday)
     assert not any(ticket["rule"].endswith("以上）") for ticket in thursday)
 

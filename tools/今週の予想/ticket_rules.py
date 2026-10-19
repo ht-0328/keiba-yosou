@@ -16,10 +16,21 @@ from 今週の予想.race_condition import AGREED, FAVORITE_ODDS, FIELD_SIZE, HA
 UNIT_YEN = 1000
 #: 1点の額の最小の単位（円）。回収率は 1点 100円で数える。
 POINT_YEN = 100
-#: 複勝を買う期待値の線と、1レースで買う点数の上限（08 の「採用している券種（複勝）」）。
+#: ☆ を買い目の相手に入れる複勝の期待値の線（07 の 5）。複勝の買い目の線は ``PLACE_BUY_LINE``。
 PLACE_VALUE_LINE = 1.25
+#: 複勝の買い方（08 の「採用している券種（複勝）」。研究「レースの種類ごとの買い方」の docs/04 の手順6）: 期待度「高」で ``PLACE_MIN_FIELD`` 頭以上の
+#: レースで、複勝の期待値が ``PLACE_BUY_LINE`` 以上・複勝の最低オッズが ``PLACE_ODDS_CAP`` 倍以下の馬を、期待値の高い順に ``PLACE_MAX_POINTS`` 点まで。
+PLACE_BUY_LINE = 1.1
+PLACE_ODDS_CAP = 5.0
+PLACE_MIN_FIELD = 16
 PLACE_MAX_POINTS = 3
 PLACE_STAKE_UNITS = 1.0
+#: 単勝（期待値）の買い方（研究「レースの種類ごとの買い方」の docs/04 の手順6）: 1番人気の単勝オッズが ``WIN_FAVORITE_MIN`` 倍以上のレースで、
+#: 単勝の期待値が ``WIN_VALUE_LINE`` 以上・単勝オッズが ``WIN_ODDS_CAP`` 倍以下の馬を、期待値の高い順に1点。◎ でなくてもよい。
+WIN_VALUE_LABEL = f"{TicketType.WIN.label}（期待値）"
+WIN_VALUE_LINE = 1.0
+WIN_ODDS_CAP = 5.0
+WIN_FAVORITE_MIN = 2.3
 #: 3連複・3連単の、軸から流す買い目の期待値の線（固定。検証期間では決めない。08 の 2）。
 COMBO_VALUE_LINE = 1.0
 #: 合計の行の組。元の買い目だけ（軸から流す3連複・3連単を足す前）と、それに軸から流す形を足した2パターン（◎軸・軸馬）。
@@ -95,8 +106,8 @@ PLACE_AXIS_RULES: tuple[PlaceAxisTicketRule, ...] = (
     PlaceAxisTicketRule(TicketType.QUINELLA, 0.5),
 )
 #: 当日の期待度「高」のレースで実際に買う買い方（研究「複勝以外の回収率100超」の手順4 で採用の基準を満たした。08 の 2）。
-#: 金額は印の単位ではなく、単勝・馬単用の財布から決める（``Wallet.point_yen``）。
-HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.WIN.label, TicketType.EXACTA.label)
+#: 金額は印の単位ではなく、単勝・馬単用の財布から決める（``Wallet.point_yen``）。◎ の単勝は、単勝（期待値）（``WIN_VALUE_LABEL``）に替えた。
+HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.EXACTA.label,)
 #: 組の期待値で組を選ぶ買い方。組の期待値は、市場とモデルを重みで合わせた組の確率（``ComboBlend``。重みはモデルの置き場所の ``combo_blend.json``）× オッズ。
 #: 採用したものは当日の予想で実際に買う（08 の 2。金額は組の期待値用の財布から ``Wallet.point_yen``）。どれも合計には入らない。
 #: 馬連・馬単・3連複・3連単は、研究「レースの種類ごとの買い方」の docs/04（手順6）で、2016年〜前の年だけで選んだ決まりが 2019〜2026年で
@@ -119,7 +130,7 @@ COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
 #: 当日の予想で実際に買う、組の期待値の買い方の名前。
 COMBO_VALUE_LABELS: tuple[str, ...] = tuple(rule.label for rule in COMBO_VALUE_RULES if rule.adopted)
 #: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、複勝の馬を軸にした行は単勝の次。組の期待値の行は馬単の次）。
-RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in PLACE_AXIS_RULES),
+RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, WIN_VALUE_LABEL, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in PLACE_AXIS_RULES),
                                 *(rule.label for rule in BET_RULES[1:4]), *(rule.label for rule in COMBO_VALUE_RULES),
                                 *(rule.label for rule in BET_RULES[4:]))
 #: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。

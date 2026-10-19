@@ -17,6 +17,7 @@ from ..dataset import (
     PredictionData,
     WinTargetData,
 )
+from ..dataset.column_names import PLACE_ODDS_LOW
 from ..feature import PredictionTiming
 from ..feature.group import WIN_ODDS
 from ..place_value import PlaceValueColumns
@@ -142,7 +143,11 @@ class PredictionWorkflow:
         return pd.concat([probability, self._win_value.of(probability, win_data), *members], axis=1)
 
     def _shown_odds(self, data: PredictionData) -> pd.DataFrame:
-        """結果の表に出す単勝オッズ。オッズを使わない時点は、列を出さない（設計書 07）。"""
+        """結果の表に出す単勝オッズと複勝の最低オッズ。オッズを使わない時点は、列を出さない（設計書 07）。
+        複勝の最低オッズは、複勝の買い目のオッズの上限（研究「レースの種類ごとの買い方」の docs/04）を見るのに使う。"""
         if WIN_ODDS not in data.features.columns:
             return pd.DataFrame(index=data.ids.index)
-        return data.features[[WIN_ODDS]]
+        shown = data.features[[WIN_ODDS]]
+        if data.market is not None and PLACE_ODDS_LOW in data.market.columns:
+            shown = shown.assign(**{PLACE_ODDS_LOW: data.market[PLACE_ODDS_LOW].to_numpy()})
+        return shown
