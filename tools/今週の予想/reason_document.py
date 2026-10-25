@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from 今週の予想.race_grades import RaceGrades
+
 #: 複勝の券種の名前（買い目の行から複勝だけを拾う）。
 _PLACE = "複勝"
 
@@ -11,7 +13,7 @@ _PLACE = "複勝"
 class ReasonDocument:
     """``RaceForecaster.forecast`` の辞書を、人が読む全頭の予想根拠の Markdown にする。
 
-    頭にレースの時点・期待度・印の並び・複勝の買い目。そのあと全頭を3着以内の確率の高い順に、馬ごとに
+    頭にレースの時点・的中率と配当率（等級つき）・印の並び・複勝の買い目。そのあと全頭を3着以内の確率の高い順に、馬ごとに
     確率と期待値、総合の文（確率・市場との差・押し上げた／割り引いた分類・印とその理由）、良い点・悪い点（分類ごとの確率の動きと根拠の特徴量）、
     近走の文（近5走・敗因の候補・評価のことば）を並べる。前の版の結果（``story`` が無い）は近走を省く。
     """
@@ -29,7 +31,7 @@ class ReasonDocument:
         return [
             f"- 時点: {forecast['timing']}（{forecast['timing_reason']}）",
             f"- 予想: {forecast['model']}",
-            f"- レースの期待度: {forecast.get('expectation') or 'なし'}（◎ の単勝の期待値が 1.00 以上なら高）",
+            *RaceGrades.from_dict(forecast).lines(),
             f"- 印: {marks or 'なし'}",
             f"- 複勝の買い目: {'・'.join(place) if place else 'なし'}",
             f"- 作成: {forecast['made_at']}",

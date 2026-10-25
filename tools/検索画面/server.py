@@ -35,6 +35,7 @@ from 取得と予想の状況.store_screen_probe import JRA_STORE_URL, LOCAL_STO
 from 今週の予想.feature_labels import CATEGORY_NOTES  # noqa: E402
 from 今週の予想.forecast_store import ForecastStore  # noqa: E402
 from 今週の予想.horse_evaluator import MARK_ROLES  # noqa: E402
+from 今週の予想.race_grades import RaceGrades  # noqa: E402
 from 検索画面.session import DbSession  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -268,7 +269,7 @@ class Backend:
             if forecast is not None:
                 plan = forecast.get("plan") or {}
                 saved[row[rid_at]] = {"timing": forecast["timing"], "made_at": forecast["made_at"], "marks": ForecastStore.marks_text(forecast),
-                                      "expectation": forecast.get("expectation"), "plan_kind": plan.get("kind"), "plan_yen": plan.get("stake_yen"),
+                                      "grades": RaceGrades.from_dict(forecast).text_if_any(), "plan_kind": plan.get("kind"), "plan_yen": plan.get("stake_yen"),
                                       "plan_ticket_yen": plan.get("ticket_yen")}
         return {"cards": table_dict(cards), "saved": saved, "legend": self._forecast_legend()}
 

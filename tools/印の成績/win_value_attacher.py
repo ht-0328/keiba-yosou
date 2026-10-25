@@ -19,7 +19,7 @@ class WinValueAttacher:
     """1着の予想（1着になる確率）の7つの区切りの予測から、テスト期間の単勝の期待値を出す（今週の予想と同じ決め方）。
 
     単勝の期待値 = 1着になる確率 × 確定の単勝オッズ（設計書「近走と適性から3着以内を予想」の 16 の 6）。
-    ◎（期待値がいちばん高い馬）とレースの期待度は、この値から ``MarkRule``・``ExpectationLevel`` が決める。
+    ◎（期待値がいちばん高い馬）と ◎ の期待値の帯（1.00 以上・未満）は、この値から ``MarkRule``・``WinValueBand`` が決める。
     予測にモデルごとの確率（``probability_lightgbm``・``probability_catboost``）があれば、モデルごとの1着になる確率と単勝の期待値
     （``win_probability_lightgbm``・``win_value_lightgbm`` など）も付ける（2モデル一致の絞り込みに使う）。
     """

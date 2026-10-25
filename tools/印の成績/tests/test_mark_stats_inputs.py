@@ -100,22 +100,22 @@ def test_確定オッズから市場の見立てを出して印を付ける() ->
     assert marked.loc["b", "finish"] == 1.0 and marked.loc["b", "win_payout"] == 300
     assert marked["market_top3"].sum() == pytest.approx(3.0)
     assert marked["place_value"].isna().all()  # 見込みの倍率が無ければ期待値は出さない
-    assert marked["expectation"].isna().all()  # 1着の予想が無ければ期待度は付かない
-    # 1着の予想があれば、◎ は単勝の期待値の1位（c: 0.2 × 6.0 = 1.2）で、期待度は 1.00 以上なので「高」
+    assert marked["win_value_band"].isna().all()  # 1着の予想が無ければ期待値の帯は付かない
+    # 1着の予想があれば、◎ は単勝の期待値の1位（c: 0.2 × 6.0 = 1.2）で、期待値の帯は「1.00 以上」
     wins = pd.DataFrame({"race_id": ["R"] * 4, "horse_id": ["a", "b", "c", "d"], "win_probability": [0.5, 0.3, 0.2, 0.02],
                          "win_value": [1.0, 0.9, 1.2, 0.4]})
     marked = marker.mark(predictions, marker.places(results), dangers, wins).set_index("horse_id")
     assert marked.loc["c", "mark"] == "◎" and marked.loc["b", "mark"] == "○"
-    assert (marked["expectation"] == "高").all()
+    assert (marked["win_value_band"] == "1.00 以上").all()
     # 市場の見立て（オッズから見た勝率）はレースで合計 1。軸は ◎○▲ のうち3着以内の確率が1位の b（○）
     assert marked["market_win"].sum() == pytest.approx(1.0)
     assert marked.loc["b", "axis"] and marked["axis"].sum() == 1
     low = marker.mark(predictions, marker.places(results), dangers, wins.assign(win_value=[0.5, 0.9, 0.8, 0.4])).set_index("horse_id")
-    assert low.loc["b", "mark"] == "◎" and (low["expectation"] == "低").all()
-    # 木曜（オッズが無い）は、期待値も危険な人気馬も使わず、◎ は1着になる確率の1位（a）。期待度は付かない。成績の人気・払戻は確定の値のまま
+    assert low.loc["b", "mark"] == "◎" and (low["win_value_band"] == "1.00 未満").all()
+    # 木曜（オッズが無い）は、期待値も危険な人気馬も使わず、◎ は1着になる確率の1位（a）。期待値の帯は付かない。成績の人気・払戻は確定の値のまま
     thursday = BacktestMarker(None, odds_known=False).mark(predictions, marker.places(results), dangers, wins).set_index("horse_id")
     assert thursday.loc["a", "mark"] == "◎" and "1着になる確率がレース内1位" in thursday.loc["a", "mark_reason"]
-    assert thursday["expectation"].isna().all() and not thursday["is_danger"].any()
+    assert thursday["win_value_band"].isna().all() and not thursday["is_danger"].any()
     assert thursday["market_win"].isna().all() and thursday["market_top3"].isna().all()
     assert thursday.loc["a", "popularity"] == 1.0 and thursday.loc["b", "win_payout"] == 300
 

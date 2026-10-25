@@ -5,11 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from yosou.shared.betting import BracketTicket, TicketType
+from yosou.shared.win_value import HIGH
 
 from 今週の予想.race_condition import RaceCondition
 
-#: 対象。全レース、当日の期待度「高」のレースだけ、◎ を含む組だけ（着順を区別する券種は ◎ が1着の組だけ）、期待度「高」のレースの ◎ を含む組だけ。
-ALL_RACES, HIGH_RACES, TOP_COMBOS, HIGH_TOP_COMBOS = "全レース", "期待度「高」", "◎ を含む組", "期待度「高」の ◎ を含む組"
+#: 対象。全レース、◎の期待値 1.00 以上（◎ の単勝の期待値が線以上。``yosou.shared.win_value`` の ``HIGH``）のレースだけ、
+#: ◎ を含む組だけ（着順を区別する券種は ◎ が1着の組だけ）、◎の期待値 1.00 以上のレースの ◎ を含む組だけ。
+ALL_RACES, TOP_COMBOS = "全レース", "◎ を含む組"
+HIGH_RACES, HIGH_TOP_COMBOS = f"◎の期待値 {HIGH}のレース", f"◎の期待値 {HIGH}のレースの ◎ を含む組"
 
 
 @dataclass(frozen=True)
@@ -23,7 +26,7 @@ class ComboValueRule:
     偽の券種は、どの区切りでも combo_blend.json の重みのまま）。
     ``stake_units`` は 08 の 2 の単位（合計には入らないので、表の列を埋めるためだけ）。
     ``race_conditions`` があれば、その条件の全部に合うレースだけ買う（研究「レースの種類ごとの買い方」の docs/03・04。券種ごとに向いたレースの中身）。
-    例: ワイド・期待度「高」・線 1.0・上限 300倍・3点なら、期待度「高」のレースで、組の期待値が 1.0 以上で 300倍以下のワイドを、期待値の高い順に3点まで買う。
+    例: ワイド・◎の期待値 1.00 以上のレース・線 1.0・上限 300倍・3点なら、◎ の単勝の期待値が 1.00 以上のレースで、組の期待値が 1.0 以上で 300倍以下のワイドを、期待値の高い順に3点まで買う。
     """
 
     ticket_type: TicketType | BracketTicket

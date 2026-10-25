@@ -92,7 +92,7 @@ public メソッドの意味は [02-glossary.md](02-glossary.md) を、クラス
 | [13-catboost.md](13-catboost.md) | CatBoost で学習・予測するための設計（同上） | 確認待ち |
 | [14-hyperparameter-settings.md](14-hyperparameter-settings.md) | 木の数などのハイパーパラメータを、設定ファイルで外から指定する方法 | 確認待ち |
 | [15-decisions.md](15-decisions.md) | 決めたこと（14個）。決めた内容と、選ばなかった選び方、関連する資料へのリンク | 決定 |
-| [16-evaluation.md](16-evaluation.md) | 当たり具合の測り方（期間の分け方、評価指標、比べる基準、7つの半年の区切りでの確かめ、ハイパーパラメータの調整のやり方、◎ の単勝回収率の確かめと期待度） | 決定 |
+| [16-evaluation.md](16-evaluation.md) | 当たり具合の測り方（期間の分け方、評価指標、比べる基準、7つの半年の区切りでの確かめ、ハイパーパラメータの調整のやり方、◎ の単勝回収率の確かめと ◎ の期待値の線） | 決定 |
 
 ## 決めたこと
 

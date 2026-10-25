@@ -40,7 +40,7 @@ def test_合成DBから買い目の払戻とオッズを付ける(tmp_path: Path
     sample.odds.append(("o6__3連単オッズ", synth.odds_row(ra, "o6__3連単オッズ", "010203", 0, seq=2)))
     con = duckdb.connect(str(synth.build_db(tmp_path / "tickets.duckdb", sample)), read_only=True)
     race_id = "".join(ra[column] for column in keys.RACE_KEY)
-    tickets = pd.DataFrame({"race_id": race_id, "race_date": pd.Timestamp("2024-04-06"), "fold": "x", "expectation": "高",
+    tickets = pd.DataFrame({"race_id": race_id, "race_date": pd.Timestamp("2024-04-06"), "fold": "x", "win_value_band": "1.00 以上",
                             RULE: ["A", "A", "A", "B"], "ticket_type": "3連単", "combo": ["040203", "010203", "050403", "040203"],
                             "stake_units": 0.1})
     attached = TicketPayouts(con).attach(tickets)
@@ -52,7 +52,7 @@ def test_合成DBから買い目の払戻とオッズを付ける(tmp_path: Path
 
 
 def test_買い方ごとの表は絞り込みごとに出し合計は軸のパターンごと() -> None:
-    tickets = pd.concat([MarkTickets().build(_marked_race("A", "高")), MarkTickets().build(_marked_race("B", "低"))], ignore_index=True)
+    tickets = pd.concat([MarkTickets().build(_marked_race("A", "1.00 以上")), MarkTickets().build(_marked_race("B", "1.00 未満"))], ignore_index=True)
     tickets[ODDS] = 5.0
     tickets[PAYOUT] = np.where((tickets["ticket_type"] == "単勝") & (tickets["race_id"] == "A"), 500.0, 0.0)
     tickets[DROPPED] = ""
@@ -73,12 +73,12 @@ def test_買い方ごとの表は絞り込みごとに出し合計は軸のパ�
     assert [row[0] for row in tables[1].rows[:4]] == ["単勝", "単勝（期待値）", "複勝", "複勝（2モデル一致）"]
     assert {row[1] for row in tables[0].rows} == {target.label for target in TARGETS}
     csv = TicketReport().csv_frame(tickets)
-    assert list(csv.columns)[:6] == ["レースID", "開催日", "区切り", "期待度", "買い方", "券種"] and len(csv) == len(tickets)
+    assert list(csv.columns)[:6] == ["レースID", "開催日", "区切り", "◎の期待値", "買い方", "券種"] and len(csv) == len(tickets)
     assert csv["組の確率"].notna().sum() == tickets[VALUE].notna().sum()  # 組の確率 = 期待値 ÷ オッズ（3連複・3連単だけ）
 
 
 def test_線を動かした表は全点の買い目を線で絞って出す() -> None:
-    tickets = MarkTickets().build(_marked_race("A", "高"))
+    tickets = MarkTickets().build(_marked_race("A", "1.00 以上"))
     tickets[ODDS] = 5.0
     tickets[PAYOUT] = 0.0
     tickets[DROPPED] = ""

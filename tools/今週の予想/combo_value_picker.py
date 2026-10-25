@@ -23,12 +23,12 @@ from yosou.shared.win_value import HIGH
 from 今週の予想.combo_race_traits import ComboRaceTraits
 from 今週の予想.combo_value_rule import HIGH_RACES, HIGH_TOP_COMBOS, TOP_COMBOS, ComboValueRule
 from 今週の予想.filter_columns import AGREEMENT, POOL_BACKED
-from 今週の予想.forecast_columns import EXPECTATION, HORSE_NO, MARK
+from 今週の予想.forecast_columns import HORSE_NO, MARK, WIN_VALUE_BAND
 from 今週の予想.mark_rule import TOP_MARK
 from 今週の予想.mark_tickets import COLUMNS, RULE
 
 #: レースから写す列（無ければ偽か欠損）。
-_RACE_COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", EXPECTATION, AGREEMENT, POOL_BACKED)
+_RACE_COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", WIN_VALUE_BAND, AGREEMENT, POOL_BACKED)
 #: ◎ の馬番の列（``TOP_COMBOS`` のルールに使う。買い目には写さない）。
 _TOP = "top_horse"
 
@@ -39,7 +39,7 @@ class ComboValuePicker:
 
     組の確率は、3連単の板から市場とモデルの Harville を作って券種の組に足し合わせ（``TrifectaSources``・``PoolFolding``）、
     その券種の板と馬ごとの比と合わせて、重み（``weights``）で1つにする（``ComboBlendFeatures``・``ComboBlend``）。
-    3連単の板か、その券種の板か、重みが無い券種は 0点。期待度「高」のレースだけのルールは、ほかのレースの組を落とし、
+    3連単の板か、その券種の板か、重みが無い券種は 0点。◎の期待値 1.00 以上のレースだけのルールは、ほかのレースの組を落とし、
     ◎ を含む組だけのルールは ◎ を含まない組（馬単・3連単は ◎ が1着でない組）を落とす。レースの条件（``race_conditions``）のあるルールは、
     条件のどれかに合わないレース（中身は ``ComboRaceTraits``）の組を落とす。1レースの点数の上限があれば、組の期待値の高い順に残す。
     """
@@ -83,7 +83,7 @@ class ComboValuePicker:
         chosen = valued[(valued[VALUE] >= rule.value_line) & (valued["odds"] <= rule.odds_cap)]
         chosen = chosen.merge(races, on="race_id", how="inner")
         if rule.scope in (HIGH_RACES, HIGH_TOP_COMBOS):
-            chosen = chosen[chosen[EXPECTATION] == HIGH]
+            chosen = chosen[chosen[WIN_VALUE_BAND] == HIGH]
         if rule.scope in (TOP_COMBOS, HIGH_TOP_COMBOS):
             chosen = chosen[self._has_top(rule.ticket_type, chosen)]
         for condition in rule.race_conditions:

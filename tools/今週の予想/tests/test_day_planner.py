@@ -98,11 +98,11 @@ def test_買い目の記録は_計画の複勝を書き_同じレースの未精
     assert len(bets) == 1 and bets.iloc[0][names.COMBO] == "01" and bets.iloc[0][names.PARTICIPATION] == names.MATCH and not bets.iloc[0][names.SETTLED]
 
 
-def _high_forecast(rid: str, timing: str = "当日", expectation: str = "高") -> dict:
-    """期待度つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝（期待値）1点（3番）と、◎ の単勝・馬単 3点（1点はトリガミで外した）。"""
+def _high_forecast(rid: str, timing: str = "当日", band: str = "1.00 以上") -> dict:
+    """◎の期待値の帯つきのレース。◎ は 3番（単勝の期待値 1.12）。複勝の買い目は無い。単勝（期待値）1点（3番）と、◎ の単勝・馬単 3点（1点はトリガミで外した）。"""
     forecast = _forecast(rid, "1勝クラス", [1.0, 1.0, 1.0, 1.0])
     forecast["horses"][2].update({columns.MARK: "◎", columns.WIN_VALUE: 1.12})
-    forecast.update(timing=timing, expectation=expectation, tickets=[
+    forecast.update(timing=timing, win_value_band=band, tickets=[
         {"rule": "単勝", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 4.0, "dropped": ""},
         {"rule": "単勝（期待値）", "ticket_type": "単勝", "combo": "03", "label": "3", "odds": 4.0, "value": 1.12, "dropped": ""},
         {"rule": "馬単", "ticket_type": "馬単", "combo": "0301", "label": "3→1", "odds": 30.0, "dropped": ""},
@@ -125,21 +125,21 @@ def test_単勝と馬単の1点は単勝馬単用の財布の割合で100円に�
     assert wallet.point_yen("単勝", day) == 3_700 and wallet.point_yen("馬単", day) == 100
 
 
-def test_当日の予想は複勝と別に単勝期待値を買い_期待度高なら馬単も買い_前日は買わない(store: ReviewStore, tmp_path: Path, con):
+def test_当日の予想は複勝と別に単勝期待値を買い_二重丸の期待値が線以上なら馬単も買い_前日は買わない(store: ReviewStore, tmp_path: Path, con):
     import json
     path = tmp_path / "財布.json"
     path.write_text(json.dumps({MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 1_000_000}), encoding="utf-8")
     planner = DayPlanner(Wallet(store, path))
     forecasts = [_high_forecast("2026101105040401"), _high_forecast("2026101105040402", timing="前日"),
-                 _high_forecast("2026101105040403", expectation="低"), _forecast("2026101105040409", "1勝クラス", [1.6, 1.0])]   # 09 は複勝の勝負
+                 _high_forecast("2026101105040403", band="1.00 未満"), _forecast("2026101105040409", "1勝クラス", [1.6, 1.0])]   # 09 は複勝の勝負
     plans = {plan.rid[-2:]: plan for plan in planner.plan(con, date(2026, 10, 11), forecasts)}
     bought = plans["01"]
     assert bought.kind == NO_BET and bought.buys   # 複勝は買わないが、単勝と馬単は買う
     assert [(ticket.ticket_type, ticket.combo, ticket.yen) for ticket in bought.tickets] == [("単勝", "03", 3_700), ("馬単", "0301", 100), ("馬単", "0302", 100)]
     assert bought.tickets[0].value == pytest.approx(1.12) and bought.tickets[1].value is None
-    assert bought.ticket_yen == 3_900 and bought.stake_yen == 3_900 and "期待度「高」" in bought.ticket_reason
+    assert bought.ticket_yen == 3_900 and bought.stake_yen == 3_900 and "◎の単勝の期待値が 1.00 以上" in bought.ticket_reason
     assert plans["02"].tickets == () and "前日" in plans["02"].ticket_reason
-    # 期待度「低」でも単勝（期待値）は買う（◎ の馬単は買わない）
+    # ◎の期待値が 1.00 未満でも単勝（期待値）は買う（◎ の馬単は買わない）
     assert [(ticket.ticket_type, ticket.combo) for ticket in plans["03"].tickets] == [("単勝", "03")] and "馬単" not in plans["03"].ticket_reason
 
 
@@ -170,9 +170,9 @@ def test_買い目の記録は_単勝と馬単を勝負単勝馬単として書�
 
 
 def _combo_forecast(rid: str, timing: str = "当日") -> dict:
-    """組の期待値のワイド2点・馬単2点（1点はトリガミで外した）・3連複1点があるレース。期待度は「低」で、◎ の単勝・馬単は買わない。"""
+    """組の期待値のワイド2点・馬単2点（1点はトリガミで外した）・3連複1点があるレース。◎の期待値は 1.00 未満で、◎ の単勝・馬単は買わない。"""
     forecast = _forecast(rid, "1勝クラス", [1.0, 1.0, 1.0, 1.0])
-    forecast.update(timing=timing, expectation="低", tickets=[
+    forecast.update(timing=timing, win_value_band="1.00 未満", tickets=[
         {"rule": "ワイド（組の期待値）", "ticket_type": "ワイド", "combo": "0102", "label": "1-2", "value": 1.05, "odds": 8.0, "dropped": ""},
         {"rule": "ワイド（組の期待値）", "ticket_type": "ワイド", "combo": "0204", "label": "2-4", "value": 1.2, "odds": 20.0, "dropped": ""},
         {"rule": "馬単（組の期待値）", "ticket_type": "馬単", "combo": "0401", "label": "4→1", "value": 1.2, "odds": 25.0, "dropped": ""},

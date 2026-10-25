@@ -23,7 +23,8 @@ def sample_forecast(race_id: str = "2025041905010101") -> dict:
          "stake_units": 0.1, "value": 1.23, "probability": 0.0205, "odds": 60.0, "dropped": "トリガミ"},
     ]
     return {"version": FORECAST_VERSION, "rid": race_id, "title": "2025-04-19（土） 東京 1R", "header": {}, "model": "近走と適性から3着以内を予想",
-            "timing": "前日", "timing_reason": "出馬表とオッズがある", "pool_free": False, "expectation": "高", "odds_known": True,
+            "timing": "前日", "timing_reason": "出馬表とオッズがある", "pool_free": False, "win_value_band": "1.00 以上", "hit_rate": 0.42, "hit_grade": "B", "payout_rate": 0.56, "payout_grade": "A",
+            "odds_known": True,
             "made_at": "2025-04-18T20:00:00", "horses": [horse], "tickets": tickets}
 
 
@@ -41,7 +42,7 @@ def test_表にすると良い点の分類が並ぶ() -> None:
     assert table.rows[0][:5] == [1, "◎", 3, "馬A", "42.0%"]
     assert table.rows[0][-2] == "能力"
     assert table.rows[0][9:11] == ["35.0%", "1.08"]  # 1着の確率と単勝の期待値（1.085 は丸めて 1.08）
-    assert "前日" in table.note and "期待度: 高" in table.note
+    assert "前日" in table.note and "的中率 B（42%）・配当率 A（56%）" in table.note and "S 75% 以上" in table.note
 
 
 def test_買い目の表は1点1行で外した理由も出す() -> None:
@@ -61,7 +62,7 @@ def test_保存すると全頭の予想根拠の_Markdown_も書く(tmp_path: Pa
     assert path == tmp_path / "2025-04-19" / "2025041905010101.md"
     text = path.read_text(encoding="utf-8")
     assert text.startswith("# 2025-04-19（土） 東京 1R の全頭の予想根拠")
-    assert "- 印: ◎3" in text and "- 複勝の買い目: なし" in text and "- レースの期待度: 高" in text
+    assert "- 印: ◎3" in text and "- 複勝の買い目: なし" in text and "- 的中率: B（42%）。◎ が3着以内に来る確率" in text and "- 配当率: A（56%）。配当が中荒れ以上になる確率" in text
     assert "## 1. ◎ 3 馬A（1番人気 3.1倍）" in text
     assert "- 確率: 3着以内 42.0%・市場の見立て 40.0%・1着 35.0%・単勝の期待値 1.08・複勝の期待値 1.05" in text
     assert "- 総合: 総合の文" in text and "- 良い点: 「能力」+3.0ポイント（スピード指数・前走 90）" in text and "- 悪い点: 目立つものはない" in text

@@ -14,7 +14,7 @@ from yosou.shared.repository import AnnouncedTicketOddsRepository, FrameReposito
 
 from 今週の予想.bracket_value_picker import BracketValuePicker
 from 今週の予想.combo_value_picker import ComboValuePicker
-from 今週の予想.forecast_columns import EXPECTATION
+from 今週の予想.forecast_columns import WIN_VALUE_BAND
 from 今週の予想.mark_tickets import COLUMNS, ODDS, RULE, VALUE, MarkTickets
 from 今週の予想.ticket_rules import BRACKET_VALUE_RULE, COMBO_VALUE_RULES
 from 今週の予想.torigami_filter import DROPPED, TorigamiFilter
@@ -48,10 +48,10 @@ class ForecastTickets:
         self._picker = ComboValuePicker(tuple(rule for rule in COMBO_VALUE_RULES if rule.adopted), weights or {})
         self._bracket = BracketValuePicker(BRACKET_VALUE_RULE, bracket_weights)
 
-    def build(self, con: duckdb.DuckDBPyConnection, race_id: str, marked: pd.DataFrame, expectation: str | None,
+    def build(self, con: duckdb.DuckDBPyConnection, race_id: str, marked: pd.DataFrame, band: str | None,
               odds_known: bool, race_day: bool = False) -> list[dict[str, Any]]:
         race = marked.assign(race_id=race_id, race_date=pd.Timestamp(f"{race_id[:4]}-{race_id[4:6]}-{race_id[6:8]}"), fold="",
-                             **{EXPECTATION: expectation})
+                             **{WIN_VALUE_BAND: band})
         tickets = self._tickets.build(race)
         if odds_known and race_day:
             tickets = pd.concat([tickets, self._combo_value(con, race_id, race)], ignore_index=True)

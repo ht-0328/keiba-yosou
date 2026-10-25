@@ -18,7 +18,7 @@ from 印の成績.ticket_payouts import PAYOUT
 
 #: 動かす線。
 LINES: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3, 1.5, 2.0)
-#: この表の対象（全レースと期待度「高」。ほかの絞り込みは表7 で見る）。
+#: この表の対象（全レースと ◎の期待値 1.00 以上。ほかの絞り込みは表7 で見る）。
 TARGETS = (ALL_RACES, HIGH_RACES)
 
 

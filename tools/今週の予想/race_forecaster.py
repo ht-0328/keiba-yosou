@@ -48,7 +48,7 @@ from yosou.shared.feature.odds import TOP3_RATE, WIN_RATE, MarketPlaces
 from yosou.shared.place_value import PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, BracketBlendWeightsRepository, ComboBlendWeightsRepository, PlacePriceRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER as FIGURE_CACHE
-from yosou.shared.win_value import WIN_VALUE, ExpectationLevel
+from yosou.shared.win_value import WIN_VALUE, WinValueBand
 from yosou.shared.workflow import ModelSegments, SegmentedPrediction
 from yosou.shared.workflow.prediction_workflow import WIN_VALUE_MEMBER
 
@@ -61,6 +61,8 @@ from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.filter_columns import MEMBER_SOURCES, member_column
 from 今週の予想.mark_rule import OUT_MARK as DANGER_MARK
 from 今週の予想.mark_rule import MarkRule
+from 今週の予想.model_folders import DEFAULT_UPSET_MODELS
+from 今週の予想.race_grader import RaceGrader
 from 今週の予想.story_attacher import StoryAttacher
 from 今週の予想.timing_chooser import TimingChooser
 
@@ -88,16 +90,20 @@ class RaceForecaster:
     ``python -m yosou.form_aptitude_top3 predict`` と同じ（木曜は展開の予想の結果、前日は展開スコアも使う。当日に券種のオッズが無ければ券種オッズなしのモデル。
     3着以内のモデルと1着のモデルの両方で予測する）。
     前日・当日は、危険な人気馬（1レース1頭まで）を予想「人気馬が4着以下になるかを予想」で判定して、印を付ける前に消にする（``DangerFinder``）。
-    ◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、レースの期待度（◎ の期待値が 1.00 以上なら高）も出す
-    （設計書「近走と適性から3着以内を予想」の 16 の 6。木曜は期待値が無いので期待度も無い）。
+    ◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、◎ の単勝の期待値が線（1.00）以上か未満か（``win_value_band``。
+    買い方の決まりの条件。設計書「近走と適性から3着以内を予想」の 16 の 6。木曜は期待値が無いので無い）も出す。
+    レースの目安として、的中率（◎ が3着以内に来る確率）と配当率（配当が中荒れ以上になる確率。荒れ具合の予想 ``upset_models``）を
+    S・A・B・C の等級つきで出す（``RaceGrader``。設計書「買うレースと買い目を決める」の 03 の 5）。
     印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（全券種）を組み、締め切り前のオッズで組の確率とトリガミを付ける（``ForecastTickets``。
     結果の ``tickets``。木曜はオッズが無いので期待値とトリガミは付かない）。
     各馬には近走の文（``StoryAttacher``。近5走の文・負けた走の敗因の候補・評価のことば。回顧の不利は ``review_store`` から）も付ける。
-    ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所。結果は JSON にできる辞書。
+    ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所、``upset_models`` は荒れ具合の予想の
+    学習済みモデルの置き場所。結果は JSON にできる辞書。
     """
 
     def __init__(self, models: Path, favorite_models: Path, figure_cache: Path = FIGURE_CACHE,
-                 development_root: Path = DEFAULT_DEVELOPMENT_ROOT, review_store: ReviewStore | None = None) -> None:
+                 development_root: Path = DEFAULT_DEVELOPMENT_ROOT, review_store: ReviewStore | None = None,
+                 upset_models: Path = DEFAULT_UPSET_MODELS) -> None:
         self._models = Path(models)
         self._dangers = DangerFinder(favorite_models)
         self._figure_cache = Path(figure_cache)
@@ -105,7 +111,8 @@ class RaceForecaster:
         self._chooser = TimingChooser()
         self._marks = MarkRule()
         self._evaluator = HorseEvaluator()
-        self._expectation = ExpectationLevel()
+        self._band = WinValueBand()
+        self._grader = RaceGrader(upset_models)
         self._tickets = ForecastTickets(ComboBlendWeightsRepository(self._models).load(), BracketBlendWeightsRepository(self._models).load())
         self._danger_reasons = DangerReasons()
         self._stories = StoryAttacher(review_store)
@@ -122,14 +129,15 @@ class RaceForecaster:
         explained = self._workflow(con, chosen).explain(race_id, chosen)
         horses, marked = self._horses(explained, self._dangers.find(con, race_id, chosen))
         self._stories.attach(con, horses, date.fromisoformat(header["日付"]))
-        expectation = self._race_expectation(horses)
+        band = self._win_value_band(horses)
+        grades = self._grader.grade(con, race_id, chosen, horses)
         odds_known = chosen is not PredictionTiming.THURSDAY
         return {
             "version": FORECAST_VERSION, "rid": race_id, "title": card.header_title(header), "header": header, "model": MODEL_NAME,
             "timing": chosen.label, "timing_reason": reason, "pool_free": explained.pool_free,
-            "expectation": expectation, "odds_known": odds_known,
+            columns.WIN_VALUE_BAND: band, **grades.as_dict(), "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
-            "tickets": self._tickets.build(con, race_id, marked, expectation, odds_known, chosen is PredictionTiming.RACE_DAY),
+            "tickets": self._tickets.build(con, race_id, marked, band, odds_known, chosen is PredictionTiming.RACE_DAY),
             "pace": self._pace(race_id),
         }
 
@@ -141,10 +149,10 @@ class RaceForecaster:
         first = scores.iloc[0]
         return {"high": _plain(first.get(score_names.HIGH)), "even": _plain(first.get(score_names.EVEN)), "slow": _plain(first.get(score_names.SLOW))}
 
-    def _race_expectation(self, horses: list[dict[str, Any]]) -> str | None:
-        """レースの期待度（高・低）。◎ の単勝の期待値から決める。期待値が無ければ（木曜・1着のモデルが無い）None。"""
+    def _win_value_band(self, horses: list[dict[str, Any]]) -> str | None:
+        """◎ の単勝の期待値が線（1.00）以上か未満か。期待値が無ければ（木曜・1着のモデルが無い）None。"""
         tops = [horse for horse in horses if horse[columns.MARK] == "◎"]
-        return self._expectation.of(tops[0].get(columns.WIN_VALUE)) if tops else None
+        return self._band.of(tops[0].get(columns.WIN_VALUE)) if tops else None
 
     def _horses(self, explained: ExplainedPrediction, dangers: pd.DataFrame) -> tuple[list[dict[str, Any]], pd.DataFrame]:
         """全頭の結果（3着以内の確率の高い順）と、印を付けた表（買い目を組むのに使う）。``dangers`` は人気馬の危険の判定（``DangerFinder``。木曜は空）。"""

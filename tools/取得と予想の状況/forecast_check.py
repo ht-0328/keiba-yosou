@@ -12,6 +12,7 @@ from 取得と予想の状況.forecast_verdict import ForecastVerdict
 from 取得と予想の状況.verdict_kind import VerdictKind
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.forecast_version import FORECAST_VERSION
+from 今週の予想.race_grades import RaceGrades
 from 今週の予想.timing_chooser import TimingChooser
 
 
@@ -34,7 +35,7 @@ class ForecastCheck:
         if saved is None:
             return ForecastVerdict(kind, detail, current)
         return ForecastVerdict(kind, detail, current, saved_timing=saved.get("timing"), made_at=_parse_iso(saved.get("made_at")),
-                               marks=ForecastStore.marks_text(saved), expectation=saved.get("expectation"))
+                               marks=ForecastStore.marks_text(saved), grades=RaceGrades.from_dict(saved).text_if_any())
 
     def _judge(self, signals: RaceSignals, saved: dict[str, Any] | None, current: str) -> tuple[VerdictKind, str]:
         if signals.is_cancelled:

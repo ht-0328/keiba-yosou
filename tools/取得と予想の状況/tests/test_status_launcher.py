@@ -38,6 +38,7 @@ def test_model_folder_names_match_each_yosou() -> None:
     """モデルの置き場所の予想の名前は、重い import を避けて書き写してあるので、元と同じことを確かめる。"""
     from yosou.favorites_out_of_top3.command.yosou_name import YOSOU_NAME as FAVORITE
     from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME as FORM
+    from yosou.upset_level.command.yosou_name import YOSOU_NAME as UPSET
 
-    assert model_folders.FORM_YOSOU_NAME == FORM and model_folders.FAVORITE_YOSOU_NAME == FAVORITE
-    assert [name for name, _ in model_folders.MODEL_ROOTS] == [FORM, FAVORITE]
+    assert model_folders.FORM_YOSOU_NAME == FORM and model_folders.FAVORITE_YOSOU_NAME == FAVORITE and model_folders.UPSET_YOSOU_NAME == UPSET
+    assert [name for name, _ in model_folders.MODEL_ROOTS] == [FORM, FAVORITE, UPSET]

@@ -13,7 +13,7 @@ from 共通.bootstrap_interval import BootstrapInterval
 from 共通.perf import STAKE_YEN, percent
 from 共通.render import Table
 
-from 今週の予想.forecast_columns import EXPECTATION, MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_PROBABILITY
+from 今週の予想.forecast_columns import MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_PROBABILITY, WIN_VALUE_BAND
 from 今週の予想.mark_rule import TOP_MARK
 
 from 今週の予想.mark_tickets import RULE
@@ -30,7 +30,7 @@ class SceneReport:
     """印を付けた表（``BacktestMarker.mark``）と買い目の表（``TicketPayouts.attach`` → ``TorigamiFilter.apply`` のあと）と、
     レースの場面の帯（``SceneBands.build``）から、場面ごとの表（表10）を作る（研究「回収率100超の施策」の施策4）。
 
-    軸（クラス・競馬場・頭数・単勝の売上・芝ダ）ごとに帯で分け、帯ごとに、レース数、◎ の単勝回収率と 90% の幅（全体と期待度「高」）、
+    軸（クラス・競馬場・頭数・単勝の売上・芝ダ）ごとに帯で分け、帯ごとに、レース数、◎ の単勝回収率と 90% の幅（全体と、◎の期待値 1.00 以上のレース）、
     複勝（期待値 1.25 以上）の点数と回収率、上乗せ（3着以内と1着の、市場の見立てのログ損失 − モデルのログ損失。×1000。正ならモデルが市場より正しい）を出す。
     場面で絞る決まりを決めるための表ではなく、上乗せが場面でどう違うかを測る表（決まりはテスト期間の結果からは選ばない）。
     ``band_names`` は軸 → 帯の名前の並び（``SceneBands.bands``。中央か地方の区分）。省略すると中央。
@@ -42,7 +42,7 @@ class SceneReport:
     def table(self, marked: pd.DataFrame, tickets: pd.DataFrame, bands: pd.DataFrame) -> Table:
         horses = marked.merge(bands, on="race_id", how="left")
         place = tickets[(tickets[RULE] == PLACE_LABEL) & (tickets[DROPPED] == "")].merge(bands, on="race_id", how="left")
-        headers = ["軸", "帯", "レース数", "◎の単勝回収率", "90%の幅", "期待度 高のレース", "高の◎の単勝回収率", "90%の幅",
+        headers = ["軸", "帯", "レース数", "◎の単勝回収率", "90%の幅", f"◎の期待値 {HIGH}のレース", "そのレースの◎の単勝回収率", "90%の幅",
                    "複勝の点数", "複勝の回収率", "上乗せ（3着以内）", "上乗せ（1着）"]
         rows = []
         for axis in AXES:
@@ -60,7 +60,7 @@ class SceneReport:
 
     def _row(self, axis: str, band: str, horses: pd.DataFrame, place: pd.DataFrame) -> list[str]:
         tops = horses[horses[MARK] == TOP_MARK]
-        high = tops[tops[EXPECTATION] == HIGH]
+        high = tops[tops[WIN_VALUE_BAND] == HIGH]
         return [axis, band, f"{horses['race_id'].nunique():,}", *self._win_cells(tops), f"{len(high):,}", *self._win_cells(high),
                 f"{len(place):,}", self._place_rate(place),
                 self._uplift(horses, PROBABILITY, MARKET_TOP3, horses["finish"] <= 3), self._uplift(horses, WIN_PROBABILITY, MARKET_WIN, horses["finish"] == 1)]
