@@ -102,8 +102,8 @@ def test_二重丸の期待値が2つのモデルでも線以上なら2モデル
     assert not thursday[AGREEMENT].any() and not thursday[POOL_BACKED].any() and thursday[ODDS_MOVE].isna().all()
 
 
-def test_レースの絞り込みは期待度と旗で選び無い旗は偽とみなす() -> None:
-    frame = pd.DataFrame({"expectation": ["高", "高", "高", "低"], AGREEMENT: [True, True, False, True], POOL_BACKED: [True, False, True, True]})
+def test_レースの絞り込みは二重丸の期待値の帯と旗で選び無い旗は偽とみなす() -> None:
+    frame = pd.DataFrame({"win_value_band": ["1.00 以上", "1.00 以上", "1.00 以上", "1.00 未満"], AGREEMENT: [True, True, False, True], POOL_BACKED: [True, False, True, True]})
     assert ALL_RACES.select(frame).tolist() == [True] * 4
     assert HIGH_RACES.select(frame).tolist() == [True, True, True, False]
     assert HIGH_AGREE.select(frame).tolist() == [True, True, False, False]
@@ -123,7 +123,7 @@ def _marked_race_with_members() -> pd.DataFrame:
     order = sorted(marks, key=lambda no: -top3[no])
     cat_top3 = {no: (0.5 if no == 8 else top3[no]) for no in marks}
     return pd.DataFrame({
-        "race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "expectation": "高", AGREEMENT: True, POOL_BACKED: False,
+        "race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "win_value_band": "1.00 以上", AGREEMENT: True, POOL_BACKED: False,
         # 16頭立て。複勝の買い方（期待値 1.1 以上・複勝 5倍以下）に合うのは 3番と 8番（9番・4番は 5倍を超える）
         "field_size": 16, "place_odds_low": [8.0 if no in (9, 4) else 2.0 for no in order],
         "horse_no": order, "mark": [marks[no] for no in order], "place_value": [values[no] for no in order],
@@ -172,7 +172,7 @@ def test_場面の帯はクラス競馬場頭数売上芝ダで分ける() -> No
 def test_場面ごとの表は帯ごとに二重丸の成績と上乗せを出す() -> None:
     marked = pd.DataFrame({
         "race_id": ["A", "A", "B", "B"], "race_date": pd.Timestamp("2025-01-05"), "mark": ["◎", "消", "◎", "消"],
-        "expectation": ["高", "高", "低", "低"], "finish": [1.0, 2.0, 3.0, 1.0], "win_payout": [500, 0, 0, 0],
+        "win_value_band": ["1.00 以上", "1.00 以上", "1.00 未満", "1.00 未満"], "finish": [1.0, 2.0, 3.0, 1.0], "win_payout": [500, 0, 0, 0],
         "probability": [0.8, 0.3, 0.6, 0.4], "market_top3": [0.6, 0.2, 0.6, 0.4], "win_probability": [0.5, 0.1, 0.2, 0.3],
         "market_win": [0.4, 0.2, 0.3, 0.3],
     })
@@ -191,7 +191,7 @@ def test_場面ごとの表は帯ごとに二重丸の成績と上乗せを出�
 
 def test_オッズの動きの表は動きの分かる二重丸だけを帯で分ける() -> None:
     marked = pd.DataFrame({
-        "race_id": ["A", "B", "C", "D"], "race_date": pd.Timestamp("2025-01-05"), "mark": "◎", "expectation": ["高", "高", "低", "高"],
+        "race_id": ["A", "B", "C", "D"], "race_date": pd.Timestamp("2025-01-05"), "mark": "◎", "win_value_band": ["1.00 以上", "1.00 以上", "1.00 未満", "1.00 以上"],
         "finish": [1.0, 4.0, 2.0, 1.0], "win_payout": [600, 0, 0, 300], "place_payout": [200, 0, 150, 120], ODDS_MOVE: [-0.5, 0.0, 0.2, np.nan],
     })
     table = MovementReport().table(marked)

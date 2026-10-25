@@ -69,7 +69,7 @@ sequenceDiagram
 
 | 要件のモジュール | 使う既存の資産 | 新しく作るもの | 文書 |
 |---|---|---|---|
-| 1. レースの期待値ランキング | 荒れ具合の予想（`src/yosou/upset_level/`）、見送りの条件（ルール集の ALL-09） | レースの点数（見込みの利益 E・最大の期待値 M）、購入ポリシーを満たすレースの選び方、堅い重賞での買い方（道具「今週の予想」の計画 `tools/今週の予想/day_planner.py` として作った） | [03-race-screening.md](03-race-screening.md) |
+| 1. レースの期待値ランキング | 荒れ具合の予想（`src/yosou/upset_level/`）、見送りの条件（ルール集の ALL-09） | レースの点数（見込みの利益 E・最大の期待値 M）、購入ポリシーを満たすレースの選び方、堅い重賞での買い方（道具「今週の予想」の計画 `tools/今週の予想/day_planner.py` として作った）、レースごとに添える目安（的中率・配当率と S・A・B・C。`race_grader.py`） | [03-race-screening.md](03-race-screening.md) |
 | 2. 基礎能力と適性 | 能力指数（`tools/共通/ability/`）、全頭の予想の特徴量 | 今回の斤量の補正、レース内の偏差（能力スコア。`src/yosou/ability_score/` として作り、予想の材料として確かめた） | [04-ability-aptitude.md](04-ability-aptitude.md) |
 | 3. 展開予測 | 展開の予想（`src/yosou/race_development/`）、研究「展開の理論の検証」の結論 | 展開スコア（脚質×ペースの有利・不利を、市場との差で数える。`src/yosou/development_score/` と道具 `tools/展開スコア/` として作った） | [05-race-development.md](05-race-development.md) |
 | 4. 当日の補正 | 速報の馬体重の反映（`announced_weight_applier.py`）、馬場傾向の実験 | トラックバイアスの検知（作り直し。`src/yosou/track_bias/` と道具 `tools/トラックバイアス/`）、馬体重の補正の表（`src/yosou/weight_table/` と道具 `tools/馬体重の表/`）。どちらも作り、予想の材料として確かめた | [06-realtime-adjustment.md](06-realtime-adjustment.md) |
@@ -119,7 +119,7 @@ Phase 2 以降で新しい予想モデル（例: トラックバイアスの補�
 |---|---|---|
 | 01-overview.md | この文書。前提、1日の流れ、既存の資産との対応 | 決定 |
 | [02-glossary.md](02-glossary.md) | 用語の意味 | 決定 |
-| [03-race-screening.md](03-race-screening.md) | モジュール1: 買うレースの選び方 | 決定（作った） |
+| [03-race-screening.md](03-race-screening.md) | モジュール1: 買うレースの選び方と、レースごとに添える目安（的中率・配当率） | 決定（作った） |
 | [04-ability-aptitude.md](04-ability-aptitude.md) | モジュール2: 能力スコアの式 | 決定（能力スコアを作り、確かめて木曜の予想に足した） |
 | [05-race-development.md](05-race-development.md) | モジュール3: ペースの予測と展開スコア | 決定（展開スコアを作り、線を確かめて決めた） |
 | [06-realtime-adjustment.md](06-realtime-adjustment.md) | モジュール4: トラックバイアス・馬体重・パドック | 決定（作った。トラックバイアスと馬体重の表は、確かめた結果、予想の材料には足さない） |

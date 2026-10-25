@@ -1,4 +1,4 @@
-"""1着の基準（``WinBaseline``）と、単勝の期待値・期待度（``win_value``）のテスト。値は架空。"""
+"""1着の基準（``WinBaseline``）と、単勝の期待値・◎ の期待値の帯（``win_value``）のテスト。値は架空。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 from ..dataset import WinBaseline
 from ..feature import PredictionTiming
-from ..win_value import HIGH, LOW, WIN_VALUE, ExpectationLevel, WinExpectedValue
+from ..win_value import HIGH, LOW, WIN_VALUE, WinExpectedValue, WinValueBand
 
 
 def test_win_baseline_is_the_logit_of_the_market_win_rate() -> None:
@@ -29,8 +29,9 @@ def test_win_expected_value_is_probability_times_odds() -> None:
     assert values.iloc[1:].isna().all()
 
 
-def test_expectation_level_is_high_or_low_at_the_fixed_line() -> None:
-    level = ExpectationLevel()
-    assert level.of(1.26) == HIGH and level.of(1.0) == HIGH
-    assert level.of(0.99) == LOW
-    assert level.of(float("nan")) is None and level.of(None) is None
+def test_win_value_band_is_above_or_below_the_fixed_line() -> None:
+    band = WinValueBand()
+    assert HIGH == "1.00 以上" and LOW == "1.00 未満"
+    assert band.of(1.26) == HIGH and band.of(1.0) == HIGH
+    assert band.of(0.99) == LOW
+    assert band.of(float("nan")) is None and band.of(None) is None

@@ -7,13 +7,13 @@ from collections.abc import Callable
 import pandas as pd
 
 from yosou.favorites_out_of_top3.dataset import FavoriteBand
-from yosou.shared.win_value import EXPECTATION_LEVELS, HIGH, LINE
+from yosou.shared.win_value import HIGH, LINE, WIN_VALUE_BANDS
 
 from 共通.bootstrap_interval import BootstrapInterval
 from 共通.perf import PERF_COLUMNS, STAKE_YEN, percent
 from 共通.render import Table
 
-from 今週の予想.forecast_columns import EXPECTATION, MARK
+from 今週の予想.forecast_columns import MARK, WIN_VALUE_BAND
 from 今週の予想.mark_rule import NO_MARK, NOTE_MARK, OUT_MARK, TOP_MARK, VALUE_MARK
 
 from 印の成績.perf_rows import perf_row_of
@@ -29,27 +29,27 @@ TOP_POPULARITIES: tuple[int, ...] = (1, 2, 3)
 BASELINE_LABEL = "└ 同じ人気の馬全体"
 #: 印ごとの表の見出し（印・1レースの頭数のあとに、成績7つ）。
 MARK_HEADERS: tuple[str, ...] = ("印", "1レースの頭数", *PERF_COLUMNS)
-#: ◎ の期待度ごとの行の名前。
+#: ◎ の期待値の帯ごとの行の名前。
 ALL_TOP_LABEL = "◎ 全体"
 
 
-def _expectation_label(level: str) -> str:
-    return f"◎（期待度 {level}）"
+def _band_label(band: str) -> str:
+    return f"◎（期待値 {band}）"
 
 
 def _line_text(line: float | None) -> str:
     return "—" if line is None or pd.isna(line) else f"{line * 100:.0f}ポイント"
 
 
-def _top_at(level: str) -> Callable[[pd.DataFrame], pd.Series]:
-    return lambda m: (m[MARK] == TOP_MARK) & (m[EXPECTATION] == level)
+def _top_at(band: str) -> Callable[[pd.DataFrame], pd.Series]:
+    return lambda m: (m[MARK] == TOP_MARK) & (m[WIN_VALUE_BAND] == band)
 
 
-#: 年ごとの表で見る印（◎ は1番人気かどうかと、期待度「高」でも分ける）。
+#: 年ごとの表で見る印（◎ は1番人気かどうかと、期待値 1.00 以上かでも分ける）。
 _YEARLY: tuple[tuple[str, Callable[[pd.DataFrame], pd.Series]], ...] = (
     ("◎（1番人気）", lambda m: (m[MARK] == TOP_MARK) & (m["popularity"] == 1)),
     ("◎（1番人気以外）", lambda m: (m[MARK] == TOP_MARK) & (m["popularity"] != 1)),
-    (_expectation_label(HIGH), _top_at(HIGH)),
+    (_band_label(HIGH), _top_at(HIGH)),
     *((mark, (lambda mark: lambda m: m[MARK] == mark)(mark)) for mark in MARKS[1:]),
 )
 
@@ -57,13 +57,13 @@ _YEARLY: tuple[tuple[str, Callable[[pd.DataFrame], pd.Series]], ...] = (
 class MarkReport:
     """印を付けた表（``BacktestMarker.mark`` の戻り値）から、次の6つの表を作る。
 
-    1. 印ごとの成績（成績7つ）と、同じ人気の馬全体の成績（``PopularityBaseline``）。◎ は1番人気かどうか・期待度でも分け、消（危険な人気馬）は1番人気かどうかの内訳も出す。
+    1. 印ごとの成績（成績7つ）と、同じ人気の馬全体の成績（``PopularityBaseline``）。◎ は1番人気かどうか・期待値の帯でも分け、消（危険な人気馬）は1番人気かどうかの内訳も出す。
     2. ◎○▲ の3頭のうち3着以内に来た頭数の割合と、1〜3番人気の3頭の同じ割合。
     3. ◎○▲ のうち2頭とも3着以内に来た割合（組ごと）と、1〜3番人気の同じ組。
     4. 年ごとの印の成績。
-    5. 区切りごとのレース数と、危険な人気馬の線と、期待度「高」のレース数。
-    6. ◎ の期待度ごとの単勝の成績（レース数・1開催日あたり・成績・単勝回収率の 90% の幅。設計書「近走と適性から3着以内を予想」の 16 の 6 の採用の基準を見る表）。
-       「高」の内訳として、絞り込み（2モデル一致・3連単の支持あり。``TOP_FILTERS``）ごとの行も出す（研究「回収率100超の施策」の施策 2・1-A）。
+    5. 区切りごとのレース数と、危険な人気馬の線と、◎の期待値 1.00 以上のレース数。
+    6. ◎ の単勝の期待値の帯（1.00 以上・未満）ごとの単勝の成績（レース数・1開催日あたり・成績・単勝回収率の 90% の幅。設計書「近走と適性から3着以内を予想」の 16 の 6 の採用の基準を見る表）。
+       「1.00 以上」の内訳として、絞り込み（2モデル一致・3連単の支持あり。``TOP_FILTERS``）ごとの行も出す（研究「回収率100超の施策」の施策 2・1-A）。
     ``conditions`` は表の注に書く条件（予測のファイル・期間 など）。
     """
 
@@ -75,7 +75,7 @@ class MarkReport:
         summary = (f"{conditions} レース数 {races:,}。◎が1番人気以外だったレース {percent(not_favorite_top)}。"
                    f"◎○▲が1〜3番人気と同じ3頭だったレース {percent(same_three)}。")
         return [self._marks(marked, races, summary), self._top_counts(marked), self._top_pairs(marked),
-                self._yearly(marked), self._folds(marked, lines or {}), self._expectations(marked)]
+                self._yearly(marked), self._folds(marked, lines or {}), self._bands(marked)]
 
     def _marks(self, marked: pd.DataFrame, races: int, summary: str) -> Table:
         baseline = PopularityBaseline(marked)
@@ -95,14 +95,14 @@ class MarkReport:
         favorite = marked["popularity"] == 1
         add("◎（1番人気）", marked[(marked[MARK] == TOP_MARK) & favorite])
         add("◎（1番人気以外）", marked[(marked[MARK] == TOP_MARK) & ~favorite])
-        for level in EXPECTATION_LEVELS:
-            add(_expectation_label(level), marked[_top_at(level)(marked)])
+        for band in WIN_VALUE_BANDS:
+            add(_band_label(band), marked[_top_at(band)(marked)])
         add("消のうち 1番人気", marked[(marked[MARK] == OUT_MARK) & favorite])
         add("消のうち 2〜5番人気", marked[(marked[MARK] == OUT_MARK) & ~favorite])
         add("1番人気 全体", marked[favorite], with_baseline=False)
         add("全頭", marked, with_baseline=False)
         note = (summary + " ◎は、1着の予想があれば単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 確定の単勝オッズ）が1位の馬、無ければ3着以内の確率が1位の馬。"
-                f"期待度は、◎の単勝の期待値が {LINE:.2f} 以上なら高、未満なら低（表6）。"
+                f"◎（期待値 {HIGH}）は、◎の単勝の期待値が線（{LINE:.2f}）以上のレース（表6）。"
                 f" 「{BASELINE_LABEL}」は、印の馬と同じ人気の馬全体の成績を、印の馬の人気の内訳で重み付けして平均したもの"
                 "（人気どおりに同じ頭数を買った場合）。回収率は確定オッズの払戻で数えた。競走中止など着順の付かない馬は着外に数える。")
         return Table(list(MARK_HEADERS), rows, title="1. 印ごとの成績", note=note)
@@ -146,19 +146,19 @@ class MarkReport:
             rows.append([fold, f"{group['race_id'].nunique():,}", f"{int(group['is_danger'].sum()):,}",
                          *(_line_text(bands.get(band.label)) for band in FavoriteBand),
                          f"{(group[_top_at(HIGH)(group)])['race_id'].nunique():,}"])
-        return Table(["区切り", "レース数", "危険な人気馬（消）", *(f"{band.label}の線" for band in FavoriteBand), "期待度「高」のレース"], rows,
+        return Table(["区切り", "レース数", "危険な人気馬（消）", *(f"{band.label}の線" for band in FavoriteBand), f"◎の期待値 {HIGH}のレース"], rows,
                      title="5. 区切りごとのレース数と危険の線",
                      note="危険の線は、区切りごとに、その区切りの検証期間で決め直した値（テスト期間の結果は使っていない）。"
-                          f"期待度「高」は、◎の単勝の期待値が {LINE:.2f} 以上のレース。")
+                          f"◎の期待値 {HIGH}のレースは、◎の単勝の期待値が線以上のレース。")
 
-    def _expectations(self, marked: pd.DataFrame) -> Table:
+    def _bands(self, marked: pd.DataFrame) -> Table:
         days = marked["race_date"].nunique()
         baseline = PopularityBaseline(marked)
         tops = marked[marked[MARK] == TOP_MARK]
-        headers = ["◎の期待度", "レース数", "1開催日あたり", "着別度数", "勝率", "単勝回収率", "単勝回収率の90%の幅", "同じ人気の馬全体の単勝回収率",
+        headers = ["◎の期待値", "レース数", "1開催日あたり", "着別度数", "勝率", "単勝回収率", "単勝回収率の90%の幅", "同じ人気の馬全体の単勝回収率",
                    "複勝回収率"]
         rows = []
-        picks = [(level, tops[tops[EXPECTATION] == level]) for level in EXPECTATION_LEVELS] + [(ALL_TOP_LABEL, tops)]
+        picks = [(band, tops[tops[WIN_VALUE_BAND] == band]) for band in WIN_VALUE_BANDS] + [(ALL_TOP_LABEL, tops)]
         picks += [(f"{HIGH}（{top_filter.label.split('・', 1)[1]}）", tops[top_filter.select(tops)]) for top_filter in TOP_FILTERS]
         for label, chosen in picks:
             if chosen.empty:
@@ -170,12 +170,12 @@ class MarkReport:
             rows.append([label, f"{len(chosen):,}", f"{len(chosen) / days:.2f}", perf_row_of(chosen).counts(), percent(rates["勝率"]),
                          percent(rates["単勝回収率"]), f"{percent(low)}〜{percent(high)}", percent(baseline.rates(chosen)["単勝回収率"]),
                          percent(rates["複勝回収率"])])
-        return Table(headers, rows, title="6. ◎の期待度ごとの単勝の成績",
-                     note=f"開催日 {days:,}日。期待度は、◎の単勝の期待値が {LINE:.2f} 以上なら高、未満なら低。"
-                          "90% の幅は、開催日を単位にしたブートストラップ。採用の基準は、「高」の単勝回収率と幅の下の端が"
+        return Table(headers, rows, title="6. ◎の単勝の期待値の帯ごとの単勝の成績",
+                     note=f"開催日 {days:,}日。帯は、◎の単勝の期待値が線（{LINE:.2f}）以上か未満か。"
+                          f"90% の幅は、開催日を単位にしたブートストラップ。採用の基準は、「{HIGH}」の単勝回収率と幅の下の端が"
                           "どちらも 100% を超えること（設計書「近走と適性から3着以内を予想」の 16 の 6）。"
-                          "「高（2モデル一致）」は、◎ の単勝の期待値が LightGBM と CatBoost のそれぞれの確率でも 1.00 以上のレース、"
-                          "「高（3連単の支持あり）」は、◎ の 3連単から見た勝率が単勝から見た勝率以上（比 1.0 以上）のレース"
+                          f"「{HIGH}（2モデル一致）」は、◎ の単勝の期待値が LightGBM と CatBoost のそれぞれの確率でも 1.00 以上のレース、"
+                          f"「{HIGH}（3連単の支持あり）」は、◎ の 3連単から見た勝率が単勝から見た勝率以上（比 1.0 以上）のレース"
                           "（研究「回収率100超の施策」の施策 2・1-A。同じ採用の基準で見る）。確定オッズでの検証なので、実際に買うときより良く出る。")
 
     def _top3_by(self, rows: pd.DataFrame, key: str) -> pd.DataFrame:

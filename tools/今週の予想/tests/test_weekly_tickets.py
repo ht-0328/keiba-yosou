@@ -24,14 +24,14 @@ _TOP3_RATIO = {3: 1.2, 1: 1.1, 5: 1.0, 2: 0.9, 4: 1.0, 6: 0.8, 8: 1.5, 9: 1.0, 7
 _WIN_RATIO = {3: 1.5, 1: 1.0, 5: 1.0, 2: 1.0, 4: 1.0, 6: 1.0, 8: 1.2, 9: 1.0, 7: 1.0}
 
 
-def _marked_race(race_id: str = "R", expectation: str = "高") -> pd.DataFrame:
+def _marked_race(race_id: str = "R", band: str = "1.00 以上") -> pd.DataFrame:
     """複勝の期待値は 8番と 3番が線（☆ の 1.25）以上。16頭立てとし、複勝の買い方（期待値 1.1 以上・複勝 5倍以下）に合うのも 8番と 3番だけ
     （9番・4番は期待値 1.1 以上だが複勝 5倍を超える）。並びは3着以内の確率の高い順（軸馬の 1番が先頭）。"""
     values = {3: 1.30, 8: 1.40, 1: 0.9, 5: 0.8, 2: 1.0, 4: 1.1, 6: 0.7, 9: 1.2, 7: 0.5}
     place_odds = {3: 1.8, 8: 4.0, 9: 8.0, 4: 6.0}
     order = sorted(_MARKS, key=lambda no: -_TOP3_RATIO[no])
     return pd.DataFrame({
-        "race_id": race_id, "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "expectation": expectation,
+        "race_id": race_id, "race_date": pd.Timestamp("2025-01-05"), "fold": "2025年前半", "win_value_band": band,
         "field_size": 16, "place_odds_low": [place_odds.get(no, 2.0) for no in order],
         # 単勝（期待値）: 1番人気は 2.5倍。単勝の期待値 1.0 以上・5倍以下は 3番（4.0倍・1.05）だけ
         "win_odds": [4.0 if no == 3 else 2.5 + no for no in order], "win_value": [1.05 if no == 3 else 0.8 for no in order],
@@ -170,7 +170,7 @@ def test_今週の予想の買い目は締め切り前のオッズで期待値�
     con = duckdb.connect(str(synth.build_db(tmp_path / "weekly.duckdb", sample)), read_only=True)
     race_id = "".join(ra[column] for column in keys.RACE_KEY)
 
-    tickets = ForecastTickets().build(con, race_id, _marked_race(), "高", odds_known=True)
+    tickets = ForecastTickets().build(con, race_id, _marked_race(), "1.00 以上", odds_known=True)
     assert tickets and all(tuple(ticket) == TICKET_KEYS for ticket in tickets)
     by_key = {(ticket["rule"], ticket["combo"]): ticket for ticket in tickets}
     win = by_key[("単勝", "03")]
@@ -208,15 +208,15 @@ def test_当日の予想では締め切り前の板から組の期待値の3連�
     race_id = "".join(ra[column] for column in keys.RACE_KEY)
     weights = {ticket_type: ComboBlendWeights(1.0, 0.0, 0.0, 0.0) for ticket_type in TicketType if ticket_type.is_combination}
 
-    # 3連単は期待度「高」で15頭以上のレースの ◎（3番）が1着の組だけ買う（研究「レースの種類ごとの買い方」の docs/04）
-    tickets = ForecastTickets(weights).build(con, race_id, _marked_race().assign(field_size=16), "高", odds_known=True, race_day=True)
+    # 3連単は ◎の期待値 1.00 以上で15頭以上のレースの ◎（3番）が1着の組だけ買う（研究「レースの種類ごとの買い方」の docs/04）
+    tickets = ForecastTickets(weights).build(con, race_id, _marked_race().assign(field_size=16), "1.00 以上", odds_known=True, race_day=True)
     chosen = [ticket for ticket in tickets if ticket["rule"] == "3連単（組の期待値）"]
     # 期待値は 1 × 60.0 = 60.0（線 1.3 以上・3,000倍以下）
     assert [(ticket["combo"], ticket["odds"], ticket["dropped"]) for ticket in chosen] == [("030108", 60.0, "")]
     assert chosen[0]["value"] == pytest.approx(60.0) and chosen[0]["probability"] == pytest.approx(1.0)
-    for marked, expectation in ((_marked_race().assign(field_size=12), "高"), (_marked_race().assign(field_size=16), "低")):
-        other = ForecastTickets(weights).build(con, race_id, marked, expectation, odds_known=True, race_day=True)
-        assert not any(ticket["rule"] == "3連単（組の期待値）" for ticket in other)   # 14頭以下か、期待度「低」なら買わない
+    for marked, band in ((_marked_race().assign(field_size=12), "1.00 以上"), (_marked_race().assign(field_size=16), "1.00 未満")):
+        other = ForecastTickets(weights).build(con, race_id, marked, band, odds_known=True, race_day=True)
+        assert not any(ticket["rule"] == "3連単（組の期待値）" for ticket in other)   # 14頭以下か、◎の期待値 1.00 未満なら買わない
     assert not any(ticket["rule"] == "馬連（組の期待値）" for ticket in tickets)   # 馬連の板が無いので、馬連の組の期待値の買い目は出ない
-    before = ForecastTickets(weights).build(con, race_id, _marked_race().assign(field_size=16), "高", odds_known=True, race_day=False)
+    before = ForecastTickets(weights).build(con, race_id, _marked_race().assign(field_size=16), "1.00 以上", odds_known=True, race_day=False)
     assert not any(ticket["rule"].endswith("（組の期待値）") for ticket in before)

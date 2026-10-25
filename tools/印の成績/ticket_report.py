@@ -10,7 +10,7 @@ from 共通.bootstrap_interval import BootstrapInterval
 from 共通.perf import percent
 from 共通.render import Table
 
-from 今週の予想.forecast_columns import EXPECTATION
+from 今週の予想.forecast_columns import WIN_VALUE_BAND
 
 from 今週の予想.mark_tickets import ODDS, RULE, VALUE
 from 今週の予想.ticket_rules import COMBO_VALUE_LINE, POINT_YEN, RULE_LABELS, TOTAL_GROUPS, TOTAL_MEMBERS, UNIT_YEN
@@ -28,7 +28,7 @@ def total_label(group: str) -> str:
 class TicketReport:
     """買い目の表（``TicketPayouts.attach`` → ``TorigamiFilter.apply`` のあと）から、次の表を作る。
 
-    7. 買い方ごとの買い目の成績（1点 100円。レースの絞り込み（``TARGETS``: 全レース・期待度「高」・高で2モデル一致・高で3連単の支持あり・
+    7. 買い方ごとの買い目の成績（1点 100円。レースの絞り込み（``TARGETS``: 全レース・◎の期待値 1.00 以上・その2モデル一致・その3連単の支持あり・
        その両方）ごと。合計は軸のパターンごとに、08 の 2 の単位の配分で 1単位 = 1,000円）。
     8. 買い方ごとの年ごとの回収率。
     回収率は確定の払戻 ÷ 投資。90% の幅は、開催日を単位にしたブートストラップ。トリガミとオッズ無しで外した買い目は数えない。
@@ -61,7 +61,7 @@ class TicketReport:
                 "（研究「複勝以外の回収率100超」の docs/04・05。決まりは ticket_rules.py の COMBO_VALUE_RULES。重みは combo_blend.json の今の重みで、"
                 "過去の年も同じ重みで数えた参考。採否は研究の確かめで決めた）。馬単・ワイド・3連複・3連単は実際に買う買い方、馬連は比べるための行で、"
                 "どれも合計には入らない。"
-                "今の決まりで実際に買うのは、複勝と、当日の予想で期待度「高」のレースの単勝・馬単と、当日の予想の組の期待値の買い目（08 の 2）。"
+                "今の決まりで実際に買うのは、複勝と、当日の予想の単勝（期待値）・◎の期待値 1.00 以上のレースの馬単・組の期待値の買い目（08 の 2）。"
                 "1点 100円で数え、合計の行だけ 08 の単位の配分（1単位 = 1,000円。単勝・複勝・ワイド 1、馬連・馬単 0.5、3連複 0.3、3連単 0.1）。"
                 "合計は3つ: 「元の買い目だけ」は単勝・複勝・ワイド・馬連・馬単・元の3連複・元の3連単、「◎軸」「軸馬」はそれに"
                 "そのパターンの 3連複（流し・全点）と 3連単（マルチ・期待値が線以上）を足したもの（元の買い目は必ず買うので、どの合計にも入る）。"
@@ -119,7 +119,7 @@ class TicketReport:
         """買い目の CSV（1行 = 1点）。列は日本語。組の確率は、期待値 ÷ 確定オッズ（3連複・3連単だけ）。"""
         return pd.DataFrame({
             "レースID": tickets["race_id"], "開催日": tickets["race_date"].dt.strftime("%Y-%m-%d"), "区切り": tickets["fold"],
-            "期待度": tickets[EXPECTATION], "買い方": tickets[RULE], "券種": tickets["ticket_type"], "組番": tickets["combo"],
+            "◎の期待値": tickets[WIN_VALUE_BAND], "買い方": tickets[RULE], "券種": tickets["ticket_type"], "組番": tickets["combo"],
             "単位": tickets["stake_units"], "期待値": tickets[VALUE], "組の確率": ComboExpectedValue().probability(tickets[VALUE], tickets[ODDS]),
             "確定オッズ": tickets[ODDS], "払戻（100円あたり）": tickets[PAYOUT], "外した理由": tickets[DROPPED],
         })

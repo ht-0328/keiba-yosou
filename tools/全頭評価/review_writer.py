@@ -9,7 +9,7 @@ class ReviewWriter:
     """``FieldReviewDocument`` を Markdown の文章にする。
 
     冒頭にレースの条件と有力馬の候補、評価順の表（馬名・性齢・調教師・負担重量・3着以内と1着の確率）、
-    そのあとに馬ごとの基本情報・強み・弱み。印・期待度・買い目は無い。
+    そのあとに馬ごとの基本情報・強み・弱み。印・的中率と配当率・買い目は無い。
     """
 
     def markdown(self, document: FieldReviewDocument) -> str:

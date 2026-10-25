@@ -17,9 +17,9 @@ from 今週の予想.mark_tickets import COLUMNS, RULE, VALUE
 from 今週の予想.race_condition import TOP3_SHARE, RaceCondition
 
 
-def _marked(expectation: str = "高") -> pd.DataFrame:
+def _marked(band: str = "1.00 以上") -> pd.DataFrame:
     """4頭。1・2番が1枠、3・4番が2枠。◎ は 3番。"""
-    return pd.DataFrame({"race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "", "expectation": expectation,
+    return pd.DataFrame({"race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "", "win_value_band": band,
                          "horse_no": [1, 2, 3, 4], "mark": ["○", "▲", "◎", "△"], "probability": 0.75, "market_top3": 0.75,
                          "win_probability": 0.25, "market_win": [0.4, 0.3, 0.2, 0.1]})
 
@@ -54,10 +54,10 @@ def test_馬連の市場の重みなら_枠の組の確率は馬の組の和() -
     assert values["12"] == pytest.approx(0.4 * 4.0) and values["11"] == pytest.approx(0.5 * 2.0) and values["22"] == pytest.approx(0.1 * 20.0)
 
 
-def test_期待度とレースの条件で絞り_重みが無ければ0点() -> None:
+def test_二重丸の期待値の帯とレースの条件で絞り_重みが無ければ0点() -> None:
     rule = ComboValueRule(BRACKET, HIGH_RACES, 1.0, 1000, adopted=True)
     weights = BracketBlendWeights(1.0, 0.0, 0.0, 0.0)
-    assert BracketValuePicker(rule, weights).pick(_marked("低"), _boards(), _BRACKET_BOARD, _FRAMES).empty
+    assert BracketValuePicker(rule, weights).pick(_marked("1.00 未満"), _boards(), _BRACKET_BOARD, _FRAMES).empty
     # 市場の勝率の上位3頭の和は 0.4 + 0.3 + 0.2 = 0.9
     capped = ComboValueRule(BRACKET, ALL_RACES, 1.0, 1000, adopted=True, race_conditions=(RaceCondition(TOP3_SHARE, None, 0.62312, ""),))
     assert BracketValuePicker(capped, weights).pick(_marked(), _boards(), _BRACKET_BOARD, _FRAMES).empty

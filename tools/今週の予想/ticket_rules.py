@@ -18,7 +18,7 @@ UNIT_YEN = 1000
 POINT_YEN = 100
 #: ☆ を買い目の相手に入れる複勝の期待値の線（07 の 5）。複勝の買い目の線は ``PLACE_BUY_LINE``。
 PLACE_VALUE_LINE = 1.25
-#: 複勝の買い方（08 の「採用している券種（複勝）」。研究「レースの種類ごとの買い方」の docs/04 の手順6）: 期待度「高」で ``PLACE_MIN_FIELD`` 頭以上の
+#: 複勝の買い方（08 の「採用している券種（複勝）」。研究「レースの種類ごとの買い方」の docs/04 の手順6）: ◎の期待値 1.00 以上で ``PLACE_MIN_FIELD`` 頭以上の
 #: レースで、複勝の期待値が ``PLACE_BUY_LINE`` 以上・複勝の最低オッズが ``PLACE_ODDS_CAP`` 倍以下の馬を、期待値の高い順に ``PLACE_MAX_POINTS`` 点まで。
 PLACE_BUY_LINE = 1.1
 PLACE_ODDS_CAP = 5.0
@@ -105,7 +105,7 @@ PLACE_AXIS_RULES: tuple[PlaceAxisTicketRule, ...] = (
     PlaceAxisTicketRule(TicketType.WIDE, 1.0),
     PlaceAxisTicketRule(TicketType.QUINELLA, 0.5),
 )
-#: 当日の期待度「高」のレースで実際に買う買い方（研究「複勝以外の回収率100超」の手順4 で採用の基準を満たした。08 の 2）。
+#: 当日の予想で、◎の期待値 1.00 以上のレースで実際に買う買い方（研究「複勝以外の回収率100超」の手順4 で採用の基準を満たした。08 の 2）。
 #: 金額は印の単位ではなく、単勝・馬単用の財布から決める（``Wallet.point_yen``）。◎ の単勝は、単勝（期待値）（``WIN_VALUE_LABEL``）に替えた。
 HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.EXACTA.label,)
 #: 組の期待値で組を選ぶ買い方。組の期待値は、市場とモデルを重みで合わせた組の確率（``ComboBlend``。重みはモデルの置き場所の ``combo_blend.json``）× オッズ。
@@ -127,7 +127,7 @@ COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
     ComboValueRule(TicketType.TRIFECTA, HIGH_TOP_COMBOS, 1.0, 300, adopted=True, rolling=True,
                    race_conditions=(RaceCondition(FIELD_SIZE, 15, None, "15頭以上"),)),
 )
-#: 枠連の組の期待値の買い方（研究「レースの種類ごとの買い方」の docs/04 の手順6）: 期待度「高」で、市場の勝率の上位3頭の和が 0.6231 未満
+#: 枠連の組の期待値の買い方（研究「レースの種類ごとの買い方」の docs/04 の手順6）: ◎の期待値 1.00 以上で、市場の勝率の上位3頭の和が 0.6231 未満
 #: （人気が上位3頭に集まっていない）レースで、枠連の組の期待値が 1.1 以上・300倍以下の枠の組を全部。組の確率は馬連の組を枠の組に足し合わせて作り
 #: （``BracketValuePicker``）、重みはモデルの置き場所の ``bracket_blend.json``（直前1年で推定し直す）。
 BRACKET_VALUE_RULE = ComboValueRule(BRACKET, HIGH_RACES, 1.1, 300, adopted=True, rolling=True,

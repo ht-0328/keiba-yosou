@@ -11,7 +11,7 @@ from 共通.bootstrap_interval import BootstrapInterval
 from 共通.perf import STAKE_YEN, percent
 from 共通.render import Table
 
-from 今週の予想.forecast_columns import EXPECTATION, MARK
+from 今週の予想.forecast_columns import MARK, WIN_VALUE_BAND
 from 今週の予想.mark_rule import TOP_MARK
 
 from 今週の予想.filter_columns import ODDS_MOVE
@@ -35,7 +35,7 @@ class MovementReport:
     def table(self, marked: pd.DataFrame) -> Table:
         tops = marked[marked[MARK] == TOP_MARK]
         covered = tops[tops[ODDS_MOVE].notna()] if ODDS_MOVE in tops.columns else tops.iloc[0:0]
-        headers = ["◎のオッズの動き", "レース数", "着別度数", "勝率", "単勝回収率", "90%の幅", "期待度 高のレース", "高の単勝回収率", "90%の幅"]
+        headers = ["◎のオッズの動き", "レース数", "着別度数", "勝率", "単勝回収率", "90%の幅", f"◎の期待値 {HIGH}のレース", "そのレースの単勝回収率", "90%の幅"]
         rows = []
         if not covered.empty:
             band = np.asarray(BAND_LABELS, dtype=object)[np.searchsorted(np.asarray(_EDGES), covered[ODDS_MOVE].to_numpy(dtype=float), side="right")]
@@ -47,7 +47,7 @@ class MovementReport:
         period = (f"{covered['race_date'].min():%Y-%m-%d} 〜 {covered['race_date'].max():%Y-%m-%d}" if not covered.empty else "—")
         note = (f"◎ のいるレース {total:,} のうち、前日夜と当日朝の単勝オッズの断面がそろうレース {covered['race_id'].nunique():,}（{percent(share)}。期間 {period}）だけが対象。"
                 f"動きは log(当日 {MORNING_CUTOFF[:2]}時{MORNING_CUTOFF[2:]}分までの最後の断面のオッズ ÷ 前日の最後の断面のオッズ)。負なら前日夜より売れて人気が上がった。"
-                "◎ と期待度は確定オッズで決めたもの（表6 と同じ）。1点 100円、90% の幅は開催日を単位にしたブートストラップ。"
+                "◎ と期待値の帯は確定オッズで決めたもの（表6 と同じ）。1点 100円、90% の幅は開催日を単位にしたブートストラップ。"
                 "時系列オッズは JV-Data の提供が1年ぶんなので対象が少なく、採用の基準を満たしても「届いたが数が少ない」と扱う（研究「回収率100超の施策」の施策5）。")
         return Table(headers, rows, title="11. 前日夜 → 当日朝のオッズの動きごとの ◎ の単勝の成績（参考）", note=note)
 
@@ -55,7 +55,7 @@ class MovementReport:
         if chosen.empty:
             return [label, "0", "0-0-0-0", "—", "—", "—", "0", "—", "—"]
         rates = perf_row_of(chosen).rates()
-        high = chosen[chosen[EXPECTATION] == HIGH]
+        high = chosen[chosen[WIN_VALUE_BAND] == HIGH]
         return [label, f"{len(chosen):,}", perf_row_of(chosen).counts(), percent(rates["勝率"]), percent(rates["単勝回収率"]),
                 self._interval(chosen), f"{len(high):,}", *self._win_cells(high)]
 

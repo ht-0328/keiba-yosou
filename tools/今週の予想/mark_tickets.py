@@ -11,7 +11,6 @@ from yosou.shared.win_value import HIGH
 
 from 今週の予想.forecast_columns import (
     AXIS,
-    EXPECTATION,
     HORSE_NO,
     MARK,
     MARKET_TOP3,
@@ -22,6 +21,7 @@ from 今週の予想.forecast_columns import (
     WIN_ODDS,
     WIN_PROBABILITY,
     WIN_VALUE,
+    WIN_VALUE_BAND,
 )
 from 今週の予想.mark_rule import TOP_MARK, VALUE_MARK
 
@@ -51,10 +51,10 @@ from 今週の予想.ticket_rules import (
 RULE, VALUE = "rule", "value"
 #: 買い目のオッズの列（複勝・ワイドは最低オッズ。今週の予想は締め切り前、印の成績は確定）。買えない組（無投票・取消）は欠損値。
 ODDS = "odds"
-COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", EXPECTATION, AGREEMENT, POOL_BACKED, RULE, "ticket_type", "combo",
+COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", WIN_VALUE_BAND, AGREEMENT, POOL_BACKED, RULE, "ticket_type", "combo",
                             "stake_units", VALUE)
 #: レースから写す列（無ければ偽）。
-_RACE_COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", EXPECTATION)
+_RACE_COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", WIN_VALUE_BAND)
 _RACE_FLAGS: tuple[str, ...] = (AGREEMENT, POOL_BACKED)
 
 
@@ -153,11 +153,11 @@ class MarkTickets:
         return [(int(no), float(value)) for no, value in zip(priced[HORSE_NO], priced[WIN_VALUE], strict=True)]
 
     def _place_horses(self, race: pd.DataFrame, agreement: bool) -> list[int]:
-        """複勝: 期待度「高」で ``PLACE_MIN_FIELD`` 頭以上のレースで、期待値が ``PLACE_BUY_LINE`` 以上・複勝の最低オッズが ``PLACE_ODDS_CAP`` 倍以下の馬を
+        """複勝: ◎の期待値 1.00 以上で ``PLACE_MIN_FIELD`` 頭以上のレースで、期待値が ``PLACE_BUY_LINE`` 以上・複勝の最低オッズが ``PLACE_ODDS_CAP`` 倍以下の馬を
         高い順に最大3点。2モデル一致なら、そのうちモデルごとの期待値も線以上の馬だけ。頭数は列 ``field_size`` があればその値、無ければ行の数。
         複勝の最低オッズの列が無ければ（前の形の表）買わない。"""
         field = race["field_size"].iloc[0] if "field_size" in race.columns else len(race)
-        if race[EXPECTATION].iloc[0] != HIGH or not (field >= PLACE_MIN_FIELD) or PLACE_ODDS_LOW not in race.columns:
+        if race[WIN_VALUE_BAND].iloc[0] != HIGH or not (field >= PLACE_MIN_FIELD) or PLACE_ODDS_LOW not in race.columns:
             return []
         chosen = (race[PLACE_VALUE] >= PLACE_BUY_LINE) & (race[PLACE_ODDS_LOW] <= PLACE_ODDS_CAP)
         priced = race[chosen].sort_values(PLACE_VALUE, ascending=False).head(PLACE_MAX_POINTS)

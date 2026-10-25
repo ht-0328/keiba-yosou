@@ -11,7 +11,7 @@ RACE_ID, RACE_DATE, HORSE_ID = "race_id", "race_date", "horse_id"
 #: 表1「買い目の記録」の列。
 PARTICIPATION, TICKET_TYPE, COMBO, RECORD_ONLY, STAKE_YEN = "参加の種類", "券種", "買い目", "記録だけか", "金額"
 BOUGHT_PROBABILITY, BOUGHT_VALUE, BOUGHT_ODDS, ODDS_AT, PAYOUT_YEN, SETTLED = "確率", "期待値", "オッズ", "オッズの時刻", "払戻", "精算済み"
-#: 参加の種類の値。勝負（単勝・馬単）は、当日の期待度「高」のレースで買う ◎ の単勝と馬単（複勝の勝負レースとは別に選ぶ）。
+#: 参加の種類の値。勝負（単勝・馬単）は、当日の予想で買う単勝（期待値）と、◎ の単勝の期待値が 1.00 以上のレースの ◎ の馬単（複勝の勝負レースとは別に選ぶ）。
 #: 勝負（組の期待値）は、当日の予想で組の期待値が線以上の馬連・馬単（全レースから選ぶ）。
 MATCH, POLICY_STAKES, POLICY_DAY, MATCH_WIN = "勝負", "ノルマ（重賞）", "ノルマ（日）", "勝負（単勝・馬単）"
 MATCH_COMBO = "勝負（組の期待値）"

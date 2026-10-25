@@ -58,7 +58,7 @@ def test_the_markdown_has_the_table_and_a_section_per_horse(season_db: Path, rev
     assert "**有力馬の候補**" in text and "| 評価順 | 馬名 |" in text
     assert text.count("\n## ") == season.REGISTRATION_ONLY_FIELD_SIZE and "**強み**" in text and "**弱み**" in text
     assert text.count("**近走**") == season.REGISTRATION_ONLY_FIELD_SIZE
-    for word in ("◎", "印", "期待度", "買い目"):
+    for word in ("◎", "印", "的中率", "配当率", "買い目"):
         assert word not in text
 
 

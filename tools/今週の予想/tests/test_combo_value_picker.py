@@ -19,8 +19,8 @@ from 今週の予想.race_condition import AGREED, FAVORITE_ODDS, FIELD_SIZE, TO
 _MARKET_ONLY = ComboBlendWeights(1.0, 0.0, 0.0, 0.0)
 
 
-def _marked(race_id: str, expectation: str) -> pd.DataFrame:
-    return pd.DataFrame({"race_id": race_id, "race_date": pd.Timestamp("2025-01-05"), "fold": "", "expectation": expectation,
+def _marked(race_id: str, band: str) -> pd.DataFrame:
+    return pd.DataFrame({"race_id": race_id, "race_date": pd.Timestamp("2025-01-05"), "fold": "", "win_value_band": band,
                          "horse_no": [1, 2, 3], "probability": 1.0, "market_top3": 1.0, "win_probability": [0.5, 0.3, 0.2],
                          "market_win": [0.5, 0.3, 0.2]})
 
@@ -35,10 +35,10 @@ def _boards(race_ids: list[str]) -> dict[TicketType, pd.DataFrame]:
     return {TicketType.TRIFECTA: trifecta, TicketType.QUINELLA: quinella}
 
 
-def test_線以上で上限以下の組だけを買い_期待度高だけのルールはほかのレースを落とす() -> None:
+def test_線以上で上限以下の組だけを買い_二重丸の期待値が線以上のレースだけのルールはほかのレースを落とす() -> None:
     # オッズの逆数の合計は 0.5 + 0.25 + 0.0025 = 0.7525。確率は 0.664・0.332・0.003、期待値は 1.33・1.33・1.33
     rules = (ComboValueRule(TicketType.QUINELLA, ALL_RACES, 1.1, 100, adopted=True),)
-    marked = pd.concat([_marked("r1", "高"), _marked("r2", "低")], ignore_index=True)
+    marked = pd.concat([_marked("r1", "1.00 以上"), _marked("r2", "1.00 未満")], ignore_index=True)
     tickets = ComboValuePicker(rules, {TicketType.QUINELLA: _MARKET_ONLY}).pick(marked, _boards(["r1", "r2"]))
     assert list(tickets.columns) == list(COLUMNS)
     assert sorted(zip(tickets["race_id"], tickets["combo"])) == [("r1", "0102"), ("r1", "0103"), ("r2", "0102"), ("r2", "0103")]   # 400倍は上限の外
@@ -54,12 +54,12 @@ def test_重みか3連単の板が無い券種は0点で_要る板は重みの�
     picker = ComboValuePicker(rules, {TicketType.QUINELLA: _MARKET_ONLY})
     assert picker.needed() == (TicketType.QUINELLA, TicketType.TRIFECTA)
     boards = _boards(["r1"])
-    assert picker.pick(_marked("r1", "高"), {TicketType.QUINELLA: boards[TicketType.QUINELLA]}).empty   # 3連単の板が無い
+    assert picker.pick(_marked("r1", "1.00 以上"), {TicketType.QUINELLA: boards[TicketType.QUINELLA]}).empty   # 3連単の板が無い
     assert ComboValuePicker(rules, {}).needed() == ()
 
 
 def test_本命を含む組だけのルールと_1レースの点数の上限() -> None:
-    marked = _marked("r1", "高").assign(mark=["－", "◎", "－"])   # ◎ は 2番
+    marked = _marked("r1", "1.00 以上").assign(mark=["－", "◎", "－"])   # ◎ は 2番
     weights = {TicketType.QUINELLA: _MARKET_ONLY}
     top_only = (ComboValueRule(TicketType.QUINELLA, TOP_COMBOS, 1.1, 1000, adopted=True),)
     assert sorted(ComboValuePicker(top_only, weights).pick(marked, _boards(["r1"]))["combo"]) == ["0102", "0203"]
@@ -79,8 +79,8 @@ def test_区切りの重みに差し替えるのは直前1年の重みを使う�
 
 def test_レースの条件のあるルールは_条件に合うレースだけ買う() -> None:
     # r1 は1番人気 1.8倍・◎ の単勝の期待値 0.95、r2 は1番人気 3.5倍・◎ の期待値 1.20。どちらも3頭立て。
-    marked = pd.concat([_marked("r1", "高").assign(win_odds=[1.8, 4.0, 9.0], win_value=0.95, mark=["◎", "○", "▲"]),
-                        _marked("r2", "高").assign(win_odds=[3.5, 4.0, 5.0], win_value=1.20, mark=["◎", "○", "▲"])], ignore_index=True)
+    marked = pd.concat([_marked("r1", "1.00 以上").assign(win_odds=[1.8, 4.0, 9.0], win_value=0.95, mark=["◎", "○", "▲"]),
+                        _marked("r2", "1.00 以上").assign(win_odds=[3.5, 4.0, 5.0], win_value=1.20, mark=["◎", "○", "▲"])], ignore_index=True)
     weights = {TicketType.QUINELLA: _MARKET_ONLY}
     def races(condition: RaceCondition) -> set[str]:
         rules = (ComboValueRule(TicketType.QUINELLA, ALL_RACES, 1.1, 100, adopted=True, race_conditions=(condition,)),)
@@ -93,7 +93,7 @@ def test_レースの条件のあるルールは_条件に合うレースだけ�
 
 
 def test_2モデル一致は本命のモデルごとの単勝の期待値がどちらも線以上() -> None:
-    marked = pd.concat([_marked(rid, "高").assign(mark=["◎", "○", "▲"], win_value_lightgbm=[lgb, 0.9, 0.9], win_value_catboost=[cat, 0.9, 0.9])
+    marked = pd.concat([_marked(rid, "1.00 以上").assign(mark=["◎", "○", "▲"], win_value_lightgbm=[lgb, 0.9, 0.9], win_value_catboost=[cat, 0.9, 0.9])
                         for rid, lgb, cat in (("r1", 1.05, 1.10), ("r2", 1.20, 0.98))], ignore_index=True)
     traits = ComboRaceTraits().of(marked).set_index("race_id")
     assert traits.loc["r1", AGREED] == 1.0 and traits.loc["r2", AGREED] == 0.0

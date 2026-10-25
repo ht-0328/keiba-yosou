@@ -8,9 +8,9 @@ import pandas as pd
 from yosou.shared.dataset.column_names import FIELD_SIZE, PLACE_ODDS_HIGH, PLACE_ODDS_LOW
 from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE, WIN_RATE, MarketPlaces
 from yosou.shared.place_value import PLACE_VALUE, PlaceExpectedValue, PlacePriceEstimator
-from yosou.shared.win_value import LINE, ExpectationLevel
+from yosou.shared.win_value import LINE, WinValueBand
 
-from 今週の予想.forecast_columns import EXPECTATION, MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_VALUE
+from 今週の予想.forecast_columns import MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_VALUE, WIN_VALUE_BAND
 from 今週の予想.mark_rule import TOP_MARK, MarkRule
 
 from 今週の予想.filter_columns import (
@@ -40,13 +40,13 @@ _ODDS_COLUMNS: tuple[str, ...] = (
 
 class BacktestMarker:
     """全頭の予想の予測（3着以内に入る確率）と、1着の予想の予測（1着になる確率と単勝の期待値）、レースの結果・確定オッズ・危険な人気馬の判定から、
-    レースごとに ◎○▲△☆注消（と無印）とレースの期待度を付ける。
+    レースごとに ◎○▲△☆注消（と無印）と、◎ の単勝の期待値の帯（1.00 以上・未満）を付ける。
 
     市場の見立て（オッズから見た勝率・3着以内率）と複勝の期待値は、今週の予想と同じ部品で、確定オッズから出す。
     ``estimator`` は複勝の見込みの倍率（全頭の予想の学習済みモデルと一緒に保存した ``place_price.json``）。無ければ期待値は出さず、☆ は付かない。
-    期待度は、◎ の単勝の期待値から ``ExpectationLevel``（線は 1.00 で固定）で決める。
+    帯は、◎ の単勝の期待値から ``WinValueBand``（線は 1.00 で固定）で決める。
     ``odds_known`` を偽にすると（木曜の予測）、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝の期待値・単勝の期待値・危険な人気馬）を
-    使わずに印を付ける（◎ は1着になる確率の1位、☆・注・期待度は付かない）。成績の人気・払戻は確定の値のまま。
+    使わずに印を付ける（◎ は1着になる確率の1位、☆・注・期待値の帯は付かない）。成績の人気・払戻は確定の値のまま。
 
     絞り込みの旗（研究「回収率100超の施策」）も、レースの全頭に付ける。
     - ``agreement``（2モデル一致）: ◎ の単勝の期待値が、LightGBM と CatBoost のそれぞれの確率でも線以上。モデルごとの確率が無ければ偽。
@@ -58,7 +58,7 @@ class BacktestMarker:
         self._estimator = estimator
         self._odds_known = odds_known
         self._marks = MarkRule()
-        self._expectation = ExpectationLevel()
+        self._band = WinValueBand()
 
     def places(self, results: pd.DataFrame) -> pd.DataFrame:
         """出走の行に、オッズから見た勝率・2着以内率・3着以内率を付ける（レースの全頭で出す）。"""
@@ -68,11 +68,11 @@ class BacktestMarker:
              wins: pd.DataFrame | None = None, pools: pd.DataFrame | None = None,
              movements: pd.DataFrame | None = None) -> pd.DataFrame:
         """``predictions`` はテスト期間の全頭の予想の行、``places`` は ``places`` の戻り値、``dangers`` は危険な人気馬の判定、
-        ``wins`` は1着の予想のテスト期間の行（``WinValueAttacher.attach``。無ければ ◎ は3着以内の確率の1位で、期待度は付かない）、
+        ``wins`` は1着の予想のテスト期間の行（``WinValueAttacher.attach``。無ければ ◎ は3着以内の確率の1位で、期待値の帯は付かない）、
         ``pools`` は3連単から見た勝率（``PoolWinReader.read``。列 race_id・horse_no・pool_win。無ければ 3連単の支持は見ない）、
         ``movements`` は前日夜 → 当日朝の単勝オッズ（``OddsSnapshotRepository.read``。列 race_id・horse_no・odds_evening・odds_morning。無ければ空）。
 
-        戻り値は1行 = 1頭。列は race_id・race_date と ``MarkRule.assign`` の列（印・順位・人気 …）と、レースの期待度・絞り込みの旗、``RESULT_COLUMNS``。
+        戻り値は1行 = 1頭。列は race_id・race_date と ``MarkRule.assign`` の列（印・順位・人気 …）と、◎ の期待値の帯・絞り込みの旗、``RESULT_COLUMNS``。
         """
         columns = [*_PREDICTION_COLUMNS, *(column for column in member_columns(PROBABILITY) if column in predictions.columns)]
         table = predictions[columns].merge(places, on=["race_id", "horse_id"], how="inner")
@@ -121,7 +121,7 @@ class BacktestMarker:
             marked[column] = known.loc[marked["horse_no"], column].to_numpy()
         top = marked.index[marked[MARK] == TOP_MARK]
         value = float(marked.loc[top[0], WIN_VALUE]) if len(top) else float("nan")
-        marked[EXPECTATION] = self._expectation.of(value)
+        marked[WIN_VALUE_BAND] = self._band.of(value)
         marked[AGREEMENT] = self._agreement(marked, top)
         marked[POOL_BACKED] = self._pool_backed(marked, top)
         return marked
