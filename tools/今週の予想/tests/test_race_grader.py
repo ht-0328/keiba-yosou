@@ -1,4 +1,4 @@
-"""レースの的中率・配当率と等級（RaceGrades・PayoutRate・RaceGrader）のテスト。値は架空。"""
+"""レースの ◎ランク・的中率・配当率と等級（RaceGrades・PayoutRate・RaceGrader）のテスト。値は架空。"""
 
 from __future__ import annotations
 
@@ -27,10 +27,10 @@ class _Workflow:
         return pd.DataFrame({"券種": ["単勝", "馬連", "3連複", "3連単"], UPSET_OR_MORE: self._rates})
 
 
-def _horses(top_probability: float | None = 0.42) -> list[dict]:
-    horses = [{"mark": "○", "probability": 0.6, "horse_no": 1}, {"mark": "▲", "probability": 0.5, "horse_no": 2}]
-    if top_probability is not None:
-        horses.append({"mark": "◎", "probability": top_probability, "horse_no": 3})
+def _horses(win_probability: float | None = 0.23, win_value: float | None = 1.05) -> list[dict]:
+    horses = [{"mark": "○", "win_probability": 0.3, "horse_no": 1}, {"mark": "▲", "win_probability": 0.2, "horse_no": 2}]
+    if win_probability is not None:
+        horses.append({"mark": "◎", "win_probability": win_probability, "win_value": win_value, "probability": 0.5, "horse_no": 3})
     return horses
 
 
@@ -42,30 +42,35 @@ def test_配当率は4券種の中荒れ以上の確率の平均で_出せなけ
     assert "配当率（荒れ具合の予想）を出せません" in capsys.readouterr().err
 
 
-def test_的中率は二重丸の3着以内の確率で_どちらも同じ線で等級にする() -> None:
+def test_二重丸ランクは1着の確率と期待値の点数で_配当率は同じ線で等級にする() -> None:
     grader = RaceGrader(Path("models"))
     grader._payout = PayoutRate(Path("models"), runner=lambda con: _Workflow([0.8, 0.8, 0.7, 0.9]))
     grades = grader.grade(None, "R", PredictionTiming.RACE_DAY, _horses())
-    assert (grades.hit_rate, grades.hit_grade, grades.payout_grade) == (0.42, "B", "S") and grades.payout_rate == pytest.approx(0.8)
-    assert tuple(grades.as_dict()) == GRADE_KEYS and grades.as_dict()["hit_grade"] == "B"
-    assert grades.text() == "的中率 B（42%）・配当率 S（80%）"
+    assert grades.rank_score == pytest.approx(0.28) and grades.rank == "A" and grades.hit_rate == 0.23
+    assert grades.payout_rate == pytest.approx(0.8) and grades.payout_grade == "S"
+    assert tuple(grades.as_dict()) == GRADE_KEYS
+    assert grades.text() == "◎ランク A（的中率 23%）・配当率 S（80%）"
 
 
-def test_二重丸がいないか配当率が出せなければその側は無し() -> None:
+def test_期待値が無い木曜はランクが無く_二重丸がいなければ的中率も無し() -> None:
     grader = RaceGrader(Path("models"))
     grader._payout = PayoutRate(Path("models"), runner=lambda con: _Workflow([], fail=ValueError("オッズがそろっていない")))
-    grades = grader.grade(None, "R", PredictionTiming.DAY_BEFORE, _horses(top_probability=None))
-    assert grades == RaceGrades(None, None, None, None)
-    assert grades.text() == "的中率 なし・配当率 なし"
-    assert grades.lines() == ["- 的中率: なし。◎ が3着以内に来る確率",
-                              "- 配当率: なし。配当が中荒れ以上になる確率（荒れ具合の予想の単勝・馬連・3連複・3連単の平均）"]
+    thursday = grader.grade(None, "R", PredictionTiming.THURSDAY, _horses(win_value=None))
+    assert thursday.rank is None and thursday.rank_score is None and thursday.hit_rate == 0.23 and thursday.payout_grade is None
+    assert thursday.text() == "◎ランク なし・配当率 なし"
+    none = grader.grade(None, "R", PredictionTiming.DAY_BEFORE, _horses(win_probability=None))
+    assert none == RaceGrades(None, None, None, None, None)
+    assert none.lines() == ["- ◎ランク: なし。◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い",
+                            "- 的中率: なし。◎ の単勝が当たる確率（1着になる確率）",
+                            "- 配当率: なし。配当が中荒れ以上になる確率（荒れ具合の予想の単勝・馬連・3連複・3連単の平均）"]
 
 
 def test_予想の結果の辞書から戻せて前の版の結果は全部無し() -> None:
-    forecast = {"rid": "R", "hit_rate": 0.76, "hit_grade": "S", "payout_rate": 0.3, "payout_grade": "B"}
-    assert RaceGrades.from_dict(forecast) == RaceGrades(0.76, "S", 0.3, "B")
-    assert RaceGrades.from_dict({"rid": "R", "expectation": "高"}) == RaceGrades(None, None, None, None)
-    assert RaceGrades.from_dict({"rid": "R"}).text_if_any() == "" and RaceGrades.from_dict(forecast).text_if_any() == "的中率 S（76%）・配当率 B（30%）"
-    assert RaceGrades(None, None, 0.3, "B").text_if_any() == "的中率 なし・配当率 B（30%）"
-    assert RaceGrades.legend().startswith("的中率は◎ が3着以内に来る確率、配当率は配当が中荒れ以上になる確率")
+    forecast = {"rid": "R", "rank_score": 0.4, "rank": "S", "hit_rate": 0.31, "payout_rate": 0.3, "payout_grade": "B"}
+    assert RaceGrades.from_dict(forecast) == RaceGrades(0.4, "S", 0.31, 0.3, "B")
+    assert RaceGrades.from_dict({"rid": "R", "expectation": "高"}) == RaceGrades(None, None, None, None, None)
+    assert RaceGrades.from_dict({"rid": "R"}).text_if_any() == "" and RaceGrades.from_dict(forecast).text_if_any() == "◎ランク S（的中率 31%）・配当率 B（30%）"
+    assert RaceGrades(None, None, None, 0.3, "B").text_if_any() == "◎ランク なし・配当率 B（30%）"
+    assert RaceGrades.from_dict(forecast).lines()[0] == "- ◎ランク: S（点数 0.40）。◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い"
+    assert RaceGrades.legend().startswith("◎ランクは◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数")
     assert RaceGrades.legend().endswith("等級は S 75% 以上・A 50% 以上・B 25% 以上・C 25% 未満")

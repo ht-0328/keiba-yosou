@@ -35,7 +35,7 @@ def test_同じ時点で新しければ最新(tmp_path: Path) -> None:
     store = ForecastStore(tmp_path)
     saved(store)
     verdict = ForecastCheck(store).check(signals())
-    assert verdict.kind is VerdictKind.FRESH and verdict.saved_timing == "前日" and verdict.marks == "◎3" and verdict.grades == "的中率 B（42%）・配当率 A（56%）"
+    assert verdict.kind is VerdictKind.FRESH and verdict.saved_timing == "前日" and verdict.marks == "◎3" and verdict.grades == "◎ランク A（的中率 23%）・配当率 A（56%）"
     assert verdict.made_at.isoformat() == "2025-04-19T11:00:00" and not verdict.kind.needs_redo
 
 
