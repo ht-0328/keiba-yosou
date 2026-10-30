@@ -14,7 +14,7 @@ from yosou.shared.repository import AnnouncedTicketOddsRepository, FrameReposito
 
 from 今週の予想.bracket_value_picker import BracketValuePicker
 from 今週の予想.combo_value_picker import ComboValuePicker
-from 今週の予想.forecast_columns import WIN_VALUE_BAND
+from 今週の予想.forecast_columns import HORSE_NO, WIN_VALUE_BAND
 from 今週の予想.mark_tickets import COLUMNS, ODDS, RULE, VALUE, MarkTickets
 from 今週の予想.ticket_rules import BRACKET_VALUE_RULE, COMBO_VALUE_RULES
 from 今週の予想.torigami_filter import DROPPED, TorigamiFilter
@@ -31,6 +31,7 @@ class ForecastTickets:
     締め切り前のオッズ（``AnnouncedTicketOddsRepository``）で組の確率とトリガミ（``TorigamiFilter``）を付けて、JSON にできる辞書の並びにする。
 
     オッズの無い時点（木曜）は、買い目は組むがオッズ・期待値・トリガミは付かない（複勝と、期待値で絞る3連単・3連複は0点になる）。
+    枠順がまだ無く馬番の分からない馬がいるレース（木曜の出走馬名表）は、買い目を組めないので0点。
     当日の予想（``race_day``）では、実際に買う組の期待値の買い目（``COMBO_VALUE_RULES`` の採用したもの。``ComboValuePicker``）も、
     締め切り前のオッズの板で組を選んで足す。重み（``weights``。モデルの置き場所の ``combo_blend.json``）が無ければ足さない。
     枠連の組の期待値の買い目（``BRACKET_VALUE_RULE``。``BracketValuePicker``）も、馬連・3連単・枠連の締め切り前の板と枠番で選んで足す
@@ -50,6 +51,8 @@ class ForecastTickets:
 
     def build(self, con: duckdb.DuckDBPyConnection, race_id: str, marked: pd.DataFrame, band: str | None,
               odds_known: bool, race_day: bool = False) -> list[dict[str, Any]]:
+        if marked[HORSE_NO].isna().any():
+            return []
         race = marked.assign(race_id=race_id, race_date=pd.Timestamp(f"{race_id[:4]}-{race_id[4:6]}-{race_id[6:8]}"), fold="",
                              **{WIN_VALUE_BAND: band})
         tickets = self._tickets.build(race)

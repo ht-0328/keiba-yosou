@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,15 @@ class ForecastStore:
         """書いてある結果を作った時刻。無ければ None。"""
         forecast = self.load(race_id)
         return forecast.get("made_at") if forecast else None
+
+    def load_day(self, day: date) -> list[dict[str, Any]]:
+        """その開催日に書いてある結果を全部、rid の順（競馬場のコード・レース番号の順）で。無ければ空。
+        同じフォルダの計画（plan.json）などは含めない（結果のファイル名は rid の16桁）。"""
+        folder = self._folder / day.isoformat()
+        if not folder.is_dir():
+            return []
+        paths = sorted(path for path in folder.glob("*.json") if path.stem.isdigit())
+        return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
     @staticmethod
     def marks_text(forecast: dict[str, Any]) -> str:

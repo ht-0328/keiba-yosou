@@ -20,7 +20,8 @@
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
 予想のあと、開催日ごとに買うレースの計画（勝負／ノルマ参加（重賞）／ノルマ参加（日）／買わない と、複勝の買い目と金額。設計書 03・08 の 1）を
 財布（reports/回顧/財布.json。初めの額は利用者が決める）の予算で決めて、reports/今週の予想/<開催日>/plan.json と回顧の表1「買い目の記録」に書く
-（前日・当日の予想だけ。木曜はオッズが無いので計画しない）。予想の前には、終わったレースの回顧（レースの回顧・馬の回顧ノート）を自動で書き足し、
+（前日・当日の予想だけ。木曜はオッズが無いので計画しない）。そのあと、開催日ごとのまとめ（一覧・買うレース・レースごとの印と買い目・◎ の理由と近走）を
+reports/今週の予想/<開催日>/まとめ.md に書く（summary.py で出し直せる）。予想の前には、終わったレースの回顧（レースの回顧・馬の回顧ノート）を自動で書き足し、
 買い目の記録に払戻を入れる（tools/回顧/review.py と同じ。--no-review で飛ばす）。
 1レースに数十秒かかる（はじめの1レースは、事実表とスピード指数を作るので数分）。
 """
@@ -42,6 +43,7 @@ from yosou.shared.feature import PredictionTiming  # noqa: E402
 
 from 今週の予想.bet_recorder import BetRecorder  # noqa: E402
 from 今週の予想.day_planner import DayPlanner  # noqa: E402
+from 今週の予想.day_summary import DaySummary  # noqa: E402
 from 今週の予想.forecast_paces import ForecastPaces  # noqa: E402
 from 今週の予想.forecast_store import DEFAULT_FOLDER, ForecastStore  # noqa: E402
 from 今週の予想.forecast_table import ForecastTable  # noqa: E402
@@ -50,6 +52,7 @@ from 今週の予想.model_folders import DEFAULT_FAVORITE_MODELS, DEFAULT_MODEL
 from 今週の予想.plan_store import PlanStore  # noqa: E402
 from 今週の予想.plan_table import PlanTable  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
+from 今週の予想.summary_store import SummaryStore  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
 from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES  # noqa: E402
@@ -68,7 +71,9 @@ def main(args) -> None:
             _update_review(con, review, store)
         race_ids = _race_ids(con, args)
         if args.plan_only:
-            cli.emit(_plan_days(con, store, review, race_ids), args)
+            tables = _plan_days(con, store, review, race_ids)
+            _write_summaries(store, race_ids)
+            cli.emit(tables, args)
             return
         for number, race_id in enumerate(race_ids, start=1):
             print(f"[{number}/{len(race_ids)}] {race_id} を予想します", file=sys.stderr, flush=True)
@@ -89,6 +94,7 @@ def main(args) -> None:
                 tables.append(_story_table(forecast))
         if not args.no_plan:
             tables += _plan_days(con, store, review, race_ids)
+    _write_summaries(store, race_ids)
     cli.emit(tables, args)
     print(f"\n保存先: {args.out_dir}", file=sys.stderr)
 
@@ -122,6 +128,16 @@ def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[st
         recorder.record(plans, odds_at)
         tables.append(PlanTable().table(day, plans, summary))
     return tables
+
+
+def _write_summaries(store: ForecastStore, race_ids: list[str]) -> None:
+    """予想したレースの開催日ごとに、保存してある予想と計画からまとめ（一覧・買うレース・レースごとの印と買い目）を
+    ``<置き場所>/<開催日>/まとめ.md`` に書き直す。DB は使わない（summary.py で出し直せる）。"""
+    summary, writer = DaySummary(store), SummaryStore(store)
+    for day in sorted({date(int(rid[:4]), int(rid[4:6]), int(rid[6:8])) for rid in race_ids}):
+        if not (store.folder / day.isoformat()).is_dir():
+            continue
+        print(f"  まとめ: {writer.save(day, summary.markdown(day))}", file=sys.stderr, flush=True)
 
 
 def _race_ids(con, args) -> list[str]:
