@@ -46,6 +46,11 @@ def _by_rule(tickets: pd.DataFrame) -> dict[str, list[str]]:
     return {label: sorted(group["combo"]) for label, group in tickets.groupby(RULE)}
 
 
+def test_枠順がまだ無く馬番の分からない馬がいれば買い目は0点() -> None:
+    race = _marked_race().drop(columns=["win_odds", "win_value", "place_odds_low"]).assign(horse_no=np.nan)
+    assert ForecastTickets().build(None, "2025010506010101", race, None, odds_known=False) == []
+
+
 def test_印の位置で組む券種と複勝の買い目() -> None:
     by_rule = _by_rule(MarkTickets().build(_marked_race()))
     assert by_rule["単勝"] == ["03"]
