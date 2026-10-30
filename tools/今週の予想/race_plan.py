@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
 from 今週の予想.ticket_pick import TicketPick
@@ -65,3 +65,12 @@ class RacePlan:
 
     def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "stake_yen": self.stake_yen, "place_yen": self.place_yen, "ticket_yen": self.ticket_yen}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RacePlan:
+        """``to_dict`` の形（plan.json）から戻す。派生の金額（``stake_yen`` など）は捨てて、計算し直す。
+        参加の種類（``kind``）の無い前の版の買い目は、``TicketPick`` の既定（勝負（単勝・馬単））になる。"""
+        own = {field_.name for field_ in fields(cls)} - {"picks", "tickets"}
+        return cls(**{key: value for key, value in data.items() if key in own},
+                   picks=tuple(PlacePick(**pick) for pick in data.get("picks") or ()),
+                   tickets=tuple(TicketPick(**ticket) for ticket in data.get("tickets") or ()))
