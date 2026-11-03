@@ -124,11 +124,11 @@ class RaceDescriber:
         return "- 複勝（6番人気以下）: なし（複勝オッズより来ると見る6番人気以下の馬がいないか、下の理由のとおり）"
 
     def _upset_trio_line(self, forecast: dict[str, Any]) -> str:
-        """3連複の荒れ具合で形を決める3連複（``UPSET_TRIO_RULES``。そのレースの荒れ具合の形が1つだけ予想に入っている）の行。
+        """3連複の荒れ具合で形を決める3連複（``UPSET_TRIO_RULES``。そのレースの荒れ具合の形が1つだけ予想に入っている。固いは買わない）の行。
         金額は1点 ``POINT_YEN`` で数えた額。"""
         tickets = [ticket for ticket in forecast["tickets"] if ticket["rule"] in UPSET_TRIO_LABELS]
         if not tickets:
-            return "- 3連複（荒れ具合で形を決める）: なし（3連複の荒れ具合の予想が無いか、その形に合う馬がいない）"
+            return "- 3連複（荒れ具合で形を決める）: なし（固いレースか、3連複の荒れ具合の予想が無いか、その形に合う馬がいない）"
         return self._reference_line(tickets[0]["rule"], tickets)
 
     def _bought_lines(self, labels: tuple[str, ...], picks: list[TicketPick], suffix: str) -> list[str]:
