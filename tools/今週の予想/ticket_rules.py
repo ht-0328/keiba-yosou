@@ -9,6 +9,8 @@ from yosou.shared.betting import BRACKET, TicketType
 
 from 今週の予想.axis_ticket_rule import HORSE_AXIS, TOP_AXIS, AxisTicketRule
 from 今週の予想.combo_value_rule import ALL_RACES, HIGH_RACES, HIGH_TOP_COMBOS, TOP_COMBOS, ComboValueRule
+from 今週の予想.horse_pool import FAVORITES, LONGSHOTS, MODEL_TOP, NOT_DANGER, STRONG_FAVORITES, UP_TO, HorsePool
+from 今週の予想.pool_trio_ticket_rule import PoolTrioTicketRule
 from 今週の予想.place_axis_ticket_rule import PlaceAxisTicketRule
 from 今週の予想.race_condition import AGREED, FAVORITE_ODDS, FIELD_SIZE, HAS_DANGER, TOP3_SHARE, RaceCondition
 
@@ -41,6 +43,12 @@ TOTAL_GROUPS: tuple[str, ...] = (ORIGINAL, TOP_AXIS, HORSE_AXIS)
 #: LightGBM と CatBoost のそれぞれの確率で出した期待値も線以上の馬だけ（比べるための行。合計には入らない）。
 PLACE_LABEL = TicketType.PLACE.label
 PLACE_AGREE_LABEL = f"{PLACE_LABEL}（2モデル一致）"
+#: 6番人気以下の複勝（研究「危険な人気馬を見極める」）: ``LONGSHOT_PLACE_MIN_POPULARITY`` 番人気以下の馬のうち、3着以内の確率が
+#: 複勝オッズから見た3着以内率より ``LONGSHOT_PLACE_EDGE`` 以上高い馬を全部、1点ずつ。どのレースでも買う。印では選ばないので ``MarkTickets`` が別に作る。
+#: 線は、研究の7つの区切りの検証期間と、まだ見ていなかった 2021年前半〜2022年前半の両方で回収率 100% を超えた値。
+LONGSHOT_PLACE_LABEL = f"{PLACE_LABEL}（6番人気以下・複勝オッズより来る）"
+LONGSHOT_PLACE_MIN_POPULARITY = 6
+LONGSHOT_PLACE_EDGE = 0.05
 
 
 @dataclass(frozen=True)
@@ -105,6 +113,42 @@ PLACE_AXIS_RULES: tuple[PlaceAxisTicketRule, ...] = (
     PlaceAxisTicketRule(TicketType.WIDE, 1.0),
     PlaceAxisTicketRule(TicketType.QUINELLA, 0.5),
 )
+#: 馬の集まりから組む3連複（研究「危険な人気馬を見極める」）。3連複の荒れ具合（``TrioUpsetJudge``。超荒れと固いは確率の線で決める）で形を決める
+#: （``UPSET_TRIO_RULES``。利用者の考え方「どういう荒れ具合かで買い方を決める」）: 固いは予想の上位4頭のボックス（人気決着）、中荒れは
+#: 穴−強い人気馬−中穴まで（``MID_LONGSHOT_MAX_POPULARITY`` 番人気まで）、大荒れは 穴−中穴まで−中穴まで（どちらも差 −0.05 以上。中荒れより2頭目を広げる）、
+#: 超荒れは 穴−強い人気馬−消を除いた全頭。どれも危険な人気馬（消）は入れない。穴（1頭目）は6番人気以下の複勝の馬。
+#: 形は、研究の 2023〜2026年とまだ見ていなかった 2021年前半〜2022年前半の両方で、全体の回収率が 100% を超え的中率が高いものを選んだ
+#: （固いは人気順の5頭のボックスより予想の上位4頭のほうが回収率が高く、中荒れ・大荒れは相手を中穴まで広げると的中率も回収率も上がり、
+#: 大荒れにオッズの下限を付けると回収率も的中率も下がった）。
+#: ``POOL_TRIO_RULES`` は、それに比べるための行（人気順の5頭のボックス・中荒れの 穴−人気馬−人気馬・大荒れの 穴−強−強 と 100倍以上・
+#: 超荒れの 穴−穴−強・荒れ具合で分けない 穴−強−強）を足したもの。どれも合計には入らない。6番人気以下の複勝のあとに ``MarkTickets`` が作る。
+FAVORITE_MAX_POPULARITY = 5
+SOLID_TOP_COUNT = 4
+MID_LONGSHOT_MAX_POPULARITY = 9
+_AXIS, _FAVORITE, _TOP = HorsePool(LONGSHOTS, LONGSHOT_PLACE_EDGE), HorsePool(FAVORITES), HorsePool(MODEL_TOP, count=SOLID_TOP_COUNT)
+_STRONG, _LONGSHOT = HorsePool(STRONG_FAVORITES, -0.05), HorsePool(LONGSHOTS, 0.0)
+_UP_TO_MID, _UP_TO_MID_STRONG = HorsePool(UP_TO, count=MID_LONGSHOT_MAX_POPULARITY), HorsePool(UP_TO, -0.05, MID_LONGSHOT_MAX_POPULARITY)
+_SOLID, _MID, _BIG, _HUGE = "固い", "中荒れ", "大荒れ", "超荒れ"
+#: 大荒れの比べる行で買う組のオッズの下限（倍）。利用者の例の値。
+BIG_MIN_ODDS = 100.0
+UPSET_TRIO_RULES: tuple[PoolTrioTicketRule, ...] = (
+    PoolTrioTicketRule(_TOP, _TOP, _TOP, 0.3, (_SOLID,)),
+    PoolTrioTicketRule(_AXIS, _STRONG, _UP_TO_MID, 0.3, (_MID,)),
+    PoolTrioTicketRule(_AXIS, _UP_TO_MID_STRONG, _UP_TO_MID_STRONG, 0.3, (_BIG,)),
+    PoolTrioTicketRule(_AXIS, HorsePool(STRONG_FAVORITES, 0.0), HorsePool(NOT_DANGER), 0.3, (_HUGE,)),
+)
+UPSET_TRIO_LABELS: tuple[str, ...] = tuple(rule.label for rule in UPSET_TRIO_RULES)
+POOL_TRIO_RULES: tuple[PoolTrioTicketRule, ...] = (
+    *UPSET_TRIO_RULES,
+    PoolTrioTicketRule(_FAVORITE, _FAVORITE, _FAVORITE, 0.3, (_SOLID,)),
+    PoolTrioTicketRule(_AXIS, _FAVORITE, _FAVORITE, 0.3, (_MID,)),
+    PoolTrioTicketRule(_AXIS, _STRONG, _STRONG, 0.3, (_BIG,)),
+    PoolTrioTicketRule(_AXIS, _STRONG, _STRONG, 0.3, (_BIG,), min_odds=BIG_MIN_ODDS),
+    PoolTrioTicketRule(_AXIS, _LONGSHOT, _STRONG, 0.3, (_HUGE,)),
+    PoolTrioTicketRule(_AXIS, _STRONG, _STRONG, 0.3),
+)
+#: オッズの下限のある買い方の名前 → 下限（倍）。下限に届かない組は ``TorigamiFilter`` が外す。
+MIN_ODDS: dict[str, float] = {rule.label: rule.min_odds for rule in POOL_TRIO_RULES if rule.min_odds is not None}
 #: 当日の予想で、◎の期待値 1.00 以上のレースで実際に買う買い方（研究「複勝以外の回収率100超」の手順4 で採用の基準を満たした。08 の 2）。
 #: 金額は印の単位ではなく、単勝・馬単用の財布から決める（``Wallet.point_yen``）。◎ の単勝は、単勝（期待値）（``WIN_VALUE_LABEL``）に替えた。
 HIGH_RACE_LABELS: tuple[str, ...] = (TicketType.EXACTA.label,)
@@ -136,13 +180,16 @@ BRACKET_VALUE_RULE = ComboValueRule(BRACKET, HIGH_RACES, 1.1, 300, adopted=True,
 ALL_COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (*COMBO_VALUE_RULES, BRACKET_VALUE_RULE)
 #: 当日の予想で実際に買う、組の期待値の買い方の名前。
 COMBO_VALUE_LABELS: tuple[str, ...] = tuple(rule.label for rule in ALL_COMBO_VALUE_RULES if rule.adopted)
-#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、複勝の馬を軸にした行は単勝の次。組の期待値の行は馬単の次）。
-RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, WIN_VALUE_LABEL, PLACE_LABEL, PLACE_AGREE_LABEL, *(rule.label for rule in PLACE_AXIS_RULES),
+#: 表に並べる買い方の名前の順（複勝と、その2モデル一致の行と、6番人気以下の複勝と、複勝の馬を軸にした行は単勝の次。組の期待値の行は馬単の次。
+#: 馬の集まりから組む3連複は最後）。
+RULE_LABELS: tuple[str, ...] = (BET_RULES[0].label, WIN_VALUE_LABEL, PLACE_LABEL, PLACE_AGREE_LABEL, LONGSHOT_PLACE_LABEL,
+                                *(rule.label for rule in PLACE_AXIS_RULES),
                                 *(rule.label for rule in BET_RULES[1:4]), *(rule.label for rule in ALL_COMBO_VALUE_RULES),
-                                *(rule.label for rule in BET_RULES[4:]))
-#: 合計の組 → その合計に入れる買い方の名前（複勝はどの合計にも入る）。
+                                *(rule.label for rule in BET_RULES[4:]), *(rule.label for rule in POOL_TRIO_RULES))
+#: 合計の組 → その合計に入れる買い方の名前（複勝と6番人気以下の複勝はどの合計にも入る）。
 TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {
-    group: (BET_RULES[0].label, PLACE_LABEL, *(rule.label for rule in (*PLACE_AXIS_RULES, *BET_RULES[1:]) if group in rule.totals))
+    group: (BET_RULES[0].label, PLACE_LABEL, LONGSHOT_PLACE_LABEL,
+            *(rule.label for rule in (*PLACE_AXIS_RULES, *BET_RULES[1:], *POOL_TRIO_RULES) if group in rule.totals))
     for group in TOTAL_GROUPS
 }
 

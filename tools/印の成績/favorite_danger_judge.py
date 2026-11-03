@@ -10,7 +10,7 @@ from yosou.shared.feature.odds import TOP3_RATE
 
 from 今週の予想.danger_picker import MARKED_BANDS, DangerPicker
 
-from 印の成績.prediction_file import TEST, VALID
+from 印の成績.prediction_file import ODDS_ONLY_OUT, TEST, VALID
 
 #: 結果の列（今週の予想の ``forecast_columns`` の危険の列と同じ名前）と、印に使うかによらず危険度が線以上か（``over_line``）。
 COLUMNS: tuple[str, ...] = (
@@ -22,7 +22,8 @@ COLUMNS: tuple[str, ...] = (
 class FavoriteDangerJudge:
     """人気馬の予想（4着以下になる確率）の7つの区切りの予測から、テスト期間の危険な人気馬を判定する（今週の予想と同じ決め方）。
 
-    危険度 = 4着以下になる確率 − 市場から見た4着以下の確率（1 − オッズから見た3着以内率）。線は区切りごと・人気帯ごとに、
+    危険度 = 4着以下になる確率 − 市場から見た4着以下の確率（1 − オッズから見た3着以内率。予測にオッズだけのモデルの確率
+    ``ODDS_ONLY_OUT`` があれば、それ）。線は区切りごと・人気帯ごとに、
     その区切りの検証期間で ``DangerThreshold.choose_for``（本番の学習と同じ選び方）で決め直す。テスト期間の結果は線に使わない。
     消にする馬（``is_danger``）は、今週の予想と同じ ``DangerPicker`` が1レース1頭だけ選ぶ。``bands`` は消にできる人気帯
     （既定は今週の予想と同じ ``MARKED_BANDS``）。どの人気帯も、危険度が線以上か（``over_line``）は残す（人気帯ごとの成績の表に使う）。
@@ -38,7 +39,8 @@ class FavoriteDangerJudge:
         戻り値は（テスト期間の人気馬の判定。列は ``COLUMNS``、区切り → 人気帯 → 線）。
         """
         rows = predictions.merge(places[["race_id", "horse_id", "finish", TOP3_RATE]], on=["race_id", "horse_id"], how="inner")
-        rows = rows.assign(market_out=1 - rows[TOP3_RATE], lost=(~(rows["finish"] <= 3)).astype(float))
+        market_out = rows[ODDS_ONLY_OUT] if ODDS_ONLY_OUT in rows.columns else 1 - rows[TOP3_RATE]
+        rows = rows.assign(market_out=market_out, lost=(~(rows["finish"] <= 3)).astype(float))
         rows["danger_score"] = rows["probability"] - rows["market_out"]
         parts, lines = [], {}
         for (fold, band), group in rows.groupby(["fold", "segment"], sort=True):

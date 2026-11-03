@@ -56,7 +56,7 @@ from 今週の予想.summary_store import SummaryStore  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
 from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES  # noqa: E402
-from 今週の予想.wallet import COMBO_WALLET, MATCH_WALLET, POINT_RATE, POLICY_WALLET, WIN_WALLET, Wallet  # noqa: E402
+from 今週の予想.wallet import COMBO_WALLET, LONGSHOT_WALLET, MATCH_WALLET, POINT_RATE, POLICY_WALLET, WIN_WALLET, Wallet  # noqa: E402
 
 _RID = card.CARD_LIST_HEADERS.index("rid")
 
@@ -118,11 +118,13 @@ def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[st
         if not any(forecast.get("odds_known") for forecast in forecasts):
             continue
         plans = planner.plan(con, day, forecasts)
-        summary = {**{name: wallet.balance(name, wallet.month_start(day)) for name in (MATCH_WALLET, POLICY_WALLET, WIN_WALLET, COMBO_WALLET)},
+        summary = {**{name: wallet.balance(name, wallet.month_start(day)) for name in (MATCH_WALLET, POLICY_WALLET, WIN_WALLET, COMBO_WALLET,
+                                                                                         LONGSHOT_WALLET)},
                    "予算": {kind: wallet.budget(kind, day) for kind in (review_names.MATCH, review_names.POLICY_STAKES, review_names.POLICY_DAY)},
                    "1点": wallet.unit(day), "単勝・馬単の1点": {label: wallet.point_yen(label, day) for label in POINT_RATE[WIN_WALLET]},
                    "組の期待値の1点": {rule.ticket_type.label: wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET)
-                                    for rule in ALL_COMBO_VALUE_RULES if rule.adopted}}
+                                    for rule in ALL_COMBO_VALUE_RULES if rule.adopted},
+                   "6番人気以下の複勝の1点": wallet.point_yen("複勝", day, LONGSHOT_WALLET)}
         plans_store.save(day, plans, summary)
         odds_at = max((forecast.get("made_at") or "" for forecast in forecasts), default="")
         recorder.record(plans, odds_at)

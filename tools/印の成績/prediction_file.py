@@ -19,6 +19,9 @@ _RENAMES: dict[str, str] = {
 }
 #: モデルごとの確率の列（予測のファイルの列 → この道具の列）。あれば残す（2モデル一致の絞り込みに使う）。
 _MEMBER_RENAMES: dict[str, str] = {source: member_column("probability", member) for source, member in MEMBER_SOURCES.items()}
+#: 人気馬の予想で、オッズだけのモデルを比べる相手にした作り方の、その確率の列。あれば残す（危険度の比べる相手に使う）。
+ODDS_ONLY_OUT = "odds_only_out"
+_OPTIONAL_RENAMES: dict[str, str] = {**_MEMBER_RENAMES, "オッズだけの確率": ODDS_ONLY_OUT}
 #: 評価に使う期間（学習にも、線を決めるのにも使っていない期間）と、線を決める期間。
 TEST = "テスト"
 VALID = "検証"
@@ -36,15 +39,16 @@ class PredictionFile:
 
     def load(self) -> pd.DataFrame:
         """全部の行。列は race_id・race_date・horse_id・horse_no・probability・fold・period・segment（鍵は文字列）と、
-        ファイルにあればモデルごとの確率（``probability_lightgbm``・``probability_catboost``）。"""
+        ファイルにあればモデルごとの確率（``probability_lightgbm``・``probability_catboost``）と、
+        オッズだけのモデルの確率（``ODDS_ONLY_OUT``。研究「危険な人気馬を見極める」の人気馬の予想）。"""
         if not self.path.is_file():
             raise FileNotFoundError(f"予測のファイルがありません: {self.path}（研究「既存モデルの改善」の walk_forward.py で作る）")
-        table = pd.read_pickle(self.path).rename(columns={**_RENAMES, **_MEMBER_RENAMES})
+        table = pd.read_pickle(self.path).rename(columns={**_RENAMES, **_OPTIONAL_RENAMES})
         missing = [column for column in _RENAMES.values() if column not in table.columns]
         if missing:
             raise ValueError(f"予測のファイルの形が違います（無い列: {', '.join(missing)}）: {self.path}")
-        members = [column for column in _MEMBER_RENAMES.values() if column in table.columns]
-        return table[[*_RENAMES.values(), *members]].astype({"race_id": str, "horse_id": str})
+        optional = [column for column in _OPTIONAL_RENAMES.values() if column in table.columns]
+        return table[[*_RENAMES.values(), *optional]].astype({"race_id": str, "horse_id": str})
 
     def label(self) -> str:
         """結果のファイル名などに使う短い名前（``h2h_ability/h2h-day_before`` → ``h2h_ability_h2h-day_before``）。"""

@@ -8,7 +8,7 @@ from 今週の予想.race_describer import RaceDescriber
 from 今週の予想.race_plan import PlacePick, RacePlan
 from 今週の予想.tests.test_forecast_store import sample_forecast
 from 今週の予想.ticket_pick import TicketPick
-from 今週の予想.ticket_rules import PLACE_LABEL
+from 今週の予想.ticket_rules import PLACE_LABEL, POOL_TRIO_RULES, UPSET_TRIO_LABELS
 
 RID = "2025041905010101"
 TRIFECTA_RULE = "3連単（◎軸・マルチ・期待値 1.0 以上）"
@@ -108,7 +108,8 @@ def test_参考の買い目は複勝と2モデル一致を除き_10点を超え�
     assert ("- 3連単（◎軸・マルチ・期待値 1.0 以上）: 11点 1,100円  3→1→20・3→1→19・3→1→18・3→1→17・3→1→16・3→1→15・3→1→14・3→1→13・3→1→12・3→1→11"
             " ほか 1点（トリガミ・オッズ無しで外す 1点）") in text
     assert "- 馬連: なし（トリガミ・オッズ無しで外す 1点）" in text
-    assert text.count("\n- 複勝") == 1  # 複勝の行は「実際に買う買い目」だけで、参考の買い目には出ない
+    assert text.count("\n- 複勝:") == 1  # 複勝の行は「実際に買う買い目」だけで、参考の買い目には出ない
+    assert "\n- 複勝（6番人気以下）: なし（当日の予想で買う。今は候補がいない）" in text  # 前日の予想なので買わない
 
 
 def test_本命の理由と近走の文を最後に書き_近走が無い前の版では省く() -> None:
@@ -116,3 +117,14 @@ def test_本命の理由と近走の文を最後に書き_近走が無い前の�
     assert RaceDescriber().describe(forecast).splitlines()[-1] == "◎ の理由: 総合の文"
     forecast["horses"][0]["story"] = {"career_runs": 2, "runs": [], "words": [], "lines": ["- 2025-03-01 未勝利（…）2着。", "- 評価: 上向き（…）"]}
     assert RaceDescriber().describe(forecast).endswith("◎ の理由: 総合の文\n◎ の近走（古い順）:\n- 2025-03-01 未勝利（…）2着。\n- 評価: 上向き（…）")
+
+
+def test_荒れ具合で形を決める3連複はその形の行を書き_比べるための行は参考に出さない() -> None:
+    huge, mid = UPSET_TRIO_LABELS[3], UPSET_TRIO_LABELS[1]
+    forecast = _forecast("当日")
+    forecast["tickets"] += [_ticket(huge, "3連複", [2, 3, 9], "2-3-9", 1.4, 120.5), _ticket(huge, "3連複", [2, 9, 11], "2-9-11", 2.1, 480.0),
+                            _ticket(POOL_TRIO_RULES[-1].label, "3連複", [2, 9, 10], "2-9-10", 1.0, 300.0)]
+    text = RaceDescriber().describe(forecast, _plan())
+    assert f"\n- {huge}: 2点 200円  2-9-11・2-3-9\n参考の買い目" in text
+    assert POOL_TRIO_RULES[-1].label not in text and mid not in text
+    assert "- 3連複（荒れ具合で形を決める）: なし（3連複の荒れ具合の予想が無いか" in RaceDescriber().describe(_forecast())

@@ -23,7 +23,8 @@ class TicketTable:
         note = (f"買い目 {len(tickets)} 点（買う {bought} 点）。設計書「買うレースと買い目を決める」08 の 2 の印のルール。"
                 f"{ODDS_NOTE_KNOWN if forecast.get('odds_known') else ODDS_NOTE_UNKNOWN}。"
                 "3連複・3連単の期待値は、市場が見た組の確率 × 3頭の「モデル ÷ 市場」の比（07 の 2）。"
-                "トリガミ（どれが当たっても買い方の投資より少なく戻る）とオッズの無い組は「外した理由」に出す。"
+                "トリガミ（どれが当たっても買い方の投資より少なく戻る）とオッズの無い組と、オッズの下限のある買い方（大荒れの3連複）の下限より安い組は"
+                "「外した理由」に出す。"
                 "今の決まりで実際に買うのは、複勝と、当日の予想の単勝（期待値）・◎の期待値 1.00 以上のレースの馬単・組の期待値の買い目で、ほかの券種は参考。")
         return Table(title=f"{forecast['title']} の買い目", columns=list(HEADERS), rows=rows, note=note)
 

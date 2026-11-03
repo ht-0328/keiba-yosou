@@ -67,7 +67,8 @@ class TicketReport:
                 "そのパターンの 3連複（流し・全点）と 3連単（マルチ・期待値が線以上）を足したもの（元の買い目は必ず買うので、どの合計にも入る）。"
                 "対象の「2モデル一致」は、◎ の単勝の期待値が2つのモデルのそれぞれの確率でも 1.00 以上のレース、「3連単の支持あり」は、"
                 "◎ の 3連単から見た勝率が単勝から見た勝率以上（比 1.0 以上）のレース（施策 1-A。3連単の確定オッズから出す）。"
-                "トリガミ（どれが当たっても買い方の投資より少なく戻る買い目）と、確定オッズの無い組（無投票・取消）は外して数えない。"
+                "トリガミ（どれが当たっても買い方の投資より少なく戻る買い目）と、確定オッズの無い組（無投票・取消）と、オッズの下限のある買い方"
+                "（大荒れの3連複の 100倍以上）の下限より安い組は外して数えない。"
                 "払戻は確定オッズのもので、実際に買うときより良く出る。")
         return Table(headers, rows, title="7. 買い方ごとの買い目の成績（印のルール）", note=note)
 
@@ -116,9 +117,10 @@ class TicketReport:
         return chosen[target.select(chosen)]
 
     def csv_frame(self, tickets: pd.DataFrame) -> pd.DataFrame:
-        """買い目の CSV（1行 = 1点）。列は日本語。組の確率は、期待値 ÷ 確定オッズ（3連複・3連単だけ）。"""
+        """買い目の CSV（1行 = 1点）。列は日本語。組の確率は、期待値 ÷ 確定オッズ（3連複・3連単だけ）。
+        開催日は、買い目の表をつなぐと日付の型でなくなることがある（空の表をつないだときなど）ので、日付に直してから書く。"""
         return pd.DataFrame({
-            "レースID": tickets["race_id"], "開催日": tickets["race_date"].dt.strftime("%Y-%m-%d"), "区切り": tickets["fold"],
+            "レースID": tickets["race_id"], "開催日": pd.to_datetime(tickets["race_date"]).dt.strftime("%Y-%m-%d"), "区切り": tickets["fold"],
             "◎の期待値": tickets[WIN_VALUE_BAND], "買い方": tickets[RULE], "券種": tickets["ticket_type"], "組番": tickets["combo"],
             "単位": tickets["stake_units"], "期待値": tickets[VALUE], "組の確率": ComboExpectedValue().probability(tickets[VALUE], tickets[ODDS]),
             "確定オッズ": tickets[ODDS], "払戻（100円あたり）": tickets[PAYOUT], "外した理由": tickets[DROPPED],

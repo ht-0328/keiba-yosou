@@ -75,6 +75,8 @@ def test_買い方ごとの表は絞り込みごとに出し合計は軸のパ�
     csv = TicketReport().csv_frame(tickets)
     assert list(csv.columns)[:6] == ["レースID", "開催日", "区切り", "◎の期待値", "買い方", "券種"] and len(csv) == len(tickets)
     assert csv["組の確率"].notna().sum() == tickets[VALUE].notna().sum()  # 組の確率 = 期待値 ÷ オッズ（3連複・3連単だけ）
+    # 開催日が日付の型でなくなった表（空の表をつないだときなど）も書ける
+    assert TicketReport().csv_frame(tickets.astype({"race_date": object}))["開催日"].tolist() == csv["開催日"].tolist()
 
 
 def test_線を動かした表は全点の買い目を線で絞って出す() -> None:

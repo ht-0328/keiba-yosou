@@ -13,6 +13,8 @@ WIN_PROBABILITY = "win_probability"
 WIN_ODDS = "win_odds"
 #: 複勝の最低オッズ（前日・当日だけ。複勝の買い目のオッズの上限を見るのに使う）。
 PLACE_ODDS_LOW = "place_odds_low"
+#: 複勝の最高オッズ（前日・当日だけ。最低オッズと合わせて、複勝オッズから見た3着以内率を出すのに使う）。
+PLACE_ODDS_HIGH = "place_odds_high"
 #: 単勝の期待値（1着になる確率 × 単勝オッズ。前日・当日だけ。◎ を決めるのに使う）。
 WIN_VALUE = "win_value"
 #: 単勝人気（単勝オッズの低い順。オッズが無ければ欠損値）。
@@ -44,4 +46,7 @@ MARKET_OUT = "market_out"
 DANGER_SCORE = "danger_score"
 DANGER_LINE = "danger_line"
 IS_DANGER = "is_danger"
+#: 3連複の荒れ具合（固い・中荒れ・大荒れ・超荒れ。``TrioUpsetJudge`` が決めたもの。レースに1つ。前日・当日だけ）。
+#: 6番人気以下を軸にした3連複で、買うレースを選ぶのに使う（``PoolTrioTicketRule.upset_levels``）。
+TRIO_UPSET = "trio_upset"
 DANGER_COLUMNS: tuple[str, ...] = (FAVORITE_BAND, OUT_PROBABILITY, MARKET_OUT, DANGER_SCORE, DANGER_LINE, IS_DANGER)

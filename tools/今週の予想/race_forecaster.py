@@ -71,6 +71,7 @@ _RENAMES: dict[str, str] = {
     ids.HORSE_ID: columns.HORSE_ID, ids.HORSE_NO: columns.HORSE_NO, ids.HORSE_NAME: columns.HORSE_NAME,
     PROBABILITY: columns.PROBABILITY, WIN_ODDS: columns.WIN_ODDS, TOP3_RATE: columns.MARKET_TOP3, PLACE_VALUE: columns.PLACE_VALUE,
     WIN_PROBABILITY: columns.WIN_PROBABILITY, WIN_VALUE: columns.WIN_VALUE, ids.PLACE_ODDS_LOW: columns.PLACE_ODDS_LOW,
+    ids.PLACE_ODDS_HIGH: columns.PLACE_ODDS_HIGH,
     **{WIN_VALUE_MEMBER.format(member=source): member_column(columns.WIN_VALUE, member) for source, member in MEMBER_SOURCES.items()},
 }
 #: 1頭の結果に入れる、表の列。
@@ -137,7 +138,8 @@ class RaceForecaster:
             "timing": chosen.label, "timing_reason": reason, "pool_free": explained.pool_free,
             columns.WIN_VALUE_BAND: band, **grades.as_dict(), "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
-            "tickets": self._tickets.build(con, race_id, marked, band, odds_known, chosen is PredictionTiming.RACE_DAY),
+            "tickets": self._tickets.build(con, race_id, marked.assign(**{columns.TRIO_UPSET: grades.trio_upset}), band, odds_known,
+                                           chosen is PredictionTiming.RACE_DAY),
             "pace": self._pace(race_id),
         }
 

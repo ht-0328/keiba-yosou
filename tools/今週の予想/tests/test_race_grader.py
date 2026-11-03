@@ -16,7 +16,7 @@ from 今週の予想.race_grades import GRADE_KEYS, RaceGrades
 
 
 class _Workflow:
-    """荒れ具合の予想の代わり。4券種の中荒れ以上の確率を返す（``fail`` なら予測できない）。"""
+    """荒れ具合の予想の代わり。4券種の荒れ具合の確率と中荒れ以上の確率を返す（``fail`` なら予測できない）。3連複は大荒れの確率がいちばん高い。"""
 
     def __init__(self, rates: list[float], fail: Exception | None = None) -> None:
         self._rates, self._fail = rates, fail
@@ -24,7 +24,9 @@ class _Workflow:
     def run(self, race_id: str, timing: PredictionTiming) -> pd.DataFrame:
         if self._fail is not None:
             raise self._fail
-        return pd.DataFrame({"券種": ["単勝", "馬連", "3連複", "3連単"], UPSET_OR_MORE: self._rates})
+        return pd.DataFrame({"券種": ["単勝", "馬連", "3連複", "3連単"], UPSET_OR_MORE: self._rates,
+                             "固い": [0.7, 0.2, 0.2, 0.1], "中荒れ": [0.1, 0.5, 0.3, 0.1],
+                             "大荒れ": [0.1, 0.2, 0.4, 0.2], "超荒れ": [0.1, 0.1, 0.1, 0.6]})
 
 
 def _horses(win_probability: float | None = 0.23, win_value: float | None = 1.05) -> list[dict]:
@@ -34,11 +36,12 @@ def _horses(win_probability: float | None = 0.23, win_value: float | None = 1.05
     return horses
 
 
-def test_配当率は4券種の中荒れ以上の確率の平均で_出せなければ無し(capsys) -> None:
+def test_配当率は4券種の中荒れ以上の確率の平均で3連複の荒れ具合も出し_出せなければ無し(capsys) -> None:
     rate = PayoutRate(Path("models"), runner=lambda con: _Workflow([0.4, 0.5, 0.6, 0.7]))
-    assert rate.of(None, "R", PredictionTiming.RACE_DAY) == pytest.approx(0.55)
+    payout, trio = rate.of(None, "R", PredictionTiming.RACE_DAY)
+    assert payout == pytest.approx(0.55) and trio == "大荒れ"
     failing = PayoutRate(Path("models"), runner=lambda con: _Workflow([], fail=FileNotFoundError("学習済みモデルがありません")))
-    assert failing.of(None, "R", PredictionTiming.THURSDAY) is None
+    assert failing.of(None, "R", PredictionTiming.THURSDAY) == (None, None)
     assert "配当率（荒れ具合の予想）を出せません" in capsys.readouterr().err
 
 
@@ -47,7 +50,7 @@ def test_二重丸ランクは1着の確率と期待値の点数で_配当率は
     grader._payout = PayoutRate(Path("models"), runner=lambda con: _Workflow([0.8, 0.8, 0.7, 0.9]))
     grades = grader.grade(None, "R", PredictionTiming.RACE_DAY, _horses())
     assert grades.rank_score == pytest.approx(0.28) and grades.rank == "A" and grades.hit_rate == 0.23
-    assert grades.payout_rate == pytest.approx(0.8) and grades.payout_grade == "S"
+    assert grades.payout_rate == pytest.approx(0.8) and grades.payout_grade == "S" and grades.trio_upset == "大荒れ"
     assert tuple(grades.as_dict()) == GRADE_KEYS
     assert grades.text() == "◎ランク A（的中率 23%）・配当率 S（80%）"
 
@@ -66,8 +69,8 @@ def test_期待値が無い木曜はランクが無く_二重丸がいなけれ�
 
 
 def test_予想の結果の辞書から戻せて前の版の結果は全部無し() -> None:
-    forecast = {"rid": "R", "rank_score": 0.4, "rank": "S", "hit_rate": 0.31, "payout_rate": 0.3, "payout_grade": "B"}
-    assert RaceGrades.from_dict(forecast) == RaceGrades(0.4, "S", 0.31, 0.3, "B")
+    forecast = {"rid": "R", "rank_score": 0.4, "rank": "S", "hit_rate": 0.31, "payout_rate": 0.3, "payout_grade": "B", "trio_upset": "中荒れ"}
+    assert RaceGrades.from_dict(forecast) == RaceGrades(0.4, "S", 0.31, 0.3, "B", "中荒れ")
     assert RaceGrades.from_dict({"rid": "R", "expectation": "高"}) == RaceGrades(None, None, None, None, None)
     assert RaceGrades.from_dict({"rid": "R"}).text_if_any() == "" and RaceGrades.from_dict(forecast).text_if_any() == "◎ランク S（的中率 31%）・配当率 B（30%）"
     assert RaceGrades(None, None, None, 0.3, "B").text_if_any() == "◎ランク なし・配当率 B（30%）"

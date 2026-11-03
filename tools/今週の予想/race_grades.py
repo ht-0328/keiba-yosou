@@ -11,7 +11,9 @@ from yosou.shared.race_grade import GradeScale, TopRankScale
 RANK_SCORE, RANK = "rank_score", "rank"
 HIT_RATE = "hit_rate"
 PAYOUT_RATE, PAYOUT_GRADE = "payout_rate", "payout_grade"
-GRADE_KEYS: tuple[str, ...] = (RANK_SCORE, RANK, HIT_RATE, PAYOUT_RATE, PAYOUT_GRADE)
+#: 3連複の荒れ具合（``TrioUpsetJudge`` が決めたもの。6番人気以下を軸にした3連複で買うレースを選ぶのに使う）。
+TRIO_UPSET = "trio_upset"
+GRADE_KEYS: tuple[str, ...] = (RANK_SCORE, RANK, HIT_RATE, PAYOUT_RATE, PAYOUT_GRADE, TRIO_UPSET)
 #: 人が読む名前と意味（表の注・画面・全頭の予想根拠で使う）。
 RANK_LABEL, HIT_LABEL, PAYOUT_LABEL = "◎ランク", "的中率", "配当率"
 RANK_MEANING = "◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い"
@@ -21,8 +23,8 @@ PAYOUT_MEANING = "配当が中荒れ以上になる確率（荒れ具合の予�
 
 @dataclass(frozen=True)
 class RaceGrades:
-    """1レースの ◎ランク（点数と S・A・B・C）・的中率（◎ の1着の確率）・配当率（0〜1）とその等級（S・A・B・C）。出せなかったものは None
-    （設計書「買うレースと買い目を決める」の 03 の 5）。
+    """1レースの ◎ランク（点数と S・A・B・C）・的中率（◎ の1着の確率）・配当率（0〜1）とその等級（S・A・B・C）と、3連複の荒れ具合
+    （固い・中荒れ・大荒れ・超荒れ）。出せなかったものは None（設計書「買うレースと買い目を決める」の 03 の 5）。
 
     ◎ランクの点数は ◎ の1着の確率 ＋（◎ の単勝の期待値 − 1）で、線は ``TopRankScale``（S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満）。
     配当率は荒れ具合の予想の4券種の「中荒れ以上の確率」の平均で、線は ``GradeScale``（S 75% 以上・A 50% 以上・B 25% 以上・C 25% 未満）。
@@ -33,15 +35,18 @@ class RaceGrades:
     hit_rate: float | None
     payout_rate: float | None
     payout_grade: str | None
+    trio_upset: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """予想の結果（JSON）に入れる形。"""
-        return {RANK_SCORE: self.rank_score, RANK: self.rank, HIT_RATE: self.hit_rate, PAYOUT_RATE: self.payout_rate, PAYOUT_GRADE: self.payout_grade}
+        return {RANK_SCORE: self.rank_score, RANK: self.rank, HIT_RATE: self.hit_rate, PAYOUT_RATE: self.payout_rate, PAYOUT_GRADE: self.payout_grade,
+                TRIO_UPSET: self.trio_upset}
 
     @classmethod
     def from_dict(cls, forecast: dict[str, Any]) -> RaceGrades:
         """予想の結果（JSON）から戻す。鍵の無い前の版の結果は、全部 None。"""
-        return cls(forecast.get(RANK_SCORE), forecast.get(RANK), forecast.get(HIT_RATE), forecast.get(PAYOUT_RATE), forecast.get(PAYOUT_GRADE))
+        return cls(forecast.get(RANK_SCORE), forecast.get(RANK), forecast.get(HIT_RATE), forecast.get(PAYOUT_RATE), forecast.get(PAYOUT_GRADE),
+                   forecast.get(TRIO_UPSET))
 
     def text(self) -> str:
         """一覧や表の注に出す1行。例: ``◎ランク A（的中率 23%）・配当率 S（82%）``。出せなかったものは ``なし``。"""

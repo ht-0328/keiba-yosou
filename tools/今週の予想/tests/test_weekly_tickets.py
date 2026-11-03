@@ -14,8 +14,8 @@ import pytest
 
 from 今週の予想.forecast_tickets import TICKET_KEYS, ForecastTickets
 from 今週の予想.mark_tickets import ODDS, RULE, VALUE, MarkTickets
-from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES, RULE_LABELS
-from 今週の予想.torigami_filter import DROPPED, NO_ODDS, TORIGAMI, TorigamiFilter
+from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES, LONGSHOT_PLACE_LABEL, POOL_TRIO_RULES, RULE_LABELS
+from 今週の予想.torigami_filter import DROPPED, LOW_ODDS, NO_ODDS, TORIGAMI, TorigamiFilter
 
 #: 9頭のレースの印。◎3・○1・▲5・△2,4,6・☆8・注9・消7。軸馬は ○ の 1番（3着以内の確率が ◎ より高い）。
 _MARKS = {3: "◎", 1: "○", 5: "▲", 2: "△", 4: "△", 6: "△", 8: "☆", 9: "注", 7: "消"}
@@ -51,6 +51,75 @@ def test_枠順がまだ無く馬番の分からない馬がいれば買い目�
     assert ForecastTickets().build(None, "2025010506010101", race, None, odds_known=False) == []
 
 
+def test_6番人気以下で複勝オッズより来ると見る馬の複勝を全部買う() -> None:
+    """8頭立て。複勝オッズの真ん中は全頭 4.0倍なので、複勝オッズから見た3着以内率はどの馬も 3 ÷ 8 = 0.375。
+    6番人気以下（単勝オッズの高い 6〜8番）のうち、3着以内の確率が 0.425 以上（0.375 + 0.05）の 6番と 8番だけを買う。
+    1番は確率が高いが 1番人気なので買わない。7番は線に届かない。"""
+    race = pd.DataFrame({
+        "race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "", "win_value_band": "1.00 未満", "field_size": 8,
+        "horse_no": range(1, 9), "mark": "－", "place_value": 0.5, "win_odds": [2.0, 3.0, 4.0, 5.0, 6.0, 20.0, 30.0, 40.0],
+        "popularity": [1, 2, 3, 4, 5, 6, 7, 8], "probability": [0.9, 0.3, 0.3, 0.3, 0.3, 0.48, 0.40, 0.50],
+        "place_odds_low": 3.0, "place_odds_high": 5.0,
+    })
+    by_rule = _by_rule(MarkTickets().build(race))
+    assert by_rule[LONGSHOT_PLACE_LABEL] == ["06", "08"]
+    # 複勝オッズの無い馬（取消など）は買わない。残りの7頭で 3 ÷ 7 ≒ 0.429 になり、線以上は 6番（0.48）だけ
+    blank = race.assign(place_odds_low=[3.0] * 7 + [np.nan], place_odds_high=[5.0] * 7 + [np.nan])
+    assert _by_rule(MarkTickets().build(blank))[LONGSHOT_PLACE_LABEL] == ["06"]
+
+
+def test_馬の集まりから組む3連複は荒れ具合でレースと形を選ぶ() -> None:
+    """8頭立て。複勝オッズから見た3着以内率はどの馬も 3 ÷ 8 = 0.375。差（確率 − 0.375）は 2番 +0.025・3番と4番 −0.025・5番 −0.175・
+    6番 +0.125・7番 +0.025・8番 +0.075 で、1番は消。穴（6番人気以下の複勝）は 6番と8番。人気馬は 2〜5番、強い人気馬は線 −0.05 なら
+    2〜4番、線 ±0 なら 2番。9番人気まで（消を除く）は 2〜8番、そのうち差 −0.05 以上は 2・3・4・6・7・8番。ほかの6番人気以下（線 ±0）は
+    6〜8番、消を除いた全頭は 2〜8番。予想の上位4頭（消を除く）は 6・8・2・7番（2番と7番は同じ確率で馬番の順）。
+    3頭が違う組だけを、同じ組は1点にまとめる。"""
+    race = pd.DataFrame({
+        "race_id": "R", "race_date": pd.Timestamp("2025-01-05"), "fold": "", "win_value_band": "1.00 未満", "field_size": 8,
+        "horse_no": range(1, 9), "mark": "－", "place_value": 0.5, "win_odds": [2.0, 3.0, 4.0, 5.0, 6.0, 20.0, 30.0, 40.0],
+        "popularity": range(1, 9), "probability": [0.9, 0.4, 0.35, 0.35, 0.2, 0.5, 0.4, 0.45],
+        "place_odds_low": 3.0, "place_odds_high": 5.0, "is_danger": [True] + [False] * 7, "trio_upset": "大荒れ",
+    })
+    solid, mid, big, huge, favorite_box, mid_favorites, big_strong, big_dear, huge_longshots, every = POOL_TRIO_RULES
+    labels = {rule.label for rule in POOL_TRIO_RULES}
+    longshot_strong = ["020306", "020308", "020406", "020408", "030406", "030408"]
+    longshot_favorites = ["020306", "020308", "020406", "020408", "020506", "020508", "030406", "030408", "030506", "030508", "040506", "040508"]
+    # 大荒れ: 穴 − 9番人気まで（差 −0.05 以上）− 同じ と、比べる行（穴 − 強 − 強。100倍以上にするのは TorigamiFilter・全レース）
+    by_rule = _by_rule(MarkTickets().build(race))
+    assert labels & set(by_rule) == {big.label, big_strong.label, big_dear.label, every.label}
+    assert by_rule[big.label] == ["020306", "020308", "020406", "020408", "020607", "020608", "020708", "030406", "030408", "030607", "030608",
+                                  "030708", "040607", "040608", "040708", "060708"]
+    assert by_rule[big_strong.label] == by_rule[big_dear.label] == by_rule[every.label] == longshot_strong
+    # 固い: 予想の上位4頭のボックス（人気決着）と、比べる人気馬のボックス
+    solid_rules = _by_rule(MarkTickets().build(race.assign(trio_upset="固い")))
+    assert labels & set(solid_rules) == {solid.label, favorite_box.label, every.label}
+    assert solid_rules[solid.label] == ["020607", "020608", "020708", "060708"]
+    assert solid_rules[favorite_box.label] == ["020304", "020305", "020405", "030405"]
+    # 中荒れ: 穴 − 強 − 9番人気まで（線なし）と、比べる 穴 − 人気馬 − 人気馬
+    middle = _by_rule(MarkTickets().build(race.assign(trio_upset="中荒れ")))
+    assert labels & set(middle) == {mid.label, mid_favorites.label, every.label}
+    assert middle[mid.label] == ["020306", "020308", "020406", "020408", "020506", "020508", "020607", "020608", "020708", "030406", "030408",
+                                 "030506", "030508", "030607", "030608", "030708", "040506", "040508", "040607", "040608", "040708"]
+    assert middle[mid_favorites.label] == longshot_favorites
+    # 超荒れ: 穴 − 強い人気馬（線 ±0 の 2番）− 消を除いた全頭 と、比べる 穴 − ほかの6番人気以下 − 強
+    wild = _by_rule(MarkTickets().build(race.assign(trio_upset="超荒れ")))
+    assert labels & set(wild) == {huge.label, huge_longshots.label, every.label}
+    assert wild[huge.label] == ["020306", "020308", "020406", "020408", "020506", "020508", "020607", "020608", "020708"]
+    assert wild[huge_longshots.label] == [f"{favorite:02d}{pair}" for favorite in (2, 3, 4) for pair in ("0607", "0608", "0708")]
+    # 荒れ具合の予想が無ければ全レースの行だけ
+    assert labels & set(_by_rule(MarkTickets().build(race.drop(columns="trio_upset")))) == {every.label}
+    # 6番人気以下の複勝の馬がいなければ、穴の入る形は組まない（固いの形は穴が要らないので組む）
+    assert not labels & set(_by_rule(MarkTickets().build(race.assign(probability=0.3))))
+    assert labels & set(_by_rule(MarkTickets().build(race.assign(probability=0.3, trio_upset="固い")))) == {solid.label, favorite_box.label}
+
+
+def test_オッズの下限のある買い方は下限より安い組を外してからトリガミを数える() -> None:
+    tickets = pd.DataFrame({"race_id": "R", RULE: ["大荒れ"] * 3 + ["ほか"] * 2, ODDS: [80.0, 150.0, 300.0, 80.0, 1.5]})
+    dropped = TorigamiFilter({"大荒れ": 100.0}).apply(tickets)[DROPPED].tolist()
+    # 大荒れは 80倍を下限より安いので外し、残り2点はどちらも 2点より多く戻るので買う。ほかの買い方は下限が無いので 80倍は買い、1.5倍はトリガミ
+    assert dropped == [LOW_ODDS, "", "", "", TORIGAMI]
+
+
 def test_印の位置で組む券種と複勝の買い目() -> None:
     by_rule = _by_rule(MarkTickets().build(_marked_race()))
     assert by_rule["単勝"] == ["03"]
@@ -62,9 +131,12 @@ def test_印の位置で組む券種と複勝の買い目() -> None:
     assert by_rule["3連複（◎−○▲☆−○▲△☆）"] == ["010203", "010304", "010305", "010306", "010308", "020305", "020308", "030405", "030408",
                                              "030506", "030508", "030608"]
     assert len(by_rule["3連単（◎→○▲☆→○▲△☆）"]) == 3 * 5
-    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行（枠連を含む）はオッズの板から作るので、ここでは出ない
+    # モデルごとの確率の無い表では、2モデル一致の行は出ない。組の期待値の行（枠連を含む）はオッズの板から作るので、ここでは出ない。
+    # 複勝の最高オッズの列が無いので、6番人気以下の複勝と、馬の集まりから組む3連複も出ない
     combo_value = {rule.label for rule in ALL_COMBO_VALUE_RULES}
-    assert set(by_rule) == {label for label in RULE_LABELS if "2モデル一致" not in label and label not in combo_value}
+    longshot = {LONGSHOT_PLACE_LABEL, *(rule.label for rule in POOL_TRIO_RULES)}
+    assert set(by_rule) == {label for label in RULE_LABELS
+                            if "2モデル一致" not in label and label not in combo_value and label not in longshot}
 
 
 def test_複勝の期待値が線に届かない星は表示だけで買い目の相手に入れない() -> None:
