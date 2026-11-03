@@ -1,4 +1,4 @@
-"""配当率（配当が中荒れ以上になる確率）を、荒れ具合の予想から出す。"""
+"""配当率（配当が中荒れ以上になる確率）と3連複の荒れ具合を、荒れ具合の予想から出す。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,13 @@ from yosou.shared.dataset import OddsResolver
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.repository import AnnouncedOddsRepository
 from yosou.upset_level.dataset import race_dataset_builder
-from yosou.upset_level.workflow import UPSET_OR_MORE, PredictionWorkflow, model_repositories
+from yosou.upset_level.workflow import BET, UPSET_OR_MORE, PredictionWorkflow, model_repositories
+
+from 今週の予想.trio_upset_judge import TrioUpsetJudge
+
+
+#: 買うレースを選ぶのに使う券種。
+TRIO = "3連複"
 
 
 class UpsetRunner(Protocol):
@@ -24,7 +30,8 @@ class UpsetRunner(Protocol):
 
 
 class PayoutRate:
-    """1レースの配当率 = 荒れ具合の予想（``yosou.upset_level``）が出す4券種（単勝・馬連・3連複・3連単）の「中荒れ以上の確率」の平均（0〜1）。
+    """1レースの配当率 = 荒れ具合の予想（``yosou.upset_level``）が出す4券種（単勝・馬連・3連複・3連単）の「中荒れ以上の確率」の平均（0〜1）と、
+    3連複の荒れ具合（``TrioUpsetJudge`` が4つの確率から決める。6番人気以下を軸にした3連複で買うレースを選ぶのに使う）。
 
     設計書「買うレースと買い目を決める」の 03 の 1 の波乱度 U と同じ値で、03 の 5 では配当率と呼ぶ。中荒れの線（券種ごとの払戻の額）は
     荒れ具合の予想の設計書 10 にだけ書いてある。時点（木曜・前日・当日）ごとのモデルを使い、前日・当日は締め切り前のオッズを読む。
@@ -38,13 +45,15 @@ class PayoutRate:
         self._models = Path(models)
         self._runner = runner or self._workflow
 
-    def of(self, con: duckdb.DuckDBPyConnection, race_id: str, timing: PredictionTiming) -> float | None:
+    def of(self, con: duckdb.DuckDBPyConnection, race_id: str, timing: PredictionTiming) -> tuple[float | None, str | None]:
+        """（配当率, 3連複の荒れ具合）。出せなければどちらも None。"""
         try:
             prediction = self._runner(con).run(race_id, timing)
         except (ValueError, LookupError, FileNotFoundError) as error:
             print(f"  {race_id}: 配当率（荒れ具合の予想）を出せません: {error}", file=sys.stderr, flush=True)
-            return None
-        return float(prediction[UPSET_OR_MORE].astype(float).mean())
+            return None, None
+        trio = TrioUpsetJudge().of(prediction[prediction[BET] == TRIO])
+        return float(prediction[UPSET_OR_MORE].astype(float).mean()), (str(trio.iloc[0]) if len(trio) else None)
 
     def _workflow(self, con: duckdb.DuckDBPyConnection) -> PredictionWorkflow:
         return PredictionWorkflow(race_dataset_builder(con), model_repositories(self._models), OddsResolver(AnnouncedOddsRepository(con)))

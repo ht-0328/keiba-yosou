@@ -1,4 +1,5 @@
-"""PredictionFile（予測の読み込み）・FavoriteDangerJudge（危険の線）・BacktestMarker（印付け）・RaceResults（結果の読み出し）のテスト。
+"""PredictionFile（予測の読み込み）・FavoriteDangerJudge（危険の線）・BacktestMarker（印付け）・RaceResults（結果の読み出し）・
+UpsetFile（3連複の荒れ具合の読み込み）のテスト。
 
 値は架空。DB は合成DB だけを使う。
 """
@@ -19,6 +20,7 @@ from 印の成績.backtest_marker import BacktestMarker
 from 印の成績.favorite_danger_judge import FavoriteDangerJudge
 from 印の成績.prediction_file import PredictionFile
 from 印の成績.race_results import RaceResults
+from 印の成績.upset_file import UpsetFile
 from 印の成績.win_value_attacher import WinValueAttacher
 
 
@@ -69,6 +71,20 @@ def test_危険の線は区切りの検証期間で決め消は1レース1頭で
     same_places = places.assign(race_id=same_race["race_id"], horse_id=same_race["horse_id"])
     one, _ = FavoriteDangerJudge().judge(same_race, same_places)
     assert one.set_index("favorite_band")["is_danger"].to_dict() == {"1番人気": True, "2〜3番人気": False}
+
+
+def test_予測にオッズだけのモデルの確率があれば危険度の比べる相手にする(tmp_path: Path) -> None:
+    folder = tmp_path / "predictions" / "favorites"
+    folder.mkdir(parents=True)
+    _prediction_rows([{"race": "T", "horse": "t1", "p": 0.4, "segment": "1番人気"}]).assign(オッズだけの確率=0.25).to_pickle(
+        folder / "calibrated.pkl")
+    table = PredictionFile("favorites/calibrated", tmp_path / "predictions").load()
+    assert table.loc[0, "odds_only_out"] == pytest.approx(0.25)
+    places = table[["race_id", "horse_id"]].assign(finish=5.0, **{TOP3_RATE: 0.7})
+    dangers, _ = FavoriteDangerJudge().judge(table, places)
+    # 危険度は 0.4 − 0.25 = 0.15（オッズから計算した 1 − 0.7 = 0.3 は使わない）
+    assert dangers.loc[0, "market_out"] == pytest.approx(0.25)
+    assert dangers.loc[0, "danger_score"] == pytest.approx(0.15)
 
 
 def test_テスト期間の行に単勝の期待値を付ける() -> None:
@@ -145,3 +161,17 @@ def test_決まりで決めた消の表を判定と同じ形で読む(tmp_path: 
     pd.DataFrame({"race_id": [1]}).to_pickle(path)
     with pytest.raises(ValueError):
         DangerFlagFile(path).load()
+
+
+def test_荒れ具合の予測から3連複のテスト期間の荒れ具合を読み_超荒れは確率の線で決める(tmp_path: Path) -> None:
+    rows = [("1", "3連複", "テスト", (0.2, 0.3, 0.4, 0.1)), ("1", "単勝", "テスト", (0.7, 0.1, 0.1, 0.1)),
+            ("2", "3連複", "テスト", (0.5, 0.3, 0.1, 0.1)), ("3", "3連複", "検証", (0.1, 0.1, 0.1, 0.7)),
+            ("4", "3連複", "テスト", (0.1, 0.35, 0.35, 0.2))]
+    pd.DataFrame([{"レースID": int(race), "開催日": pd.Timestamp("2025-01-05"), "券種": bet, "期間": period,
+                   **dict(zip(("固い", "中荒れ", "大荒れ", "超荒れ"), shares)), "区切り": "2025年前半"}
+                  for race, bet, period, shares in rows]).to_pickle(tmp_path / "upset.pkl")
+    loaded = UpsetFile(tmp_path / "upset.pkl").load()
+    assert loaded.to_dict("records") == [{"race_id": "1", "trio_upset": "大荒れ"}, {"race_id": "2", "trio_upset": "固い"},
+                                         {"race_id": "4", "trio_upset": "超荒れ"}]
+    with pytest.raises(FileNotFoundError):
+        UpsetFile(tmp_path / "none.pkl").load()

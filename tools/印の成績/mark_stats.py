@@ -7,6 +7,7 @@
     uv run python tools/印の成績/mark_stats.py --no-win                                 # 1着の予想を使わない（◎ は3着以内の確率の1位。前の決め方）
     uv run python tools/印の成績/mark_stats.py --danger-bands 1番人気 2〜3番人気 --out-dir reports/印の成績/比べ  # 消にできる人気帯を替えて比べる
     uv run python tools/印の成績/mark_stats.py --danger-flags reports/…/flags.pkl   # 決まりで決めた消（1レースに何頭でも）を使う
+    uv run python tools/印の成績/mark_stats.py --upset reports/…/upset_level/unseen.pkl   # 3連複の荒れ具合の予測を替える
 
 予測は、研究「既存モデルの改善」の入口② walk_forward.py（1着の予想は入口⑪ win_check.py）が書く
 reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切りごとに、それより前で学習したモデルで次の半年を予測したもので、
@@ -35,6 +36,7 @@ reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切�
 オッズは確定オッズ（過去のレースには締め切り前のオッズが無い。表11 だけ、時系列オッズの前日夜と当日朝の断面を使う）。
 危険な人気馬は --danger の予測で、区切りごとに検証期間で線を決め直す。消にできる人気帯は --danger-bands（既定は今週の予想と同じ。1レース1頭で1番人気を優先）。
 --danger-flags を渡すと、モデルの確率でなく、その表で決めた消（列 race_id・horse_id・favorite_band・is_danger。1レースに何頭でも）を使う。
+3連複の荒れ具合は --upset の予測（区切りごとに学んだ荒れ具合の予想の、3連複のいちばん高いクラス）で、6番人気以下を軸にした3連複の買うレースを選ぶ。
 --timing 木曜 にすると、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝と単勝の期待値・危険な人気馬・絞り込み）を使わずに印を付ける
 （◎ は1着になる確率の1位。☆・注・期待値の帯は付かない）。
 結果は reports/印の成績/<全頭の予想の名前>.md にも書く。元DB の事実表を作り、買い目の払戻とオッズ・3連単のオッズ・時系列オッズも読むので、10〜15分かかる。
@@ -86,6 +88,7 @@ from 印の成績.scene_scheme import JRA_SCENE_SCHEME, SCENE_SCHEMES  # noqa: E
 from 印の成績.scene_report import SceneReport  # noqa: E402
 from 印の成績.ticket_payouts import TicketPayouts  # noqa: E402
 from 印の成績.ticket_report import TicketReport  # noqa: E402
+from 印の成績.upset_file import DEFAULT_UPSET, UpsetFile  # noqa: E402
 from 印の成績.win_pool_size_repository import WinPoolSizeRepository  # noqa: E402
 from 印の成績.win_value_attacher import WinValueAttacher  # noqa: E402
 
@@ -137,8 +140,12 @@ def main(args) -> None:
         dangers, lines = pd.DataFrame(columns=list(DANGER_COLUMNS)), {}
     wins = WinValueAttacher().attach(win_predictions, places) if win_predictions is not None else None
     marked = marker.mark(tested, places, dangers, wins, pools, movements)
+    upset = UpsetFile(args.upset) if args.upset and odds_known else None
+    if upset is not None:
+        marked = marked.join(upset.load().set_index("race_id"), on="race_id")
     conditions = (f"時点: {args.timing.label}。全頭の予想: {form.name}。1着の予想: {win.name if win else '使わない'}。"
                   f"危険な人気馬: {_danger_name(danger, flags) if odds_known else '使わない'}。"
+                  f"3連複の荒れ具合: {upset.path if upset else '使わない'}。"
                   f"期間: {marked['race_date'].min():%Y-%m-%d} 〜 {marked['race_date'].max():%Y-%m-%d}（7つの区切りのテスト期間）。")
     tables = MarkReport().tables(marked, conditions, lines)
     tickets = MarkTickets().build(marked)
@@ -201,6 +208,11 @@ def build_parser():
     parser.add_argument("--danger-bands", nargs="+", choices=FAVORITE_BANDS, default=list(MARKED_BANDS), metavar="人気帯",
                         help=f"危険と判定した馬を消にできる人気帯（{'・'.join(FAVORITE_BANDS)}。1レース1頭で、1番人気を優先。"
                              f"既定: 今週の予想と同じ {'・'.join(MARKED_BANDS)}）")
+    parser.add_argument("--upset", type=Path, default=DEFAULT_UPSET, metavar="pkl",
+                        help="3連複の荒れ具合の予測（研究「既存モデルの改善」の walk_forward.py --model upset_level が書く形）。"
+                             "6番人気以下を軸にした3連複の、荒れ具合で選ぶ買い方に使う（既定: 7つの区切りの今の本番の作り方）")
+    parser.add_argument("--no-upset", dest="upset", action="store_const", const=None,
+                        help="3連複の荒れ具合を使わない（荒れ具合で選ぶ買い方は出ない）")
     parser.add_argument("--scene", choices=tuple(SCENE_SCHEMES), default=JRA_SCENE_SCHEME.name,
                         help="場面の表（表10）のクラス・競馬場の帯の区分（既定: 中央）。地方の予想の予測を数えるときは 地方（--db を省くと地方の元DB を開く）")
     parser.add_argument("--models", type=Path, default=DEFAULT_MODELS,

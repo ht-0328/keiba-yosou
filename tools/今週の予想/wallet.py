@@ -1,4 +1,4 @@
-"""4つの財布（勝負用・ポリシー用・単勝・馬単用・組の期待値用）の残高と、参加の種類ごとの予算（設計書「買うレースと買い目を決める」08 の 1）。"""
+"""5つの財布（勝負用・ポリシー用・単勝・馬単用・組の期待値用・穴馬の複勝用）の残高と、参加の種類ごとの予算（設計書「買うレースと買い目を決める」08 の 1）。"""
 
 from __future__ import annotations
 
@@ -12,10 +12,13 @@ from yosou.review import ReviewStore, names
 #: 馬単は連敗が長く、複勝の勝負用と同じ財布にすると、勝負用の止まりの線（初めの 70%）を馬単の振れで割ってしまうので分ける。
 #: 組の期待値用は、当日の予想で組の期待値が線以上の馬単・ワイド・3連複・3連単（参加の種類 ``MATCH_COMBO``）だけに使う。1日に買うレースが多く、
 #: 連敗も長いので、ほかの財布の止まりの線をこの振れで割らないように分ける。
+#: 穴馬の複勝用は、当日の予想の6番人気以下の複勝（参加の種類 ``MATCH_LONGSHOT``）だけに使う。1日に買う点数が多く、当たりは4〜5回に1回なので分ける。
 MATCH_WALLET, POLICY_WALLET, WIN_WALLET, COMBO_WALLET = "勝負用", "ポリシー用", "単勝・馬単用", "組の期待値用"
+LONGSHOT_WALLET = "穴馬の複勝用"
 #: 参加の種類 → 出す財布。
 WALLET_OF: dict[str, str] = {names.MATCH: MATCH_WALLET, names.POLICY_STAKES: POLICY_WALLET, names.POLICY_DAY: POLICY_WALLET,
-                             names.MATCH_WIN: WIN_WALLET, names.MATCH_COMBO: COMBO_WALLET}
+                             names.MATCH_WIN: WIN_WALLET, names.MATCH_COMBO: COMBO_WALLET,
+                             names.MATCH_LONGSHOT: LONGSHOT_WALLET}
 #: 予算の割合（残高に対して）。勝負レース 5%・ノルマ参加（重賞）3%・ノルマ参加（日）1.5%。
 BUDGET_RATE: dict[str, float] = {names.MATCH: 0.05, names.POLICY_STAKES: 0.03, names.POLICY_DAY: 0.015}
 #: 勝負レースの1点 = 予算 ÷ 3。1日に使う額の上限は勝負用の残高の 20%。財布が初めの 70% を下回ったら、その財布の買い目を止める。
@@ -28,14 +31,18 @@ POINTS_PER_RACE, DAY_CAP_RATE, STOP_RATE = 3, 0.20, 0.70
 #: 初めの額の既定の 100,000円では単勝 300円だけになる（馬単は約 83万円から）。
 #: 組の期待値用は、枠連・馬連・馬単・ワイド・3連複・3連単。初めの額の既定の 500,000円では、馬単 600円・馬連 500円・枠連 100円・ワイド 100円に
 #: なる（3連単は約 101万円から、3連複は約 139万円から）。
+#: 穴馬の複勝用は、6番人気以下の複勝だけ。1点ずつ買い続けたときのいちばん深い落ち込み（当日の予想の 2023〜2026年）が財布の 15% に
+#: 収まる割合を切り下げた値（研究「危険な人気馬を見極める」。数値は Git の対象外の reports/危険な人気馬を見極める/）。初めの額の既定の 100,000円で 100円。
 POINT_RATE: dict[str, dict[str, float]] = {
     WIN_WALLET: {"単勝": 0.0037, "馬単": 0.00012},
     COMBO_WALLET: {"枠連": 0.00035, "馬連": 0.0011, "馬単": 0.0012, "ワイド": 0.00023, "3連複": 0.000072, "3連単": 0.000099},
+    LONGSHOT_WALLET: {"複勝": 0.0013},
 }
 #: 100円未満は切り捨て、最低 100円。
 YEN_UNIT, MIN_YEN = 100, 100
 #: 初めに入れる額の既定（設計書 08 の 1 の例。実際に買い始めるときに利用者が財布のファイルで決める）。
-DEFAULT_INITIAL: dict[str, int] = {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 100_000, COMBO_WALLET: 500_000}
+DEFAULT_INITIAL: dict[str, int] = {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 100_000, COMBO_WALLET: 500_000,
+                                   LONGSHOT_WALLET: 100_000}
 #: 財布のファイルの既定（Git の対象外の reports/回顧/）。
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_WALLET_FILE = _PROJECT_ROOT / "reports" / "回顧" / "財布.json"
@@ -88,7 +95,7 @@ class Wallet:
         return self._floor(self.balance(MATCH_WALLET, self.month_start(day)) * DAY_CAP_RATE)
 
     def point_yen(self, ticket_type: str, day: date, wallet: str = WIN_WALLET) -> int:
-        """単勝・馬単用か組の期待値用の財布で買う券種の1点の額（その財布の月初の残高 × ``POINT_RATE``。100円未満は切り捨て、
+        """単勝・馬単用・組の期待値用・穴馬の複勝用の財布で買う券種の1点の額（その財布の月初の残高 × ``POINT_RATE``。100円未満は切り捨て、
         100円に届かなければ 0 で買わない）。"""
         yen = self.balance(wallet, self.month_start(day)) * POINT_RATE[wallet][ticket_type]
         return int(yen // YEN_UNIT) * YEN_UNIT

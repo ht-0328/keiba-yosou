@@ -14,7 +14,8 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.bet_recorder import BetRecorder
 from 今週の予想.day_planner import DayPlanner
 from 今週の予想.race_plan import NO_BET
-from 今週の予想.wallet import COMBO_WALLET, MATCH_WALLET, POLICY_WALLET, WIN_WALLET, Wallet
+from 今週の予想.ticket_rules import LONGSHOT_PLACE_LABEL
+from 今週の予想.wallet import COMBO_WALLET, LONGSHOT_WALLET, MATCH_WALLET, POLICY_WALLET, WIN_WALLET, Wallet
 
 
 def _forecast(rid: str, klass: str, values: list[float], field_size: int = 16, odds_known: bool = True) -> dict:
@@ -41,7 +42,8 @@ def con():
 
 def test_財布は_初めの額と買い目の記録から残高を数え_予算を割合で決める(store: ReviewStore, tmp_path: Path):
     wallet = Wallet(store, tmp_path / "財布.json")
-    assert wallet.initial() == {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 100_000, COMBO_WALLET: 500_000}
+    assert wallet.initial() == {MATCH_WALLET: 100_000, POLICY_WALLET: 30_000, WIN_WALLET: 100_000, COMBO_WALLET: 500_000,
+                                LONGSHOT_WALLET: 100_000}
     day = date(2026, 10, 11)
     assert wallet.budget(names.MATCH, day) == 5_000 and wallet.unit(day) == 1_600 and wallet.day_cap(day) == 20_000
     assert wallet.budget(names.POLICY_STAKES, day) == 900 and wallet.budget(names.POLICY_DAY, day) == 400
@@ -224,3 +226,32 @@ def test_組の期待値用が止まりの線を割れば組の期待値の買�
     ]))
     stopped = planner.plan(con, date(2026, 10, 11), [_combo_forecast("2026101105040401")])[0]
     assert stopped.tickets == () and "70%" in stopped.ticket_reason
+
+
+def _longshot_forecast(rid: str, timing: str = "当日") -> dict:
+    """6番人気以下の複勝が2点（1点はオッズが無く外した）あるレース。◎の期待値は 1.00 未満で、ほかの買い目は無い。"""
+    forecast = _forecast(rid, "1勝クラス", [1.0, 1.0, 1.0, 1.0])
+    forecast.update(timing=timing, win_value_band="1.00 未満", tickets=[
+        {"rule": LONGSHOT_PLACE_LABEL, "ticket_type": "複勝", "combo": "09", "label": "9", "value": None, "odds": 6.5, "dropped": ""},
+        {"rule": LONGSHOT_PLACE_LABEL, "ticket_type": "複勝", "combo": "12", "label": "12", "value": None, "odds": None, "dropped": "オッズ無し"},
+    ])
+    return forecast
+
+
+def test_当日の予想は6番人気以下の複勝を穴馬の複勝用の財布の額で買い_前日と止まりの線を割った財布では買わない(
+        store: ReviewStore, tmp_path: Path, con):
+    import pandas as pd
+    # 穴馬の複勝用の財布の既定の 100,000円では1点 100円（100,000 × 0.0013 = 130円 → 100円）
+    planner = DayPlanner(Wallet(store, tmp_path / "財布.json"))
+    plans = {plan.rid[-2:]: plan for plan in planner.plan(con, date(2026, 10, 11), [
+        _longshot_forecast("2026101105040401"), _longshot_forecast("2026101105040402", timing="前日")])}
+    assert [(ticket.ticket_type, ticket.combo, ticket.yen, ticket.kind) for ticket in plans["01"].tickets] == [
+        ("複勝", "09", 100, names.MATCH_LONGSHOT)]
+    assert "6番人気以下" in plans["01"].ticket_reason
+    assert plans["02"].tickets == ()
+    store.write(names.BETS_TABLE, pd.DataFrame([
+        {names.RACE_ID: "r1", names.TICKET_TYPE: "複勝", names.COMBO: "09", names.RACE_DATE: date(2026, 9, 20),
+         names.PARTICIPATION: names.MATCH_LONGSHOT, names.RECORD_ONLY: False, names.STAKE_YEN: 40_000, names.PAYOUT_YEN: 0, names.SETTLED: True},
+    ]))
+    stopped = planner.plan(con, date(2026, 10, 11), [_longshot_forecast("2026101105040401")])[0]
+    assert stopped.tickets == () and "穴馬の複勝用の財布" in stopped.ticket_reason
