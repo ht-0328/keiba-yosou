@@ -114,13 +114,13 @@ PLACE_AXIS_RULES: tuple[PlaceAxisTicketRule, ...] = (
     PlaceAxisTicketRule(TicketType.QUINELLA, 0.5),
 )
 #: 馬の集まりから組む3連複（研究「危険な人気馬を見極める」）。3連複の荒れ具合（``TrioUpsetJudge``。超荒れと固いは確率の線で決める）で形を決める
-#: （``UPSET_TRIO_RULES``。利用者の考え方「どういう荒れ具合かで買い方を決める」）: 固いは予想の上位4頭のボックス（人気決着）、中荒れは
-#: 穴−強い人気馬−中穴まで（``MID_LONGSHOT_MAX_POPULARITY`` 番人気まで）、大荒れは 穴−中穴まで−中穴まで（どちらも差 −0.05 以上。中荒れより2頭目を広げる）、
-#: 超荒れは 穴−強い人気馬−消を除いた全頭。どれも危険な人気馬（消）は入れない。穴（1頭目）は6番人気以下の複勝の馬。
-#: 形は、研究の 2023〜2026年とまだ見ていなかった 2021年前半〜2022年前半の両方で、全体の回収率が 100% を超え的中率が高いものを選んだ
-#: （固いは人気順の5頭のボックスより予想の上位4頭のほうが回収率が高く、中荒れ・大荒れは相手を中穴まで広げると的中率も回収率も上がり、
-#: 大荒れにオッズの下限を付けると回収率も的中率も下がった）。
-#: ``POOL_TRIO_RULES`` は、それに比べるための行（人気順の5頭のボックス・中荒れの 穴−人気馬−人気馬・大荒れの 穴−強−強 と 100倍以上・
+#: （``UPSET_TRIO_RULES``。利用者の考え方「どういう荒れ具合かで買い方を決める」）: 固いは買わない（人気決着は市場の値段が正しく、どの形でも
+#: 回収率が 100% に届かない。利用者の決定）、中荒れは 穴−強い人気馬−中穴まで（``MID_LONGSHOT_MAX_POPULARITY`` 番人気まで）、大荒れは
+#: 穴−中穴まで−中穴まで（どちらも差 −0.05 以上。中荒れより2頭目を広げる）、超荒れは 穴−強い人気馬−消を除いた全頭。どれも危険な人気馬（消）は
+#: 入れない。穴（1頭目）は6番人気以下の複勝の馬。形は、研究の 2023〜2026年とまだ見ていなかった 2021年前半〜2022年前半の両方で、
+#: 全体の回収率が 100% を超え的中率が高いものを選んだ（中荒れ・大荒れは相手を中穴まで広げると的中率も回収率も上がり、大荒れにオッズの
+#: 下限を付けると回収率も的中率も下がった）。
+#: ``POOL_TRIO_RULES`` は、それに比べるための行（固いの予想の上位4頭のボックス・中荒れの 穴−人気馬−人気馬・大荒れの 穴−強−強 と 100倍以上・
 #: 超荒れの 穴−穴−強・荒れ具合で分けない 穴−強−強）を足したもの。どれも合計には入らない。6番人気以下の複勝のあとに ``MarkTickets`` が作る。
 FAVORITE_MAX_POPULARITY = 5
 SOLID_TOP_COUNT = 4
@@ -132,7 +132,6 @@ _SOLID, _MID, _BIG, _HUGE = "固い", "中荒れ", "大荒れ", "超荒れ"
 #: 大荒れの比べる行で買う組のオッズの下限（倍）。利用者の例の値。
 BIG_MIN_ODDS = 100.0
 UPSET_TRIO_RULES: tuple[PoolTrioTicketRule, ...] = (
-    PoolTrioTicketRule(_TOP, _TOP, _TOP, 0.3, (_SOLID,)),
     PoolTrioTicketRule(_AXIS, _STRONG, _UP_TO_MID, 0.3, (_MID,)),
     PoolTrioTicketRule(_AXIS, _UP_TO_MID_STRONG, _UP_TO_MID_STRONG, 0.3, (_BIG,)),
     PoolTrioTicketRule(_AXIS, HorsePool(STRONG_FAVORITES, 0.0), HorsePool(NOT_DANGER), 0.3, (_HUGE,)),
@@ -140,7 +139,7 @@ UPSET_TRIO_RULES: tuple[PoolTrioTicketRule, ...] = (
 UPSET_TRIO_LABELS: tuple[str, ...] = tuple(rule.label for rule in UPSET_TRIO_RULES)
 POOL_TRIO_RULES: tuple[PoolTrioTicketRule, ...] = (
     *UPSET_TRIO_RULES,
-    PoolTrioTicketRule(_FAVORITE, _FAVORITE, _FAVORITE, 0.3, (_SOLID,)),
+    PoolTrioTicketRule(_TOP, _TOP, _TOP, 0.3, (_SOLID,)),
     PoolTrioTicketRule(_AXIS, _FAVORITE, _FAVORITE, 0.3, (_MID,)),
     PoolTrioTicketRule(_AXIS, _STRONG, _STRONG, 0.3, (_BIG,)),
     PoolTrioTicketRule(_AXIS, _STRONG, _STRONG, 0.3, (_BIG,), min_odds=BIG_MIN_ODDS),

@@ -120,11 +120,11 @@ def test_本命の理由と近走の文を最後に書き_近走が無い前の�
 
 
 def test_荒れ具合で形を決める3連複はその形の行を書き_比べるための行は参考に出さない() -> None:
-    huge, mid = UPSET_TRIO_LABELS[3], UPSET_TRIO_LABELS[1]
+    mid, huge = UPSET_TRIO_LABELS[0], UPSET_TRIO_LABELS[2]
     forecast = _forecast("当日")
     forecast["tickets"] += [_ticket(huge, "3連複", [2, 3, 9], "2-3-9", 1.4, 120.5), _ticket(huge, "3連複", [2, 9, 11], "2-9-11", 2.1, 480.0),
                             _ticket(POOL_TRIO_RULES[-1].label, "3連複", [2, 9, 10], "2-9-10", 1.0, 300.0)]
     text = RaceDescriber().describe(forecast, _plan())
     assert f"\n- {huge}: 2点 200円  2-9-11・2-3-9\n参考の買い目" in text
     assert POOL_TRIO_RULES[-1].label not in text and mid not in text
-    assert "- 3連複（荒れ具合で形を決める）: なし（3連複の荒れ具合の予想が無いか" in RaceDescriber().describe(_forecast())
+    assert "- 3連複（荒れ具合で形を決める）: なし（固いレースか、3連複の荒れ具合の予想が無いか" in RaceDescriber().describe(_forecast())

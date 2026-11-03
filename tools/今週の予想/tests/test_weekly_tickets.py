@@ -80,7 +80,7 @@ def test_馬の集まりから組む3連複は荒れ具合でレースと形を�
         "popularity": range(1, 9), "probability": [0.9, 0.4, 0.35, 0.35, 0.2, 0.5, 0.4, 0.45],
         "place_odds_low": 3.0, "place_odds_high": 5.0, "is_danger": [True] + [False] * 7, "trio_upset": "大荒れ",
     })
-    solid, mid, big, huge, favorite_box, mid_favorites, big_strong, big_dear, huge_longshots, every = POOL_TRIO_RULES
+    mid, big, huge, solid, mid_favorites, big_strong, big_dear, huge_longshots, every = POOL_TRIO_RULES
     labels = {rule.label for rule in POOL_TRIO_RULES}
     longshot_strong = ["020306", "020308", "020406", "020408", "030406", "030408"]
     longshot_favorites = ["020306", "020308", "020406", "020408", "020506", "020508", "030406", "030408", "030506", "030508", "040506", "040508"]
@@ -90,11 +90,10 @@ def test_馬の集まりから組む3連複は荒れ具合でレースと形を�
     assert by_rule[big.label] == ["020306", "020308", "020406", "020408", "020607", "020608", "020708", "030406", "030408", "030607", "030608",
                                   "030708", "040607", "040608", "040708", "060708"]
     assert by_rule[big_strong.label] == by_rule[big_dear.label] == by_rule[every.label] == longshot_strong
-    # 固い: 予想の上位4頭のボックス（人気決着）と、比べる人気馬のボックス
+    # 固い: 買わない。比べる行の予想の上位4頭のボックス（人気決着）だけ
     solid_rules = _by_rule(MarkTickets().build(race.assign(trio_upset="固い")))
-    assert labels & set(solid_rules) == {solid.label, favorite_box.label, every.label}
+    assert labels & set(solid_rules) == {solid.label, every.label}
     assert solid_rules[solid.label] == ["020607", "020608", "020708", "060708"]
-    assert solid_rules[favorite_box.label] == ["020304", "020305", "020405", "030405"]
     # 中荒れ: 穴 − 強 − 9番人気まで（線なし）と、比べる 穴 − 人気馬 − 人気馬
     middle = _by_rule(MarkTickets().build(race.assign(trio_upset="中荒れ")))
     assert labels & set(middle) == {mid.label, mid_favorites.label, every.label}
@@ -108,9 +107,9 @@ def test_馬の集まりから組む3連複は荒れ具合でレースと形を�
     assert wild[huge_longshots.label] == [f"{favorite:02d}{pair}" for favorite in (2, 3, 4) for pair in ("0607", "0608", "0708")]
     # 荒れ具合の予想が無ければ全レースの行だけ
     assert labels & set(_by_rule(MarkTickets().build(race.drop(columns="trio_upset")))) == {every.label}
-    # 6番人気以下の複勝の馬がいなければ、穴の入る形は組まない（固いの形は穴が要らないので組む）
+    # 6番人気以下の複勝の馬がいなければ、穴の入る形は組まない（比べる行の固いのボックスは穴が要らないので組む）
     assert not labels & set(_by_rule(MarkTickets().build(race.assign(probability=0.3))))
-    assert labels & set(_by_rule(MarkTickets().build(race.assign(probability=0.3, trio_upset="固い")))) == {solid.label, favorite_box.label}
+    assert labels & set(_by_rule(MarkTickets().build(race.assign(probability=0.3, trio_upset="固い")))) == {solid.label}
 
 
 def test_オッズの下限のある買い方は下限より安い組を外してからトリガミを数える() -> None:

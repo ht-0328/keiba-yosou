@@ -68,7 +68,7 @@ uv run python research/危険な人気馬を見極める/danger.py unseen      #
 uv run python tools/印の成績/mark_stats.py --out-dir reports/危険な人気馬を見極める/印の成績/穴馬の複勝を足した本番
 uv run python tools/印の成績/mark_stats.py --danger reports/危険な人気馬を見極める/predictions/favorites_out_of_top3/calibrated.pkl --out-dir "reports/危険な人気馬を見極める/印の成績/新しい危険度＋穴馬の複勝"
 uv run python tools/印の成績/mark_stats.py --danger-flags "reports/危険な人気馬を見極める/predictions/消の表/新しい危険度・上位5%.pkl" --out-dir "reports/危険な人気馬を見極める/印の成績/新しい危険度・上位5%＋穴馬の複勝"
-# 10. 3連複を、3連複の荒れ具合（超荒れと固いは確率の線で決める）ごとの形（固い 予想の上位4頭のボックス・中荒れ 穴−強−9番人気まで・
+# 10. 3連複を、3連複の荒れ具合（超荒れと固いは確率の線で決める）ごとの形（固い 買わない・中荒れ 穴−強−9番人気まで・
 #     大荒れ 穴−9番人気まで−9番人気まで・超荒れ 穴−強−消を除いた全頭。比べる行も）で数える（1つ 1時間ほど）
 uv run python tools/印の成績/mark_stats.py --out-dir "reports/危険な人気馬を見極める/印の成績/荒れ具合ごとの3連複"
 uv run python research/危険な人気馬を見極める/danger.py upset   # 10'. 荒れ具合の予想を、まだ見ていない 2021〜2022年の区切りで学び直す（1時間ほど）
