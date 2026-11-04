@@ -8,7 +8,7 @@ from typing import TypeVar
 import pandas as pd
 
 from yosou.shared.dataset import HORSE_ID, RACE_ID, PredictionData, TrainingData
-from yosou.shared.feature import FeatureCatalog
+from yosou.shared.feature import Feature, FeatureCatalog
 
 from .features import TRACK_BIAS_FEATURES, TRACK_BIAS_NAMES
 
@@ -25,7 +25,13 @@ class BiasAttachment:
     学習データには ``BiasHistory``（年ごとの確かめの展開の予測と、その年より前のレースだけで作った過去の傾きの表）、
     予測用データには ``RaceBiasSource``（保存した展開のモデルの予測と、元DB の終わったレースと過去の傾きの表）のもの。表に無い出走は欠損値。
     もう U があれば置き換える。
+    ``features`` は一覧に足す U の5つ（名前は ``TRACK_BIAS_NAMES`` のまま。いつから分かるかを変えたい予想（地方は当日から）が渡す）。
     """
+
+    def __init__(self, features: tuple[Feature, ...] = TRACK_BIAS_FEATURES) -> None:
+        if tuple(feature.name for feature in features) != TRACK_BIAS_NAMES:
+            raise ValueError("U の特徴量の名前は TRACK_BIAS_NAMES の5つの順です")
+        self._features = tuple(features)
 
     def apply(self, data: Data, corrected: pd.DataFrame) -> Data:
         keys = pd.DataFrame({"race_id": data.ids[RACE_ID].astype(str).to_numpy(), "horse_id": data.ids[HORSE_ID].astype(str).to_numpy()})
@@ -38,4 +44,4 @@ class BiasAttachment:
     def _catalog(self, catalog: FeatureCatalog) -> FeatureCatalog:
         """U を足した一覧（もう U があれば、そのまま）。"""
         names = set(catalog.names)
-        return FeatureCatalog(catalog.features + tuple(feature for feature in TRACK_BIAS_FEATURES if feature.name not in names))
+        return FeatureCatalog(catalog.features + tuple(feature for feature in self._features if feature.name not in names))

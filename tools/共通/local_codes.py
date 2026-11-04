@@ -108,7 +108,30 @@ def _local_class_name_sql(condition_expr: str, grade_expr: str, name_expr: str) 
 LOCAL_FACTS_SOURCE = FactsSource(
     name="地方", venue_range=LOCAL_VENUE_RANGE, venue_names=LOCAL_VENUE_NAMES, pedigree_table="nu__3代血統情報",
     class_name_sql=_local_class_name_sql, class_order=LOCAL_CLASS_ORDER, marker_table="nu",
+    style_from_corners=True, trainer_area_table="ch",
 )
+
+#: 地区（同じ主催者のまとまり）→ その地区の競馬場と所属の名前（調教師マスタ地方・競走馬マスタ地方の招待地域名、事実表の競馬場名）。
+#: 小林は大井の調教場、西脇は兵庫（園田・姫路）の調教場、北海道は門別の所属。遠征は地区をまたぐ出走。
+LOCAL_AREA_GROUPS: dict[str, tuple[str, ...]] = {
+    "南関東": ("浦和", "船橋", "大井", "川崎", "小林"),
+    "北海道": ("門別", "北海道"),
+    "岩手": ("盛岡", "水沢"),
+    "石川": ("金沢",),
+    "東海": ("名古屋", "笠松"),
+    "兵庫": ("園田", "姫路", "西脇"),
+    "高知": ("高知",),
+    "佐賀": ("佐賀",),
+}
+UNKNOWN_AREA_GROUP = "不明"
+_AREA_GROUP_BY_NAME: dict[str, str] = {member: group for group, members in LOCAL_AREA_GROUPS.items() for member in members}
+
+
+def local_area_group(name: str | None) -> str:
+    """競馬場名か所属の名前（招待地域名）→ 地区。どの地区にも無ければ 不明（廃止された場の所属など）。"""
+    if not name:
+        return UNKNOWN_AREA_GROUP
+    return _AREA_GROUP_BY_NAME.get(str(name).strip(), UNKNOWN_AREA_GROUP)
 
 
 def local_venue_code(text: str) -> str:
