@@ -18,7 +18,9 @@ from yosou.shared.feature.odds import TOP3_RATE
 from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
 from yosou.shared.win_value import WIN_VALUE
-from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, ModelSegments, PredictionWorkflow, SegmentedPrediction
+from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, DataAttachment, ModelSegments, PredictionWorkflow, SegmentedPrediction
+from yosou.local_track_bias import LOCAL_TRACK_BIAS_FEATURES, LocalFrontForecast, TrackBiasMarker, local_bias_cache_folder_beside
+from yosou.track_bias import BiasAttachment, PriorSlopeTableStore, RaceBiasAttacher
 
 from ..dataset import local_dataset_builder
 from ..workflow import POOL_FREE_FOLDER, TIMING_LABELS, WIN_FOLDER
@@ -51,17 +53,29 @@ class PredictCommand:
     def run(self, args: argparse.Namespace) -> list[Table]:
         with db.open_db(args.db, default=db.LOCAL) as con:
             race_id = self._race_id(args, con)
+            extras = self._extras(con, args)
             workflow = PredictionWorkflow(
                 local_dataset_builder(con), SegmentedPrediction(ModelSegments(), args.models),
                 OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
                 pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER),
                 win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
                 win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
+                extras=extras, win_extras=extras,
             )
             prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         table = PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction),
                                 timing_label=TIMING_LABELS[args.timing])
         return [table.table()]
+
+    def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> list[DataAttachment]:
+        """当日で、``train --track-bias`` で学んだモデル（置き場所に ``TrackBiasMarker`` の印がある）のときだけ、当日の馬場傾向（U）を予測用データに足す
+        （設計書 15 の 11。本番のモデルは U なしなので足さない）。ほかの時点は無し。
+        レースごとの傾きと過去の傾きの表は、モデルの置き場所の2つ上の ``地方の当日の馬場傾向/cache/`` にとっておく（元DB が変わったら作り直す）。"""
+        if args.timing is not PredictionTiming.RACE_DAY or not TrackBiasMarker(args.models).exists():
+            return []
+        slopes, table = PriorSlopeTableStore(local_bias_cache_folder_beside(args.models)).load(con, args.db)
+        attacher = RaceBiasAttacher(con, LocalFrontForecast().run, slopes, table, BiasAttachment(LOCAL_TRACK_BIAS_FEATURES))
+        return [attacher.attach]
 
     def _given_odds(self, args: argparse.Namespace) -> OddsInput | None:
         """``--odds`` で渡されたオッズ。渡されなければ None。"""

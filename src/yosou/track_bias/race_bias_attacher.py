@@ -18,12 +18,14 @@ class RaceBiasAttacher:
 
     全頭の予想の予測の流れ（``PredictionWorkflow``）の ``extras``・``win_extras`` に渡す関数の形（``attach``）。
     同じレース・同じ時点で続けて呼ばれたら、前の表を使い回す。呼ぶ側が開いている元DB の接続を受け取る。
+    ``attachment`` は U を足すクラス（省略すると中央の一覧。地方は当日から分かる一覧のものを渡す）。
     """
 
-    def __init__(self, con: duckdb.DuckDBPyConnection, forecast: PaceForecast, slopes: pd.DataFrame, table: PriorSlopeTable) -> None:
+    def __init__(self, con: duckdb.DuckDBPyConnection, forecast: PaceForecast, slopes: pd.DataFrame, table: PriorSlopeTable,
+                 attachment: BiasAttachment | None = None) -> None:
         self._con = con
         self._source = RaceBiasSource(forecast, slopes, table)
-        self._attachment = BiasAttachment()
+        self._attachment = BiasAttachment() if attachment is None else attachment
         self._last: tuple[tuple[str, PredictionTiming], pd.DataFrame] | None = None
 
     def attach(self, data: PredictionData, race_id: str, timing: PredictionTiming, given: OddsInput | None) -> PredictionData:

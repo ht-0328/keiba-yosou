@@ -53,26 +53,37 @@ _FEATURE_GROUPS = (
 )
 
 
-def local_dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
-    """元DB（nvdata-store）への接続から、この予想の学習データ・予測用データを作るクラスを組み立てる（設計書 04）。
+def local_record_loaders(con: duckdb.DuckDBPyConnection) -> tuple[HistoryRecordsLoader, RaceRecordsLoader]:
+    """地方の元DB から、この予想の記録（過去の全出走と1レースの出走馬）を読むローダーの組（学習用, 予測用）。
 
-    地方の決めごとは、事実表の元データ（``LOCAL_FACTS_SOURCE``。競馬場 30〜61・競走馬マスタ地方の血統・競走条件名称から読むクラス）、
-    出走別着度数地方（``nd``）の欄（``LOCAL_CAREER_LAYOUT``）、特徴量の一覧（``CATALOG``。96個）、クラスの並び順の付け直し。
-    行の選び方（出走した全頭）・目的変数（3着以内なら 1）・基準（オッズから見た3着以内率。前日から）は中央の予想と同じ共通の部品。
-    ローダーには、L の過去の全出走（``MarketRunRepository``）・N の券種ごとの確率（``PoolProbabilityLoader``）・
+    ローダーには、事実表の元データ（``LOCAL_FACTS_SOURCE``）と出走別着度数地方の欄（``LOCAL_CAREER_LAYOUT``）に加えて、
+    L の過去の全出走（``MarketRunRepository``）・N の券種ごとの確率（``PoolProbabilityLoader``）・
     O の過去の全出走の着順（``HeadToHeadRunRepository``）・Q の元の記録（``FinishRecordsLoader``）を渡す。
-    学習データは1つで、各時点のモデルにはその時点で使う列だけを渡す（設計書 07）。
+    同じ記録から別の行・別の目的変数で学ぶ研究（危険な人気馬・穴馬）も、この組を使う。
     """
     market_runs = MarketRunRepository(con, PEOPLE_WINDOW_DAYS)
     pools = PoolProbabilityLoader(con)
     head_to_head_runs = HeadToHeadRunRepository(con, LOCAL_HISTORY_FIRST_DAY)
     finishes = FinishRecordsLoader(con)
     career_counts = CareerCountRepository(con, LOCAL_CAREER_LAYOUT)
-    return DatasetBuilder(
+    return (
         HistoryRecordsLoader(con, market_runs=market_runs, pool_probabilities=pools, head_to_head_runs=head_to_head_runs,
                              finish_records=finishes, facts_source=LOCAL_FACTS_SOURCE, career_counts=career_counts),
         RaceRecordsLoader(con, market_runs=market_runs, pool_probabilities=pools, head_to_head_runs=head_to_head_runs,
                           finish_records=finishes, facts_source=LOCAL_FACTS_SOURCE, career_counts=career_counts),
-        RunnerSelector(), Top3TargetBuilder(), FeatureBuilder(CATALOG, _FEATURE_GROUPS),
+    )
+
+
+def local_dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
+    """元DB（nvdata-store）への接続から、この予想の学習データ・予測用データを作るクラスを組み立てる（設計書 04）。
+
+    地方の決めごとは、事実表の元データ（``LOCAL_FACTS_SOURCE``。競馬場 30〜61・競走馬マスタ地方の血統・競走条件名称から読むクラス）、
+    出走別着度数地方（``nd``）の欄（``LOCAL_CAREER_LAYOUT``）、特徴量の一覧（``CATALOG``。96個）、クラスの並び順の付け直し。
+    行の選び方（出走した全頭）・目的変数（3着以内なら 1）・基準（オッズから見た3着以内率。前日から）は中央の予想と同じ共通の部品。
+    ローダーは ``local_record_loaders``。学習データは1つで、各時点のモデルにはその時点で使う列だけを渡す（設計書 07）。
+    """
+    history_loader, race_loader = local_record_loaders(con)
+    return DatasetBuilder(
+        history_loader, race_loader, RunnerSelector(), Top3TargetBuilder(), FeatureBuilder(CATALOG, _FEATURE_GROUPS),
         baseline=Top3Baseline(),
     )

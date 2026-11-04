@@ -50,6 +50,9 @@ class FactsSource:
     - ``class_name_sql``: （競走条件コードの式, グレードコードの式, 競走条件名称の式）→ クラス名を返す CASE 式。
     - ``class_order``: クラス名 → 並び順。
     - ``marker_table``: 元DB にこの表があれば、この元データと見分ける（``detect_source``）。
+    - ``style_from_corners``: 脚質（``style``）を、レース後の判定（``今回レース脚質判定``）が無いときに、最初のコーナーの順位と頭数から作るか。
+      地方競馬DATA は脚質の判定を提供しない（全部 0）ので地方は真。中央は偽（判定をそのまま使う）。
+    - ``trainer_area_table``: 調教師の所属（招待地域名）を読む表の名前。無ければ ``trainer_area`` は NULL。地方は調教師マスタ地方 ``ch``。
     """
 
     name: str
@@ -59,6 +62,8 @@ class FactsSource:
     class_name_sql: Callable[[str, str, str], str]
     class_order: Mapping[str, int]
     marker_table: str
+    style_from_corners: bool = False
+    trainer_area_table: str = ""
 
     def venue_filter(self, alias: str = "") -> str:
         """この元データの競馬場だけに絞る条件。"""
@@ -121,7 +126,7 @@ FACT_COLUMNS: dict[str, str] = {
     "abnormal": "異常区分コード", "abnormal_name": "異常区分（出走取消 など。正常は空）", "ran": "出走したか",
     "finish": "確定着順（着順が付かなければ NULL）", "finish_time": "走破タイム（秒）", "time_diff": "タイム差（秒。1着は負）",
     "corner4": "4コーナーでの順位", "last3f": "上がり3ハロン（秒）", "last3f_rank": "上がり3ハロンのレース内順位",
-    "style": "脚質（レース後の判定）", "style_order": "脚質の並び順",
+    "style": "脚質（レース後の判定。地方は判定が無いので、最初のコーナーの順位と頭数から: 1位 逃げ・前の 35% 先行・前の 70% 差し・残り 追込）", "style_order": "脚質の並び順",
     "sire": "父", "grandsire": "父の父", "damsire": "母父",
     "prev_finish": "前走の確定着順", "prev_popularity": "前走の単勝人気", "interval_days": "前走からの日数",
     "win_payout": "単勝払戻（100円あたり、円。当たらなければ 0）", "place_payout": "複勝払戻（同上）",
@@ -148,6 +153,7 @@ FACT_COLUMNS: dict[str, str] = {
     "best_time_dist": "同じ芝ダ・距離・馬場状態での持ち時計（競馬場を問わない）",
     "best_time_dist_rank": "その持ち時計の今回の出走馬の中での順位",
     "affiliation": "所属（美浦 / 栗東 / 招待）", "blinker": "ブリンカー（あり / なし）", "apprentice": "騎手の減量（減量あり / 減量なし）",
+    "trainer_area": "調教師の所属（地方の招待地域名: 大井・船橋・小林 など。中央や無ければ NULL）",
     "weight_type": "重量種別（ハンデ / 別定 / 馬齢 / 定量。未設定は 不明）",
     "max_horse_no": "そのレースのいちばん外の馬番",
     "course_places_before": "同じ競馬場・コース・距離での3着内の数（今回より前）",
@@ -194,6 +200,30 @@ _CORNER4 = "4コーナーでの順位"
 #: コーナー通過順位の子の表と、その列。無い DB（取得前・合成DB）では空の関係で代替する。
 _CORNER_TABLE = "ra__コーナー通過順位"
 _CORNER_COLUMNS = (*keys.RACE_KEY, "_連番", "コーナー", "周回数", "各通過順位")
+#: 調教師の所属を読む表の列（地方の調教師マスタ ``ch``）。
+_TRAINER_AREA_COLUMNS = ("調教師コード", "招待地域名")
+#: 無い表の代わりに渡す名前（``optional_relation`` が空の関係にする）。
+_NO_TABLE = "__no_table__"
+#: 最初のコーナーでの順位（2周目以降が記録に混ざるレースは NULL）。``joined`` の中で、出走の行 ``s`` と最初のコーナーの表 ``lt`` から。
+_FIRST_CORNER_RANK_SQL = """CASE WHEN coalesce(lt.corner_laps_over_one, FALSE) THEN NULL
+                    WHEN lt.first_corner_no = 1 THEN s.corner1 WHEN lt.first_corner_no = 2 THEN s.corner2
+                    WHEN lt.first_corner_no = 3 THEN s.corner3 WHEN lt.first_corner_no = 4 THEN s.corner4 END"""
+#: コーナーの順位から脚質を決める線（頭数に対する割合）。先頭が逃げ、前から 35% までが先行、70% までが差し、残りが追込。
+_FRONT_SHARE, _MIDDLE_SHARE = 0.35, 0.70
+
+
+def _style_code_sql(source: "FactsSource") -> str:
+    """脚質コードの式。中央はレース後の判定（``今回レース脚質判定``）をそのまま。地方（``style_from_corners``）は判定が無いので、
+    最初のコーナーの順位（無ければ4コーナーの順位）と頭数から作る。順位も無ければ判定のまま（不明）。"""
+    if not source.style_from_corners:
+        return "s.style_code"
+    rank = f"coalesce({_FIRST_CORNER_RANK_SQL}, s.corner4)"
+    return f"""CASE WHEN s.style_code IN {keys.sql_list(codes.STYLE_NAMES)} THEN s.style_code
+                    WHEN {rank} IS NULL OR r.field_size IS NULL THEN s.style_code
+                    WHEN {rank} = 1 THEN '1'
+                    WHEN {rank} <= ceil(r.field_size * {_FRONT_SHARE}) THEN '2'
+                    WHEN {rank} <= ceil(r.field_size * {_MIDDLE_SHARE}) THEN '3'
+                    ELSE '4' END"""
 
 
 def has_table(con: duckdb.DuckDBPyConnection, table: str) -> bool:
@@ -282,6 +312,8 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
     class_name_sql = source.class_name_sql("cond_code", "grade_code", "cond_name")
     tm_table = optional_relation(con, "tm__マイニング予想", _TM_COLUMNS)
     corner_table = optional_relation(con, _CORNER_TABLE, _CORNER_COLUMNS)
+    trainer_area_table = optional_relation(con, source.trainer_area_table or _NO_TABLE, _TRAINER_AREA_COLUMNS)
+    style_code_sql = _style_code_sql(source)
     sex_order = {name: index for index, name in enumerate(codes.SEX_NAMES.values())}
     style_order = {code: index for index, code in enumerate(codes.STYLE_NAMES)}
     return f"""
@@ -374,6 +406,10 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
         SELECT race_id, horse_no, tm_score,
                rank() OVER (PARTITION BY race_id ORDER BY tm_score DESC) AS tm_rank
         FROM tm_rows
+    ), trainer_area AS (
+        -- 調教師の所属（地方の調教師マスタの招待地域名）。表が無ければ空
+        SELECT "調教師コード" AS trainer_code, max(trim("招待地域名")) AS trainer_area
+        FROM {trainer_area_table} WHERE trim("招待地域名") <> '' GROUP BY ALL
     ), joined AS (
         SELECT r.race_id, r.race_date, r.month, r.venue_code,
                {codes.sql_case("r.venue_code", source.venue_names, "?")} AS venue,
@@ -385,9 +421,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
                r.cond_code, r.grade_code, r.cond_name, r.weight_type_code, r.field_size, r.first3f, r.last3f_race,
                lt.first_corner_no, lt.corner_count, coalesce(lt.corner_laps_over_one, FALSE) AS corner_laps_over_one,
                lt.leader_text_no,
-               CASE WHEN coalesce(lt.corner_laps_over_one, FALSE) THEN NULL
-                    WHEN lt.first_corner_no = 1 THEN s.corner1 WHEN lt.first_corner_no = 2 THEN s.corner2
-                    WHEN lt.first_corner_no = 3 THEN s.corner3 WHEN lt.first_corner_no = 4 THEN s.corner4 END AS first_corner_rank,
+               {_FIRST_CORNER_RANK_SQL} AS first_corner_rank,
                s.frame_no, s.horse_no, s.horse_id, s.horse_name,
                {codes.sql_case("s.sex_code", codes.SEX_NAMES, "?")} AS sex,
                s.age, s.jockey_code, s.jockey, s.trainer_code, s.trainer, s.carried, s.body_weight,
@@ -403,13 +437,13 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
                CASE WHEN s.diff_raw IS NULL OR trim(s.diff_raw) = '' OR s.diff_raw = '9999' THEN NULL
                     ELSE TRY_CAST(s.diff_raw AS INTEGER) / 10.0 END AS time_diff,
                s.corner1, s.corner2, s.corner3, s.corner4, s.last3f,
-               {codes.sql_case("s.style_code", codes.STYLE_NAMES, "不明")} AS style,
-               s.style_code,
+               {codes.sql_case(style_code_sql, codes.STYLE_NAMES, "不明")} AS style,
+               {style_code_sql} AS style_code,
                p.sire, p.grandsire, p.damsire,
                coalesce(w.win_payout, 0) AS win_payout,
                coalesce(pl.place_payout, 0) AS place_payout,
                s.dm_rank, t.tm_rank, t.tm_score,
-               s.area_code, s.has_blinker, s.is_apprentice
+               s.area_code, s.has_blinker, s.is_apprentice, ta.trainer_area
         FROM runner s
         JOIN race r USING (race_id)
         LEFT JOIN leader_text lt ON lt.race_id = s.race_id
@@ -417,6 +451,7 @@ def facts_sql(con: duckdb.DuckDBPyConnection, entry: EntryScope | None = None,
         LEFT JOIN win_payout w ON w.race_id = s.race_id AND w.horse_no = s.horse_no
         LEFT JOIN place_payout pl ON pl.race_id = s.race_id AND pl.horse_no = s.horse_no
         LEFT JOIN tm_pred t ON t.race_id = s.race_id AND t.horse_no = s.horse_no
+        LEFT JOIN trainer_area ta ON ta.trainer_code = s.trainer_code
     ), typed AS (
         SELECT *,
                {codes.sql_case("surface", codes.SURFACE_ORDER, 9)} AS surface_order,

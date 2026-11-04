@@ -84,9 +84,9 @@ src/yosou/local_form_aptitude_top3/   地方競馬の近走と適性から3着�
 | クラス | 仕事 | 主な public メソッド |
 |---|---|---|
 | `CommandLine` | 入口。引数を読み、サブコマンド（train・predict・backtest）を実行し、結果の表を出す | `run(引数)` |
-| `TrainCommand` | `train`: 学習する。1つの学習データ（`local_dataset_builder`）から、3つの時点の3着以内のモデルと1着のモデル（`WinTargetData`）、当日の券種オッズなしのモデル（`PoolFreeData`）を学ぶ。3着以内のモデルに渡す前に `FinishPowerFreeData` で Q を外す。学習のあとに複勝の見込みの倍率（`PlacePriceStep`）を保存する。元DB は学習データを読む段だけ開く | `run(引数)` |
-| `PredictCommand` | `predict`: 1レースを予測する。`--odds 馬番:オッズ` で単勝オッズを渡せる。時点はどれでも同じ `local_dataset_builder` | `run(引数)` |
-| `BacktestCommand` | `backtest`: テスト期間の確かめ。`BacktestWorkflow` を呼び、当たり具合の表を出し、予測の表を `reports/地方競馬の近走と適性から3着以内を予想/predictions/` に書く | `run(引数)` |
+| `TrainCommand` | `train`: 学習する。1つの学習データ（`local_dataset_builder`）から、3つの時点の3着以内のモデルと1着のモデル（`WinTargetData`）、当日の券種オッズなしのモデル（`PoolFreeData`）を学ぶ。3着以内のモデルに渡す前に `FinishPowerFreeData` で Q を外す。学習のあとに複勝の見込みの倍率（`PlacePriceStep`）を保存する。元DB は学習データを読む段だけ開く。`--track-bias` を付けたときだけ、当日のモデルに当日の馬場傾向（U。`LocalBiasHistory`＋`BiasAttachment`）を足して学び、置き場所に印（`TrackBiasMarker`）を書く | `run(引数)` |
+| `PredictCommand` | `predict`: 1レースを予測する。`--odds 馬番:オッズ` で単勝オッズを渡せる。時点はどれでも同じ `local_dataset_builder`。当日で、置き場所に `TrackBiasMarker` の印がある（`train --track-bias` で学んだ）ときだけ、当日の馬場傾向（U）を `RaceBiasAttacher`（前らしさは `LocalFrontForecast`）で予測用データに足す | `run(引数)` |
+| `BacktestCommand` | `backtest`: テスト期間の確かめ。`BacktestWorkflow` を呼び（置き場所に `TrackBiasMarker` の印があれば当日の学習データに U を足す）、当たり具合の表を出し、予測の表を `reports/地方競馬の近走と適性から3着以内を予想/predictions/` に書く | `run(引数)` |
 | `CommonArguments`（`shared`） | 共通の引数（`--models` `--db` `--format` `--out`）。予想の名前と、元DB の既定（`db.LOCAL`）を受け取る | `add_to(parser)` |
 | `PeriodArguments`（この予想） | `train` と `backtest` に共通の、学習データの期間の引数（`--warmup-from` `--train-from` `--valid-from` `--test-from`）と、引数から `TrainingPeriod` を作ること | `add_to(parser)`、`period_of(args)` |
 
@@ -121,6 +121,20 @@ src/yosou/local_form_aptitude_top3/   地方競馬の近走と適性から3着�
 | `LOCAL_BASE_FEATURES` | 土台の 65個。共通の `BASE_FEATURES`（71個）から調教（I）の6個を除き、枠番・馬番の「いつから分かるか」を出馬表（`thursday`）に付け直したもの（[07-prediction-timing.md](07-prediction-timing.md#時点ごとに使う特徴量)） |
 | `CATALOG` | この予想の特徴量の一覧（96個）: `LOCAL_BASE_FEATURES` + `MARKET_FEATURES`（J）+ `PEOPLE_MARKET_FEATURES`（L）+ `HEAD_TO_HEAD_FEATURES`（O）+ `POOL_SUPPORT_FEATURES`（N）+ `FINISH_POWER_FEATURES`（Q。この予想では当日の1着のモデルだけが使うので、「いつから分かるか」を当日にして出馬表・前日のモデルには渡さない）。学習データと予測用データはこの一覧で作り、3着以内のモデルに渡す前に Q を、券種のオッズが無いときに N を外す |
 | `TIMING_LABELS`（`workflow/`） | 時点の表示名。`thursday` → 出馬表、`day_before` → 前日、`race_day` → 当日 |
+
+### `src/yosou/local_track_bias/` — 当日の馬場傾向（U。この予想が `train --track-bias` のときだけ当日に足す材料。本番は足さない）
+
+中央のトラックバイアスの部品（`yosou.track_bias` の `RaceSlopes`・`DaySlopes`・`PriorSlopeTableBuilder`・`UsedSlopes`・`BiasCorrection`・`YearlyBias`・`BiasAttachment`・`BiasRunRepository`・`RaceEntryRepository`・`PriorSlopeTableStore`・`RaceBiasAttacher`）をそのまま使い、地方で違うところだけをここに置く。
+
+| クラス | 仕事 | 主な public メソッド |
+|---|---|---|
+| `FrontPosition` | 過去の全出走（`BiasRunRepository` の表）から、馬ごとに「そのレースより前の直近3走の4コーナーの位置の平均」（前らしさの見込み）を出す | `of(出走の表)` |
+| `PastPositionRepository`（`repository/`） | これから走る1レースの出走馬の、直近3走の4コーナーの位置の平均を事実表から読む | `read(開催日, 馬ID の並び)` |
+| `LocalBiasHistory` | 過去の全出走に、年ごとの過去の傾きと先に終わったレースの傾きで U を付ける（`train`・`backtest` が使う） | `of(時点, 出走の表)` |
+| `LocalFrontForecast` | これから走る1レースの出走馬の前らしさの見込みを返す関数の形（`RaceBiasSource` の `forecast` に渡す。`predict` が使う） | `run(接続, レースID, 時点, オッズ)` |
+| `LOCAL_TRACK_BIAS_FEATURES` | U の一覧（名前は中央と同じ5個。いつから分かるかを当日にしたもの） | ― |
+| `local_bias_cache_folder_beside(モデルの置き場所)` | レースごとの傾きと過去の傾きの表をとっておく場所（モデルの置き場所の2つ上の `地方の当日の馬場傾向/cache/`。元DB が変わったら作り直す） | ― |
+| `TrackBiasMarker` | モデルの置き場所に「当日のモデルを U で学んだ」印（`当日の馬場傾向.json`。中身は U の名前）を書く・読む。`train --track-bias` が書き、`backtest`・`predict` が読んで U を足すか決める | `save()`、`exists()` |
 
 ### tools/共通/local_codes.py — 地方のコード値と決めごと
 
