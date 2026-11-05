@@ -21,7 +21,7 @@ from .calibration_check import CalibrationCheck
 from .evaluator import Evaluator
 from .explained_prediction import ExplainedPrediction
 from .model_segments import WHOLE, ModelSegments
-from .prediction_workflow import PROBABILITY, WIN_PROBABILITY, DataAttachment, PaceSource, PredictionWorkflow
+from .prediction_workflow import PROBABILITY, WIN_PROBABILITY, WIN_PROBABILITY_MEMBER, DataAttachment, PaceSource, PredictionWorkflow
 from .segmented_holdout_prediction import SegmentedHoldoutPrediction
 from .segmented_prediction import AVERAGE, SegmentedPrediction
 from .segmented_training import SegmentedTraining
@@ -30,6 +30,6 @@ from .training_workflow import TrainingWorkflow
 __all__ = [
     "TrainingWorkflow", "ModelSegments", "WHOLE", "SegmentedTraining", "SegmentedPrediction", "AVERAGE",
     "SegmentedHoldoutPrediction", "CalibrationCheck", "Evaluator",
-    "PredictionWorkflow", "ExplainedPrediction", "PROBABILITY", "WIN_PROBABILITY", "PaceSource", "DataAttachment",
+    "PredictionWorkflow", "ExplainedPrediction", "PROBABILITY", "WIN_PROBABILITY", "WIN_PROBABILITY_MEMBER", "PaceSource", "DataAttachment",
     "BacktestWorkflow", "MARKET_NAME", "FIELD_SHARE_NAME",
 ]

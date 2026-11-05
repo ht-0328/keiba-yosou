@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from 発走前の通知.local_bets import LocalBets
+from 地方の推奨買目.recommendation_set import RecommendationSet
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,8 @@ class LocalRaceCard:
     table: pd.DataFrame
     #: 馬番 → 枠番（馬番の色づけに使う。無い馬は色を付けない）。
     frames: Mapping[int, int]
-    bets: LocalBets
+    #: 実際に買う買い目（推奨買目＋全頭の予想の単勝・複勝）。無ければ理由を持つ。
+    bets: RecommendationSet
 
     @property
     def title(self) -> str:

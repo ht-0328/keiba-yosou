@@ -39,12 +39,12 @@
 | `analysis/runner_enrichment.py` | 出走の表を作る（事実表 → 地区・場内順位・帯・事情） |
 | `analysis/theory.py` `theory_catalog.py` `theory_check_table.py` `popularity_baseline.py` `odds_baseline.py` `race_theory_table.py` | 理論と、その検証の表 |
 | `analysis/trifecta/` | 組の確率（`harville_combos.py`・3着以内に合わせた勝つ力 `fitted_strength.py`）・市場の見立て（馬 `race_market.py`・組 `combo_market.py`）・買い方（`strategy.py` `strategy_catalog.py`）・買い目（`ticket_plan.py`）・成績（`simulator.py`）・組の確率の直し（`combo_calibration.py` `calibration_study.py`） |
-| `analysis/positions/` | 段5（1着・2着・3着を分けて市場に合わせる）: 条件つきロジット `conditional_logit.py`・票の表 `pool_tables.py` `pool_tables_builder.py`・特徴量 `position_features.py`・係数 `position_coefficients.py`・1着2着3着のモデル `position_model.py`・全頭の予想のモデルごとの確率 `member_predictions.py`・券種ごとの確率 `ticket_probabilities.py`・買い方 `ticket_plan.py`・成績 `ticket_summary.py`・流れ `positions_study.py` |
+| `analysis/positions/` | 段5（1着・2着・3着を分けて市場に合わせる）の研究に残る部分: 流れ `positions_study.py`・成績 `ticket_summary.py`。条件つきロジット・票の表・特徴量・係数・1着2着3着のモデル・券種ごとの確率・買い方・全頭の予想のモデルごとの確率の読み出しは、本番の道具 `tools/地方の推奨買目/` に移した（研究はそれを使う） |
 | `analysis/popularity_band.py` `payout_band.py` `venue_area.py` | 人気の帯・配当の帯・地区の決めごと |
 | `analysis/jockey_venue_rank.py` `runner_circumstances.py` | 騎手の場内順位と、馬の事情（真偽の列） |
 | `analysis/outcome_pattern_table.py` `circumstance_share_table.py` `race_condition_table.py` `case_list_table.py` | 表（決着の型・事情の割合・レースの条件・事例の一覧） |
 | `analysis/case_report.py` | 表を Markdown にまとめて書く |
-| `analysis/repository/` | 元DB を読むリポジトリ（1 SQL につき 1 クラス。事実表・3連単と3連複の払戻とオッズ・調教師と馬の所属） |
+| `analysis/repository/` | 元DB を読むリポジトリ（1 SQL につき 1 クラス。事実表・3連単と3連複の払戻・調教師と馬の所属）。券種と3連単の確定オッズのリポジトリは `tools/地方の推奨買目/repository/` に移し、ここから同じ名前で使える |
 | `docs/` | 進め方と結果の読み方（01 事例・02 理論・03 3連単の買い方・04 予想方法の段ごとの精度・05 1着2着3着を分けて市場に合わせる） |
 | `tests/` | 架空の値で部品を確かめるテスト（実DB は要らない） |
 | `reports/地方の万馬券/`（Git 対象外） | `事例.md`・`事例の馬.csv`・`事例のレース.csv`・`理論の検証.md`・`3連単の買い方.md`・`3連単の買い方の買い目.csv`・`3連単の買い方-2024検証*.md`（2024〜2026年）・`組の確率の直し.md`・`全券種の買い方.md`・`全券種の買い方の買い目.csv`（段5。`-前の年`・`-3連単の票だけ` は当てはめ方と材料を変えたもの） |

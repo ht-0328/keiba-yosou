@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import duckdb
 
-from 発走前の通知.local_frame_repository import LocalFrameRepository
+from 地方の推奨買目.repository.local_frame_repository import LocalFrameRepository
 
 _COLUMNS = ("データ区分", "データ作成年月日", "開催年", "開催月日", "競馬場コード", '"開催回[第N回]"', '"開催日目[N日目]"',
             "レース番号", "枠番", "馬番")

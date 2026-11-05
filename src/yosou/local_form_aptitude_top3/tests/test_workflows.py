@@ -55,7 +55,8 @@ def test_command_predicts_the_entry_list_timing_without_odds(local_season_db: Pa
     ])
     lines = capsys.readouterr().out.strip().splitlines()
     assert code == 0 and len(lines) == 1 + 8
-    assert lines[0] == f"順位,馬番,馬名,{WIN_PROBABILITY},{PROBABILITY},LightGBM,CatBoost"
+    # 1着になる確率は平均のあとにモデルごと（地方の推奨買目の材料）も出す
+    assert lines[0] == f"順位,馬番,馬名,{WIN_PROBABILITY},{WIN_PROBABILITY}（LightGBM）,{WIN_PROBABILITY}（CatBoost）,{PROBABILITY},LightGBM,CatBoost"
 
 
 def test_command_shows_the_odds_it_used_on_race_day(local_season_db: Path, trained, capsys):

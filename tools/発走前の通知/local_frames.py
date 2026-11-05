@@ -6,7 +6,7 @@ from pathlib import Path
 
 from 共通 import db
 
-from 発走前の通知.local_frame_repository import LocalFrameRepository
+from 地方の推奨買目.repository.local_frame_repository import LocalFrameRepository
 
 
 class LocalFrames:

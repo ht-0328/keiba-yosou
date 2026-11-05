@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .position_model import PROBABILITY
+from 地方の推奨買目.position_model import PROBABILITY
 
 _YEN_PER_POINT = 100
 _MAN, _JUMAN = 10_000, 100_000

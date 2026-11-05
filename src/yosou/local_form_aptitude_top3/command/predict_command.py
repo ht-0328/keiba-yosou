@@ -17,8 +17,17 @@ from yosou.shared.feature.group import WIN_ODDS
 from yosou.shared.feature.odds import TOP3_RATE
 from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
+from yosou.shared.ml_model import MEMBER_TYPES
 from yosou.shared.win_value import WIN_VALUE
-from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, DataAttachment, ModelSegments, PredictionWorkflow, SegmentedPrediction
+from yosou.shared.workflow import (
+    PROBABILITY,
+    WIN_PROBABILITY,
+    WIN_PROBABILITY_MEMBER,
+    DataAttachment,
+    ModelSegments,
+    PredictionWorkflow,
+    SegmentedPrediction,
+)
 from yosou.local_track_bias import LOCAL_TRACK_BIAS_FEATURES, LocalFrontForecast, TrackBiasMarker, local_bias_cache_folder_beside
 from yosou.track_bias import BiasAttachment, PriorSlopeTableStore, RaceBiasAttacher
 
@@ -85,8 +94,10 @@ class PredictCommand:
 
     def _extra_columns(self, prediction: pd.DataFrame) -> list[str]:
         """馬名のあとに出す列。前日・当日は単勝オッズ・オッズから見た3着以内率・複勝的中の確率・複勝の期待値
-        （見込みの倍率を保存してあれば）・1着になる確率・単勝の期待値を出し、出馬表（オッズを使わない）は1着になる確率だけ。"""
-        shown = (WIN_ODDS, TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE, WIN_PROBABILITY, WIN_VALUE)
+        （見込みの倍率を保存してあれば）・1着になる確率（平均と、モデルごと）・単勝の期待値を出し、出馬表（オッズを使わない）は1着になる確率だけ。
+        モデルごとの1着になる確率は、地方の推奨買目（1着・2着・3着を分けて市場に合わせる）の材料。"""
+        members = [WIN_PROBABILITY_MEMBER.format(member=model_type.name) for model_type in MEMBER_TYPES]
+        shown = (WIN_ODDS, TOP3_RATE, PLACE_PROBABILITY, PLACE_VALUE, WIN_PROBABILITY, *members, WIN_VALUE)
         return [column for column in shown if column in prediction.columns]
 
     def _place_price(self, args: argparse.Namespace) -> PlacePriceEstimator | None:

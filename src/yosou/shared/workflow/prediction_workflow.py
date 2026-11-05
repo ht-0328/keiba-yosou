@@ -32,6 +32,9 @@ WIN_PROBABILITY = "1着になる確率"
 #: モデルごとの単勝の期待値の列の名前（例 ``単勝の期待値（LightGBM）``）。2モデル一致（◎ の単勝の期待値が、2つのモデルのそれぞれの確率でも
 #: 線以上）を見るのに使う（研究「レースの種類ごとの買い方」の docs/04 の 9）。
 WIN_VALUE_MEMBER = "単勝の期待値（{member}）"
+#: モデルごとの1着になる確率の列の名前（例 ``1着になる確率（LightGBM）``）。地方の推奨買目（1着・2着・3着を分けて市場に合わせる）が、
+#: 2つのモデルの食い違いを材料にするのに使う。
+WIN_PROBABILITY_MEMBER = "1着になる確率（{member}）"
 #: 1レースの展開の予想の予測（まとまり P の元の予測の表）を返す関数（レースID, 時点, 利用者が渡したオッズ）。
 PaceSource = Callable[[str, PredictionTiming, OddsInput | None], pd.DataFrame]
 #: 予測用データに列を足す関数（予測用データ, レースID, 時点, 利用者が渡したオッズ → 列を足した予測用データ）。
@@ -138,9 +141,11 @@ class PredictionWorkflow:
         except FileNotFoundError:
             return pd.DataFrame(index=win_data.ids.index)
         probability = predicted[AVERAGE].rename(WIN_PROBABILITY)
+        member_names = [name for name in predicted.columns if name != AVERAGE]
+        member_probabilities = [predicted[name].rename(WIN_PROBABILITY_MEMBER.format(member=name)) for name in member_names]
         members = [self._win_value.of(predicted[name], win_data).rename(columns=lambda _, n=name: WIN_VALUE_MEMBER.format(member=n))
-                   for name in predicted.columns if name != AVERAGE]
-        return pd.concat([probability, self._win_value.of(probability, win_data), *members], axis=1)
+                   for name in member_names]
+        return pd.concat([probability, *member_probabilities, self._win_value.of(probability, win_data), *members], axis=1)
 
     def _shown_odds(self, data: PredictionData) -> pd.DataFrame:
         """結果の表に出す単勝オッズと複勝の最低オッズ。オッズを使わない時点は、列を出さない（設計書 07）。
