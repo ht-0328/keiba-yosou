@@ -8,10 +8,13 @@
     uv run python tools/発走前の通知/notify.py --no-prepare          # 朝の準備を飛ばす（週末の予想を済ませてあるとき）
     uv run python tools/発走前の通知/notify.py --no-sync             # 出馬表の取り込み（jvstore sync）だけ飛ばす
     uv run python tools/発走前の通知/notify.py --minutes 10          # 発走の何分前に始めるか（既定は設定ファイルか 10）
+    uv run python tools/発走前の通知/notify.py --local               # 地方競馬（nvdata-store の速報と地方の予想モデル。印と、当日の単勝・複勝の買い目）
 
 ウェブフック URL は reports/発走前の通知/設定.json（{"webhook_url": "https://discord.com/api/webhooks/…"}）か、
 環境変数 KEIBA_DISCORD_WEBHOOK に置く（Git には入れない）。
 速報の取り込みは隣の jvdata-store（jvstore）、予想は tools/今週の予想/forecast.py を別プロセスで動かす。
+地方（--local）は nvdata-store（nvstore）と地方の予想モデル（yosou.local_form_aptitude_top3 の predict）。朝の全レースの予想は無く、
+馬体重が届く前のレースは前日の時点（オッズだけ）で予想する。
 取り込みと予想に 1〜2分かかるので、通知は発走の 8〜9分前に届く。
 ダブルクリックなら同じフォルダの run.bat。毎日 8:30 に自動で動かすなら register_task.bat（解除は unregister_task.bat）。
 """
@@ -26,16 +29,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE.parents[0])]
 
-from 今週の予想.forecast_store import ForecastStore  # noqa: E402
-
 from 発走前の通知.console_poster import ConsolePoster  # noqa: E402
-from 発走前の通知.day_notifier import DayNotifier  # noqa: E402
+from 発走前の通知.day_notifier import DayNotifier, Schedule  # noqa: E402
 from 発走前の通知.discord_webhook import DiscordWebhook  # noqa: E402
-from 発走前の通知.forecast_runner import ForecastRunner  # noqa: E402
+from 発走前の通知.notifier_parts import NotifierParts  # noqa: E402
 from 発走前の通知.notify_settings import NotifySettings  # noqa: E402
-from 発走前の通知.race_message import RaceMessage  # noqa: E402
-from 発走前の通知.race_schedule import RaceSchedule  # noqa: E402
-from 発走前の通知.store_fetcher import StoreFetcher  # noqa: E402
 
 #: --test で投稿する文。
 TEST_MESSAGE = "keiba-yosou 発走前の通知: つながりました。開催日は発走の10分前に予想を投稿します。"
@@ -50,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-prepare", action="store_true", help="朝の準備（出馬表・速報の取り込み・全レースの予想）を飛ばす")
     parser.add_argument("--no-sync", action="store_true", help="出馬表の取り込み（jvstore sync）を飛ばす")
     parser.add_argument("--minutes", type=int, help="発走の何分前に取り込みと予想を始めるか（既定: 設定ファイルの値か 10）")
+    parser.add_argument("--local", action="store_true", help="地方競馬で動かす（nvdata-store の速報と地方の予想モデル）")
     return parser
 
 
@@ -62,16 +61,16 @@ def main() -> int:
         print("投稿しました", file=sys.stderr)
         return 0
     day = args.date or (f"{args.rid[:4]}-{args.rid[4:6]}-{args.rid[6:8]}" if args.rid else date.today().isoformat())
-    store = ForecastStore()
-    notifier = DayNotifier(minutes_before=args.minutes or settings.minutes_before, schedule=RaceSchedule(), fetcher=StoreFetcher(),
-                           runner=ForecastRunner(), message=RaceMessage(store), poster=poster, store=store, sync=not args.no_sync)
+    parts = NotifierParts.local() if args.local else NotifierParts.jra()
+    notifier = DayNotifier(minutes_before=args.minutes or settings.minutes_before, schedule=parts.schedule, fetcher=parts.fetcher,
+                           runner=parts.runner, message=parts.message, poster=poster, store=parts.store, sync=not args.no_sync)
     if args.rid:
-        return _notify_one(notifier, day, args.rid)
+        return _notify_one(notifier, parts.schedule, day, args.rid)
     return notifier.run(day, prepare=not args.no_prepare)
 
 
-def _notify_one(notifier: DayNotifier, day: str, rid: str) -> int:
-    race = next((race for race in RaceSchedule().read(day) if race.rid == rid), None)
+def _notify_one(notifier: DayNotifier, schedule: Schedule, day: str, rid: str) -> int:
+    race = next((race for race in schedule.read(day) if race.rid == rid), None)
     if race is None:
         print(f"{rid} は {day} のレース一覧にありません（障害レースか、rid の間違い）", file=sys.stderr)
         return 1

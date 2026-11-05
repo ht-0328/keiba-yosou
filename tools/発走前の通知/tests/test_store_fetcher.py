@@ -52,3 +52,26 @@ def test_失敗したら出力の最後を添えて止まる() -> None:
     run = _Run(returncode=1, output="1\n2\n3\n4\n5\nDB を別の画面で使用中です")
     with pytest.raises(RuntimeError, match="速報の取り込み（2025-04-19）に失敗しました:\n2\n3\n4\n5\nDB を別の画面で使用中です"):
         _fetcher(run).fetch_day("2025-04-19")
+
+
+class _LocalRun:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command, **_) -> subprocess.CompletedProcess:
+        self.commands.append(list(command))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+
+def test_地方は_nvstore_を呼び_出馬表は3種類だけ_速報は馬体重までの3種類とそのレースのオッズ() -> None:
+    run = _LocalRun()
+    fetcher = StoreFetcher.local(run=run, uv="uv", log=lambda _: None)
+    fetcher.sync()
+    fetcher.fetch_day("2026-11-05")
+    fetcher.fetch_race("2026-11-05", "2026110547150401")
+    assert run.commands[0][3].endswith("nvdata-store")
+    assert run.commands[0][4:] == ["nvstore", "sync", "--dataspec", "RACE,DIFN,SNAP"]
+    assert run.commands[1][4:] == ["nvstore", "realtime", "--db", "nvdata.duckdb", "--date", "2026-11-05"]
+    assert [command[7] for command in run.commands[2:5]] == ["0B15", "0B14", "0B11"]
+    assert run.commands[5][4:] == ["nvstore", "rt", "--dataspec", "0B30", "--key", "2026110547150401", "--db", "nvdata.duckdb"]
+    assert len(run.commands) == 6

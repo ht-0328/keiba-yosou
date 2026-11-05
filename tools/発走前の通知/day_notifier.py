@@ -6,16 +6,11 @@ import sys
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Protocol
 
-from 今週の予想.forecast_store import ForecastStore
-
-from 発走前の通知.forecast_runner import ForecastRunner
-from 発走前の通知.race_message import RaceMessage
 from 発走前の通知.race_notice import RaceNotice
-from 発走前の通知.race_schedule import RaceSchedule
 from 発走前の通知.scheduled_race import ScheduledRace
-from 発走前の通知.store_fetcher import StoreFetcher
 
 #: 発走までこれより短いレースは通知しない（取り込みと予想に 1〜2分かかる）。
 DEFAULT_MARGIN = timedelta(minutes=2)
@@ -23,6 +18,38 @@ DEFAULT_MARGIN = timedelta(minutes=2)
 MAX_NAP = timedelta(minutes=5)
 #: 失敗の知らせの頭に付ける印。
 WARNING = "⚠"
+
+
+# 部品のつなぎ目。中央（RaceSchedule・StoreFetcher・ForecastRunner・RaceMessage・ForecastStore）と
+# 地方（LocalRaceSchedule・StoreFetcher.local()・LocalForecastRunner・LocalRaceMessage・LocalForecastStore）を同じ流れで動かす。
+
+
+class Schedule(Protocol):
+    def read(self, day: str) -> list[ScheduledRace]: ...
+
+
+class Fetcher(Protocol):
+    def sync(self) -> None: ...
+
+    def fetch_day(self, day: str) -> None: ...
+
+    def fetch_race(self, day: str, rid: str) -> None: ...
+
+
+class Runner(Protocol):
+    def run_day(self, day: str) -> None: ...
+
+    def run_race(self, rid: str, day: str) -> None: ...
+
+    def log_path(self, day: str) -> Path: ...
+
+
+class Message(Protocol):
+    def build(self, rid: str) -> RaceNotice: ...
+
+
+class SavedAt(Protocol):
+    def saved_at(self, rid: str) -> datetime | None: ...
 
 
 class Poster(Protocol):
@@ -39,8 +66,8 @@ class DayNotifier:
     失敗しても止めず、その旨を投稿して次のレースへ進む。時計と眠りは差し替えられる（テストのため）。
     """
 
-    def __init__(self, *, minutes_before: int, schedule: RaceSchedule, fetcher: StoreFetcher, runner: ForecastRunner,
-                 message: RaceMessage, poster: Poster, store: ForecastStore, sync: bool = True,
+    def __init__(self, *, minutes_before: int, schedule: Schedule, fetcher: Fetcher, runner: Runner,
+                 message: Message, poster: Poster, store: SavedAt, sync: bool = True,
                  margin: timedelta = DEFAULT_MARGIN, now: Callable[[], datetime] = datetime.now,
                  sleep: Callable[[float], None] = time.sleep, log: Callable[[str], None] = _stderr) -> None:
         self._minutes = minutes_before
@@ -61,7 +88,7 @@ class DayNotifier:
         if prepare and self._sync:
             self._prepare_step("出馬表の取り込み", self._fetcher.sync)
         if not self._schedule.read(day):
-            self._log(f"{day} に予想するレースがありません（出馬表が DB に無い週は、jvdata-store で jvstore sync）")
+            self._log(f"{day} に予想するレースがありません（出馬表が DB に無ければ、jvstore sync か nvstore sync で取り込む）")
             return 1
         if prepare:
             self._prepare(day)
