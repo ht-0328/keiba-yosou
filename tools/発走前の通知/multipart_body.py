@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping, Sequence
+from pathlib import PurePath
 
 #: 部品の区切り（CRLF）。
 _CRLF = "\r\n"
+#: 添付ファイルの種類（拡張子で決める。Discord が画像をそのまま表示できるように）。無ければ octet-stream。
+_CONTENT_TYPES: dict[str, str] = {".png": "image/png", ".md": "text/markdown"}
+_DEFAULT_CONTENT_TYPE = "application/octet-stream"
 
 
 class MultipartBody:
@@ -28,6 +32,7 @@ class MultipartBody:
         return f"{head}{value}{_CRLF}".encode("utf-8")
 
     def _file(self, name: str, filename: str, data: bytes) -> bytes:
+        content_type = _CONTENT_TYPES.get(PurePath(filename).suffix.lower(), _DEFAULT_CONTENT_TYPE)
         head = (f"--{self._boundary}{_CRLF}Content-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"{_CRLF}"
-                f"Content-Type: application/octet-stream{_CRLF}{_CRLF}")
+                f"Content-Type: {content_type}{_CRLF}{_CRLF}")
         return head.encode("utf-8") + data + _CRLF.encode("utf-8")

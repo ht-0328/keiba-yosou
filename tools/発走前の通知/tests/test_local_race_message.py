@@ -1,9 +1,12 @@
-"""LocalRaceMessage（地方の predict の JSON から印と買い目の文を作る）のテスト。予想の値は架空。"""
+"""LocalRaceMessage（地方の predict の JSON から通知の中身・文・添付の画像を作る）のテスト。予想の値は架空。"""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 
+from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.local_race_message import LocalRaceMessage
 from 発走前の通知.scheduled_race import ScheduledRace
 
@@ -19,33 +22,65 @@ ROWS = [
     [7, 6, "ナナバン", 80.0, 0.04, 0.05, 0.50, 0.005, 0.40, 0.05, 0.05, 0.05],
     [8, 5, "ハチバン", 150.0, 0.02, 0.02, 0.30, 0.002, 0.30, 0.02, 0.02, 0.02],
 ]
-RACE = ScheduledRace(rid="2026110547150401", venue="笠松", number=1, name="", post=datetime(2026, 11, 5, 10, 25))
+RID = "2026110547150401"
+RACE = ScheduledRace(rid=RID, venue="笠松", number=1, name="", post=datetime(2026, 11, 5, 10, 25))
 
 
 def _forecast(timing: str) -> dict:
-    return {"title": f"2026110547150401（2026-11-05）の予測: {timing}の時点", "columns": COLUMNS, "rows": [list(row) for row in ROWS], "note": "", "meta": {}}
+    return {"title": f"{RID}（2026-11-05）の予測: {timing}の時点", "columns": COLUMNS, "rows": [list(row) for row in ROWS], "note": "", "meta": {}}
 
 
-def test_当日は見出し_印の付いた全頭の表_単勝と複勝の買い目() -> None:
-    text = LocalRaceMessage().describe(_forecast("当日"), RACE)
-    lines = text.splitlines()
-    assert lines[0] == "**笠松 1R（10:25 発走）** 地方の予想・当日の時点"
-    assert lines[1].startswith("印 馬番 馬名 |")
-    assert lines[2] == "◎ 7 イチバン | 3.0 | 78% | 35% | 1.10 | 1.05"
-    assert lines[3].startswith("○ 4 ニバン |")
-    assert len(lines[2:10]) == 8
-    assert "実際に買う:" in lines
-    assert "単勝 ◎7 イチバン（期待値 1.05）100円" in lines
-    assert "複勝 3 ヨンバン（期待値 1.30）100円" in lines
+class _Schedule:
+    def read(self, day: str) -> list[ScheduledRace]:
+        return [RACE]
+
+
+class _Frames:
+    def read(self, rid: str) -> dict[int, int]:
+        return {7: 5, 4: 3}
+
+
+def test_中身は印の順の全頭と_見出し_買い目() -> None:
+    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5})
+    assert card.title == "笠松 1R（10:25 発走）"
+    assert card.heading == "笠松 1R" and card.post == "10:25 発走" and card.race_day
+    assert list(card.table["mark"]) == ["◎", "○", "▲", "△", "△", "△", "☆", "注"]
+    assert list(card.table["horse_no"])[:6] == [7, 4, 8, 3, 2, 1]
+    assert card.frames == {7: 5}
+    assert card.bets.lines == ("単勝 ◎7 イチバン（期待値 1.05）100円", "複勝 3 ヨンバン（期待値 1.30）100円")
+
+
+def test_文は_見出し_上位の印_買い目だけ() -> None:
+    message = LocalRaceMessage()
+    text = message.describe(message.card(_forecast("当日"), RACE, {}))
+    assert text.splitlines() == [
+        "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
+        "◎ 7 イチバン　○ 4 ニバン　▲ 8 サンバン",
+        "実際に買う:",
+        "単勝 ◎7 イチバン（期待値 1.05）100円",
+        "複勝 3 ヨンバン（期待値 1.30）100円",
+    ]
 
 
 def test_前日の時点は買い目を出さず_その旨を書く() -> None:
-    text = LocalRaceMessage().describe(_forecast("前日"), RACE)
+    message = LocalRaceMessage()
+    text = message.describe(message.card(_forecast("前日"), RACE, {}))
     assert "前日の時点（馬体重が届く前なのでオッズだけ）" in text.splitlines()[0]
     assert "買い目: なし（馬体重が届く前の前日の時点では買わない）" in text
     assert "100円" not in text
 
 
 def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
-    text = LocalRaceMessage().describe(_forecast("当日"), None)
-    assert text.startswith("**2026110547150401（2026-11-05）の予測: 当日の時点** 地方の予想・当日の時点")
+    message = LocalRaceMessage()
+    card = message.card(_forecast("当日"), None, {})
+    assert message.describe(card).startswith(f"**{RID}（2026-11-05）の予測: 当日の時点** 地方の予想・当日の時点")
+
+
+def test_組み立てると_文と_保存した表の画像の添付(tmp_path: Path) -> None:
+    store = LocalForecastStore(tmp_path)
+    store.path(RID).parent.mkdir(parents=True)
+    store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
+    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames()).build(RID)
+    assert notice.text.startswith("**笠松 1R（10:25 発走）** 地方の予想・当日の時点")
+    assert notice.attachment == store.image_path(RID)
+    assert notice.attachment.stat().st_size > 0

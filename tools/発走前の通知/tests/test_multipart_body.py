@@ -11,8 +11,16 @@ def test_欄と添付を区切りで並べて閉じる() -> None:
     assert body.content_type == "multipart/form-data; boundary=B0UNDARY"
     assert data.startswith(b'--B0UNDARY\r\nContent-Disposition: form-data; name="payload_json"\r\n\r\n')
     assert '{"content": "文"}'.encode("utf-8") + b"\r\n--B0UNDARY\r\n" in data
-    assert 'name="files[0]"; filename="根拠.md"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n'.encode("utf-8") in data
+    assert 'name="files[0]"; filename="根拠.md"\r\nContent-Type: text/markdown\r\n\r\nabc\r\n'.encode("utf-8") in data
     assert data.endswith(b"--B0UNDARY--\r\n")
+
+
+def test_添付の種類は拡張子で決め_知らない拡張子は_octet_stream() -> None:
+    body = MultipartBody("B0UNDARY")
+    png = body.encode({}, [("files[0]", "表.PNG", b"\x89PNG")])
+    other = body.encode({}, [("files[0]", "謎.bin", b"x")])
+    assert b"Content-Type: image/png\r\n" in png
+    assert b"Content-Type: application/octet-stream\r\n" in other
 
 
 def test_区切りを省くと毎回違う() -> None:

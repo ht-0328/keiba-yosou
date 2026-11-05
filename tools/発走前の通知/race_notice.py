@@ -10,5 +10,5 @@ from pathlib import Path
 class RaceNotice:
     #: 投稿する文（印・買い目・◎ の理由と近走）。
     text: str
-    #: 添付する全頭の予想根拠の Markdown。無ければ None。
+    #: 添付するファイル（中央は全頭の予想根拠の Markdown、地方は全頭の表の画像）。無ければ None。
     attachment: Path | None = None
