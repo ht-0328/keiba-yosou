@@ -45,3 +45,15 @@ def test_失敗したら記録の最後を添えて止まる(tmp_path: Path) -> 
     run = _Run(returncode=1, output="進み具合\nTraceback\nValueError: 馬体重がない\n")
     with pytest.raises(RuntimeError, match=r"(?s)の予想に失敗しました（記録: .*2025-04-19\.log）:\n.*ValueError: 馬体重がない"):
         _runner(run, tmp_path).run_race("2025041905010101", "2025-04-19")
+
+
+def test_別のプログラムを渡すと_forecast_py_の代わりに動かし_記録の名前に頭を付ける(tmp_path: Path) -> None:
+    run = _Run(output="{}\n")
+    runner = ForecastRunner(project=Path("proj"), log_folder=tmp_path, log=lambda _: None, run=run, uv="uv",
+                            now=lambda: datetime(2026, 11, 5, 10, 15), program=("python", "-m", "yosou.local_form_aptitude_top3", "predict"),
+                            log_name="地方-")
+    runner.run(["2026110547150401", "--timing", "当日"], "2026110547150401 の予想", "2026-11-05")
+    assert run.commands[0] == ["uv", "run", "--project", "proj", "python", "-m", "yosou.local_form_aptitude_top3", "predict",
+                               "2026110547150401", "--timing", "当日"]
+    assert runner.log_path("2026-11-05") == tmp_path / "地方-2026-11-05.log"
+    assert "# 2026110547150401 の予想（2026-11-05 10:15）" in runner.log_path("2026-11-05").read_text(encoding="utf-8")
