@@ -11,13 +11,17 @@ from 発走前の通知.folders import LOCAL_FOLDER
 
 
 class LocalForecastStore:
-    """``reports/発走前の通知/地方/<開催日>/<rid>.json``。書くのは地方の predict（``--out``）で、ここは場所と読み出しだけ。"""
+    """``reports/発走前の通知/地方/<開催日>/<rid>.json``。書くのは地方の predict（``--out``）で、ここは場所と読み出しだけ。
+    通知に添付する表の画像は同じフォルダの ``<rid>.png``。"""
 
     def __init__(self, folder: Path = LOCAL_FOLDER) -> None:
         self._folder = folder
 
     def path(self, rid: str) -> Path:
         return self._folder / f"{rid[:4]}-{rid[4:6]}-{rid[6:8]}" / f"{rid}.json"
+
+    def image_path(self, rid: str) -> Path:
+        return self.path(rid).with_suffix(".png")
 
     def saved_at(self, rid: str) -> datetime | None:
         """ファイルの更新時刻（無ければ None）。予想し直せたかの確認に使う。"""
