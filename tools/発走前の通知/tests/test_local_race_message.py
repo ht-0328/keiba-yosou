@@ -6,6 +6,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from 地方の推奨買目.recommendation import Recommendation
+from 地方の推奨買目.recommendation_set import RecommendationSet
+
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.local_race_message import LocalRaceMessage
 from 発走前の通知.scheduled_race import ScheduledRace
@@ -24,6 +27,8 @@ ROWS = [
 ]
 RID = "2026110547150401"
 RACE = ScheduledRace(rid=RID, venue="笠松", number=1, name="", post=datetime(2026, 11, 5, 10, 25))
+RECOMMENDED = RecommendationSet((Recommendation("枠連", (3, 5), 8.0, 0.14, 1.12), Recommendation("3連単", (7, 4, 8), 25.0, 0.045, 1.13),
+                                 Recommendation("単勝", (7,), 3.0, 0.36, 1.08)))
 
 
 def _forecast(timing: str) -> dict:
@@ -40,34 +45,52 @@ class _Frames:
         return {7: 5, 4: 3}
 
 
-def test_中身は印の順の全頭と_見出し_買い目() -> None:
-    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5})
+class _Recommendations:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def recommend(self, rid: str, forecast: dict) -> RecommendationSet:
+        self.calls.append(rid)
+        return RECOMMENDED
+
+
+def test_中身は印の順の全頭と_見出し_推奨買目() -> None:
+    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED)
     assert card.title == "笠松 1R（10:25 発走）"
     assert card.heading == "笠松 1R" and card.post == "10:25 発走" and card.race_day
     assert list(card.table["mark"]) == ["◎", "○", "▲", "△", "△", "△", "☆", "注"]
     assert list(card.table["horse_no"])[:6] == [7, 4, 8, 3, 2, 1]
     assert card.frames == {7: 5}
-    assert card.bets.lines == ("単勝 ◎7 イチバン（期待値 1.05）100円", "複勝 3 ヨンバン（期待値 1.30）100円")
+    # 推奨買目の 単勝 7 は ◎ の単勝と同じ組なので1度だけ。複勝 3 は全頭の予想の線（1.30 ≥ 1.25）
+    assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"] and card.bets.points == 4
 
 
-def test_文は_見出し_上位の印_買い目だけ() -> None:
+def test_文は_見出し_上位の印_推奨買目だけ() -> None:
     message = LocalRaceMessage()
-    text = message.describe(message.card(_forecast("当日"), RACE, {}))
+    text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
         "◎ 7 イチバン　○ 4 ニバン　▲ 8 サンバン",
-        "実際に買う:",
-        "単勝 ◎7 イチバン（期待値 1.05）100円",
-        "複勝 3 ヨンバン（期待値 1.30）100円",
+        "推奨買目（1点 100円・合計 4点 400円）:",
+        "単勝 7",
+        "複勝 3",
+        "枠連 3-5",
+        "3連単 7→4→8",
     ]
+
+
+def test_推奨買目が無ければ_全頭の予想の単勝と複勝だけ() -> None:
+    message = LocalRaceMessage()
+    text = message.describe(message.card(_forecast("当日"), RACE, {}))
+    assert text.splitlines()[2:] == ["推奨買目（1点 100円・合計 2点 200円）:", "単勝 7", "複勝 3"]
 
 
 def test_前日の時点は買い目を出さず_その旨を書く() -> None:
     message = LocalRaceMessage()
-    text = message.describe(message.card(_forecast("前日"), RACE, {}))
+    text = message.describe(message.card(_forecast("前日"), RACE, {}, RECOMMENDED))
     assert "前日の時点（馬体重が届く前なのでオッズだけ）" in text.splitlines()[0]
-    assert "買い目: なし（馬体重が届く前の前日の時点では買わない）" in text
-    assert "100円" not in text
+    assert "推奨買目: なし（馬体重が届く前の前日の時点では買わない）" in text
+    assert "100円" not in text.splitlines()[-1]
 
 
 def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
@@ -76,11 +99,14 @@ def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
     assert message.describe(card).startswith(f"**{RID}（2026-11-05）の予測: 当日の時点** 地方の予想・当日の時点")
 
 
-def test_組み立てると_文と_保存した表の画像の添付(tmp_path: Path) -> None:
+def test_組み立てると_推奨買目を呼び_文と_保存した表の画像の添付(tmp_path: Path) -> None:
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
-    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames()).build(RID)
+    recommendations = _Recommendations()
+    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), recommendations=recommendations).build(RID)
+    assert recommendations.calls == [RID]
     assert notice.text.startswith("**笠松 1R（10:25 発走）** 地方の予想・当日の時点")
+    assert "3連単 7→4→8" in notice.text
     assert notice.attachment == store.image_path(RID)
     assert notice.attachment.stat().st_size > 0

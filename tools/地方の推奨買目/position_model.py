@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -31,7 +31,7 @@ class PositionModel:
     first_features: tuple[str, ...] = FIRST_FEATURES
     second_features: tuple[str, ...] = SECOND_FEATURES
     third_features: tuple[str, ...] = THIRD_FEATURES
-    logit: ConditionalLogit = ConditionalLogit()
+    logit: ConditionalLogit = field(default_factory=ConditionalLogit)
 
     @property
     def feature_names(self) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
@@ -45,7 +45,7 @@ class PositionModel:
             rows[1].append(second)
             rows[2].append(third)
         betas = []
-        for parts, features in zip(rows, self.feature_names):
+        for parts, features in zip(rows, self.feature_names, strict=True):
             table = pd.concat(parts)
             chosen = table.groupby("g")["y"].transform("sum").eq(1.0)   # 選ばれた行の無いグループ（オッズの無い組など）は外す
             table = table[chosen]
@@ -77,14 +77,14 @@ class PositionModel:
         counts = h.assign(f1=finish.eq(_FIRST), f2=finish.eq(_SECOND), f3=finish.eq(_THIRD)).groupby("race_id")[["f1", "f2", "f3"]].sum()
         clean = counts[(counts["f1"] == 1) & (counts["f2"] == 1) & (counts["f3"] == 1)].index
         h = h[h["race_id"].isin(clean)]
-        first = h.assign(y=h["finish"].eq(_FIRST).astype(float), g=h["race_id"])[list(self.first_features) + ["y", "g"]]
+        first = h.assign(y=h["finish"].eq(_FIRST).astype(float), g=h["race_id"])[[*self.first_features, "y", "g"]]
         winners = h[h["finish"] == _FIRST][["race_id", "horse_no"]].rename(columns={"horse_no": "first"})
         rest = h[h["finish"] != _FIRST].merge(winners, on="race_id")
         rest = rest.merge(features.pairs(tables.pairs), left_on=["race_id", "first", "horse_no"], right_on=["race_id", "first", "second"], how="inner")
-        second = rest.assign(y=rest["finish"].eq(_SECOND).astype(float), g=rest["race_id"])[list(self.second_features) + ["y", "g"]]
+        second = rest.assign(y=rest["finish"].eq(_SECOND).astype(float), g=rest["race_id"])[[*self.second_features, "y", "g"]]
         seconds = h[h["finish"] == _SECOND][["race_id", "horse_no"]].rename(columns={"horse_no": "second"})
         rest3 = h[~h["finish"].isin([_FIRST, _SECOND])].merge(winners, on="race_id").merge(seconds, on="race_id")
         combos = features.combos(tables.combos[["race_id", "first", "second", "third", "m3", "m3t"]])
         rest3 = rest3.merge(combos, left_on=["race_id", "first", "second", "horse_no"], right_on=["race_id", "first", "second", "third"], how="inner")
-        third = rest3.assign(y=rest3["finish"].eq(_THIRD).astype(float), g=rest3["race_id"])[list(self.third_features) + ["y", "g"]]
+        third = rest3.assign(y=rest3["finish"].eq(_THIRD).astype(float), g=rest3["race_id"])[[*self.third_features, "y", "g"]]
         return first, second, third

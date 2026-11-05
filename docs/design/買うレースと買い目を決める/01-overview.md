@@ -126,6 +126,7 @@ Phase 2 以降で新しい予想モデル（例: トラックバイアスの補�
 | [07-expected-value.md](07-expected-value.md) | モジュール5: 確率の作り方、期待値の式、危険な人気馬と穴馬、印 | 決定（作った） |
 | [08-bankroll-and-review.md](08-bankroll-and-review.md) | モジュール6: 予算の式、回顧データの形 | 決定（作った） |
 | [09-decisions.md](09-decisions.md) | 決めたこと | 決定 |
+| [10-local-recommended-tickets.md](10-local-recommended-tickets.md) | 地方の推奨買目: 1着・2着・3着を分けて市場に合わせた組の確率で、6券種を期待値の線とオッズの帯で選ぶ | 決定（作った） |
 
 ## 進め方
 

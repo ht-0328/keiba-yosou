@@ -8,12 +8,13 @@
     uv run python tools/発走前の通知/notify.py --no-prepare          # 朝の準備を飛ばす（週末の予想を済ませてあるとき）
     uv run python tools/発走前の通知/notify.py --no-sync             # 出馬表の取り込み（jvstore sync）だけ飛ばす
     uv run python tools/発走前の通知/notify.py --minutes 10          # 発走の何分前に始めるか（既定は設定ファイルか 10）
-    uv run python tools/発走前の通知/notify.py --local               # 地方競馬（nvdata-store の速報と地方の予想モデル。印と、当日の単勝・複勝の買い目）
+    uv run python tools/発走前の通知/notify.py --local               # 地方競馬（nvdata-store の速報と地方の予想モデル。印と、当日の推奨買目）
 
 ウェブフック URL は reports/発走前の通知/設定.json（{"webhook_url": "https://discord.com/api/webhooks/…"}）か、
 環境変数 KEIBA_DISCORD_WEBHOOK に置く（Git には入れない）。
 速報の取り込みは隣の jvdata-store（jvstore）、予想は tools/今週の予想/forecast.py を別プロセスで動かす。
-地方（--local）は nvdata-store（nvstore）と地方の予想モデル（yosou.local_form_aptitude_top3 の predict）。朝の全レースの予想は無く、
+地方（--local）は nvdata-store（nvstore）と地方の予想モデル（yosou.local_form_aptitude_top3 の predict）。推奨買目は道具「地方の推奨買目」
+（係数 reports/地方の推奨買目/係数.json が要る。無ければ tools/地方の推奨買目/fit.py で当てはめる）。朝の全レースの予想は無く、
 馬体重が届く前のレースは前日の時点（オッズだけ）で予想する。
 取り込みと予想に 1〜2分かかるので、通知は発走の 8〜9分前に届く。
 ダブルクリックなら同じフォルダの run.bat。毎日 8:30 に自動で動かすなら register_task.bat（解除は unregister_task.bat）。

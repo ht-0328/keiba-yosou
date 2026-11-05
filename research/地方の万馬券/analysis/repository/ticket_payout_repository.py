@@ -9,7 +9,7 @@ import pandas as pd
 
 from 共通 import keys
 
-from .ticket_odds_repository import combo_columns
+from 地方の推奨買目.repository.ticket_odds_repository import combo_columns
 
 _RACES_VIEW = "_ticket_payout_races"
 #: 券種 → (払戻表, 組の列の作り方)。

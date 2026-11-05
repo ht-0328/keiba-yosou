@@ -16,8 +16,8 @@ class PositionCoefficients:
     third: dict[str, float]
 
     @classmethod
-    def of(cls, names: tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]], betas: tuple[np.ndarray, np.ndarray, np.ndarray]) -> "PositionCoefficients":
-        return cls(*[dict(zip(n, (float(v) for v in b))) for n, b in zip(names, betas)])
+    def of(cls, names: tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]], betas: tuple[np.ndarray, np.ndarray, np.ndarray]) -> PositionCoefficients:
+        return cls(*[dict(zip(n, (float(v) for v in b), strict=True)) for n, b in zip(names, betas, strict=True)])
 
     def vector(self, position: int) -> np.ndarray:
         return np.array(list((self.first, self.second, self.third)[position].values()), dtype=np.float64)

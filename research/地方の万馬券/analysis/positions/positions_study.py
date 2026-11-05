@@ -14,14 +14,13 @@ from 共通.render import Table
 
 from ..case_report import CaseReport
 from ..repository import FactsRepository, LocalTicketOddsRepository, LocalTicketPayoutRepository, TrifectaOddsRepository, TrifectaResultRepository
-from .member_predictions import MemberPredictions
-from .pool_tables import PoolTables
-from .pool_tables_builder import PoolTablesBuilder
-from .position_coefficients import PositionCoefficients
-from .position_features import FIRST_FEATURES_TRIFECTA_ONLY, SECOND_FEATURES_TRIFECTA_ONLY, THIRD_FEATURES_TRIFECTA_ONLY
-from .position_model import PositionModel
-from .ticket_plan import CANDIDATE_PLANS, DEFAULT_PLANS, TicketPlan
-from .ticket_probabilities import TICKET_KEYS, TICKETS, TicketProbabilities
+from 地方の推奨買目.member_predictions import MemberPredictions
+from 地方の推奨買目.pool_tables import PoolTables
+from 地方の推奨買目.pool_tables_builder import PoolTablesBuilder
+from 地方の推奨買目.position_features import FIRST_FEATURES_TRIFECTA_ONLY, SECOND_FEATURES_TRIFECTA_ONLY, THIRD_FEATURES_TRIFECTA_ONLY
+from 地方の推奨買目.position_model import PositionModel
+from 地方の推奨買目.ticket_plan import CANDIDATE_PLANS, DEFAULT_PLANS, TicketPlan
+from 地方の推奨買目.ticket_probabilities import TICKET_KEYS, TICKETS, TicketProbabilities
 from .ticket_summary import SUMMARY_COLUMNS, TicketSummary
 
 #: 当てはめ方。入れ替え: 各年を残りの年で当てはめる。前の年: 前の年だけで当てはめる（最初の年は評価しない）。

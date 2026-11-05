@@ -26,7 +26,7 @@ class PoolTablesBuilder:
     """``build`` の引数:
 
     - ``horses``: 出走の行。``race_id``（整数）・``race_date``・``horse_no``・``popularity``・``win_odds``・``finish``・``p1``・``p1_lgb``・``p1_cat``・``p3``・``p3_lgb``・``p3_cat``。
-    - ``trifecta``: 3連単の全部の組の確定オッズ（``race_id``・``first``・``second``・``third``・``odds``）と払戻（``payout``。外れは 0）。
+    - ``trifecta``: 3連単の全部の組の確定オッズ（``race_id``・``first``・``second``・``third``・``odds``）と払戻（``payout``。外れは 0。発走前は列ごと無くてよい）。
     - ``exacta``: 馬単の確定オッズ（``race_id``・``a``・``b``・``odds``）。
     - ``trio``: 3連複の確定オッズ（``race_id``・``a``・``b``・``c``（馬番の小さい順）・``odds``）。
     - ``place``: 複勝の確定オッズ（``race_id``・``a``・``odds_lo``・``odds_hi``）。
@@ -71,7 +71,7 @@ class PoolTablesBuilder:
         key = pd.DataFrame({"race_id": race, "a": sorted_numbers[:, 0], "b": sorted_numbers[:, 1], "c": sorted_numbers[:, 2]})
         trio_inverse = trio.assign(m3t=1.0 / trio["odds"].astype(float))[["race_id", "a", "b", "c", "m3t"]]
         c["m3t"] = self._filled(key.merge(trio_inverse, on=["race_id", "a", "b", "c"], how="left")["m3t"].to_numpy())
-        c["payout"] = c["payout"].fillna(0).astype(int)
+        c["payout"] = c["payout"].fillna(0).astype(int) if "payout" in c.columns else 0   # 発走前（本番）は払戻が無い
         return c
 
     def _pairs(self, combos: pd.DataFrame, exacta: pd.DataFrame, trio: pd.DataFrame) -> pd.DataFrame:

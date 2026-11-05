@@ -11,9 +11,11 @@ from 今週の予想.forecast_columns import HORSE_NAME, HORSE_NO, MARK, PLACE_V
 from 今週の予想.mark_rule import NO_MARK, TOP_MARK
 from 今週の予想.ticket_rules import PLACE_VALUE_LINE
 
+from 地方の推奨買目.recommendation import STAKE
+from 地方の推奨買目.recommendation_set import RecommendationSet
+
 from 発走前の通知 import image_style as style
 from 発走前の通知.local_bet_rule import WIN_VALUE_LINE
-from 発走前の通知.local_bets import LocalBets
 from 発走前の通知.local_race_card import LocalRaceCard
 
 #: 列（キー・見出し・幅・寄せ l/c/r）。幅の合計と余白で画像の幅になる。
@@ -26,26 +28,30 @@ GAP = 14
 #: 印の札の直径、馬番の札の一辺（px）。
 MARK_BADGE = 36
 FRAME_BADGE = 32
-#: 見出しの帯と買い目の間、買い目の札の幅（px）。
+#: 表と買い目の間、買い目の札の幅（px）。
 FOOTER_GAP = 22
-BET_PILL_W = 96
+BET_PILL_W = 110
+#: 買い目の1行（文・色・太字）。
+FooterLine = tuple[str, style.Color, bool]
 
 
 class LocalRaceImage:
     """上から 見出しの帯（場・R・レース名・発走時刻・時点の札）→ 列の見出し → 1頭1行（印の札・枠の色の馬番・馬名・単勝・
-    3着以内の確率の棒・複勝と単勝の期待値）→ 買い目。◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。"""
+    3着以内の確率の棒・複勝と単勝の期待値）→ 推奨買目（券種ごとに1行。長ければ折り返す）。
+    ◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。"""
 
     def draw(self, card: LocalRaceCard) -> Image.Image:
-        footer_lines = len(card.bets.lines) if not card.bets.none else 1 + len(card.bets.reasons)
+        measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+        footer = self._footer_lines(measure, card.bets)
         height = (style.PAD + style.HEADER_H + style.COLUMN_H + style.ROW_H * len(card.table) + FOOTER_GAP
-                  + style.FOOTER_LINE_H * footer_lines + style.PAD)
+                  + style.FOOTER_LINE_H * len(footer) + style.PAD)
         image = Image.new("RGB", (style.WIDTH, height), style.BG)
         draw = ImageDraw.Draw(image)
         y = self._header(draw, card, style.PAD)
         y = self._columns(draw, y)
         for _, row in card.table.iterrows():
             y = self._row(draw, row, card.frames, y)
-        self._footer(draw, card.bets, y + FOOTER_GAP)
+        self._footer(draw, footer, y + FOOTER_GAP)
         return image
 
     # --- 見出しの帯 ---------------------------------------------------------------------------
@@ -137,20 +143,46 @@ class LocalRaceImage:
         fill = style.GOOD if good else style.TEXT
         self._text(draw, f"{value:.2f}", x, center, width, "r", style.font(23, bold=good), fill)
 
-    # --- 買い目 ---------------------------------------------------------------------------
+    # --- 推奨買目 ---------------------------------------------------------------------------
 
-    def _footer(self, draw: ImageDraw.ImageDraw, bets: LocalBets, y: int) -> None:
-        self._pill(draw, "買い目", style.PAD, y, style.GOLD, style.BG, align="l")
+    def _footer_lines(self, draw: ImageDraw.ImageDraw, bets: RecommendationSet) -> list[FooterLine]:
+        """推奨買目の行（文・色・太字）。券種の行は幅に収まるよう「・」で折り返し、最後に合計。無ければ「なし」と理由。"""
+        max_width = style.WIDTH - style.PAD * 2 - BET_PILL_W - GAP
+        if bets.none:
+            return [("なし", style.DIM, True), *[(f"・{reason}", style.DIM, False) for reason in self._reasons(bets.reason)]]
+        lines: list[FooterLine] = []
+        for line in bets.lines():
+            lines += [(part, style.TEXT, True) for part in self._wrap(draw, line, style.font(22, bold=True), max_width)]
+        lines.append((f"合計 {bets.points}点 {bets.yen:,}円（1点 {STAKE}円）", style.GOLD, True))
+        lines += [(f"・{reason}", style.DIM, False) for reason in self._reasons(bets.reason)]
+        return lines
+
+    def _footer(self, draw: ImageDraw.ImageDraw, lines: list[FooterLine], y: int) -> None:
+        self._pill(draw, "推奨買目", style.PAD, y, style.GOLD, style.BG, align="l")
         x = style.PAD + BET_PILL_W + GAP
-        if not bets.none:
-            self._lines(draw, bets.lines, x, y, style.TEXT, bold=True)
-            return
-        draw.text((x, y + 16), "なし", font=style.font(22, bold=True), fill=style.DIM, anchor="lm")
-        self._lines(draw, [f"・{reason}" for reason in bets.reasons], x, y + style.FOOTER_LINE_H, style.DIM, bold=False)
+        for index, (text, fill, bold) in enumerate(lines):
+            draw.text((x, y + 16 + style.FOOTER_LINE_H * index), text, font=style.font(22, bold=bold), fill=fill, anchor="lm")
 
-    def _lines(self, draw: ImageDraw.ImageDraw, lines, x: int, y: int, fill: style.Color, *, bold: bool) -> None:
-        for index, line in enumerate(lines):
-            draw.text((x, y + 16 + style.FOOTER_LINE_H * index), line, font=style.font(22, bold=bold), fill=fill, anchor="lm")
+    @staticmethod
+    def _reasons(reason: str) -> list[str]:
+        return [part for part in reason.split("。") if part]
+
+    @staticmethod
+    def _wrap(draw: ImageDraw.ImageDraw, line: str, font, max_width: int) -> list[str]:
+        """「・」の区切りで折り返す。2行目からは券種の名前のぶん字下げする。"""
+        head, _, body = line.partition(" ")
+        parts = body.split("・")
+        rows: list[str] = []
+        current = head
+        for part in parts:
+            candidate = f"{current} {part}" if current == head else f"{current}・{part}"
+            if draw.textlength(candidate, font=font) <= max_width or current == head:
+                current = candidate
+                continue
+            rows.append(current)
+            current = f"{'　' * len(head)} {part}"
+        rows.append(current)
+        return rows
 
     # --- 共通の描き方 ---------------------------------------------------------------------------
 
