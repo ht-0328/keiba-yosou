@@ -17,15 +17,16 @@ class RacePredictionTable:
     """レース単位の予測の結果（1行 = 1つの見方。荒れ具合の予想では券種）を、そのまま表にする。
 
     ``columns`` は出す列の名前の並び（予想ごと。例: 券種・固い・中荒れ・大荒れ・超荒れ・いちばん高いクラス・中荒れ以上の確率）。
-    小数は3桁に丸め、文字はそのまま出す。
+    小数は3桁に丸め、文字はそのまま出す。``timing_label`` は題に出す時点の名前（省略すると時点の名前。地方の予想は「出馬表」を渡す）。
     """
 
     def __init__(self, prediction: pd.DataFrame, timing: PredictionTiming, columns: Sequence[str],
-                 note: str = "") -> None:
+                 note: str = "", timing_label: str | None = None) -> None:
         self._prediction = prediction
         self._timing = timing
         self._columns = tuple(columns)
         self._note = note
+        self._timing_label = timing.label if timing_label is None else timing_label
 
     def table(self) -> Table:
         rows = [self._row(row) for _, row in self._prediction.iterrows()]
@@ -41,4 +42,4 @@ class RacePredictionTable:
 
     def _title(self) -> str:
         first = self._prediction.iloc[0]
-        return f"{first[RACE_ID]}（{day_text(first[RACE_DATE])}）の予測: {self._timing.label}の時点"
+        return f"{first[RACE_ID]}（{day_text(first[RACE_DATE])}）の予測: {self._timing_label}の時点"

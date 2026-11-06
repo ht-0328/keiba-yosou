@@ -115,8 +115,17 @@ def test_買い方は_期待値の線とオッズの範囲で選び_名前が読
     assert len(TicketPlan("ワイド", 1.2).choose(wide)) == 1
 
 
-def test_本番の買い方は_馬連と3連複を除いた6券種_頭数の線は券種ごと():
-    assert [plan.ticket for plan in RECOMMENDED_PLANS] == ["単勝", "複勝", "枠連", "ワイド", "馬単", "3連単"]
+def test_本番の買い方は_8券種_頭数の線は券種ごと_馬連は型つき():
+    assert [plan.ticket for plan in RECOMMENDED_PLANS] == ["単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "3連複", "3連単"]
     assert len(DEFAULT_PLANS) == 8
-    assert {plan.ticket: plan.min_heads for plan in RECOMMENDED_PLANS} == {"単勝": 0, "複勝": 8, "枠連": 0, "ワイド": 0, "馬単": 8, "3連単": 8}
+    assert {plan.ticket: plan.min_heads for plan in RECOMMENDED_PLANS} == {"単勝": 0, "複勝": 8, "枠連": 0, "馬連": 11, "ワイド": 0, "馬単": 8, "3連複": 8, "3連単": 8}
     assert TicketPlan("単勝").applies(5) and not TicketPlan("3連単", min_heads=10).applies(9)
+    quinella = next(plan for plan in RECOMMENDED_PLANS if plan.ticket == "馬連")
+    assert quinella.forms == ("人中",) and quinella.label == "〜20倍・期待値 1 以上・型 人中"
+
+
+def test_形を問う買い方は_form_の列で絞る():
+    table = pd.DataFrame({"race_id": [_BASE_RACE] * 3, "a": [1, 1, 4], "b": [2, 5, 8], PROBABILITY: [0.3, 0.2, 0.1], "odds": [4.0, 6.0, 15.0],
+                          "form": ["人人", "人中", "中大"]})
+    chosen = TicketPlan("馬連", 1.0, 0.0, 20.0, form="人中|中大").choose(table)
+    assert [tuple(row) for row in chosen[["a", "b"]].itertuples(index=False)] == [(1, 5), (4, 8)]
