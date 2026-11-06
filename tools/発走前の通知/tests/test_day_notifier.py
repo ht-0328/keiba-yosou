@@ -15,6 +15,8 @@ from 発走前の通知.scheduled_race import ScheduledRace
 DAY = "2025-04-19"
 RACE1 = ScheduledRace("2025041905010101", "東京", 1, "", datetime(2025, 4, 19, 10, 0))
 RACE2 = ScheduledRace("2025041905010102", "東京", 2, "", datetime(2025, 4, 19, 10, 30))
+#: 元DB が使用中のときの失敗の文（別プロセスの予想の出力の最後の行と同じ形）。
+LOCKED = "予想に失敗しました:\nBlockingIOError: DB を別の画面（取得の道具など）で使用中です。終わってから実行してください。"
 
 
 class _Clock:
@@ -28,10 +30,17 @@ class _Clock:
 
 
 class _Schedule:
-    def __init__(self, races: list[ScheduledRace]) -> None:
+    """``locked`` 番目の読み出しは元DB が使用中（BlockingIOError）。"""
+
+    def __init__(self, races: list[ScheduledRace], locked: tuple[int, ...] = ()) -> None:
         self.races = races
+        self._locked = set(locked)
+        self.reads = 0
 
     def read(self, day: str) -> list[ScheduledRace]:
+        self.reads += 1
+        if self.reads in self._locked:
+            raise BlockingIOError("DB を別の画面（取得の道具など）で使用中です。終わってから実行してください。")
         return list(self.races)
 
 
@@ -56,13 +65,15 @@ class _Fetcher:
 
 
 class _Runner:
-    """予想したことにして、結果を保存する（作った時刻を進める）。``fail`` のレースは失敗、``silent`` のレースは結果を作らない。"""
+    """予想したことにして、結果を保存する（作った時刻を進める）。``fail`` のレースは失敗、``silent`` のレースは結果を作らない。
+    ``locked`` 回は元DB が使用中の文で失敗する。"""
 
-    def __init__(self, store: ForecastStore, calls: list[str], fail: str = "", silent: str = "") -> None:
+    def __init__(self, store: ForecastStore, calls: list[str], fail: str = "", silent: str = "", locked: int = 0) -> None:
         self._store = store
         self._calls = calls
         self._fail = fail
         self._silent = silent
+        self._locked = locked
         self._count = 0
 
     def run_day(self, day: str) -> None:
@@ -70,6 +81,9 @@ class _Runner:
 
     def run_race(self, rid: str, day: str) -> None:
         self._calls.append(f"run_race {rid}")
+        if self._locked > 0:
+            self._locked -= 1
+            raise RuntimeError(LOCKED)
         if rid == self._fail:
             raise RuntimeError("予想できません")
         if rid == self._silent:
@@ -95,10 +109,11 @@ class _Poster:
 
 
 def _notifier(tmp_path: Path, clock: _Clock, races: list[ScheduledRace], calls: list[str], poster: _Poster, *,
-              fetch_fail: str = "", run_fail: str = "", run_silent: str = "") -> DayNotifier:
+              fetch_fail: str = "", run_fail: str = "", run_silent: str = "", run_locked: int = 0,
+              schedule_locked: tuple[int, ...] = ()) -> DayNotifier:
     store = ForecastStore(tmp_path)
-    return DayNotifier(minutes_before=10, schedule=_Schedule(races), fetcher=_Fetcher(calls, fetch_fail),
-                       runner=_Runner(store, calls, run_fail, run_silent), message=_Message(), poster=poster, store=store,
+    return DayNotifier(minutes_before=10, schedule=_Schedule(races, schedule_locked), fetcher=_Fetcher(calls, fetch_fail),
+                       runner=_Runner(store, calls, run_fail, run_silent, run_locked), message=_Message(), poster=poster, store=store,
                        now=lambda: clock.now, sleep=clock.sleep, log=lambda _: None)
 
 
@@ -149,3 +164,40 @@ def test_朝の準備が失敗しても知らせてレースごとの通知は�
     assert f"run_day {DAY}" not in calls
     assert poster.posts[0].startswith("⚠ 朝の準備（速報の取り込み）に失敗しました")
     assert poster.posts[1] == f"文 {RACE1.rid}"
+
+
+def test_元DBが使用中で予想に失敗したら待ってやり直す(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 50)), [], _Poster()
+    assert _notifier(tmp_path, clock, [RACE1], calls, poster, run_locked=1).run(DAY, prepare=False) == 0
+    assert calls == [f"fetch_race {RACE1.rid}", f"run_race {RACE1.rid}", f"fetch_race {RACE1.rid}", f"run_race {RACE1.rid}"]
+    assert clock.naps == [20.0]
+    assert poster.posts == [f"文 {RACE1.rid}"]
+
+
+def test_元DBが使用中のまま発走が近づいたら知らせて次のレースへ(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, run_locked=2).run(DAY, prepare=False)
+    # 9:55:00 と 9:55:20 は 20 秒待ってやり直し、3回目で成功する
+    assert calls.count(f"run_race {RACE1.rid}") == 3
+    assert clock.naps[:2] == [20.0, 20.0]
+    assert poster.posts == [f"文 {RACE1.rid}", f"文 {RACE2.rid}"]
+    # ずっと使用中なら、発走 4 分前を切ったところ（3回目の失敗）であきらめて知らせる
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    _notifier(tmp_path, clock, [RACE1], calls, poster, run_locked=99).run(DAY, prepare=False)
+    assert calls.count(f"run_race {RACE1.rid}") == 3
+    assert poster.posts[0].startswith(f"⚠ {RACE1.label} の予想を通知できませんでした。")
+
+
+def test_レースの一覧を読み直せなくても前に読んだ一覧で続ける(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    # 1回目（起動時）は読め、待つ間の読み直し（2〜4回目）は元DB が使用中
+    assert _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, schedule_locked=(2, 3, 4)).run(DAY, prepare=False) == 0
+    assert poster.posts == [f"文 {RACE1.rid}", f"文 {RACE2.rid}"]
+    assert 20.0 not in clock.naps
+
+
+def test_起動時に元DBが使用中なら待って読み直す(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    assert _notifier(tmp_path, clock, [RACE1], calls, poster, schedule_locked=(1,)).run(DAY, prepare=False) == 0
+    assert clock.naps[0] == 20.0
+    assert poster.posts == [f"文 {RACE1.rid}"]
