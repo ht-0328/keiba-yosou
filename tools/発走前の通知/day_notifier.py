@@ -16,6 +16,12 @@ from 発走前の通知.scheduled_race import ScheduledRace
 DEFAULT_MARGIN = timedelta(minutes=2)
 #: 待つときに1回に眠る長さの上限。この間隔でレースの一覧を読み直し、発走時刻の変更を拾う。
 MAX_NAP = timedelta(minutes=5)
+#: 元DB が使用中（別の画面や道具がロックを持っている）で失敗したときに、やり直すまでの待ち。
+LOCK_RETRY = timedelta(seconds=20)
+#: やり直した取り込みと予想が発走に間に合うと見る、発走までの残り（取り込み 15 秒＋予想 1〜3 分）。
+RETRY_ROOM = timedelta(minutes=4)
+#: 失敗の文にこれがあれば、元DB が使用中だったと見る（自分のロック・別プロセスの予想や取り込みの出力・DuckDB のロック）。
+LOCK_WORDS = ("使用中", "lock")
 #: 失敗の知らせの頭に付ける印。
 WARNING = "⚠"
 
@@ -63,7 +69,8 @@ def _stderr(text: str) -> None:
 class DayNotifier:
     """朝の準備は 出馬表の取り込み → その日の速報の取り込み → 全レースの予想（複勝の勝負レースはその日の全レースの予想から決まる）。
     そのあと、発走の早い順に、発走の ``minutes_before`` 分前になったら 速報の取り込み → 予想 → 投稿。
-    失敗しても止めず、その旨を投稿して次のレースへ進む。時計と眠りは差し替えられる（テストのため）。
+    失敗しても止めず、その旨を投稿して次のレースへ進む。元DB が使用中（別の画面や道具がロックを持っている）で失敗したときは、
+    発走に間に合う間は待ってやり直し、レースの一覧を読み直せないときは前に読んだ一覧で続ける。時計と眠りは差し替えられる（テストのため）。
     """
 
     def __init__(self, *, minutes_before: int, schedule: Schedule, fetcher: Fetcher, runner: Runner,
@@ -82,12 +89,14 @@ class DayNotifier:
         self._now = now
         self._sleep = sleep
         self._log = log
+        #: 最後に読めたレースの一覧（元DB が使用中で読み直せないときに使う）。
+        self._races: list[ScheduledRace] | None = None
 
     def run(self, day: str, *, prepare: bool = True) -> int:
         """その日を最後のレースまで。レースが無ければ何も投稿せずに 1。"""
         if prepare and self._sync:
             self._prepare_step("出馬表の取り込み", self._fetcher.sync)
-        if not self._schedule.read(day):
+        if not self._read_schedule(day):
             self._log(f"{day} に予想するレースがありません（出馬表が DB に無ければ、jvstore sync か nvstore sync で取り込む）")
             return 1
         if prepare:
@@ -106,16 +115,22 @@ class DayNotifier:
         return 0
 
     def notify(self, race: ScheduledRace) -> bool:
-        """1レース分: 速報の取り込み → 予想 → 投稿。失敗したら、その旨を投稿して False。"""
+        """1レース分: 速報の取り込み → 予想 → 投稿。元DB が使用中で失敗したら、発走に間に合う間は待ってやり直す。
+        それでも失敗したら、その旨を投稿して False。"""
         self._log(f"{race.label}: 速報を取り込んで予想します")
-        try:
-            notice = self._forecast(race)
-            self._poster.post(notice.text, notice.attachment)
-        except Exception as error:  # noqa: BLE001 — どんな失敗でも次のレースへ進めるよう、理由を投稿して続ける
-            self._report_failure(race, error)
-            return False
-        self._log(f"{race.label}: 投稿しました")
-        return True
+        while True:
+            try:
+                notice = self._forecast(race)
+                self._poster.post(notice.text, notice.attachment)
+            except Exception as error:  # noqa: BLE001 — どんな失敗でも次のレースへ進めるよう、理由を投稿して続ける
+                if self._should_retry(race, error):
+                    self._log(f"{race.label}: 元DB が使用中でした。{LOCK_RETRY.total_seconds():.0f} 秒待ってやり直します")
+                    self._sleep(LOCK_RETRY.total_seconds())
+                    continue
+                self._report_failure(race, error)
+                return False
+            self._log(f"{race.label}: 投稿しました")
+            return True
 
     def _forecast(self, race: ScheduledRace) -> RaceNotice:
         self._fetcher.fetch_race(race.day, race.rid)
@@ -124,6 +139,11 @@ class DayNotifier:
         if self._store.saved_at(race.rid) == before:
             raise RuntimeError(f"予想の結果が作られませんでした（記録: {self._runner.log_path(race.day)}）")
         return self._message.build(race.rid)
+
+    def _should_retry(self, race: ScheduledRace, error: Exception) -> bool:
+        """元DB のロックが原因の失敗で、やり直しても発走に間に合うなら True。"""
+        locked = isinstance(error, BlockingIOError) or any(word in str(error) for word in LOCK_WORDS)
+        return locked and self._now() + LOCK_RETRY + RETRY_ROOM < race.post
 
     def _report_failure(self, race: ScheduledRace, error: Exception) -> None:
         self._log(f"{race.label}: 失敗しました。{error}")
@@ -146,10 +166,23 @@ class DayNotifier:
             return False
         return True
 
+    def _read_schedule(self, day: str) -> list[ScheduledRace]:
+        """レースの一覧を DB から読み直す。元DB が使用中で読めなければ、前に読めた一覧で続ける（まだ無ければ待って読み直す）。"""
+        while True:
+            try:
+                self._races = self._schedule.read(day)
+                return self._races
+            except BlockingIOError as error:
+                if self._races is not None:
+                    self._log(f"レースの一覧を読み直せませんでした（{error}）。前に読んだ一覧で続けます")
+                    return self._races
+                self._log(f"レースの一覧を読めませんでした（{error}）。{LOCK_RETRY.total_seconds():.0f} 秒待って読み直します")
+                self._sleep(LOCK_RETRY.total_seconds())
+
     def _next_race(self, day: str, done: set[str]) -> ScheduledRace | None:
         """まだ通知していない、発走まで余裕のあるレースのうち一番早いもの。発走時刻の変更を拾うため、毎回 DB から読み直す。"""
         limit = self._now() + self._margin
-        races = self._schedule.read(day)
+        races = self._read_schedule(day)
         self._skip_passed(races, done, limit)
         remaining = [race for race in races if race.rid not in done]
         return remaining[0] if remaining else None
