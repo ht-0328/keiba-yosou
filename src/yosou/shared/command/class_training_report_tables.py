@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
 
 from 共通.render import Table
 
 from ..dataset import RACE_DATE, TrainingData
 from ..evaluation import ENSEMBLE_NAME, ClassEvaluation, TrainingReport
+from ..feature import PredictionTiming
 from .cell_format import day_text, rounded
 
 
@@ -18,13 +19,19 @@ class ClassTrainingReportTables:
 
     ``class_names`` はクラスの番号の順の名前（例: 固い・中荒れ・大荒れ・超荒れ）。表の見出しに使う。
     ``subject`` は表題の頭に付ける言葉（例: 券種の名前）。券種ごとに学習するとき、どの表か分かるようにする。
+    ``timing_labels`` は時点 → 表に出す名前（地方の予想が、共通の木曜の枠を「出馬表」と出すために渡す。省略すると時点の名前のまま）。
     """
 
-    def __init__(self, report: TrainingReport, class_names: Sequence[str], subject: str = "") -> None:
+    def __init__(self, report: TrainingReport, class_names: Sequence[str], subject: str = "",
+                 timing_labels: Mapping[PredictionTiming, str] | None = None) -> None:
         self._report = report
         self._class_names = tuple(class_names)
         self._subject = f"{subject}: " if subject else ""
         self._label_name = report.split.train.label_name
+        self._timing_labels = dict(timing_labels or {})
+
+    def _timing(self, timing: PredictionTiming) -> str:
+        return self._timing_labels.get(timing, timing.label)
 
     def tables(self) -> list[Table]:
         return [self._periods(), self._evaluations(), self._confusion_matrices(), self._model_folders()]
@@ -64,7 +71,7 @@ class ClassTrainingReportTables:
 
     def _evaluation_row(self, evaluation: ClassEvaluation) -> list[object]:
         return [
-            evaluation.timing.label, evaluation.model, evaluation.tree_count, evaluation.rows,
+            self._timing(evaluation.timing), evaluation.model, evaluation.tree_count, evaluation.rows,
             rounded(evaluation.accuracy), rounded(evaluation.macro_f1), rounded(evaluation.mean_class_gap),
             rounded(evaluation.log_loss), *(rounded(auc) for auc in evaluation.cumulative_auc),
         ]
@@ -74,7 +81,7 @@ class ClassTrainingReportTables:
         ensembles = [e for e in self._report.evaluations if e.model == ENSEMBLE_NAME]
         rows: list[list[object]] = []
         for evaluation in ensembles:
-            rows += [[evaluation.timing.label, actual_name, *counts]
+            rows += [[self._timing(evaluation.timing), actual_name, *counts]
                      for actual_name, counts in zip(self._class_names, evaluation.confusion_matrix, strict=True)]
         return Table(
             ["時点", "実際のクラス", *(f"予測: {name}" for name in self._class_names)], rows,
@@ -87,6 +94,6 @@ class ClassTrainingReportTables:
         folders = self._report.model_folders
         return Table(
             ["時点", "特徴量の数", "保存したフォルダ"],
-            [[timing.label, len(catalog.columns_for(timing)), str(folder)] for timing, folder in folders.items()],
+            [[self._timing(timing), len(catalog.columns_for(timing)), str(folder)] for timing, folder in folders.items()],
             title=f"{self._subject}保存したモデル",
         )

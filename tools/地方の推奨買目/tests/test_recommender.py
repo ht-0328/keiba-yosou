@@ -49,7 +49,7 @@ def _db() -> duckdb.DuckDBPyConnection:
                     [(*_KEY_VALUES, _AT, f"{a:02d}{b:02d}", "0100", "0200") for a, b in combinations(range(1, N + 1), 2)])
     con.execute(f'CREATE TABLE "o5__3連複オッズ" ({key_sql}, 発表月日時分 VARCHAR, 組番 VARCHAR, オッズ VARCHAR)')
     con.executemany('INSERT INTO "o5__3連複オッズ" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [(*_KEY_VALUES, _AT, f"{a:02d}{b:02d}{c:02d}", "3000") for a, b, c in combinations(range(1, N + 1), 3)])
+                    [(*_KEY_VALUES, _AT, f"{a:02d}{b:02d}{c:02d}", "0600" if (a, b, c) == (1, 2, 3) else "0300") for a, b, c in combinations(range(1, N + 1), 3)])   # 30倍。1-2-3 だけ 60倍
     con.execute(f'CREATE TABLE "o6__3連単オッズ" ({key_sql}, 発表月日時分 VARCHAR, 組番 VARCHAR, オッズ VARCHAR)')
     con.executemany('INSERT INTO "o6__3連単オッズ" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [(*_KEY_VALUES, _AT, f"{a:02d}{b:02d}{c:02d}", "15000" if (a, b, c) == (1, 2, 3) else "9000") for a, b, c in permutations(range(1, N + 1), 3)])
@@ -83,6 +83,12 @@ def test_枠連は枠に写した確率で選ぶ():
     assert chosen.rows[0].probability == pytest.approx(4 / 55) and chosen.rows[0].odds == pytest.approx(20.0)
 
 
+def test_馬連は_人気馬と中穴の組だけ():
+    # 単勝オッズは 6.0〜16.0倍の順なので 人気馬 = 1〜3、中穴 = 4〜7、大穴 = 8〜11。馬連は 100倍で 期待値 100/55 ≥ 1
+    chosen = Recommender(_db(), _zero(), plans=(TicketPlan("馬連", 1.0, 0.0, 200.0, form="人中"),)).recommend(RID, _forecast())
+    assert [row.label for row in chosen.rows] == [f"{a}-{b}" for a in (1, 2, 3) for b in (4, 5, 6, 7)]
+
+
 def test_頭数の線は券種ごとに_届かない券種は出さず理由に添える():
     plans = (TicketPlan("単勝", 1.0, 0.0, 30.0), TicketPlan("3連単", 1.05, 10.0, 200.0, min_heads=11), TicketPlan("馬単", 1.05, 0.0, 50.0, min_heads=11))
     chosen = Recommender(_db(), _zero(), plans=plans).recommend(RID, _forecast(heads=10))
@@ -93,3 +99,42 @@ def test_頭数の線は券種ごとに_届かない券種は出さず理由に�
 def test_どの券種も頭数に届かなければ_計算せずに対象外():
     chosen = Recommender(_db(), _zero(), plans=(TicketPlan("3連単", 1.05, 10.0, 200.0, min_heads=11),)).recommend(RID, _forecast(heads=9))
     assert chosen.none and chosen.reason == "9頭なので 3連単 は推奨買目の対象外"
+
+
+class _Upsets:
+    """架空の荒れ具合の予想（どの券種も同じ中荒れ以上の確率）。"""
+
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def of(self, con, rid: str, tickets) -> dict[str, float]:
+        return {ticket: self.value for ticket in tickets}
+
+
+class _NoModels:
+    """学習したモデルが無い環境の荒れ具合の予想。"""
+
+    def of(self, con, rid: str, tickets) -> dict[str, float]:
+        raise FileNotFoundError("当日の学習済みモデルがありません（models/trio/race_day/settings.json）。先に train で学習してください。")
+
+
+#: 3連複の買い方（線は低くして、架空のオッズでも組が残るようにする）。
+_TRIO = TicketPlan("3連複", 0.1, 10.0, 100.0, min_heads=8, top_k=2, upset_min=0.6)
+
+
+def test_3連複は_中荒れ以上の確率が線以上のレースだけ_期待値の上位を買う():
+    # 3連複の P は 6/990。60倍の 1-2-3 だけ期待値 0.36、ほかは 30倍で 0.18。線 0.1 で全部残り、上位 2点は 1-2-3 と次の組
+    chosen = Recommender(_db(), _zero(), plans=(_TRIO,), upsets=_Upsets(0.7)).recommend(RID, _forecast())
+    assert [row.label for row in chosen.rows] == ["1-2-3", "1-2-4"] and chosen.reason == ""
+    assert chosen.rows[0].value == pytest.approx(60 * 6 / 990) and chosen.rows[0].odds == pytest.approx(60.0)
+    low = Recommender(_db(), _zero(), plans=(_TRIO,), upsets=_Upsets(0.4)).recommend(RID, _forecast())
+    assert low.none and low.reason == "3連複は中荒れ以上の確率 0.40 が 0.6 未満なので買わない"
+
+
+def test_荒れ具合の予想が出せなければ_3連複だけ対象外にして理由に添える():
+    plans = (TicketPlan("単勝", 1.0, 0.0, 30.0), _TRIO)
+    chosen = Recommender(_db(), _zero(), plans=plans, upsets=_NoModels()).recommend(RID, _forecast())
+    assert {row.ticket for row in chosen.rows} == {"単勝"}
+    assert chosen.reason == "荒れ具合の予想が出せないので 3連複 は推奨買目の対象外（当日の学習済みモデルがありません（models/trio/race_day/settings.json））"
+    without = Recommender(_db(), _zero(), plans=plans).recommend(RID, _forecast())
+    assert {row.ticket for row in without.rows} == {"単勝"} and without.reason == "荒れ具合の予想が無いので 3連複 は推奨買目の対象外"

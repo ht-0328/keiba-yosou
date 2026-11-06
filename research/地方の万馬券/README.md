@@ -34,20 +34,22 @@
 | `calibration.py` | 入口（段3 の補足）。組の確率を「当たった／外れた」で直し（予想の確率と市場の確率の対数のロジスティック回帰）、直した期待値が 1 以上の組がどれだけ残るか・それを買うと年ごとにどうなるかを出す |
 | `stages.py` | 入口（計画の 6.）。予想方法の段ごとの精度: ④荒れ具合（券種ごとの4段階）・②危険な人気馬（1〜3番人気の4着以下）・③穴馬（4番人気以下の3着以内）を、全頭の予想①と同じ地方の記録（当日の馬場傾向 U つき）から学び、2024〜2026年の年ごとの精度と予測の表を書く（`--stage` で段を選べる） |
 | `positions.py` | 入口（段5。[docs/05](docs/05-1着2着3着を分けて市場に合わせる.md)）。全頭の予想の確率（LightGBM と CatBoost を分ける）と単勝・3連単・馬単・3連複・複勝の票の見立てから、1着・2着・3着の条件つきロジットで組の確率を出し、全券種（単勝〜3連単）の期待値の買い目を、年を入れ替えて（`--protocol 前の年` なら前の年だけで）当てはめた未見の成績で出す |
+| `quinella_trio.py` | 入口（段6。[docs/06](docs/06-馬連と3連複.md)）。馬連と3連複で回収率 100% 超の買い方を探す: 段5 の組の確率で年ごとの組の表（確率・確定オッズ・払戻・組の形）を作り（`--build`）、オッズの帯 × 期待値の線 × 頭数 × 点数の上限（`--stage 1`）、組の形（`--stage 2 --base`）、荒れ具合の条件（`--stage 3 --base`）、票の見立てを使わない確率（`--build --pool-free`）を、各年を残りの年で当てはめた未見の成績と前の年だけの成績で確かめる |
 | `analysis/case_study.py` `theory_study.py` `trifecta/trifecta_study.py` | 段1・段2・段3 の流れ |
-| `analysis/stages/` | 段ごとの精度（①の学習データの保存 `training_data_cache.py`・人気帯のデータ `band_data.py`・消と穴の精度 `band_precision.py`・②③の流れ `band_study.py`・地方の線引き `local_upset_rule.py`・当日の馬場傾向のレースの値 `used_slope_features.py`・④のデータ `upset_data.py`・市場の割れ方だけの基準 `market_only_baseline.py`・④の流れ `upset_study.py`） |
+| `analysis/stages/` | 段ごとの精度（①の学習データの保存 `training_data_cache.py`・人気帯のデータ `band_data.py`・消と穴の精度 `band_precision.py`・②③の流れ `band_study.py`・地方の線引き `local_upset_rule.py`・当日の馬場傾向のレースの値 `used_slope_features.py`・④のデータ `upset_data.py`（3つの中身は本番の予想 `yosou.local_upset_level` に移し、ここからは同じ名前で使える）・市場の割れ方だけの基準 `market_only_baseline.py`・④の流れ `upset_study.py`） |
 | `analysis/runner_enrichment.py` | 出走の表を作る（事実表 → 地区・場内順位・帯・事情） |
 | `analysis/theory.py` `theory_catalog.py` `theory_check_table.py` `popularity_baseline.py` `odds_baseline.py` `race_theory_table.py` | 理論と、その検証の表 |
 | `analysis/trifecta/` | 組の確率（`harville_combos.py`・3着以内に合わせた勝つ力 `fitted_strength.py`）・市場の見立て（馬 `race_market.py`・組 `combo_market.py`）・買い方（`strategy.py` `strategy_catalog.py`）・買い目（`ticket_plan.py`）・成績（`simulator.py`）・組の確率の直し（`combo_calibration.py` `calibration_study.py`） |
 | `analysis/positions/` | 段5（1着・2着・3着を分けて市場に合わせる）の研究に残る部分: 流れ `positions_study.py`・成績 `ticket_summary.py`。条件つきロジット・票の表・特徴量・係数・1着2着3着のモデル・券種ごとの確率・買い方・全頭の予想のモデルごとの確率の読み出しは、本番の道具 `tools/地方の推奨買目/` に移した（研究はそれを使う） |
+| `analysis/quinella_trio/` | 段6（馬連と3連複）: 組の表 `ticket_tables_builder.py`・置き場所 `ticket_tables_store.py`・買い方の候補 `rule.py`・候補の一覧 `rule_catalog.py`・成績と判定 `rule_study.py` |
 | `analysis/popularity_band.py` `payout_band.py` `venue_area.py` | 人気の帯・配当の帯・地区の決めごと |
 | `analysis/jockey_venue_rank.py` `runner_circumstances.py` | 騎手の場内順位と、馬の事情（真偽の列） |
 | `analysis/outcome_pattern_table.py` `circumstance_share_table.py` `race_condition_table.py` `case_list_table.py` | 表（決着の型・事情の割合・レースの条件・事例の一覧） |
 | `analysis/case_report.py` | 表を Markdown にまとめて書く |
 | `analysis/repository/` | 元DB を読むリポジトリ（1 SQL につき 1 クラス。事実表・3連単と3連複の払戻・調教師と馬の所属）。券種と3連単の確定オッズのリポジトリは `tools/地方の推奨買目/repository/` に移し、ここから同じ名前で使える |
-| `docs/` | 進め方と結果の読み方（01 事例・02 理論・03 3連単の買い方・04 予想方法の段ごとの精度・05 1着2着3着を分けて市場に合わせる） |
+| `docs/` | 進め方と結果の読み方（01 事例・02 理論・03 3連単の買い方・04 予想方法の段ごとの精度・05 1着2着3着を分けて市場に合わせる・06 馬連と3連複） |
 | `tests/` | 架空の値で部品を確かめるテスト（実DB は要らない） |
-| `reports/地方の万馬券/`（Git 対象外） | `事例.md`・`事例の馬.csv`・`事例のレース.csv`・`理論の検証.md`・`3連単の買い方.md`・`3連単の買い方の買い目.csv`・`3連単の買い方-2024検証*.md`（2024〜2026年）・`組の確率の直し.md`・`全券種の買い方.md`・`全券種の買い方の買い目.csv`（段5。`-前の年`・`-3連単の票だけ` は当てはめ方と材料を変えたもの） |
+| `reports/地方の万馬券/`（Git 対象外） | `事例.md`・`事例の馬.csv`・`事例のレース.csv`・`理論の検証.md`・`3連単の買い方.md`・`3連単の買い方の買い目.csv`・`3連単の買い方-2024検証*.md`（2024〜2026年）・`組の確率の直し.md`・`全券種の買い方.md`・`全券種の買い方の買い目.csv`（段5。`-前の年`・`-3連単の票だけ` は当てはめ方と材料を変えたもの。`-<N>頭以上` は対象の頭数を変えたもの）・`馬連と3連複/`（段6 の組の表）・`馬連と3連複の買い方-段N[-票なし][-券種].md`（段6） |
 
 ## 動かし方
 
@@ -67,5 +69,6 @@ uv run python research/地方の万馬券/trifecta.py --test-from 2024-01-01 --u
 uv run python research/地方の万馬券/positions.py             # 段5: 1着・2着・3着を分けて市場に合わせ、全券種の買い方を年を入れ替えて評価（15〜25分）
 uv run python research/地方の万馬券/positions.py --protocol 前の年 --report-name 全券種の買い方-前の年          # 前の年だけで当てはめる
 uv run python research/地方の万馬券/positions.py --trifecta-only --report-name 全券種の買い方-3連単の票だけ   # 馬単・3連複・複勝の票を足さない
+uv run python research/地方の万馬券/quinella_trio.py --build  # 段6: 馬連と3連複の組の表を作り、段1 を評価（20〜30分）。--stage 2/3 --base で組の形・荒れ具合、--build --pool-free で票なし
 uv run python -m pytest research/地方の万馬券 -q            # 部品のテスト
 ```
