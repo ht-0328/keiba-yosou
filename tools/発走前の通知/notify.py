@@ -17,7 +17,7 @@
 （係数 reports/地方の推奨買目/係数.json が要る。無ければ tools/地方の推奨買目/fit.py で当てはめる）。朝の全レースの予想は無く、
 馬体重が届く前のレースは前日の時点（オッズだけ）で予想する。
 取り込みと予想に 1〜2分かかるので、通知は発走の 8〜9分前に届く。
-ダブルクリックなら同じフォルダの run.bat。毎日 8:30 に自動で動かすなら register_task.bat（解除は unregister_task.bat）。
+ダブルクリックなら同じフォルダの run.bat。毎日自動で動かすなら register_task.bat（中央は 8:30、地方は 8:35 の2つのタスク。解除は unregister_task.bat）。
 """
 
 from __future__ import annotations

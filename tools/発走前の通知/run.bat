@@ -10,7 +10,8 @@ rem    run.bat --rid 2026110105041101  : 後ろに付けた引数は notify.py �
 rem                                      （--date でその日、--rid でそのレースだけ今すぐ、
 rem                                      --test でつながりの確認、--dry-run で投稿せず画面に）。
 rem    run.bat --task                  : タスクスケジューラから動かす形（終わっても止まらない）。
-rem                                      register_task.bat がこの形で登録する。
+rem    run.bat --task --local          : 同じ形で地方競馬。--task の後ろの引数は notify.py に渡る。
+rem                                      register_task.bat がこの2つの形で登録する。
 rem
 rem  ウェブフック URL は reports\発走前の通知\設定.json に置く（Git には入れない）。
 rem  取り込みは隣の jvdata-store（jvstore）、予想は tools\今週の予想\forecast.py を呼ぶ。
@@ -24,7 +25,7 @@ rem      cmd.exe は bat をコンソールのコードページ（日本語 Win
 rem      実行される行に UTF-8 の日本語があると、行が途中で切れて誤動作する。
 rem    - 文字コードは UTF-8（BOM なし）、改行は CRLF で保存する。
 rem    - フォルダ名に日本語が入るので、パスは %~dp0 からだけ作る。
-rem    - %* は shift しても変わらないので、--task のときは引数を空にして渡す。
+rem    - %* は shift しても変わらないので、--task のときは後ろの引数を1つずつ集め直して渡す。
 rem ===========================================================================
 :main
 
@@ -32,8 +33,16 @@ cd /d "%~dp0"
 set "PROJECT=%~dp0..\.."
 set "ARGS=%*"
 set "NOPAUSE="
-if "%~1"=="--task" set "NOPAUSE=1"
-if "%~1"=="--task" set "ARGS="
+if not "%~1"=="--task" goto :args_done
+set "NOPAUSE=1"
+set "ARGS="
+shift
+:collect_args
+if "%~1"=="" goto :args_done
+set "ARGS=%ARGS% %1"
+shift
+goto :collect_args
+:args_done
 
 where uv >nul 2>&1
 if not errorlevel 1 set "UV=uv"
