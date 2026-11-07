@@ -10,7 +10,7 @@ import pandas as pd
 
 from 共通 import db
 
-from 今週の予想.forecast_columns import HORSE_NAME, HORSE_NO, MARK, PLACE_VALUE, PROBABILITY, WIN_ODDS, WIN_VALUE
+from 今週の予想.forecast_columns import HORSE_NAME, HORSE_NO, MARK, MARK_REASON, PLACE_VALUE, PROBABILITY, WIN_ODDS, WIN_VALUE
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.mark_rule import MARK_ORDER, NO_MARK, OUT_MARK
 from 今週の予想.race_describer import RaceDescriber
@@ -28,8 +28,8 @@ from 発走前の通知.race_styles import RaceStyles
 from 発走前の通知.scheduled_race import ScheduledRace
 from 発走前の通知.tendencies import Tendencies
 
-#: 表の列（予想の JSON の馬の鍵と同じ名前）。
-_COLUMNS: tuple[str, ...] = (MARK, HORSE_NO, HORSE_NAME, WIN_ODDS, PROBABILITY, PLACE_VALUE, WIN_VALUE)
+#: 表の列（予想の JSON の馬の鍵と同じ名前）。印の理由は文の ◎・☆・注・消 の行に添える。
+_COLUMNS: tuple[str, ...] = (MARK, HORSE_NO, HORSE_NAME, WIN_ODDS, PROBABILITY, PLACE_VALUE, WIN_VALUE, MARK_REASON)
 #: 当日の時点（予想の JSON の timing）。
 _RACE_DAY = "当日"
 
