@@ -85,7 +85,7 @@ sequenceDiagram
     end
     alt predict コマンド
         U->>LF: run（接続、レースID、時点、--odds で渡したオッズ、--bet の券種）
-    else 発走前の通知の推奨買目（当日の時点）
+    else 推奨買目（当日の時点）
         R->>UP: of（接続、レースID、荒れ具合の条件のある券種）
         UP->>LF: upset_or_more（接続、レースID、当日、券種）
     end
@@ -130,7 +130,7 @@ sequenceDiagram
 
 `LocalUpsetForecast.run()` は、まず `RaceUsedSlopes` にそのレースの U のレースの値を出させる。過去の傾きの表は `PriorSlopeYearStore` が年ごとにとっておいたもの（その年の1月1日より前のレースだけで作る。学習データと同じ決めごと）、当日の傾きは開催日とその前の日の終わったレースの傾きだけを毎回数える（2日ぶんなので速い）。次に、その1行の表を `UsedSlopeFeatures` に渡して組み立てた `RaceDatasetBuilder` と、中央と同じ `PredictionWorkflow` で予測する。オッズの決め方・記録の集め方・要る情報の確かめ方・券種ごとのモデルの読み方は中央の荒れ具合の予想と同じである。
 
-道具「地方の推奨買目」の `Recommender` は、荒れ具合の条件のある券種（3連複）があるときだけ、`UpsetProbabilities` を通して `upset_or_more()` を当日の時点で呼ぶ。モデルが無い・馬体重がまだ無い、などで出せなければ、`Recommender` は 3連複だけを対象外にして理由を添える（[06-flowchart.md の図1](06-flowchart.md#図1-推奨買目が-3連複を買うかどうかの判断)）。
+道具「地方の推奨買目」の `Recommender` は、荒れ具合の条件のある券種（3連複）があるときだけ、`UpsetProbabilities` を通して `upset_or_more()` を当日の時点で呼ぶ。発走前の通知では、図の `R->>UP` の呼び出しを、全頭の予想と同じ接続で先に済ませておく（`local_predict.py` が呼んで `<rid>.荒れ具合.json` に書き、通知の `Recommender` はそれを読むだけ。分け方とわけは [04 の 4](04-classes.md#4-道具地方の推奨買目からの使われ方)）。モデルが無い・馬体重がまだ無い、などで出せなければ、`Recommender` は 3連複だけを対象外にして理由を添える（[06-flowchart.md の図1](06-flowchart.md#図1-推奨買目が-3連複を買うかどうかの判断)）。
 
 ## 文書情報
 

@@ -15,6 +15,7 @@ from 発走前の通知.local_recommendations import LocalRecommendations
 from 発走前の通知.local_race_schedule import LocalRaceSchedule
 from 発走前の通知.race_message import RaceMessage
 from 発走前の通知.race_schedule import RaceSchedule
+from 発走前の通知.saved_upset_probabilities import SavedUpsetProbabilities
 from 発走前の通知.store_fetcher import StoreFetcher
 
 
@@ -34,9 +35,10 @@ class NotifierParts:
 
     @classmethod
     def local(cls) -> NotifierParts:
-        """地方: 地方の元DB のレース一覧、nvstore、地方の predict、印と推奨買目の文と表の画像、predict の JSON の保存。
+        """地方: 地方の元DB のレース一覧、nvstore、地方の予想（predict と荒れ具合）、印と推奨買目の文と表の画像、予想の JSON の保存。
         推奨買目の係数（reports/地方の推奨買目/係数.json）が無ければここで止まる。"""
         store = LocalForecastStore()
         schedule = LocalRaceSchedule()
+        recommendations = LocalRecommendations(upsets=SavedUpsetProbabilities(store))
         return cls(schedule=schedule, fetcher=StoreFetcher.local(), runner=LocalForecastRunner(store=store),
-                   message=LocalRaceMessage(store, schedule, recommendations=LocalRecommendations()), store=store)
+                   message=LocalRaceMessage(store, schedule, recommendations=recommendations), store=store)

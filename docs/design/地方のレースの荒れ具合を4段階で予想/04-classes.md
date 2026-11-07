@@ -96,7 +96,14 @@ src/yosou/local_upset_level/        地方のレースの荒れ具合を4段階�
 
 ## 4. 道具「地方の推奨買目」からの使われ方
 
-発走前の通知の推奨買目（`tools/地方の推奨買目/`）は、3連複の買い方に「3連複の中荒れ以上の確率 0.6 以上」の条件を持つ（`TicketPlan.upset_min`）。`Recommender` は、その条件のある券種があるときだけ `UpsetProbabilities`（`upset_probabilities.py`）を通して `LocalUpsetForecast.upset_or_more()` を当日の時点で呼び、券種ごとの中荒れ以上の確率を受け取る。判断の手順は [06-flowchart.md の図1](06-flowchart.md#図1-推奨買目が-3連複を買うかどうかの判断)、買い方の決まりは [買い方の 10](../買うレースと買い目を決める/10-local-recommended-tickets.md)。
+発走前の通知の推奨買目（`tools/地方の推奨買目/`）は、3連複の買い方に「3連複の中荒れ以上の確率 0.6 以上」の条件を持つ（`TicketPlan.upset_min`）。`Recommender` は、その条件のある券種があるときだけ荒れ具合の部品（`UpsetSource`）から券種ごとの中荒れ以上の確率を受け取る。
+
+| 使う場所 | 部品 | 確率の出し方 |
+|---|---|---|
+| 道具「地方の推奨買目」の `recommend.py` | `UpsetProbabilities`（`upset_probabilities.py`） | 渡された接続で `LocalUpsetForecast.upset_or_more()` を当日の時点で呼ぶ |
+| 発走前の通知（`notify.py --local`） | `SavedUpsetProbabilities`（`tools/発走前の通知/`） | 計算せず、`<rid>.荒れ具合.json`（`LocalUpsetFile`）を読む。書くのは、発走前に全頭の予想を出す `local_predict.py` で、全頭の予想の `predict` と同じ接続のまま `UpsetProbabilities` で単勝・馬連・3連複・3連単の確率を出して書く（出せなければ理由を書く） |
+
+発走前の通知が同じ接続で出すのは、どちらの予想も地方の全成績の事実表（一時表）を使い、作るのに数分かかるためである。接続を開くたびに作り直すと1レース数分かかり、しかも同じプロセスで作り直すたびに遅くなる。同じ接続なら事実表を作るのは1回で、荒れ具合の分は十秒ほどで済む。`local_predict.py` は毎回新しいプロセスで動くので、レースを重ねても遅くならない。判断の手順は [06-flowchart.md の図1](06-flowchart.md#図1-推奨買目が-3連複を買うかどうかの判断)、買い方の決まりは [買い方の 10](../買うレースと買い目を決める/10-local-recommended-tickets.md)。
 
 ## 5. コマンドの引数
 
