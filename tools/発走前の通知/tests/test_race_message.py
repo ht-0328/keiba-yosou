@@ -35,7 +35,7 @@ def _forecast(*, plan: RacePlan | None = None, danger: bool = True) -> dict:
     forecast = sample_forecast(RID)
     forecast["timing"] = "当日"
     favorite = {**forecast["horses"][0], "rank": 2, "mark": "消", "horse_no": 7, "horse_name": "馬B", "probability": 0.30,
-                "is_danger": danger}
+                "is_danger": danger, "mark_reason": "危険な人気馬（2番人気）"}
     longshot = {**forecast["horses"][0], "rank": 3, "mark": "－", "horse_no": 1, "horse_name": "馬C", "probability": 0.05}
     forecast["horses"] += [favorite, longshot]
     if plan is not None:
@@ -58,7 +58,8 @@ def test_文は見出し_目安_印の付いた馬_買い目だけで_添付は�
     lines = notice.text.splitlines()
     assert lines[0] == "**東京 1R テスト特別（10:05 発走）** 中央の予想・当日の時点"
     assert lines[1] == "◎ランク A（的中率 23%）・配当率 A（56%）"
-    assert lines[2:4] == ["◎ 3 馬A", "消 7 馬B"]   # 印の付いた馬を1つの印につき1行。無印は書かない
+    # 印の付いた馬を1つの印につき1行（◎・消 は印の理由を添える）。無印は書かない
+    assert lines[2:4] == ["◎ 3 馬A：単勝の期待値がレース内1位", "消 7 馬B：危険な人気馬（2番人気）"]
     assert lines[4] == "買い目（合計 1,500円）:"
     assert lines[5].startswith("- 複勝（勝負）: 3 馬A（期待値 1.05、1,200円）")
     assert lines[6] == "- 単勝: 3（オッズ 3.1）  1点 300円 × 1点 = 300円"
@@ -79,7 +80,7 @@ def test_先に終わったレースがあれば_目安の下に馬場の傾向�
     message = RaceMessage(store, schedule=_Schedule(), frames=_Frames(), folder=tmp_path / "中央", tendencies=_Tendencies())
     lines = message.build(RID).text.splitlines()
     assert lines[2] == "馬場 東京・芝（ここまで3R）: 前が止まらない。3着以内9頭の4角は 前 8・中 1・後ろ 0（過去3年の東京・芝は 前 50%・中 33%・後ろ 17%）"
-    assert lines[3] == "◎ 3 馬A"
+    assert lines[3] == "◎ 3 馬A：単勝の期待値がレース内1位"
 
 
 class _Styles:

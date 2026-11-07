@@ -72,12 +72,12 @@ def test_文は_見出し_印の付いた馬_推奨買目だけ() -> None:
     text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
-        "◎ 7 イチバン",
+        "◎ 7 イチバン：単勝 30倍以下の馬の中で単勝の期待値がレース内1位（1着になる確率 35.0% × 単勝 3.0倍 = 1.05）",
         "○ 4 ニバン",
         "▲ 8 サンバン",
         "△ 3 ヨンバン・2 ゴバン・1 ロクバン",
-        "☆ 5 ハチバン",
-        "注 6 ナナバン",
+        "☆ 5 ハチバン：穴馬（8番人気）の中で複勝の期待値がいちばん高い（0.30。線の 1.25 に届かないので表示だけで、買い目の相手には入れない）",
+        "注 6 ナナバン：印の無い馬の中で、市場の見立て（4.0%）より来ると見る度合いがいちばん大きい（予想 5.0%）",
         "推奨買目（1点 100円・合計 4点 400円）:",
         "単勝 7",
         "複勝 3",
@@ -156,7 +156,6 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     tendencies = _Tendencies()
     notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), tendencies=tendencies).build(RID)
     assert tendencies.calls == [(RID, "笠松")]
-    assert notice.text.splitlines()[1:3] == [
-        "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）",
-        "◎ 7 イチバン",
-    ]
+    lines = notice.text.splitlines()
+    assert lines[1] == "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）"
+    assert lines[2].startswith("◎ 7 イチバン：")
