@@ -53,6 +53,44 @@ def test_長い券種の行は折り返し_理由は最後に添える() -> None
     assert image.height > _height(1 + 1 + 1)   # 27点は1行に収まらないので、3連単の行が何行かに分かれる
 
 
+def test_列の幅は画像の幅に収まる() -> None:
+    from 発走前の通知.race_image import COLUMNS
+    assert sum(width for _, _, width, _ in COLUMNS) == style.WIDTH - style.PAD * 2
+
+
+def test_馬名の右に推定脚質を脚質の色で描き_無い馬は横線() -> None:
+    from 発走前の通知.race_image import COLUMNS
+    card = LocalRaceCard(heading="園田 5R", name="", post="", timing="当日の時点", race_day=True, table=_table(), frames={},
+                         bets=RecommendationSet((), "なし"), styles={6: "逃げ", 10: "追込"})
+    image = RaceImage().draw(card).convert("RGB")
+    left = style.PAD + sum(width for key, _, width, _ in COLUMNS[:[key for key, *_ in COLUMNS].index("style")])
+    width = next(width for key, _, width, _ in COLUMNS if key == "style")
+
+    def colors(row: int) -> set:
+        top = style.PAD + style.HEADER_H + style.COLUMN_H + style.ROW_H * row
+        return {image.getpixel((x, y)) for x in range(left, left + width) for y in range(top + 4, top + style.ROW_H - 4)}
+
+    assert style.STYLE_COLORS["逃げ"] in colors(0)
+    assert style.STYLE_COLORS["追込"] in colors(1)
+    assert not set(style.STYLE_COLORS.values()) & colors(2)   # 3番は脚質が無いので「-」（色を付けない）
+
+
+def test_馬番の左に枠番を枠の色の札で描き_枠番の無い馬は横線() -> None:
+    from 発走前の通知.race_image import COLUMNS
+    image = RaceImage().draw(_card(RecommendationSet((), "なし"))).convert("RGB")
+    keys = [key for key, *_ in COLUMNS]
+    left = style.PAD + sum(width for _, _, width, _ in COLUMNS[:keys.index("frame")])
+    width = COLUMNS[keys.index("frame")][2]
+
+    def colors(row: int) -> set:
+        top = style.PAD + style.HEADER_H + style.COLUMN_H + style.ROW_H * row
+        return {image.getpixel((x, y)) for x in range(left, left + width) for y in range(top + 4, top + style.ROW_H - 4)}
+
+    assert style.FRAME_COLORS[5] in colors(0)   # 6番は5枠（黄）
+    assert style.FRAME_COLORS[7] in colors(1)   # 10番は7枠（橙）
+    assert not set(style.FRAME_COLORS.values()) & colors(2)   # 3番は枠番が無いので「-」
+
+
 def test_買い目が無いときは_なし_と理由の行のぶん() -> None:
     bets = RecommendationSet((), "◎ の単勝の期待値 0.90 は 1.00 未満。複勝の期待値 1.25 以上の馬はいない")
     image = RaceImage().draw(_card(bets, race_day=False))

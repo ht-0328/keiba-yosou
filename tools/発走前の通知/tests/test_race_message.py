@@ -82,6 +82,26 @@ def test_先に終わったレースがあれば_目安の下に馬場の傾向�
     assert lines[3] == "◎ 3 馬A"
 
 
+class _Styles:
+    def read(self, rid: str) -> dict[int, str]:
+        return {3: "先行", 7: "逃げ"}
+
+
+def test_推定脚質を表の中身に渡す(tmp_path: Path) -> None:
+    store = ForecastStore(tmp_path / "今週の予想")
+    store.save(_forecast())
+    seen = []
+
+    class _Image:
+        def draw(self, card):
+            seen.append(card)
+            from PIL import Image
+            return Image.new("RGB", (1, 1))
+
+    RaceMessage(store, schedule=_Schedule(), frames=_Frames(), image=_Image(), folder=tmp_path / "中央", styles=_Styles()).build(RID)
+    assert seen[0].styles == {3: "先行", 7: "逃げ"}
+
+
 def test_表は印の順で_危険な人気馬でない消は無印(tmp_path: Path) -> None:
     message, _ = _message(tmp_path, _forecast(danger=False))
     card = message.card(_forecast(danger=False), RACE, {})
