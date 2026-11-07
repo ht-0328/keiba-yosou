@@ -8,7 +8,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class RaceNotice:
-    #: 投稿する文（印・買い目・◎ の理由と近走）。
+    #: 投稿する文（見出し・印・買い目）。
     text: str
-    #: 添付するファイル（中央は全頭の予想根拠の Markdown、地方は全頭の表の画像）。無ければ None。
-    attachment: Path | None = None
+    #: 添付するファイル（全頭の表の画像と、中央は全頭の予想根拠の Markdown）。無ければ空。
+    attachments: tuple[Path, ...] = ()

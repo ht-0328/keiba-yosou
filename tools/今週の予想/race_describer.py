@@ -88,10 +88,7 @@ class RaceDescriber:
         """買い目の行。実際に買う複勝・単勝・馬単・組の期待値・6番人気以下の複勝の買い目（今の決まり）と、荒れ具合で形を決める3連複と、
         参考の券種（ワイド・馬連・3連複・3連単など）。"""
         lines = ["実際に買う買い目:", *self._place_lines(forecast, plan)]
-        tickets = plan.tickets if plan is not None else ()
-        win_picks = [pick for pick in tickets if pick.kind not in (names.MATCH_COMBO, names.MATCH_LONGSHOT)]
-        combo_picks = [pick for pick in tickets if pick.kind == names.MATCH_COMBO]
-        longshot_picks = [pick for pick in tickets if pick.kind == names.MATCH_LONGSHOT]
+        win_picks, combo_picks, longshot_picks = self._split(plan)
         lines += self._bought_lines(WIN_WALLET_TICKETS, win_picks, "")
         if not win_picks:
             lines.append("- 単勝・馬単: なし（単勝（期待値）の馬がいない。馬単は ◎の単勝の期待値が 1.00 以上のレースだけ。くわしくは下の理由）")
@@ -114,6 +111,33 @@ class RaceDescriber:
                 continue
             lines.append(self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule]))
         return lines
+
+    def bought(self, forecast: dict[str, Any], plan: RacePlan | None) -> list[tuple[str, int]]:
+        """実際に買う買い目の行（``lines`` の「実際に買う買い目」と同じ書き方。先頭の「- 」は付けない）と、その行の金額。
+        買わない券種の行（「なし」）は出さない（発走前の通知の短い文と表の画像）。計画が無ければ、荒れ具合で形を決める3連複だけ。"""
+        rows: list[tuple[str, int]] = []
+        if plan is not None and plan.picks:
+            rows.append((self._place_lines(forecast, plan)[0].removeprefix("- "), plan.place_yen))
+        win_picks, combo_picks, longshot_picks = self._split(plan)
+        for labels, picks, suffix in ((WIN_WALLET_TICKETS, win_picks, ""), (COMBO_LABELS, combo_picks, "（組の期待値）"),
+                                      ((PLACE_LABEL,), longshot_picks, "（6番人気以下）")):
+            for label in labels:
+                chosen = [pick for pick in picks if pick.ticket_type == label]
+                if chosen:
+                    rows.append((self._bought_lines((label,), chosen, suffix)[0].removeprefix("- "), sum(pick.yen for pick in chosen)))
+        trio = [ticket for ticket in forecast["tickets"] if ticket["rule"] in UPSET_TRIO_LABELS and not ticket["dropped"]]
+        if trio:
+            rows.append((self._upset_trio_line(forecast).removeprefix("- "), POINT_YEN * len(trio)))
+        return rows
+
+    @staticmethod
+    def _split(plan: RacePlan | None) -> tuple[list[TicketPick], list[TicketPick], list[TicketPick]]:
+        """計画の単勝・馬単（の財布）、組の期待値、6番人気以下の複勝の買い目。"""
+        tickets = plan.tickets if plan is not None else ()
+        win_picks = [pick for pick in tickets if pick.kind not in (names.MATCH_COMBO, names.MATCH_LONGSHOT)]
+        combo_picks = [pick for pick in tickets if pick.kind == names.MATCH_COMBO]
+        longshot_picks = [pick for pick in tickets if pick.kind == names.MATCH_LONGSHOT]
+        return win_picks, combo_picks, longshot_picks
 
     def _longshot_none_line(self, forecast: dict[str, Any]) -> str:
         """6番人気以下の複勝を買わないときの行。当日の予想でなければ、今の候補（当日の予想で買うかを決め直す）を書く。"""

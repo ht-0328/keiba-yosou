@@ -1,8 +1,10 @@
-"""地方の1レースの通知の中身（LocalRaceCard）を、Discord に添付する表の画像に描く。"""
+"""1レースの通知の中身（中央の JraRaceCard・地方の LocalRaceCard）を、Discord に添付する表の画像に描く。"""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
+from typing import Protocol
 
 import pandas as pd
 from PIL import Image, ImageDraw
@@ -11,12 +13,9 @@ from 今週の予想.forecast_columns import HORSE_NAME, HORSE_NO, MARK, PLACE_V
 from 今週の予想.mark_rule import NO_MARK, TOP_MARK
 from 今週の予想.ticket_rules import PLACE_VALUE_LINE
 
-from 地方の推奨買目.recommendation import STAKE
-from 地方の推奨買目.recommendation_set import RecommendationSet
-
 from 発走前の通知 import image_style as style
+from 発走前の通知.bet_footer import BetFooter
 from 発走前の通知.local_bet_rule import WIN_VALUE_LINE
-from 発走前の通知.local_race_card import LocalRaceCard
 
 #: 列（キー・見出し・幅・寄せ l/c/r）。幅の合計と余白で画像の幅になる。
 COLUMNS: tuple[tuple[str, str, int, str], ...] = (
@@ -33,16 +32,42 @@ FOOTER_GAP = 22
 BET_PILL_W = 110
 #: 買い目の1行（文・色・太字）。
 FooterLine = tuple[str, style.Color, bool]
+#: 値が無い（オッズがまだ無い など）ときに描く字。
+MISSING = "-"
+#: 買い目の行を折り返す区切り（組の間の「・」と、金額の前の「  」）。
+_SEPARATORS = ("・", "  ")
 
 
-class LocalRaceImage:
+class RaceCard(Protocol):
+    """画像に描く中身。中央（``JraRaceCard``）と地方（``LocalRaceCard``）が同じ形で持つ。"""
+
+    #: 場と R（例 ``園田 5R``）。
+    heading: str
+    #: レース名（無ければ空）。
+    name: str
+    #: 発走時刻（例 ``12:40 発走``。無ければ空）。
+    post: str
+    #: 時点（例 ``当日の時点``）。
+    timing: str
+    #: 当日の時点か（時点の札の色）。
+    race_day: bool
+    #: 印の順に並べた全頭。列名は ``今週の予想.forecast_columns``。
+    table: pd.DataFrame
+    #: 馬番 → 枠番。
+    frames: Mapping[int, int]
+
+    @property
+    def footer(self) -> BetFooter: ...
+
+
+class RaceImage:
     """上から 見出しの帯（場・R・レース名・発走時刻・時点の札）→ 列の見出し → 1頭1行（印の札・枠の色の馬番・馬名・単勝・
-    3着以内の確率の棒・複勝と単勝の期待値）→ 推奨買目（券種ごとに1行。長ければ折り返す）。
-    ◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。"""
+    3着以内の確率の棒・複勝と単勝の期待値）→ 買い目の欄（札・券種ごとに1行。長ければ折り返す・合計・理由）。
+    ◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。値が無ければ「-」を描く。"""
 
-    def draw(self, card: LocalRaceCard) -> Image.Image:
+    def draw(self, card: RaceCard) -> Image.Image:
         measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-        footer = self._footer_lines(measure, card.bets)
+        footer = self._footer_lines(measure, card.footer)
         height = (style.PAD + style.HEADER_H + style.COLUMN_H + style.ROW_H * len(card.table) + FOOTER_GAP
                   + style.FOOTER_LINE_H * len(footer) + style.PAD)
         image = Image.new("RGB", (style.WIDTH, height), style.BG)
@@ -51,12 +76,12 @@ class LocalRaceImage:
         y = self._columns(draw, y)
         for _, row in card.table.iterrows():
             y = self._row(draw, row, card.frames, y)
-        self._footer(draw, footer, y + FOOTER_GAP)
+        self._footer(draw, card.footer.label, footer, y + FOOTER_GAP)
         return image
 
     # --- 見出しの帯 ---------------------------------------------------------------------------
 
-    def _header(self, draw: ImageDraw.ImageDraw, card: LocalRaceCard, y: int) -> int:
+    def _header(self, draw: ImageDraw.ImageDraw, card: RaceCard, y: int) -> int:
         left, right = style.PAD, style.WIDTH - style.PAD
         draw.rounded_rectangle([(left, y), (right, y + style.HEADER_H)], radius=18, fill=style.HEADER_BG)
         draw.text((left + 26, y + 22), card.heading, font=style.font(40, bold=True), fill=style.TEXT, anchor="la")
@@ -99,20 +124,21 @@ class LocalRaceImage:
               width: int, align: str, top: bool, background: style.Color) -> None:
         if key == "mark":
             self._mark_badge(draw, str(row[MARK]), x + width // 2, center)
+        elif key == "no" and not _known(row[HORSE_NO]):
+            self._text(draw, MISSING, x, center, width, align, style.font(22), style.DIM)
         elif key == "no":
             self._frame_badge(draw, int(row[HORSE_NO]), frames.get(int(row[HORSE_NO])), x + width // 2, center)
         elif key == "name":
             name = self._fit(draw, str(row[HORSE_NAME]), style.font(23, bold=top), width - GAP * 2)
             self._text(draw, name, x, center, width, align, style.font(23, bold=top), style.TEXT)
         elif key == "odds":
-            self._text(draw, f"{row[WIN_ODDS]:.1f}", x, center, width, align, style.font(23), style.TEXT)
+            self._text(draw, _number(row[WIN_ODDS], 1), x, center, width, align, style.font(23), style.TEXT)
         elif key == "p3":
             self._probability(draw, float(row[PROBABILITY]), x, center, width, top, background)
         elif key == "place":
-            good = row[PLACE_VALUE] >= PLACE_VALUE_LINE
-            self._value(draw, float(row[PLACE_VALUE]), x, center, width, good)
+            self._value(draw, row[PLACE_VALUE], x, center, width, _at_least(row[PLACE_VALUE], PLACE_VALUE_LINE))
         elif key == "win":
-            self._value(draw, float(row[WIN_VALUE]), x, center, width, top and row[WIN_VALUE] >= WIN_VALUE_LINE)
+            self._value(draw, row[WIN_VALUE], x, center, width, top and _at_least(row[WIN_VALUE], WIN_VALUE_LINE))
 
     def _mark_badge(self, draw: ImageDraw.ImageDraw, mark: str, cx: int, cy: int) -> None:
         color = style.MARK_COLORS.get(mark)
@@ -139,48 +165,81 @@ class LocalRaceImage:
         draw.rounded_rectangle([(x + GAP, center - 14), (x + GAP + bar_w, center + 14)], radius=6, fill=bar)
         self._text(draw, f"{probability:.0%}", x, center, width, "r", style.font(23, bold=top), style.TEXT)
 
-    def _value(self, draw: ImageDraw.ImageDraw, value: float, x: int, center: int, width: int, good: bool) -> None:
+    def _value(self, draw: ImageDraw.ImageDraw, value: object, x: int, center: int, width: int, good: bool) -> None:
         fill = style.GOOD if good else style.TEXT
-        self._text(draw, f"{value:.2f}", x, center, width, "r", style.font(23, bold=good), fill)
+        self._text(draw, _number(value, 2), x, center, width, "r", style.font(23, bold=good), fill)
 
-    # --- 推奨買目 ---------------------------------------------------------------------------
+    # --- 買い目の欄 ---------------------------------------------------------------------------
 
-    def _footer_lines(self, draw: ImageDraw.ImageDraw, bets: RecommendationSet) -> list[FooterLine]:
-        """推奨買目の行（文・色・太字）。券種の行は幅に収まるよう「・」で折り返し、最後に合計。無ければ「なし」と理由。"""
+    def _footer_lines(self, draw: ImageDraw.ImageDraw, footer: BetFooter) -> list[FooterLine]:
+        """買い目の欄の行（文・色・太字）。券種の行は幅に収まるよう括弧の外の区切りで折り返し、合計、理由（幅で折り返す）。
+        無ければ「なし」と理由。"""
         max_width = style.WIDTH - style.PAD * 2 - BET_PILL_W - GAP
-        if bets.none:
-            return [("なし", style.DIM, True), *[(f"・{reason}", style.DIM, False) for reason in self._reasons(bets.reason)]]
+        notes = [(part, style.DIM, False) for note in footer.notes
+                 for part in self._wrap_chars(draw, f"・{note}", style.font(22), max_width)]
+        if footer.none:
+            return [("なし", style.DIM, True), *notes]
         lines: list[FooterLine] = []
-        for line in bets.lines():
+        for line in footer.lines:
             lines += [(part, style.TEXT, True) for part in self._wrap(draw, line, style.font(22, bold=True), max_width)]
-        lines.append((f"合計 {bets.points}点 {bets.yen:,}円（1点 {STAKE}円）", style.GOLD, True))
-        lines += [(f"・{reason}", style.DIM, False) for reason in self._reasons(bets.reason)]
-        return lines
+        if footer.total:
+            lines.append((footer.total, style.GOLD, True))
+        return lines + notes
 
-    def _footer(self, draw: ImageDraw.ImageDraw, lines: list[FooterLine], y: int) -> None:
-        self._pill(draw, "推奨買目", style.PAD, y, style.GOLD, style.BG, align="l")
+    def _footer(self, draw: ImageDraw.ImageDraw, label: str, lines: list[FooterLine], y: int) -> None:
+        self._pill(draw, label, style.PAD, y, style.GOLD, style.BG, align="l")
         x = style.PAD + BET_PILL_W + GAP
         for index, (text, fill, bold) in enumerate(lines):
             draw.text((x, y + 16 + style.FOOTER_LINE_H * index), text, font=style.font(22, bold=bold), fill=fill, anchor="lm")
 
     @staticmethod
-    def _reasons(reason: str) -> list[str]:
-        return [part for part in reason.split("。") if part]
-
-    @staticmethod
     def _wrap(draw: ImageDraw.ImageDraw, line: str, font, max_width: int) -> list[str]:
-        """「・」の区切りで折り返す。2行目からは券種の名前のぶん字下げする。"""
+        """括弧の外の「・」と「  」（金額の前）の区切りで折り返す。2行目からは券種の名前のぶん字下げする。"""
         head, _, body = line.partition(" ")
-        parts = body.split("・")
         rows: list[str] = []
         current = head
-        for part in parts:
-            candidate = f"{current} {part}" if current == head else f"{current}・{part}"
+        for separator, part in RaceImage._parts(body):
+            candidate = f"{current} {part}" if current == head else f"{current}{separator}{part}"
             if draw.textlength(candidate, font=font) <= max_width or current == head:
                 current = candidate
                 continue
             rows.append(current)
             current = f"{'　' * len(head)} {part}"
+        rows.append(current)
+        return rows
+
+    @staticmethod
+    def _parts(body: str) -> list[tuple[str, str]]:
+        """（前の区切り, 部分）の並び。括弧（（）の中の「・」では分けない（中央の「期待値 1.18・オッズ 10.9」）。"""
+        parts: list[tuple[str, str]] = []
+        depth, start, separator, index = 0, 0, "", 0
+        while index < len(body):
+            char = body[index]
+            if char in "（(":
+                depth += 1
+            elif char in "）)":
+                depth -= 1
+            elif depth == 0 and body.startswith(_SEPARATORS, index):
+                found = next(mark for mark in _SEPARATORS if body.startswith(mark, index))
+                parts.append((separator, body[start:index]))
+                separator, start = found, index + len(found)
+                index = start
+                continue
+            index += 1
+        parts.append((separator, body[start:]))
+        return parts
+
+    @staticmethod
+    def _wrap_chars(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
+        """区切りの無い文（理由）を、幅に収まるよう字で折り返す。2行目からは1字下げる。"""
+        rows: list[str] = []
+        current = ""
+        for char in text:
+            if current and draw.textlength(current + char, font=font) > max_width:
+                rows.append(current)
+                current = f"　{char}"
+            else:
+                current += char
         rows.append(current)
         return rows
 
@@ -214,3 +273,16 @@ class LocalRaceImage:
         while kept and draw.textlength(kept + "…", font=font) > max_width:
             kept = kept[:-1]
         return kept + "…"
+
+
+def _known(value: object) -> bool:
+    return isinstance(value, (int, float)) and not math.isnan(value)
+
+
+def _number(value: object, digits: int) -> str:
+    """数を小数 ``digits`` 桁で。無い（None・NaN）なら「-」。"""
+    return f"{value:.{digits}f}" if _known(value) else MISSING
+
+
+def _at_least(value: object, line: float) -> bool:
+    return _known(value) and value >= line  # type: ignore[operator]

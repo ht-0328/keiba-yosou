@@ -128,3 +128,23 @@ def test_荒れ具合で形を決める3連複はその形の行を書き_比べ
     assert f"\n- {huge}: 2点 200円  2-9-11・2-3-9\n参考の買い目" in text
     assert POOL_TRIO_RULES[-1].label not in text and mid not in text
     assert "- 3連複（荒れ具合で形を決める）: なし（固いレースか、3連複の荒れ具合の予想が無いか" in RaceDescriber().describe(_forecast())
+
+
+def test_実際に買う買い目だけを_文と同じ書き方と金額で返し_なしの行は出さない() -> None:
+    huge = UPSET_TRIO_LABELS[2]
+    forecast = _forecast("当日")
+    forecast["tickets"] += [_ticket(huge, "3連複", [2, 3, 9], "2-3-9", 1.4, 120.5), _ticket(huge, "3連複", [2, 9, 11], "2-9-11", 2.1, 480.0)]
+    rows = RaceDescriber().bought(forecast, _plan())
+    assert rows == [
+        ("複勝（勝負）: 3 馬A（期待値 1.05、1,600円）  合計 1,600円", 1600),
+        ("単勝: 3（オッズ 3.1）  1点 300円 × 1点 = 300円", 300),
+        ("馬単: 3→1（オッズ 12.0）  1点 100円 × 1点 = 100円", 100),
+        ("ワイド（組の期待値）: 1-3（期待値 1.20・オッズ 6.0）  1点 100円 × 1点 = 100円", 100),
+        (f"{huge}: 2点 200円  2-9-11・2-3-9", 200),
+    ]
+    # 文の「実際に買う買い目」の行と同じ
+    text = RaceDescriber().describe(forecast, _plan())
+    assert all(f"- {line}" in text for line, _ in rows)
+    # 何も買わない計画・計画が無いときは空
+    assert RaceDescriber().bought(_forecast("当日"), _plan(kind="買わない", picks=(), tickets=())) == []
+    assert RaceDescriber().bought(_forecast("当日"), None) == []

@@ -65,12 +65,17 @@ def test_中身は印の順の全頭と_見出し_推奨買目() -> None:
     assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"] and card.bets.points == 4
 
 
-def test_文は_見出し_上位の印_推奨買目だけ() -> None:
+def test_文は_見出し_印の付いた馬_推奨買目だけ() -> None:
     message = LocalRaceMessage()
     text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
-        "◎ 7 イチバン　○ 4 ニバン　▲ 8 サンバン",
+        "◎ 7 イチバン",
+        "○ 4 ニバン",
+        "▲ 8 サンバン",
+        "△ 3 ヨンバン・2 ゴバン・1 ロクバン",
+        "☆ 5 ハチバン",
+        "注 6 ナナバン",
         "推奨買目（1点 100円・合計 4点 400円）:",
         "単勝 7",
         "複勝 3",
@@ -82,7 +87,7 @@ def test_文は_見出し_上位の印_推奨買目だけ() -> None:
 def test_推奨買目が無ければ_全頭の予想の単勝と複勝だけ() -> None:
     message = LocalRaceMessage()
     text = message.describe(message.card(_forecast("当日"), RACE, {}))
-    assert text.splitlines()[2:] == ["推奨買目（1点 100円・合計 2点 200円）:", "単勝 7", "複勝 3"]
+    assert text.splitlines()[7:] == ["推奨買目（1点 100円・合計 2点 200円）:", "単勝 7", "複勝 3"]
 
 
 def test_前日の時点は買い目を出さず_その旨を書く() -> None:
@@ -108,5 +113,5 @@ def test_組み立てると_推奨買目を呼び_文と_保存した表の画�
     assert recommendations.calls == [RID]
     assert notice.text.startswith("**笠松 1R（10:25 発走）** 地方の予想・当日の時点")
     assert "3連単 7→4→8" in notice.text
-    assert notice.attachment == store.image_path(RID)
-    assert notice.attachment.stat().st_size > 0
+    assert notice.attachments == (store.image_path(RID),)
+    assert store.image_path(RID).stat().st_size > 0
