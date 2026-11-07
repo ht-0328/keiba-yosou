@@ -17,6 +17,7 @@ from 発走前の通知.local_recommendations import LocalRecommendations
 from 発走前の通知.local_race_schedule import LocalRaceSchedule
 from 発走前の通知.race_message import RaceMessage
 from 発走前の通知.race_schedule import RaceSchedule
+from 発走前の通知.race_styles import RaceStyles
 from 発走前の通知.saved_upset_probabilities import SavedUpsetProbabilities
 from 発走前の通知.store_fetcher import StoreFetcher
 from 発走前の通知.track_tendencies import TrackTendencies
@@ -36,7 +37,7 @@ class NotifierParts:
         今週の予想の保存。"""
         store = ForecastStore()
         schedule = RaceSchedule()
-        message = RaceMessage(store, schedule=schedule, tendencies=TrackTendencies(default=db.JRA))
+        message = RaceMessage(store, schedule=schedule, tendencies=TrackTendencies(default=db.JRA), styles=RaceStyles())
         return cls(schedule=schedule, fetcher=StoreFetcher(), runner=ForecastRunner(), message=message, store=store)
 
     @classmethod
@@ -48,4 +49,4 @@ class NotifierParts:
         recommendations = LocalRecommendations(upsets=SavedUpsetProbabilities(store))
         return cls(schedule=schedule, fetcher=StoreFetcher.local(), runner=LocalForecastRunner(store=store),
                    message=LocalRaceMessage(store, schedule, recommendations=recommendations,
-                                            tendencies=TrackTendencies(default=db.LOCAL)), store=store)
+                                            tendencies=TrackTendencies(default=db.LOCAL), styles=RaceStyles.local()), store=store)

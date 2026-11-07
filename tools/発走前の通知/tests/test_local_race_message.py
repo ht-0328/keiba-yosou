@@ -119,6 +119,27 @@ def test_組み立てると_推奨買目を呼び_文と_保存した表の画�
     assert store.image_path(RID).stat().st_size > 0
 
 
+class _Styles:
+    def read(self, rid: str) -> dict[int, str]:
+        return {7: "逃げ", 4: "差し"}
+
+
+def test_推定脚質を表の中身に渡す(tmp_path: Path) -> None:
+    store = LocalForecastStore(tmp_path)
+    store.path(RID).parent.mkdir(parents=True)
+    store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
+    seen = []
+
+    class _Image:
+        def draw(self, card):
+            seen.append(card)
+            from PIL import Image
+            return Image.new("RGB", (1, 1))
+
+    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), image=_Image(), styles=_Styles()).build(RID)
+    assert seen[0].styles == {7: "逃げ", 4: "差し"}
+
+
 class _Tendencies:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []

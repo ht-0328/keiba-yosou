@@ -19,7 +19,7 @@ from 発走前の通知.local_bet_rule import WIN_VALUE_LINE
 
 #: 列（キー・見出し・幅・寄せ l/c/r）。幅の合計と余白で画像の幅になる。
 COLUMNS: tuple[tuple[str, str, int, str], ...] = (
-    ("mark", "印", 66, "c"), ("no", "馬番", 72, "c"), ("name", "馬名", 282, "l"), ("odds", "単勝", 110, "r"),
+    ("mark", "印", 66, "c"), ("frame", "枠", 56, "c"), ("no", "馬番", 66, "c"), ("name", "馬名", 282, "l"), ("style", "脚質", 80, "c"), ("odds", "単勝", 110, "r"),
     ("p3", "3着以内", 210, "r"), ("place", "複勝の期待値", 152, "r"), ("win", "単勝の期待値", 152, "r"),
 )
 #: 文字と枠の間（px）。
@@ -55,13 +55,15 @@ class RaceCard(Protocol):
     table: pd.DataFrame
     #: 馬番 → 枠番。
     frames: Mapping[int, int]
+    #: 馬番 → 推定脚質（逃げ・先行・差し・追込）。無い馬は「-」。
+    styles: Mapping[int, str]
 
     @property
     def footer(self) -> BetFooter: ...
 
 
 class RaceImage:
-    """上から 見出しの帯（場・R・レース名・発走時刻・時点の札）→ 列の見出し → 1頭1行（印の札・枠の色の馬番・馬名・単勝・
+    """上から 見出しの帯（場・R・レース名・発走時刻・時点の札）→ 列の見出し → 1頭1行（印の札・枠番（枠の色の札）・馬番・馬名・推定脚質・単勝・
     3着以内の確率の棒・複勝と単勝の期待値）→ 買い目の欄（札・券種ごとに1行。長ければ折り返す・合計・理由）。
     ◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。値が無ければ「-」を描く。"""
 
@@ -75,7 +77,7 @@ class RaceImage:
         y = self._header(draw, card, style.PAD)
         y = self._columns(draw, y)
         for _, row in card.table.iterrows():
-            y = self._row(draw, row, card.frames, y)
+            y = self._row(draw, row, card, y)
         self._footer(draw, card.footer.label, footer, y + FOOTER_GAP)
         return image
 
@@ -105,7 +107,7 @@ class RaceImage:
 
     # --- 1頭の行 ---------------------------------------------------------------------------
 
-    def _row(self, draw: ImageDraw.ImageDraw, row: pd.Series, frames: Mapping[int, int], y: int) -> int:
+    def _row(self, draw: ImageDraw.ImageDraw, row: pd.Series, card: RaceCard, y: int) -> int:
         top = row[MARK] == TOP_MARK
         background = style.TOP_ROW_BG if top else style.BG
         if top:
@@ -114,23 +116,32 @@ class RaceImage:
         center = y + style.ROW_H // 2
         x = style.PAD
         for key, _, width, align in COLUMNS:
-            self._cell(draw, key, row, frames, x, center, width, align, top, background)
+            self._cell(draw, key, row, card, x, center, width, align, top, background)
             x += width
         bottom = y + style.ROW_H
         draw.line([(style.PAD, bottom), (style.WIDTH - style.PAD, bottom)], fill=style.LINE, width=1)
         return bottom
 
-    def _cell(self, draw: ImageDraw.ImageDraw, key: str, row: pd.Series, frames: Mapping[int, int], x: int, center: int,
+    def _cell(self, draw: ImageDraw.ImageDraw, key: str, row: pd.Series, card: RaceCard, x: int, center: int,
               width: int, align: str, top: bool, background: style.Color) -> None:
         if key == "mark":
             self._mark_badge(draw, str(row[MARK]), x + width // 2, center)
-        elif key == "no" and not _known(row[HORSE_NO]):
-            self._text(draw, MISSING, x, center, width, align, style.font(22), style.DIM)
+        elif key == "frame":
+            frame = card.frames.get(int(row[HORSE_NO])) if _known(row[HORSE_NO]) else None
+            if frame is None:
+                self._text(draw, MISSING, x, center, width, align, style.font(22), style.DIM)
+            else:
+                self._frame_badge(draw, frame, x + width // 2, center)
         elif key == "no":
-            self._frame_badge(draw, int(row[HORSE_NO]), frames.get(int(row[HORSE_NO])), x + width // 2, center)
+            number = str(int(row[HORSE_NO])) if _known(row[HORSE_NO]) else MISSING
+            self._text(draw, number, x, center, width, align, style.font(23, bold=True), style.TEXT if number != MISSING else style.DIM)
         elif key == "name":
             name = self._fit(draw, str(row[HORSE_NAME]), style.font(23, bold=top), width - GAP * 2)
             self._text(draw, name, x, center, width, align, style.font(23, bold=top), style.TEXT)
+        elif key == "style":
+            running = card.styles.get(int(row[HORSE_NO])) if _known(row[HORSE_NO]) else None
+            color = style.STYLE_COLORS.get(running or "", style.DIM)
+            self._text(draw, running or MISSING, x, center, width, align, style.font(21, bold=True), color)
         elif key == "odds":
             self._text(draw, _number(row[WIN_ODDS], 1), x, center, width, align, style.font(23), style.TEXT)
         elif key == "p3":
@@ -149,12 +160,13 @@ class RaceImage:
         draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=color)
         draw.text((cx, cy - 1), mark, font=style.font(21, bold=True), fill=style.TEXT, anchor="mm")
 
-    def _frame_badge(self, draw: ImageDraw.ImageDraw, horse_no: int, frame: int | None, cx: int, cy: int) -> None:
-        color = style.FRAME_COLORS.get(frame or 0, style.FRAME_UNKNOWN)
+    def _frame_badge(self, draw: ImageDraw.ImageDraw, frame: int, cx: int, cy: int) -> None:
+        """枠の色の札に枠番を書く。"""
+        color = style.FRAME_COLORS.get(frame, style.FRAME_UNKNOWN)
         fill = style.BG if frame in style.FRAME_DARK_TEXT else style.TEXT
         r = FRAME_BADGE // 2
         draw.rounded_rectangle([(cx - r, cy - r), (cx + r, cy + r)], radius=7, fill=color, outline=style.LINE, width=1)
-        draw.text((cx, cy - 1), str(horse_no), font=style.font(20, bold=True), fill=fill, anchor="mm")
+        draw.text((cx, cy - 1), str(frame), font=style.font(20, bold=True), fill=fill, anchor="mm")
 
     def _probability(self, draw: ImageDraw.ImageDraw, probability: float, x: int, center: int, width: int, top: bool,
                      background: style.Color) -> None:

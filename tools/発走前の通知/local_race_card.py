@@ -1,9 +1,9 @@
-"""地方の1レースの通知に載せる中身（見出し・時点・馬場の傾向・印の順の全頭の表・枠番・買い目）。文と画像の両方がここから作られる。"""
+"""地方の1レースの通知に載せる中身（見出し・時点・馬場の傾向・印の順の全頭の表・枠番・推定脚質・買い目）。文と画像の両方がここから作られる。"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -35,6 +35,8 @@ class LocalRaceCard:
     bets: RecommendationSet
     #: その日の馬場の傾向の1行（``TrackTendency.text()``。先に終わった同じ芝ダのレースが無ければ空）。
     tendency: str = ""
+    #: 馬番 → 推定脚質（逃げ・先行・差し・追込。``RaceStyles.local()``）。過去走の無い馬は入らない。
+    styles: Mapping[int, str] = field(default_factory=dict)
 
     @property
     def title(self) -> str:
