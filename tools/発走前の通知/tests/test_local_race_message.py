@@ -11,7 +11,9 @@ from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.local_race_message import LocalRaceMessage
+from 発走前の通知.position_counts import PositionCounts
 from 発走前の通知.scheduled_race import ScheduledRace
+from 発走前の通知.track_tendency import TrackTendency
 
 COLUMNS = ["順位", "馬番", "馬名", "単勝オッズ", "オッズから見た3着以内率", "複勝的中の確率", "複勝の期待値", "1着になる確率", "単勝の期待値",
            "3着以内に入る確率", "LightGBM", "CatBoost"]
@@ -115,3 +117,25 @@ def test_組み立てると_推奨買目を呼び_文と_保存した表の画�
     assert "3連単 7→4→8" in notice.text
     assert notice.attachments == (store.image_path(RID),)
     assert store.image_path(RID).stat().st_size > 0
+
+
+class _Tendencies:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def of(self, rid: str, venue: str) -> TrackTendency:
+        self.calls.append((rid, venue))
+        return TrackTendency(venue, "ダート", PositionCounts(2, 6, 1, 2, 3), PositionCounts(100, 300, 150, 100, 50))
+
+
+def test_先に終わったレースがあれば_見出しの下に馬場の傾向の行(tmp_path: Path) -> None:
+    store = LocalForecastStore(tmp_path)
+    store.path(RID).parent.mkdir(parents=True)
+    store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
+    tendencies = _Tendencies()
+    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), tendencies=tendencies).build(RID)
+    assert tendencies.calls == [(RID, "笠松")]
+    assert notice.text.splitlines()[1:3] == [
+        "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）",
+        "◎ 7 イチバン",
+    ]

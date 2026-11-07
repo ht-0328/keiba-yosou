@@ -13,7 +13,9 @@ from 今週の予想.tests.test_forecast_store import sample_forecast
 from 今週の予想.ticket_pick import TicketPick
 
 from 発走前の通知.race_message import RaceMessage
+from 発走前の通知.position_counts import PositionCounts
 from 発走前の通知.scheduled_race import ScheduledRace
+from 発走前の通知.track_tendency import TrackTendency
 
 RID = "2025041905010101"
 RACE = ScheduledRace(rid=RID, venue="東京", number=1, name="テスト特別", post=datetime(2025, 4, 19, 10, 5))
@@ -64,6 +66,20 @@ def test_文は見出し_目安_印の付いた馬_買い目だけで_添付は�
     image = tmp_path / "中央" / "2025-04-19" / f"{RID}.png"
     assert notice.attachments == (image, store.reasons_path(RID))
     assert image.stat().st_size > 0
+
+
+class _Tendencies:
+    def of(self, rid: str, venue: str) -> TrackTendency:
+        return TrackTendency(venue, "芝", PositionCounts(3, 9, 8, 1, 0), PositionCounts(100, 300, 150, 100, 50))
+
+
+def test_先に終わったレースがあれば_目安の下に馬場の傾向の行(tmp_path: Path) -> None:
+    store = ForecastStore(tmp_path / "今週の予想")
+    store.save(_forecast())
+    message = RaceMessage(store, schedule=_Schedule(), frames=_Frames(), folder=tmp_path / "中央", tendencies=_Tendencies())
+    lines = message.build(RID).text.splitlines()
+    assert lines[2] == "馬場 東京・芝（ここまで3R）: 前が止まらない。3着以内9頭の4角は 前 8・中 1・後ろ 0（過去3年の東京・芝は 前 50%・中 33%・後ろ 17%）"
+    assert lines[3] == "◎ 3 馬A"
 
 
 def test_表は印の順で_危険な人気馬でない消は無印(tmp_path: Path) -> None:
