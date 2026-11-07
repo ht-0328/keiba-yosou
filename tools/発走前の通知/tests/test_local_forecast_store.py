@@ -12,6 +12,7 @@ def test_開催日のフォルダに_rid_の_json_を置き_無ければ_None(tm
     rid = "2026110547150401"
     assert store.path(rid) == tmp_path / "2026-11-05" / f"{rid}.json"
     assert store.image_path(rid) == tmp_path / "2026-11-05" / f"{rid}.png"
+    assert store.upset_path(rid) == tmp_path / "2026-11-05" / f"{rid}.荒れ具合.json"
     assert store.saved_at(rid) is None
     assert store.load(rid) is None
     store.path(rid).parent.mkdir(parents=True)

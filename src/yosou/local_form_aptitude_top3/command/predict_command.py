@@ -61,17 +61,21 @@ class PredictCommand:
 
     def run(self, args: argparse.Namespace) -> list[Table]:
         with db.open_db(args.db, default=db.LOCAL) as con:
-            race_id = self._race_id(args, con)
-            extras = self._extras(con, args)
-            workflow = PredictionWorkflow(
-                local_dataset_builder(con), SegmentedPrediction(ModelSegments(), args.models),
-                OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
-                pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER),
-                win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
-                win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
-                extras=extras, win_extras=extras,
-            )
-            prediction = workflow.run(race_id, args.timing, self._given_odds(args))
+            return self.tables(con, args)
+
+    def tables(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> list[Table]:
+        """開いてある接続で予測する。同じ接続で続けて別の予想（発走前の通知の荒れ具合）を出すと、事実表を作り直さずに済む。"""
+        race_id = self._race_id(args, con)
+        extras = self._extras(con, args)
+        workflow = PredictionWorkflow(
+            local_dataset_builder(con), SegmentedPrediction(ModelSegments(), args.models),
+            OddsResolver(AnnouncedOddsRepository(con)), PlaceValueColumns(self._place_price(args)),
+            pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER),
+            win_predictor=SegmentedPrediction(ModelSegments(), args.models / WIN_FOLDER),
+            win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
+            extras=extras, win_extras=extras,
+        )
+        prediction = workflow.run(race_id, args.timing, self._given_odds(args))
         table = PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction),
                                 timing_label=TIMING_LABELS[args.timing])
         return [table.table()]

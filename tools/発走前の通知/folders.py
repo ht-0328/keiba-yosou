@@ -22,17 +22,7 @@ LOCAL_STORE_PROJECT = PROJECT.parent / "nvdata-store"
 LOCAL_STORE_DB = "nvdata.duckdb"
 #: 地方の予想の結果（predict の JSON）を置く場所。
 LOCAL_FOLDER = DEFAULT_FOLDER / "地方"
-#: 地方の予想モデルの入口（python -m で別プロセスで動かす）。
-LOCAL_PREDICT_MODULE = "yosou.local_form_aptitude_top3"
-#: 地方の記録のファイル名の頭（中央の記録と分ける）。
-LOCAL_LOG_NAME = "地方-"
-#: 地方の速報を取り込む nvdata-store（keiba-yosou の隣）。
-LOCAL_STORE_PROJECT = PROJECT.parent / "nvdata-store"
-#: 地方の元DB のファイル名（nvdata-store の中）。
-LOCAL_STORE_DB = "nvdata.duckdb"
-#: 地方の予想の結果（predict の JSON）を置く場所。
-LOCAL_FOLDER = DEFAULT_FOLDER / "地方"
-#: 地方の予想モデルの入口（python -m で別プロセスで動かす）。
-LOCAL_PREDICT_MODULE = "yosou.local_form_aptitude_top3"
+#: 地方の予想の入口（予想モデルの predict と荒れ具合の予想を同じ接続で出す。別プロセスで動かす）。
+LOCAL_PREDICT_SCRIPT = PROJECT / "tools" / "発走前の通知" / "local_predict.py"
 #: 地方の記録のファイル名の頭（中央の記録と分ける）。
 LOCAL_LOG_NAME = "地方-"
