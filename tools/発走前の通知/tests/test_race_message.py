@@ -1,7 +1,8 @@
-"""RaceMessage（保存した予想から通知の文と添付を作る）のテスト。予想の値は架空。"""
+"""RaceMessage（保存した中央の予想から通知の文と添付を作る）のテスト。予想の値は架空。DB は開かず、レース一覧と枠番は偽物。"""
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -9,31 +10,75 @@ import pytest
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.race_plan import PlacePick, RacePlan
 from 今週の予想.tests.test_forecast_store import sample_forecast
+from 今週の予想.ticket_pick import TicketPick
 
 from 発走前の通知.race_message import RaceMessage
+from 発走前の通知.scheduled_race import ScheduledRace
 
 RID = "2025041905010101"
+RACE = ScheduledRace(rid=RID, venue="東京", number=1, name="テスト特別", post=datetime(2025, 4, 19, 10, 5))
 
 
-def test_文は印から始まり添付は全頭の予想根拠(tmp_path: Path) -> None:
-    store = ForecastStore(tmp_path)
-    store.save(sample_forecast(RID))
-    notice = RaceMessage(store).build(RID)
-    assert notice.text.startswith("### 2025-04-19（土） 東京 1R")
-    assert "◎" in notice.text
-    assert notice.attachment == tmp_path / "2025-04-19" / f"{RID}.md"
+class _Schedule:
+    def read(self, day: str) -> list[ScheduledRace]:
+        return [RACE]
 
 
-def test_計画があれば複勝の金額が文に入る(tmp_path: Path) -> None:
-    store = ForecastStore(tmp_path)
+class _Frames:
+    def read(self, rid: str) -> dict[int, int]:
+        return {3: 2}
+
+
+def _forecast(*, plan: RacePlan | None = None, danger: bool = True) -> dict:
     forecast = sample_forecast(RID)
-    plan = RacePlan(RID, forecast["title"], "前日", "勝負", "見込みの利益が大きい", 0.3, 1.05, False,
-                    picks=(PlacePick(3, 0.42, 1.05, 1.5, 1200),), budget_yen=1200)
-    forecast["plan"] = plan.to_dict()
+    forecast["timing"] = "当日"
+    favorite = {**forecast["horses"][0], "rank": 2, "mark": "消", "horse_no": 7, "horse_name": "馬B", "probability": 0.30,
+                "is_danger": danger}
+    longshot = {**forecast["horses"][0], "rank": 3, "mark": "－", "horse_no": 1, "horse_name": "馬C", "probability": 0.05}
+    forecast["horses"] += [favorite, longshot]
+    if plan is not None:
+        forecast["plan"] = plan.to_dict()
+    return forecast
+
+
+def _message(tmp_path: Path, forecast: dict) -> tuple[RaceMessage, ForecastStore]:
+    store = ForecastStore(tmp_path / "今週の予想")
     store.save(forecast)
-    assert "1,200円" in RaceMessage(store).build(RID).text
+    return RaceMessage(store, schedule=_Schedule(), frames=_Frames(), folder=tmp_path / "中央"), store
+
+
+def test_文は見出し_目安_印の付いた馬_買い目だけで_添付は表の画像と全頭の予想根拠(tmp_path: Path) -> None:
+    plan = RacePlan(RID, "t", "当日", "勝負", "見込みの利益が大きい", 0.3, 1.05, False,
+                    picks=(PlacePick(3, 0.42, 1.05, 1.5, 1200),), budget_yen=1200,
+                    tickets=(TicketPick("単勝", "03", "3", 1.085, 3.1, 300),))
+    message, store = _message(tmp_path, _forecast(plan=plan))
+    notice = message.build(RID)
+    lines = notice.text.splitlines()
+    assert lines[0] == "**東京 1R テスト特別（10:05 発走）** 中央の予想・当日の時点"
+    assert lines[1] == "◎ランク A（的中率 23%）・配当率 A（56%）"
+    assert lines[2:4] == ["◎ 3 馬A", "消 7 馬B"]   # 印の付いた馬を1つの印につき1行。無印は書かない
+    assert lines[4] == "買い目（合計 1,500円）:"
+    assert lines[5].startswith("- 複勝（勝負）: 3 馬A（期待値 1.05、1,200円）")
+    assert lines[6] == "- 単勝: 3（オッズ 3.1）  1点 300円 × 1点 = 300円"
+    assert "参考の買い目" not in notice.text and "◎ の理由" not in notice.text
+    image = tmp_path / "中央" / "2025-04-19" / f"{RID}.png"
+    assert notice.attachments == (image, store.reasons_path(RID))
+    assert image.stat().st_size > 0
+
+
+def test_表は印の順で_危険な人気馬でない消は無印(tmp_path: Path) -> None:
+    message, _ = _message(tmp_path, _forecast(danger=False))
+    card = message.card(_forecast(danger=False), RACE, {})
+    assert list(card.table["mark"]) == ["◎", "－", "－"]
+    assert list(card.table["horse_no"]) == [3, 7, 1]   # 同じ印の中は 3着以内の確率の高い順
+
+
+def test_買わないときは_なし_と理由(tmp_path: Path) -> None:
+    plan = RacePlan(RID, "t", "当日", "買わない", "見込みの利益が線に届かない", 0.0, 0.9, False)
+    message, _ = _message(tmp_path, _forecast(plan=plan))
+    assert message.build(RID).text.splitlines()[-1] == "買い目: なし（見込みの利益が線に届かない）"
 
 
 def test_予想が無ければ止まる(tmp_path: Path) -> None:
     with pytest.raises(LookupError, match=RID):
-        RaceMessage(ForecastStore(tmp_path)).build(RID)
+        RaceMessage(ForecastStore(tmp_path), schedule=_Schedule(), frames=_Frames(), folder=tmp_path).build(RID)

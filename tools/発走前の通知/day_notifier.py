@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Protocol
@@ -59,7 +59,7 @@ class SavedAt(Protocol):
 
 
 class Poster(Protocol):
-    def post(self, text: str, attachment=None) -> None: ...
+    def post(self, text: str, attachments: Sequence[Path] = ()) -> None: ...
 
 
 def _stderr(text: str) -> None:
@@ -121,7 +121,7 @@ class DayNotifier:
         while True:
             try:
                 notice = self._forecast(race)
-                self._poster.post(notice.text, notice.attachment)
+                self._poster.post(notice.text, notice.attachments)
             except Exception as error:  # noqa: BLE001 — どんな失敗でも次のレースへ進めるよう、理由を投稿して続ける
                 if self._should_retry(race, error):
                     self._log(f"{race.label}: 元DB が使用中でした。{LOCK_RETRY.total_seconds():.0f} 秒待ってやり直します")

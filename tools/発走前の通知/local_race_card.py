@@ -7,7 +7,13 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
+
+from 発走前の通知.bet_footer import BetFooter
+
+#: 画像の買い目の欄の札。
+FOOTER_LABEL = "推奨買目"
 
 
 @dataclass(frozen=True)
@@ -34,3 +40,12 @@ class LocalRaceCard:
         name = f" {self.name}" if self.name else ""
         post = f"（{self.post}）" if self.post else ""
         return f"{self.heading}{name}{post}"
+
+    @property
+    def footer(self) -> BetFooter:
+        """画像の買い目の欄（推奨買目の券種ごとの行・合計・理由）。"""
+        notes = tuple(part for part in self.bets.reason.split("。") if part)
+        if self.bets.none:
+            return BetFooter(FOOTER_LABEL, notes=notes)
+        total = f"合計 {self.bets.points}点 {self.bets.yen:,}円（1点 {STAKE}円）"
+        return BetFooter(FOOTER_LABEL, tuple(self.bets.lines()), total, notes)

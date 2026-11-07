@@ -29,9 +29,11 @@ class NotifierParts:
 
     @classmethod
     def jra(cls) -> NotifierParts:
-        """中央: 今週の出馬表のレース一覧、jvstore、forecast.py、1レースの文（RaceDescriber）、今週の予想の保存。"""
+        """中央: 今週の出馬表のレース一覧、jvstore、forecast.py、印と実際に買う買い目の文と表の画像（と全頭の予想根拠）、今週の予想の保存。"""
         store = ForecastStore()
-        return cls(schedule=RaceSchedule(), fetcher=StoreFetcher(), runner=ForecastRunner(), message=RaceMessage(store), store=store)
+        schedule = RaceSchedule()
+        return cls(schedule=schedule, fetcher=StoreFetcher(), runner=ForecastRunner(), message=RaceMessage(store, schedule=schedule),
+                   store=store)
 
     @classmethod
     def local(cls) -> NotifierParts:

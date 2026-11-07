@@ -6,7 +6,7 @@ import json
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from 発走前の通知.message_splitter import MessageSplitter
@@ -23,7 +23,7 @@ _TOO_MANY_REQUESTS = 429
 
 
 class DiscordWebhook:
-    """長い文は ``MessageSplitter`` で上限以下に分けて順に投稿し、添付は最後の投稿に付ける。
+    """長い文は ``MessageSplitter`` で上限以下に分けて順に投稿し、添付（いくつでも）は最後の投稿に付ける。
     文の中の ``@everyone`` などは通知にしない（allowed_mentions を空にする）。
     投稿が多すぎると言われたら、言われた秒数だけ待って1回だけやり直す。それ以外の失敗は ``RuntimeError``。
     """
@@ -35,34 +35,35 @@ class DiscordWebhook:
         self._opener = opener
         self._sleep = sleep
 
-    def post(self, text: str, attachment: Path | None = None) -> None:
+    def post(self, text: str, attachments: Sequence[Path] = ()) -> None:
         chunks = self._splitter.split(text)
         last = len(chunks) - 1
         for index, chunk in enumerate(chunks):
-            self._send(chunk, attachment if index == last else None)
+            self._send(chunk, tuple(attachments) if index == last else ())
 
-    def _send(self, content: str, attachment: Path | None) -> None:
+    def _send(self, content: str, attachments: tuple[Path, ...]) -> None:
         try:
-            self._deliver(content, attachment)
+            self._deliver(content, attachments)
         except urllib.error.HTTPError as error:
-            self._retry_if_too_many(error, content, attachment)
+            self._retry_if_too_many(error, content, attachments)
 
-    def _retry_if_too_many(self, error: urllib.error.HTTPError, content: str, attachment: Path | None) -> None:
+    def _retry_if_too_many(self, error: urllib.error.HTTPError, content: str, attachments: tuple[Path, ...]) -> None:
         if error.code != _TOO_MANY_REQUESTS:
             detail = error.read().decode("utf-8", errors="replace")[:200]
             raise RuntimeError(f"Discord への投稿に失敗しました（HTTP {error.code}: {detail}）") from error
         self._sleep(float(error.headers.get("Retry-After") or _RETRY_WAIT))
-        self._deliver(content, attachment)
+        self._deliver(content, attachments)
 
-    def _deliver(self, content: str, attachment: Path | None) -> None:
-        with self._opener(self._request(content, attachment), timeout=_TIMEOUT) as response:
+    def _deliver(self, content: str, attachments: tuple[Path, ...]) -> None:
+        with self._opener(self._request(content, attachments), timeout=_TIMEOUT) as response:
             response.read()
 
-    def _request(self, content: str, attachment: Path | None) -> urllib.request.Request:
+    def _request(self, content: str, attachments: tuple[Path, ...]) -> urllib.request.Request:
         payload = json.dumps({"content": content, "allowed_mentions": {"parse": []}}, ensure_ascii=False)
-        if attachment is None:
+        if not attachments:
             return urllib.request.Request(self._url, data=payload.encode("utf-8"), method="POST",
                                           headers={**_HEADERS, "Content-Type": "application/json"})
         body = MultipartBody()
-        data = body.encode({"payload_json": payload}, [("files[0]", attachment.name, attachment.read_bytes())])
+        files = [(f"files[{index}]", path.name, path.read_bytes()) for index, path in enumerate(attachments)]
+        data = body.encode({"payload_json": payload}, files)
         return urllib.request.Request(self._url, data=data, method="POST", headers={**_HEADERS, "Content-Type": body.content_type})
