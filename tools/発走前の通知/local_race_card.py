@@ -1,4 +1,4 @@
-"""地方の1レースの通知に載せる中身（見出し・時点・印の順の全頭の表・枠番・買い目）。文と画像の両方がここから作られる。"""
+"""地方の1レースの通知に載せる中身（見出し・時点・馬場の傾向・印の順の全頭の表・枠番・買い目）。文と画像の両方がここから作られる。"""
 
 from __future__ import annotations
 
@@ -33,6 +33,8 @@ class LocalRaceCard:
     frames: Mapping[int, int]
     #: 実際に買う買い目（推奨買目＋全頭の予想の単勝・複勝）。無ければ理由を持つ。
     bets: RecommendationSet
+    #: その日の馬場の傾向の1行（``TrackTendency.text()``。先に終わった同じ芝ダのレースが無ければ空）。
+    tendency: str = ""
 
     @property
     def title(self) -> str:

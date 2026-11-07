@@ -1,4 +1,4 @@
-"""中央の1レースの通知に載せる中身（見出し・時点・◎ランクと的中率と配当率・印の順の全頭の表・枠番・実際に買う買い目）。
+"""中央の1レースの通知に載せる中身（見出し・時点・◎ランクと的中率と配当率・馬場の傾向・印の順の全頭の表・枠番・実際に買う買い目）。
 文と画像の両方がここから作られる。"""
 
 from __future__ import annotations
@@ -35,6 +35,8 @@ class JraRaceCard:
     bets: tuple[tuple[str, int], ...]
     #: 買わないときの理由（買い目があれば空）。
     notes: tuple[str, ...] = ()
+    #: その日の馬場の傾向の1行（``TrackTendency.text()``。先に終わった同じ芝ダのレースが無ければ空）。
+    tendency: str = ""
 
     @property
     def title(self) -> str:

@@ -32,6 +32,7 @@ from 発走前の通知.race_image import RaceImage
 from 発走前の通知.local_race_schedule import LocalRaceSchedule
 from 発走前の通知.race_notice import RaceNotice
 from 発走前の通知.scheduled_race import ScheduledRace
+from 発走前の通知.tendencies import Tendencies
 
 
 class Recommendations(Protocol):
@@ -63,12 +64,13 @@ RACE_DAY = "当日"
 
 class LocalRaceMessage:
     """印は中央と同じ ``MarkRule``（◎○▲△☆注。地方には危険な人気馬の判定が無いので 消 は付かない）。
-    文は 見出し・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）だけにし、
+    文は 見出し・その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）だけにし、
     全頭の表は画像（``RaceImage``）にして添付する。画像は ``reports/発走前の通知/地方/<開催日>/<rid>.png`` に置く。"""
 
     def __init__(self, store: LocalForecastStore | None = None, schedule: LocalRaceSchedule | None = None,
                  marks: MarkRule | None = None, frames: RaceFrames | None = None, bets: LocalBetRule | None = None,
-                 image: RaceImage | None = None, recommendations: Recommendations | None = None) -> None:
+                 image: RaceImage | None = None, recommendations: Recommendations | None = None,
+                 tendencies: Tendencies | None = None) -> None:
         self._store = store or LocalForecastStore()
         self._schedule = schedule or LocalRaceSchedule()
         self._marks = marks or MarkRule()
@@ -76,18 +78,22 @@ class LocalRaceMessage:
         self._bets = bets or LocalBetRule()
         self._image = image or RaceImage()
         self._recommendations = recommendations or NoRecommendations()
+        self._tendencies = tendencies
 
     def build(self, rid: str) -> RaceNotice:
         forecast = self._store.load(rid)
         if forecast is None:
             raise LookupError(f"予想の結果がありません（{rid}）")
-        card = self.card(forecast, self._find(rid), self._frames.read(rid), self._recommendations.recommend(rid, forecast))
+        race = self._find(rid)
+        tendency = self._tendencies.of(rid, race.venue) if self._tendencies and race else None
+        card = self.card(forecast, race, self._frames.read(rid), self._recommendations.recommend(rid, forecast),
+                         tendency.text() if tendency else "")
         path = self._store.image_path(rid)
         self._image.draw(card).save(path)
         return RaceNotice(self.describe(card), (path,))
 
     def card(self, forecast: dict[str, Any], race: ScheduledRace | None, frames: Mapping[int, int],
-             recommended: RecommendationSet | None = None) -> LocalRaceCard:
+             recommended: RecommendationSet | None = None, tendency: str = "") -> LocalRaceCard:
         """predict の JSON（``columns``・``rows``・``title``）・レース一覧の行・推奨買目から、通知の中身を組む。"""
         table = self._ordered(self._marks.assign(self._table(forecast)))
         title = str(forecast.get("title", ""))
@@ -96,11 +102,12 @@ class LocalRaceMessage:
         bets = self._bets.pick(table, race_day, recommended or RecommendationSet((), ""))
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
-                             frames=dict(frames), bets=bets)
+                             frames=dict(frames), bets=bets, tendency=tendency)
 
     def describe(self, card: LocalRaceCard) -> str:
-        """通知の文: 見出し・印の付いた馬（1つの印につき1行）・推奨買目。"""
-        return "\n".join([f"**{card.title}** 地方の予想・{card.timing}", *MarkLines().lines(card.table), *self.bet_lines(card.bets)])
+        """通知の文: 見出し・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・推奨買目。"""
+        return "\n".join([f"**{card.title}** 地方の予想・{card.timing}", *([card.tendency] if card.tendency else []),
+                          *MarkLines().lines(card.table), *self.bet_lines(card.bets)])
 
     @staticmethod
     def bet_lines(bets: RecommendationSet) -> list[str]:
