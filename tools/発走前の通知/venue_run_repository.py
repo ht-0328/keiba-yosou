@@ -30,6 +30,7 @@ SELECT s.開催年 || s.開催月日 AS race_day,
        s.開催年 || s.開催月日 || s.競馬場コード || s."開催回[第N回]" || s."開催日目[N日目]" || s.レース番号 AS race_id,
        TRY_CAST(s.レース番号 AS INTEGER) AS race_no,
        {surface_sql("r.トラックコード")} AS surface,
+       r.トラックコード = '10' AS straight,
        TRY_CAST(NULLIF(s.確定着順, '00') AS INTEGER) AS finish,
        coalesce(TRY_CAST(NULLIF(s.c4, '00') AS INTEGER), TRY_CAST(NULLIF(s.c3, '00') AS INTEGER),
                 TRY_CAST(NULLIF(s.c2, '00') AS INTEGER), TRY_CAST(NULLIF(s.c1, '00') AS INTEGER)) AS corner
@@ -40,7 +41,7 @@ ORDER BY race_day, race_no, s.馬番
 
 class VenueRunRepository:
     """列は ``race_day``（'YYYYMMDD'）・``race_id``（16桁）・``race_no``・``surface``（芝・ダート・障害。わからなければ ?）・
-    ``finish``（確定着順。まだ無い・付かないなら欠損値）・``corner``（最後に回ったコーナーの順位。直線のコースなどは欠損値）。"""
+    ``straight``（芝・直線のコース。コーナーが無い）・``finish``（確定着順。まだ無い・付かないなら欠損値）・``corner``（最後に回ったコーナーの順位。直線のコースなどは欠損値）。"""
 
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         self._con = con

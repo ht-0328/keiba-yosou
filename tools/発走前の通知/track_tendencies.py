@@ -32,7 +32,8 @@ class TrackTendencies:
         self._usual: dict[tuple[str, str, str], PositionCounts] = {}
 
     def of(self, rid: str, venue: str) -> TrackTendency | None:
-        """そのレースより前（レース番号が小さい）に終わった、同じ芝ダのレースが無ければ None。"""
+        """その日のその競馬場の最初のレース・障害・DB に無いレースは None。先に走った同じ芝ダのレースが無いときや、
+        どれも通過順の速報待ちのときも、その事情を言う ``TrackTendency``（数えた頭数が 0）を返す。"""
         venue_code, day = rid[8:10], date(int(rid[:4]), int(rid[4:6]), int(rid[6:8]))
         with db.open_db(self._db_path, default=self._default) as con:
             repository = VenueRunRepository(con)
@@ -41,11 +42,19 @@ class TrackTendencies:
             if target.empty or target["surface"].iloc[0] not in _SURFACES:
                 return None
             surface, race_no = str(target["surface"].iloc[0]), int(target["race_no"].iloc[0])
-            today = self._counter.count(runs[(runs["surface"] == surface) & (runs["race_no"] < race_no)])
-            if today.top3 == 0:
+            if not (runs["race_no"] < race_no).any():
                 return None
-            usual = self._usual_counts(repository, venue_code, surface, day)
-        return TrackTendency(venue=venue, surface=surface, today=today, usual=usual)
+            earlier = runs[(runs["surface"] == surface) & (runs["race_no"] < race_no)]
+            today = self._counter.count(earlier)
+            usual = self._usual_counts(repository, venue_code, surface, day) if today.top3 else PositionCounts(0, 0, 0, 0, 0)
+        return TrackTendency(venue=venue, surface=surface, today=today, usual=usual, waiting=self._waiting(earlier))
+
+    @staticmethod
+    def _waiting(earlier: pd.DataFrame) -> tuple[int, ...]:
+        """通過順が1頭も無いレース（直線のコースは通過順が付かないので除く）。"""
+        has_corner = earlier.groupby("race_no")["corner"].apply(lambda corner: corner.notna().any())
+        straight = earlier.groupby("race_no")["straight"].any()
+        return tuple(int(race_no) for race_no in has_corner.index if not has_corner[race_no] and not straight[race_no])
 
     def _usual_counts(self, repository: VenueRunRepository, venue_code: str, surface: str, day: date) -> PositionCounts:
         key = (venue_code, surface, f"{day:%Y%m%d}")
