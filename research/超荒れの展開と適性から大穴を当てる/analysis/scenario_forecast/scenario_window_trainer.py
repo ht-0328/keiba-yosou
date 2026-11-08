@@ -31,24 +31,31 @@ class ScenarioWindowTrainer:
     """学習 = 検証の始まりより前、検証 = テストの直前の半年（木を足すのを止める判断と、道具「印の成績」が危険の線を決めるのに使う）、
     テスト = その半年。重みは付けない（全頭を同じ重みで学ぶ）。混ぜる重みの予想が無い行は、学習の期間の結果のペースの割合で混ぜる。"""
 
-    def __init__(self, settings: HyperparameterSettings, threads: int) -> None:
+    def __init__(self, settings: HyperparameterSettings, threads: int, lightgbm_class: type = WeightedLightGbm) -> None:
         self._settings = settings
         self._threads = threads
+        self._lightgbm_class = lightgbm_class
+
+    def fit(self, data: LongshotData, window: TestWindow) -> tuple[list, ScenarioWeights, int]:
+        """（学んだ2つのモデル, 混ぜる重み, 学習の行数）。学習と検証の行だけを使う。"""
+        train = data.between(None, pd.Timestamp(window.valid_first_day) - pd.Timedelta(days=1))
+        valid = data.between(pd.Timestamp(window.valid_first_day), pd.Timestamp(window.test_first_day) - pd.Timedelta(days=1))
+        ones_train, ones_valid = np.ones(len(train)), np.ones(len(valid))
+        members = [self._lightgbm_class(self._settings.lightgbm, self._threads).fit(train, valid, ones_train, ones_valid),
+                   WeightedCatBoost(self._settings.catboost, self._threads).fit(train, valid, ones_train, ones_valid)]
+        prior = ScenarioWeights.prior_of(train.features[PACE]) if PACE in train.features else np.full(3, 1 / 3)
+        return members, ScenarioWeights(prior), len(train)
 
     def run(self, data: LongshotData, window: TestWindow, variant: ScenarioVariant) -> tuple[pd.DataFrame, list[dict[str, object]]]:
-        train = data.between(None, pd.Timestamp(window.valid_first_day) - pd.Timedelta(days=1))
         valid = data.between(pd.Timestamp(window.valid_first_day), pd.Timestamp(window.test_first_day) - pd.Timedelta(days=1))
         test = data.between(pd.Timestamp(window.test_first_day), pd.Timestamp(window.test_last_day))
         started = time.perf_counter()
-        ones_train, ones_valid = np.ones(len(train)), np.ones(len(valid))
-        members = [WeightedLightGbm(self._settings.lightgbm, self._threads).fit(train, valid, ones_train, ones_valid),
-                   WeightedCatBoost(self._settings.catboost, self._threads).fit(train, valid, ones_train, ones_valid)]
-        prior = ScenarioWeights.prior_of(train.features[PACE]) if PACE in train.features else np.full(3, 1 / 3)
-        frames = [self._frame(part, members, ScenarioWeights(prior), window.name, label) for part, label in ((valid, VALID), (test, TEST))]
+        members, weights, train_rows = self.fit(data, window)
+        frames = [self._frame(part, members, weights, window.name, label) for part, label in ((valid, VALID), (test, TEST))]
         seconds = round(time.perf_counter() - started, 1)
         log = [{"区切り": window.name, "作り方": variant.label, "モデル": member.name, "木の数": member.tree_count,
-                "学習の行数": len(train), "秒": seconds} for member in members]
-        print(f"{variant.key} / {window.name}: 学習 {len(train):,}行・テスト {len(test):,}行・{seconds:.0f}秒", file=sys.stderr, flush=True)
+                "学習の行数": train_rows, "秒": seconds} for member in members]
+        print(f"{variant.key} / {window.name}: 学習 {train_rows:,}行・テスト {len(test):,}行・{seconds:.0f}秒", file=sys.stderr, flush=True)
         return pd.concat(frames, ignore_index=True), log
 
     @staticmethod

@@ -14,7 +14,9 @@
 |---|---|---|---|
 | 1. 事例 | 2015年からの平地で、大穴が1着・3着以内に2頭以上・3頭とも大穴のレースを数え、75レースを1レースずつ見た。展開の予想が当たっていたかを見た | [docs/01-事例.md](docs/01-事例.md) | 済み |
 | 2. 理論 | 大穴が来る展開の型、来る大穴の条件、ハンデ戦の型、大穴2頭以上の型を、件数・割合・人気から見た差で裏付けた | [docs/02-理論.md](docs/02-理論.md) | 済み |
-| 2. 次の段の案 | 展開の型で混ぜる大穴の着順の予想（おすすめ）と、ほかの案、今のモデルに足す材料の候補 | [docs/03-次の段の案.md](docs/03-次の段の案.md) | 済み。利用者の承認待ち |
+| 2. 次の段の案 | 展開の型で混ぜる着順の予想（おすすめ）と、ほかの案、今のモデルに足す材料の候補。利用者の確認で全頭に広げた（03 の 6） | [docs/03-次の段の案.md](docs/03-次の段の案.md) | 済み。承認ずみ |
+| 1・2 の追加 | 人気馬・中穴・大穴を同じ見方で数え、負けた人気馬の型を確かめ直した | [docs/01 の 10・11](docs/01-事例.md#10-人気馬中穴大穴を同じ見方で数えたとき)、[docs/02 の 8](docs/02-理論.md#8-全頭に広げた理論人気馬中穴大穴を同じ見方で) | 済み |
+| 3. モデルと確かめ | 全頭の「展開の型で混ぜる着順の予想」を15の区切りで学び直し、中穴・大穴の並べ方、組、抑えの買い目、危険な人気馬を確かめた | [docs/04-段3の結果.md](docs/04-段3の結果.md) | 済み。利用者の判断待ち |
 
 ## この文書で使う言葉の意味
 
@@ -42,9 +44,14 @@
 | `analysis/enrichment/` | 出走の表に列を足す部品。斤量の過去走との比べ `carried_weight_history.py`・レースの中の斤量 `carried_weight_in_race.py`・位置取り `running_position.py`・近走 `recent_form.py`・展開の予想と回顧を結ぶ `pace_attachment.py`・期待の率 `expected_rates.py`・流れ `runner_enrichment.py` |
 | `analysis/theory/` | 1行 = 1レースの表 `race_table.py`（決着の分け方）・表の切り口の列 `runner_cuts.py` |
 | `analysis/tables/` | 表（事例の数・締め切り前の人気・ペースの割合・予想の当たり方・勝ち方の形・人気から見た差・集まり方・大穴の組の形と組み合わせ・並べ方・事例の選び方・事例の一覧と数え） |
-| `docs/` | 01 事例・02 理論・03 次の段の案 |
+| `forecast.py` | 入口（段3 の①）。足す材料の表を作り（`features`）、展開の型で混ぜる着順の予想を区切りごとに学び直し（`train`）、詳しく見る日を予想する（`focus`） |
+| `evaluate.py` | 入口（段3 の②）。確かめの表を書き（`report`）、道具「印の成績」に渡す 4着以下の確率の表を書く（`danger`） |
+| `analysis/scenario_forecast/` | 段3 の予想。その日の先のレースの傾き `prior_race_bias.py`・足す材料 `scenario_materials.py`（置き場所 `scenario_material_source.py`）・学習データ `scenario_dataset.py`・作り方 `scenario_variant.py`・混ぜる重み `scenario_weights.py`・展開の型ごとの予測と混ぜ方 `scenario_predictor.py`・区切りごとの学び `scenario_window_trainer.py` |
+| `analysis/scenario_evaluation/` | 段3 の確かめ。比べる相手 `comparison_files.py`・確かめの表の元 `evaluation_frame.py`・人気帯 `popularity_band.py`・並べ方 `band_ranking_table.py`・確率の当たり具合 `band_logloss_table.py`・人気馬の4着以下 `favorite_out_table.py`・印の成績に渡す表 `danger_file_writer.py`・組の確率 `pair_probability.py`（混ぜる重み `race_weights_attacher.py`、表 `pair_calibration_table.py`）・抑えの買い目（印の成績の買い目 `mark_ticket_file.py`・組み方 `hedge_tickets.py`・精算 `hedge_settlement.py`・候補と選び方 `hedge_study.py`・表 `hedge_table.py`）・流れ `scenario_evaluation.py` |
+| `analysis/focus_day/` | 段3 の詳しく見る日。予測用データ `focus_day_data.py`・寄与 `contribution_lightgbm.py`・まとまり `material_groups.py`・理由の文 `reason_writer.py`・予想と順位 `focus_day_runner.py`・表 `focus_day_report.py`・流れ `focus_day_study.py` |
+| `docs/` | 01 事例・02 理論・03 次の段の案・04 段3 の結果 |
 | `tests/` | 合成DB と架空の値で部品を確かめるテスト（実DB は要らない） |
-| `reports/超荒れの展開と適性から大穴を当てる/`（Git 対象外） | `事例.md`（全部の表）・`事例の一覧.csv`（1レースずつ見た 75レースの来た大穴と1番人気）・`コースの単位ごとの数.csv`（競馬場×コース×距離×馬場状態ごとの数）・`出走の表.pkl.gz`（列を足した出走の表。段3 でも使う） |
+| `reports/超荒れの展開と適性から大穴を当てる/`（Git 対象外） | `事例.md`（全部の表）・`事例の一覧.csv`（1レースずつ見た 75レースの来た大穴と1番人気）・`コースの単位ごとの数.csv`（競馬場×コース×距離×馬場状態ごとの数）・`出走の表.pkl.gz`（列を足した出走の表）・`材料-<時点>.pkl`（段3 の足す材料）・`predictions/`（段3 の区切りごとの予測と、印の成績に渡す `danger-<時点>.pkl`）・`段3の結果-<時点>.md`・`段3の詳しく見る日-<日>.md` と `.csv`・`印の成績/`（今の消と新しい予想の消での印の成績） |
 
 ## 動かし方
 
@@ -53,7 +60,12 @@
 ```bash
 uv run python research/超荒れの展開と適性から大穴を当てる/cases.py              # 段1・段2: 元DB から出走の表を作り、表と事例を書く（5分ほど）
 uv run python research/超荒れの展開と適性から大穴を当てる/cases.py --cached     # 前に作った出走の表から書き直す（1分ほど）
+uv run python research/超荒れの展開と適性から大穴を当てる/forecast.py features   # 段3: 足す材料の表（1分）
+uv run python research/超荒れの展開と適性から大穴を当てる/forecast.py train      # 段3: 区切りごとに学び直す（3つの作り方 × 前日・当日。3時間ほど）
+uv run python research/超荒れの展開と適性から大穴を当てる/forecast.py focus --date 2026-11-08   # 段3: 詳しく見る日（10分ほど）
+uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py danger --timing 当日   # 段3: 印の成績に渡す表
+uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py report --timing 当日 --marks <印の成績の買い目の csv>   # 段3: 確かめの表
 uv run python -m pytest research/超荒れの展開と適性から大穴を当てる -q          # 部品のテスト
 ```
 
-開催日のレースの時間（発走前の通知が動いている間）には、元DB を使うこの入口を動かさない（`--cached` は元DB を使わない）。
+開催日のレースの時間（発走前の通知が動いている間）には、元DB を使う入口（`cases.py`・`forecast.py features`・`forecast.py focus`・`evaluate.py report --marks`）を動かさない（`--cached` と `train` は元DB を使わない）。
