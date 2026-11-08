@@ -27,7 +27,7 @@ class RunnerHistory:
 
     足す列: 前の走のクラス・馬場状態・枠・騎手・ブリンカー・間隔・脚質、2走前の着順、近5走の最高着順、
     これまでに3着以内に入った最高のクラス、勝った最高のクラス、今回の芝ダでの出走数と3着以内の数、今回の芝ダ・馬場（良か道悪か）での3着以内の数、
-    逃げ・先行で3着以内に入った回数と、差し・追込で3着以内に入った回数。
+    逃げ・先行で3着以内に入った回数と、差し・追込で3着以内に入った回数（全部の過去走と、近5走）。
     """
 
     def add(self, runners: pd.DataFrame) -> pd.DataFrame:
@@ -45,7 +45,17 @@ class RunnerHistory:
         frame["going_places_before"] = self._places_before(frame, ["horse_id", "surface", "going"])
         frame["front_places_before"] = self._styled_places_before(frame, _FRONT)
         frame["back_places_before"] = self._styled_places_before(frame, _BACK)
+        frame["recent_front_places"] = self._recent_styled_places(frame, _FRONT)
+        frame["recent_back_places"] = self._recent_styled_places(frame, _BACK)
         return frame
+
+    @staticmethod
+    def _recent_styled_places(frame: pd.DataFrame, styles: tuple[str, ...]) -> pd.Series:
+        """近5走（今回より前）のうち、脚質が ``styles`` のどれかで3着以内に入った回数。"""
+        placed = (frame["style"].isin(styles) & (frame["finish"] <= PLACED)).astype(float)
+        previous = placed.groupby(frame["horse_id"], sort=False).shift().fillna(0.0)
+        rolling = previous.groupby(frame["horse_id"], sort=False).rolling(RECENT_RUNS, min_periods=1).sum()
+        return rolling.reset_index(level=0, drop=True).sort_index()
 
     @staticmethod
     def _styled_places_before(frame: pd.DataFrame, styles: tuple[str, ...]) -> pd.Series:

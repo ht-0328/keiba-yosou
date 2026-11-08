@@ -102,6 +102,11 @@ class PredictionWorkflow:
             pool_free=prepared.predictor is not self._predictor,
         )
 
+    def win_data(self, race_id: str, timing: PredictionTiming, given: OddsInput | None = None) -> PredictionData:
+        """1着のモデルに渡す予測用データ（``run`` の1着の確率と同じ材料・同じ基準）。今のモデルの1着の材料を借りる予想
+        （予想「人気薄の1着を予想」）が、同じ材料に自分の材料を足して予測するのに使う。"""
+        return self._prepared(race_id, timing, given).win_data
+
     def _prepared(self, race_id: str, timing: PredictionTiming, given: OddsInput | None) -> PreparedPrediction:
         """予測用データと、それを予測するモデル（当日に券種のオッズが無ければ、N を使わないモデル）。"""
         odds = self._odds_resolver.resolve(race_id, given)

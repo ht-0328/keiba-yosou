@@ -147,6 +147,19 @@ def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path
     np.testing.assert_allclose(prediction[WIN_VALUE], prediction[WIN_PROBABILITY] * prediction[WIN_ODDS])
 
 
+def test_win_data_is_the_data_given_to_the_win_model(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
+    """``win_data`` は、``run`` の1着の確率と同じ材料・同じ基準（オッズから見た勝率のロジット）の予測用データ。"""
+    models, _ = trained
+    with db.open_db(season_db) as con:
+        workflow = _workflow(con, models, figure_cache)
+        given = OddsInput.of(CARD_ODDS_TEXTS)
+        data = workflow.win_data(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given)
+        prediction = workflow.run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given)
+    assert len(data.features) == len(prediction) == 7
+    assert data.baseline is not None
+    np.testing.assert_allclose(data.baseline.probabilities().sum(), 1.0, rtol=0.2)
+
+
 def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
     models, _ = trained
     with db.open_db(season_db) as con:
