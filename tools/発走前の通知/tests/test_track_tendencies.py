@@ -37,8 +37,46 @@ def test_先に終わった同じ芝ダのレースと_いつもの割合で傾�
     assert tendency.usual == PositionCounts(races=1, top3=3, front=0, middle=2, back=1)
 
 
-def test_先に終わった同じ芝ダのレースが無ければ出さない(tmp_path: Path) -> None:
+def test_その日の最初のレースとDBに無いレースは出さない(tmp_path: Path) -> None:
     tendencies = TrackTendencies(_db(tmp_path))
-    assert tendencies.of("2026110808050201", "京都") is None      # その日の最初の芝
-    assert tendencies.of("2026110808050202", "京都") is None      # その日の最初のダート
+    assert tendencies.of("2026110808050201", "京都") is None      # その日の最初のレース
     assert tendencies.of("2026110808050299", "京都") is None      # DB に無いレース
+
+
+def test_先に走った同じ芝ダのレースが無ければ_このレースが最初と言う(tmp_path: Path) -> None:
+    tendency = TrackTendencies(_db(tmp_path)).of("2026110808050202", "京都")      # その日の最初のダート
+    assert tendency is not None
+    assert tendency.text() == "馬場 京都・ダート: 今日のダートはこのレースが最初"
+
+
+def _waiting_db(tmp_path: Path) -> Path:
+    path = tmp_path / "jvdata.duckdb"
+    with duckdb.connect(str(path)) as con:
+        make_tables(con, [
+            ("08", "20261108", 1, "17", _FRONT_WIN),                                  # 芝。通過順まで届いた
+            ("08", "20261108", 2, "17", [(1, "01", "00"), (2, "02", "00"), (3, "03", "00")]),  # 芝。着順だけ（通過順の速報待ち）
+            ("08", "20261108", 3, "10", [(1, "01", "00"), (2, "02", "00"), (3, "03", "00")]),  # 芝の直線（通過順が付かない）
+            ("08", "20261108", 4, "17", [(1, "00", "00")]),                            # 芝。これから走る
+            ("08", "20251108", 1, "17", _BACK_WIN),
+        ])
+    return path
+
+
+def test_通過順の速報待ちのレースは数えずに番号を言う_直線のコースは待たない(tmp_path: Path) -> None:
+    tendency = TrackTendencies(_waiting_db(tmp_path)).of("2026110808050204", "京都")
+    assert tendency is not None
+    assert tendency.today.races == 1 and tendency.waiting == (2,)
+    assert tendency.text().endswith("。2R は通過順の速報待ちで数えていない")
+
+
+def test_先に走った同じ芝ダのレースがどれも速報待ちなら_まだ出せないと言う(tmp_path: Path) -> None:
+    path = tmp_path / "jvdata.duckdb"
+    with duckdb.connect(str(path)) as con:
+        make_tables(con, [
+            ("08", "20261108", 1, "24", _FRONT_WIN),                                  # ダート
+            ("08", "20261108", 2, "17", [(1, "01", "00"), (2, "02", "00")]),           # 芝。通過順の速報待ち
+            ("08", "20261108", 3, "17", [(1, "00", "00")]),                            # 芝。これから走る
+        ])
+    tendency = TrackTendencies(path).of("2026110808050203", "京都")
+    assert tendency is not None
+    assert tendency.text() == "馬場 京都・芝: 2R の通過順の速報がまだ届いていないので、まだ出せない"

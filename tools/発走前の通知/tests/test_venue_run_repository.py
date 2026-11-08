@@ -43,6 +43,7 @@ def test_その競馬場の期間内の出走を_新しい行だけ_芝ダと着
     runs = VenueRunRepository(_db()).read("08", date(2026, 11, 8), date(2026, 11, 8))
     assert list(runs["race_id"]) == ["2026110808050201", "2026110808050201", "2026110808050202"]
     assert list(runs["surface"]) == ["芝", "芝", "ダート"]
+    assert list(runs["straight"]) == [False, False, False]
     assert runs["finish"].astype("Int64").tolist()[:2] == [1, 2] and runs["finish"].isna().tolist() == [False, False, True]
     assert runs["corner"].iloc[0] == 2 and runs["corner"].isna().tolist() == [False, True, True]
 
@@ -53,4 +54,5 @@ def test_4コーナーの順位が無ければ_前のコーナーの順位() -> 
     con.execute(f"INSERT INTO ra VALUES ({', '.join('?' for _ in _RA)})", ["7", "20261108", "2026", "1108", "08", "05", "02", "01", "10"])
     con.execute(f"INSERT INTO se VALUES ({', '.join('?' for _ in _SE)})",
                 ["7", "20261108", "2026", "1108", "08", "05", "02", "01", "01", "01", "00", "00", "03", "00"])
-    assert list(VenueRunRepository(con).read("08", date(2026, 11, 8), date(2026, 11, 8))["corner"]) == [3]
+    runs = VenueRunRepository(con).read("08", date(2026, 11, 8), date(2026, 11, 8))
+    assert list(runs["corner"]) == [3] and list(runs["straight"]) == [True]   # トラックコード 10 は芝・直線
