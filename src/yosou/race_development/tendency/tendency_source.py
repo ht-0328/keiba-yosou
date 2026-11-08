@@ -10,7 +10,7 @@ import duckdb
 from yosou.favorites_out_of_top3.dataset import dataset_builder as favorites_dataset_builder
 from yosou.favorites_out_of_top3.workflow import SEGMENTS as FAVORITE_SEGMENTS
 from yosou.favorites_out_of_top3.workflow import TIMINGS as FAVORITE_TIMINGS
-from yosou.form_aptitude_top3.dataset import dataset_builder as form_dataset_builder
+from yosou.shared.dataset.form_aptitude_assembly import dataset_builder as form_dataset_builder
 from yosou.longshots_in_top3.dataset import dataset_builder as longshots_dataset_builder
 from yosou.longshots_in_top3.workflow import SEGMENTS as LONGSHOT_SEGMENTS
 from yosou.shared.dataset import PredictionData, RaceDatasetBuilder

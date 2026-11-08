@@ -30,7 +30,7 @@ import pandas as pd  # noqa: E402
 from 共通 import render  # noqa: E402
 
 from yosou.favorites_out_of_top3.setting import DEFAULT_SETTINGS_PATH as FAVORITES_SETTINGS  # noqa: E402
-from yosou.form_aptitude_top3.dataset import WinTargetData  # noqa: E402
+from yosou.shared.dataset import WinTargetData  # noqa: E402
 from yosou.form_aptitude_top3.setting import DEFAULT_SETTINGS_PATH as FORM_SETTINGS  # noqa: E402
 from yosou.longshots_in_top3.setting import DEFAULT_SETTINGS_PATH as LONGSHOTS_SETTINGS  # noqa: E402
 from yosou.upset_level.setting import DEFAULT_SETTINGS_PATH as UPSET_SETTINGS  # noqa: E402

@@ -54,7 +54,7 @@ from 今週の予想.plan_table import PlanTable  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
 from 今週の予想.summary_store import SummaryStore  # noqa: E402
 from 今週の予想.ticket_table import TicketTable  # noqa: E402
-from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
+from yosou.shared.workflow import TimingChooser  # noqa: E402
 from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES  # noqa: E402
 from 今週の予想.wallet import COMBO_WALLET, LONGSHOT_WALLET, MATCH_WALLET, POINT_RATE, POLICY_WALLET, WIN_WALLET, Wallet  # noqa: E402
 

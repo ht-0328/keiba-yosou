@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, RACE_DAY_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG, RACE_DAY_CATALOG
 from yosou.race_development.feature import GroupForecast
 from yosou.race_development.repository import OutOfSampleRepository
 from yosou.race_development.workflow import PaceForecastHistory

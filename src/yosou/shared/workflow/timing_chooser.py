@@ -1,4 +1,4 @@
-"""1レースを、どの時点（木曜・前日・当日）のモデルで予想するかを決める。"""
+"""1レースを、今のモデルのどの時点（木曜・前日・当日）で予想するかを決める。"""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ import duckdb
 
 from 共通.race_signals import RaceSignalReader, RaceSignals
 
-from yosou.shared.feature import PredictionTiming
-
-from 今週の予想.timing_choice import TimingChoice
+from ..feature import PredictionTiming
+from .timing_choice import TimingChoice
 
 
 class TimingChooser:
@@ -19,6 +18,7 @@ class TimingChooser:
     - 木曜: それより前（オッズが無い・出走馬名表の段階）。
     オッズは jvdata-store の ``jvstore realtime --date <開催日>`` で取り込む。
     DB の読み方は ``共通.race_signals``（事実表を作らないので、取得中の DB を長く塞がない）。
+    道具「今週の予想」と予想「近走と適性からWIN5の買い目を決める」が同じ選び方をするので ``shared`` に置く。
     """
 
     def choose(self, con: duckdb.DuckDBPyConnection, race_id: str) -> TimingChoice:

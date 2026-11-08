@@ -1,4 +1,8 @@
-"""この予想の決めごとを渡して、共通の ``DatasetBuilder`` を組み立てる。"""
+"""今のモデル（予想「近走と適性から3着以内を予想」）の決めごとを渡して、``DatasetBuilder`` を組み立てる。
+
+今のモデルの予測は、今のモデルのパッケージ・道具「今週の予想」・予想「近走と適性からWIN5の買い目を決める」が同じ部品で出すので、
+組み立ての関数も ``shared`` に置く（設計書「近走と適性からWIN5の買い目を決める」04 の 1）。
+"""
 
 from __future__ import annotations
 
@@ -7,20 +11,9 @@ from pathlib import Path
 
 import duckdb
 
-from yosou.shared.dataset import (
-    HISTORY_FIRST_DAY,
-    AbilitySourcesLoader,
-    DatasetBuilder,
-    FinishRecordsLoader,
-    HistoryRecordsLoader,
-    PoolProbabilityLoader,
-    RaceRecordsLoader,
-    RunnerSelector,
-    Top3Baseline,
-    Top3TargetBuilder,
-)
-from yosou.shared.feature import PEOPLE_WINDOW_DAYS, FeatureBuilder
-from yosou.shared.feature.group import (
+from ..feature import PEOPLE_WINDOW_DAYS, FeatureBuilder
+from ..feature.form_aptitude_catalog import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_ABILITY_FEATURES, RACE_DAY_WIN_CATALOG
+from ..feature.group import (
     AptitudeFeatures,
     FinishPowerFeatures,
     HeadToHeadRatingFeatures,
@@ -36,16 +29,22 @@ from yosou.shared.feature.group import (
     RecentFormFeatures,
     WorkoutFeatures,
 )
-from yosou.shared.repository import HeadToHeadRunRepository, MarketRunRepository
-from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER
-
-from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_ABILITY_FEATURES, RACE_DAY_WIN_CATALOG
-
+from ..repository import HeadToHeadRunRepository, MarketRunRepository
+from ..repository.speed_figure_repository import DEFAULT_FOLDER
+from .ability_sources_loader import HISTORY_FIRST_DAY, AbilitySourcesLoader
+from .dataset_builder import DatasetBuilder
+from .finish_records_loader import FinishRecordsLoader
+from .history_records_loader import HistoryRecordsLoader
+from .pool_probability_loader import PoolProbabilityLoader
+from .race_records_loader import RaceRecordsLoader
+from .runner_selector import RunnerSelector
+from .top3_baseline import Top3Baseline
+from .top3_target_builder import Top3TargetBuilder
 
 #: 馬の力の材料のモデルの学習データの始まり。研究「一番人気を疑う」で、2017年からより長い期間で学ぶほうが良かった
 #: （ウォームアップは前の年の 2011年。DB にある最初の年）。
 ABILITY_TRAIN_FIRST_DAY = date(2012, 1, 1)
-#: ``FeatureBuilder`` に渡すまとまり（G 以外）。共通の A〜F・H・I に、この予想の J と L を足す。
+#: ``FeatureBuilder`` に渡すまとまり（G 以外）。共通の A〜F・H・I に、今のモデルの J と L を足す。
 _FEATURE_GROUPS = (
     RaceConditionFeatures(), HorseFeatures(), PeopleFeatures(), PreviousRunFeatures(),
     RecentFormFeatures(), AptitudeFeatures(), PedigreeFeatures(), WorkoutFeatures(),
@@ -69,7 +68,7 @@ def _market_runs(con: duckdb.DuckDBPyConnection) -> MarketRunRepository:
 def dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
     """元DB への接続から、今の材料（A〜L の 79個）の学習データ・予測用データを作るクラスを組み立てる。
 
-    この予想の決めごとは3つ: 出走した全頭を入れる（``RunnerSelector``）、3着以内なら 1（共通の ``Top3TargetBuilder``）、
+    今のモデルの決めごとは3つ: 出走した全頭を入れる（``RunnerSelector``）、3着以内なら 1（``Top3TargetBuilder``）、
     特徴量は A〜I の 71個にまとまり J（市場の評価）の4個と L（騎手・調教師・血統の市場に対する成績）の4個を足した 79個
     （``CATALOG`` と ``_FEATURE_GROUPS``）。L の材料の過去の全出走は ``MarketRunRepository`` で読む。
     ほかの予想は、同じ ``DatasetBuilder`` に別のクラスを渡す（設計書 04）。当日に券種のオッズが無いときのモデルは、
@@ -86,7 +85,8 @@ def dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
 
 
 def pool_dataset_builder(con: duckdb.DuckDBPyConnection) -> DatasetBuilder:
-    """今の材料に N（券種ごとのオッズから見た支持の6個）を足した学習データ・予測用データを作るクラス（研究の比べに使う。本番の当日のモデルは ``race_day_dataset_builder``）。
+    """今の材料に N（券種ごとのオッズから見た支持の6個）を足した学習データ・予測用データを作るクラス（研究の比べに使う。
+    今のモデルの当日のモデルは ``race_day_dataset_builder``）。
 
     券種ごとのオッズから見た確率は
     ``PoolProbabilityLoader`` で読む（終わったレースは確定、これから走るレースは締め切り前の最新の断面）。

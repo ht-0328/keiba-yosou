@@ -7,7 +7,7 @@ from dataclasses import replace
 import numpy as np
 import pandas as pd
 
-from yosou.form_aptitude_top3.feature import RACE_DAY_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import RACE_DAY_CATALOG
 from yosou.shared.dataset import BaselineLogit, TrainingData
 from yosou.shared.feature import POOL_SUPPORT_FEATURES, PredictionTiming
 from yosou.shared.feature.odds import WIN_RATE

@@ -9,9 +9,9 @@ from yosou.shared.feature import PACE_FORECAST_FEATURES, PredictionTiming
 from yosou.shared.feature.pace_forecast import PACE_FORECAST_NAMES
 from yosou.shared.feature.pace_forecast import pace_forecast_columns as names
 
-from ..dataset import PaceAttachment
-from ..feature import ABILITY_CATALOG
-from ..workflow import (
+from yosou.shared.dataset import PaceAttachment
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG
+from yosou.shared.workflow.form_aptitude_timings import (
     ABILITY_SCORE_TIMINGS,
     ABILITY_SCORE_TOP3_TIMINGS,
     ABILITY_SCORE_WIN_TIMINGS,

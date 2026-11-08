@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from yosou.shared.feature import PredictionTiming
+from ..feature import PredictionTiming
 
 
 @dataclass(frozen=True)

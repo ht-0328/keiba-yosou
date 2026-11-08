@@ -8,7 +8,7 @@ from yosou.shared.dataset import WIN, TrainingData
 from yosou.shared.dataset.column_names import WIN_ODDS
 from yosou.shared.feature import PredictionTiming
 
-from ..dataset import WinTargetData
+from yosou.shared.dataset import WinTargetData
 
 
 def test_training_data_switches_the_label_and_the_baseline(training_data: TrainingData) -> None:

@@ -27,18 +27,15 @@ from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.win_value import WIN_VALUE
 from yosou.shared.tests import synthetic_season as season
 
-from ..command import CommandLine, predict_command
-from ..dataset import (
-    OddsInput,
-    OddsResolver,
-    PoolAvailability,
-    PoolFreeData,
-    ability_dataset_builder,
-    race_day_dataset_builder,
-)
-from ..feature import WIN_ODDS
+from yosou.race_development.workflow import DevelopmentPaceWorkflow
+from yosou.shared.dataset import OddsInput, OddsResolver, PoolAvailability, PoolFreeData
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder, race_day_dataset_builder
+from yosou.shared.feature.group import WIN_ODDS
+from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, PredictionWorkflow
+from yosou.shared.workflow.form_aptitude_timings import FORM_TIMINGS, POOL_FREE_FOLDER, WIN_FOLDER
+
+from ..command import CommandLine
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import FORM_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, WIN_FOLDER, WIN_PROBABILITY, PredictionWorkflow
 from .test_dataset_builder import CARD_ODDS
 
 #: 出馬表のレースに手で渡す単勝オッズ（``--odds`` の書き方）。
@@ -225,7 +222,7 @@ def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, train
                                                           monkeypatch: pytest.MonkeyPatch):
     models, _ = trained
     # 展開のモデルは合成DB では学べないので、展開の予測は予測の無い表にする（P は欠損値）
-    monkeypatch.setattr(predict_command.DevelopmentPaceWorkflow, "run", lambda self, con, race_id, timing, given: pd.DataFrame())
+    monkeypatch.setattr(DevelopmentPaceWorkflow, "run", lambda self, con, race_id, timing, given: pd.DataFrame())
     code = _run_command([
         "predict", "--date", "2025-01-11", "--venue", "東京", "--race", "2", "--timing", "木曜",
         "--figure-cache", str(figure_cache), "--db", str(season_db), "--models", str(models), "--format", "csv",

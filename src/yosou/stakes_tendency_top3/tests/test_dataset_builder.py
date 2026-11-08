@@ -10,8 +10,8 @@ import pytest
 
 from 共通 import db
 
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG as FORM_ABILITY_CATALOG
-from yosou.form_aptitude_top3.feature import RACE_DAY_CATALOG as FORM_RACE_DAY_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG as FORM_ABILITY_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import RACE_DAY_CATALOG as FORM_RACE_DAY_CATALOG
 from yosou.shared.dataset import RACE_DATE, RACE_ID, TrainingData
 from yosou.shared.dataset.column_names import FINISH
 from yosou.shared.feature import PredictionTiming

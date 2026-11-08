@@ -10,27 +10,24 @@ import pandas as pd
 from 共通.render import Table
 
 from yosou.ability_score import RaceAbilityScoreAttacher
-from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_DEVELOPMENT_ROOT
-from yosou.form_aptitude_top3.dataset import OddsResolver, race_day_dataset_builder
-from yosou.form_aptitude_top3.feature import WIN_ODDS
-from yosou.form_aptitude_top3.workflow import (
-    ABILITY_SCORE_TOP3_TIMINGS,
-    POOL_FREE_FOLDER,
-    PROBABILITY,
-    TRACK_BIAS_TOP3_TIMINGS,
-    WEIGHT_DISCOUNT_TOP3_TIMINGS,
-    DataAttachment,
-    PredictionWorkflow,
-)
 from yosou.track_bias import MemoizedPaceForecast, PriorSlopeTableStore, RaceBiasAttacher, bias_cache_folder_beside
 from yosou.weight_table import RaceWeightDiscountAttacher, WeightTableStore, weight_cache_folder_beside
-from yosou.shared.command import PredictionTable
+from yosou.shared.command import DEFAULT_DEVELOPMENT_ROOT, PredictionTable
+from yosou.shared.dataset import OddsResolver
+from yosou.shared.dataset.form_aptitude_assembly import race_day_dataset_builder
+from yosou.shared.feature.group import WIN_ODDS
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.feature.odds import TOP3_RATE
 from yosou.shared.place_value import PLACE_PROBABILITY, PLACE_VALUE, PlacePriceEstimator, PlaceValueColumns
 from yosou.shared.repository import AnnouncedOddsRepository, PlacePriceRepository
 from yosou.shared.repository.speed_figure_repository import DEFAULT_FOLDER
-from yosou.shared.workflow import ModelSegments, SegmentedPrediction
+from yosou.shared.workflow import PROBABILITY, DataAttachment, ModelSegments, PredictionWorkflow, SegmentedPrediction
+from yosou.shared.workflow.form_aptitude_timings import (
+    ABILITY_SCORE_TOP3_TIMINGS,
+    POOL_FREE_FOLDER,
+    TRACK_BIAS_TOP3_TIMINGS,
+    WEIGHT_DISCOUNT_TOP3_TIMINGS,
+)
 
 #: 当日の予想は発走の前に出すので、「当日」の時点のモデルを使う。
 TIMING = PredictionTiming.RACE_DAY

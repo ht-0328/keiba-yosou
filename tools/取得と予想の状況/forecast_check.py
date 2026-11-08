@@ -13,7 +13,7 @@ from 取得と予想の状況.verdict_kind import VerdictKind
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.race_grades import RaceGrades
-from 今週の予想.timing_chooser import TimingChooser
+from yosou.shared.workflow import TimingChooser
 
 
 class ForecastCheck:

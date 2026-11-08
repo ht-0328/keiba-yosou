@@ -46,6 +46,9 @@
 列の名前（レースID・確定着順 など）は ``column_names.py``。予想ごとに違う目的変数の列の名前は、ここには無い
 （3着以内・1着だけは ``Top3TargetBuilder`` と一緒に ``top3_target_builder.py`` にある）。
 多頭数とみなす出走頭数（``LARGE_FIELD_FROM``）は ``field_size_rule.py``。
+今のモデル（予想「近走と適性から3着以内を予想」）の ``DatasetBuilder`` の組み立ての関数（``dataset_builder()``・``pool_dataset_builder()``・
+``race_day_dataset_builder()``・``ability_dataset_builder()``）と学習データの始まり（``ABILITY_TRAIN_FIRST_DAY``）は ``form_aptitude_assembly.py``
+（今のモデルのコマンド・道具「今週の予想」・WIN5 の予想が同じ組み立てを使うので、ここに置く。名前が一般的なので、ここからは外に出さない）。
 """
 
 from .column_names import (

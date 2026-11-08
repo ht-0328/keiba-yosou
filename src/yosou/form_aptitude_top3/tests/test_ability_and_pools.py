@@ -14,9 +14,10 @@ from yosou.shared.dataset import HORSE_ID, RACE_DATE, RACE_ID, PredictionData, T
 from yosou.shared.feature import ABILITY_FEATURES, POOL_SUPPORT_NAMES, PredictionTiming
 from yosou.shared.tests import synthetic_season as season
 
-from ..dataset import PoolAvailability, PoolFreeData, ability_dataset_builder
-from ..feature import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_CATALOG
-from ..workflow import ABILITY_TIMINGS, FORM_TIMINGS
+from yosou.shared.dataset import PoolAvailability, PoolFreeData
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG, CATALOG, POOL_CATALOG, RACE_DAY_CATALOG
+from yosou.shared.workflow.form_aptitude_timings import ABILITY_TIMINGS, FORM_TIMINGS
 
 #: M のうち、どの時点でも分かり、合成のシーズンでも値が入る列（例として確かめる）。
 _FIGURE = "指数_前走"

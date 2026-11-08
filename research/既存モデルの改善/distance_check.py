@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from 共通 import db, facts  # noqa: E402
 
-from yosou.form_aptitude_top3.dataset import WinTargetData  # noqa: E402
+from yosou.shared.dataset import WinTargetData  # noqa: E402
 from yosou.form_aptitude_top3.setting import DEFAULT_SETTINGS_PATH  # noqa: E402
 from yosou.shared.dataset import HISTORY_FIRST_DAY, WIN, DistanceChangeRecordsLoader  # noqa: E402
 from yosou.shared.feature.history import DISTANCE_CHANGE_NAMES  # noqa: E402

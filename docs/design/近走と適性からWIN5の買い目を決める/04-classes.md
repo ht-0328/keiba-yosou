@@ -2,7 +2,7 @@
 
 **この文書で決めること:** 今のモデル（今毎週の予想に使っているモデル）の1着の確率を、この予想がどう受け取るか。この予想だけに要るクラス（WIN5 の日を読む・レースごとに使う確率を選ぶ・確率をそろえる・配当を見積もる・買い目を組む・過去の WIN5 で精算する）は何か。それらをどのフォルダ（パッケージ）・ファイルに置くか。コマンドの引数は何か。
 
-**結論: 今のモデルの予測を作る部品（`DatasetBuilder`・`FeatureBuilder`・`PredictionWorkflow`・LightGBM と CatBoost のモデルなど）の多くは、すでに `src/yosou/shared/` にある。今のモデルのパッケージと道具「今週の予想」だけが持つ「予測の流れの組み立て」と「時点の選び方」を `shared` に移し、この予想はそれを呼んで、今のモデルの学習済みモデルで1着の確率を出す（[15-decisions.md の 9](15-decisions.md#9-今のモデルの1着の確率の受け取り方)）。この予想だけに作るのは、WIN5 の日の流れを進める `Win5PredictionWorkflow` と、対象レース（`leg/`）・配当（`payout/`）・買い目（`formation/`）・精算（`settlement/`）の部品、リポジトリ、コマンドである。モデルを学ぶクラスは作らない。**
+**結論: 今のモデルの予測を作る部品（`DatasetBuilder`・`FeatureBuilder`・`PredictionWorkflow`・LightGBM と CatBoost のモデルなど）の多くは、すでに `src/yosou/shared/` にある。今のモデルのパッケージと道具「今週の予想」だけが持っていた「予測の流れの組み立て」と「時点の選び方」は `shared` に移した（材料を作る部品だけは `yosou.form_aptitude_materials`）。この予想はそれを呼んで、今のモデルの学習済みモデルで1着の確率を出す（[15-decisions.md の 9](15-decisions.md#9-今のモデルの1着の確率の受け取り方)）。この予想だけに作るのは、WIN5 の日の流れを進める `Win5PredictionWorkflow` と、対象レース（`leg/`）・配当（`payout/`）・買い目（`formation/`）・精算（`settlement/`）の部品、リポジトリ、コマンドである。モデルを学ぶクラスは作らない。**
 
 - 1ファイル1クラス、1クラス1つの仕事、1 SQL につき1つのリポジトリ、入れ子は1段まで、という分け方の決まりは手本と同じで、[手本の 04 の「分け方の決まり」](../近走と適性から3着以内を予想/04-classes.md#分け方の決まり) を参照。
 - 今のモデルのクラスの仕事は [手本の 04 の「クラスの一覧」](../近走と適性から3着以内を予想/04-classes.md#クラスの一覧) を参照。この文書には、移すものと、この予想だけのクラスを書く。
@@ -11,22 +11,24 @@
 
 ## 1. 今のモデルの1着の確率の受け取り方
 
-この予想は、道具「今週の予想」が出すのと同じ1着の確率を、WIN5 の1レース目の締め切り前に、対象レース5つについて出す必要がある。**予想のパッケージどうしで import はしない**（片方を直すともう片方が壊れる）ので、今のモデルのパッケージと道具にしか無い次のものを `shared` に移し、今のモデル・道具「今週の予想」・この予想の3つから使う（[15-decisions.md の 9](15-decisions.md#9-今のモデルの1着の確率の受け取り方)）。これが、この予想を作るときの最初の作業になる。
+この予想は、道具「今週の予想」が出すのと同じ1着の確率を、WIN5 の1レース目の締め切り前に、対象レース5つについて出す必要がある。**予想のパッケージどうしで import はしない**（片方を直すともう片方が壊れる）ので、今のモデルのパッケージと道具にしか無かった次のものを `shared` に移し、今のモデル・道具「今週の予想」・この予想の3つから使う（[15-decisions.md の 9](15-decisions.md#9-今のモデルの1着の確率の受け取り方)）。移す作業は済んでいる。
 
-| 移すもの | 今の置き場所 | 移す先 | この予想での使い方 |
+| 移したもの | 前の置き場所 | 移した先 | この予想での使い方 |
 |---|---|---|---|
 | 特徴量の一覧（`ABILITY_CATALOG`・`RACE_DAY_CATALOG`・`RACE_DAY_WIN_CATALOG` など） | `form_aptitude_top3/feature/feature_catalog.py` | `shared/feature/form_aptitude_catalog.py` | 今のモデルの予測用データを作る |
 | `DatasetBuilder` の組み立ての関数（`ability_dataset_builder()`・`race_day_dataset_builder()` など） | `form_aptitude_top3/dataset/dataset_assembly.py` | `shared/dataset/form_aptitude_assembly.py` | 同上 |
 | 時点の並びとモデルの置き場所の名前（`ABILITY_TIMINGS`・`WIN_FOLDER`・`POOL_FREE_FOLDER` など） | `form_aptitude_top3/workflow/prediction_timings.py` | `shared/workflow/form_aptitude_timings.py` | 今のモデルの1着のモデルを、時点ごとのフォルダから読む |
-| 予測の流れの組み立て（時点に合わせて `DatasetBuilder`・材料を足す部品・モデルを選んで `PredictionWorkflow` を作るところ） | `form_aptitude_top3/command/predict_command.py` と `material_attachers.py`、道具「今週の予想」の `RaceForecaster._workflow()` | `shared/workflow/form_aptitude_prediction.py` の `FormAptitudePrediction` | 対象レースの、今のモデルの1着の確率を出す |
-| レースごとの時点の選び方（オッズ・馬番・馬体重・馬場状態の有無から木曜・前日・当日を選ぶ） | 道具「今週の予想」の `TimingChooser`・`TimingChoice` | `shared/workflow/` | 対象レースで、今のモデルのどの時点を使うかを選ぶ |
+| 予測の流れの組み立て（時点に合わせて `DatasetBuilder`・材料を足す関数・モデルを選んで `PredictionWorkflow` を作るところ） | `form_aptitude_top3/command/predict_command.py`、道具「今週の予想」の `RaceForecaster._workflow()` | `shared/workflow/form_aptitude_prediction.py` の `FormAptitudePrediction`（材料を作る部品の決まりは `shared/workflow/form_aptitude_materials.py` の `FormAptitudeMaterials`） | 対象レースの、今のモデルの1着の確率を出す（`run(接続, レースID, 時点)` が全頭の表を返す） |
+| 材料（P・S・T・U・V）を作る部品 `MaterialAttachers` | `form_aptitude_top3/command/material_attachers.py` | `src/yosou/form_aptitude_materials/material_attachers.py`（`shared` ではない） | `FormAptitudePrediction` に、接続から作る関数として渡す。予想「展開から着順を予想」（`yosou.race_development`）の保存したモデルと材料のパッケージ（`development_score`・`track_bias` など）を使うので、`shared` に置くと `shared` が予想のパッケージを参照することになる。そこで `shared` には決まり（`FormAptitudeMaterials`）だけを置き、守るクラスを材料の部品のパッケージに置いた |
+| レースごとの時点の選び方（オッズ・馬番・馬体重・馬場状態の有無から木曜・前日・当日を選ぶ） | 道具「今週の予想」の `TimingChooser`・`TimingChoice` | `shared/workflow/timing_chooser.py`・`timing_choice.py` | 対象レースで、今のモデルのどの時点を使うかを選ぶ |
+| 引数 `--development-root`（`DevelopmentRootArgument`。前日のモデルが使う、予想「展開から着順を予想」の置き場所） | `form_aptitude_top3/command/development_root_argument.py` | `shared/command/development_root_argument.py` | `predict` の引数 |
 
-今のモデルのパッケージと道具「今週の予想」も、移したあとの `shared` を使う形に直す。こうすると、道具「今週の予想」・発走前の通知とこの予想は、同じ部品・同じ学習済みモデルで1着の確率を出すので、値が食い違わない。
+今のモデルのパッケージと道具「今週の予想」も、移したあとの `shared` を使う形に直した（今のモデルのパッケージは `command/` と `setting/` だけになった）。こうすると、道具「今週の予想」・発走前の通知とこの予想は、同じ部品・同じ学習済みモデルで1着の確率を出すので、値が食い違わない。
 
 | まとまり | 共通にするか | この予想だけのもの |
 |---|---|---|
 | `repository/`（データの読み書き） | 共通（出走・過去走・調教・速報・締め切り前のオッズ・券種オッズ・今のモデルのファイル） | WIN5 の日と過去の WIN5 を読む SQL、配当の見積もりの式のファイル |
-| `dataset/`・`feature/`・`ml_model/`・`setting/` | 全部共通（移したものを含む） | 無し（この予想はモデルを学ばないので、ハイパーパラメータの設定ファイルも持たない。[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
+| `dataset/`・`feature/`・`ml_model/`・`setting/` | 全部共通（移したものを含む）。材料を作る部品は `yosou.form_aptitude_materials` | 無し（この予想はモデルを学ばないので、ハイパーパラメータの設定ファイルも持たない。[14-hyperparameter-settings.md](14-hyperparameter-settings.md)） |
 | `workflow/`（流れを進める） | 今のモデルの予測の流れ（移した `FormAptitudePrediction` と `PredictionWorkflow`）と時点の選び方 | WIN5 の日の予測の流れ `Win5PredictionWorkflow` |
 | `leg/`・`payout/`・`formation/`・`settlement/` | 無し | 下の「3.」 |
 | `command/` | 部品は共通、入口は予想ごと | コマンドの組み立てと引数 |
@@ -34,7 +36,7 @@
 | 決まり | 理由 |
 |---|---|
 | `shared` のクラスは、予想のパッケージを参照しない | 片方の予想の都合が、もう片方に入り込まない |
-| 予想のパッケージどうしも参照しない（`form_aptitude_win5_tickets` から `form_aptitude_top3` を import しない） | 両方で使う部品は `shared` に置く。予想を直したときに、ほかの予想が壊れない |
+| 予想のパッケージどうしも参照しない（`form_aptitude_win5_tickets` から `form_aptitude_top3` を import しない）。材料を作る部品 `yosou.form_aptitude_materials` は予想のパッケージではないので、`command/` から使ってよい | 両方で使う部品は `shared` に置く。予想を直したときに、ほかの予想が壊れない |
 | この予想は、今のモデルの学習済みモデルを読むだけで、書かない | 今のモデルの学び直しは、今のモデルのコマンド（`python -m yosou.form_aptitude_top3 train`）が受け持つ |
 | 1着の確率をレースの中でそろえるのは、今のモデルが2つのモデルの確率を平均したあとにする | 平均する前にそろえると、LightGBM と CatBoost のどちらかの確率の大きさの癖が、平均に残るため |
 | 配当の見積もりと買い目の組み方は、確率の出どころを知らない | 今のモデルの確率でも、オッズから見た勝率でも、同じ部品で組の期待値を出せる。過去の WIN5 での確かめで、区切りごとの予測を渡すのにも使える（[16-evaluation.md の 1.](16-evaluation.md#1-期間の分け方)） |
@@ -60,7 +62,7 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 
 | 決まり | 理由 |
 |---|---|
-| 参照の向きは一方向にする: `form_aptitude_win5_tickets` → `shared`。`shared` から予想のパッケージを参照しない | 参照が循環すると、1つを直すと全部に響く |
+| 参照の向きは一方向にする: `form_aptitude_win5_tickets` → `form_aptitude_materials`（`command/` だけ）→ `shared`。`shared` から予想のパッケージと `form_aptitude_materials` を参照しない | 参照が循環すると、1つを直すと全部に響く |
 | 予想のパッケージの中も一方向にする: `command` → `workflow` → `leg`・`formation`、`formation` → `payout`。`settlement` は `formation` と `payout` を使う。`repository` は `workflow` と `command` から使う | 手本と同じ決まり |
 | 各フォルダの `__init__.py` で外に出すのは、ほかのフォルダから使うクラスだけにする | 外に見せるものが少ないほど、中を変えても外に響かない |
 | この構成は、作りながら動かしてよい | 作る前に決めた構成は、少ない情報で決めたものだからである |
@@ -81,7 +83,7 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 |---|---|---|---|
 | `LegModel` | 対象レースで使う確率を表す値（列挙。今のモデルの当日・今のモデルの前日・オッズだけ）と、選んだ理由の文 | ―（値） | ― |
 | `LegModelChooser` | 対象レースが障害なら「オッズだけ」。平地なら、`shared` に移した時点の選び方で今のモデルの時点を選び、木曜（オッズが無い）なら止める（[06-flowchart.md の図1](06-flowchart.md#図1-対象レースで使う確率の選び方)） | `choose(接続, レースID)` | 移した `TimingChooser` |
-| `LegWinPredictor` | 選んだ時点で、対象レースの全頭の今のモデルの1着の確率（2つのモデルの平均）を出す。当日に券種のオッズが無いときに券種オッズなしのモデルに切り替えるのは、今のモデルの流れの中で行われる。「オッズだけ」のときは、オッズから見た勝率をそのまま確率にする | `predict(接続, レースID, LegModel)` | 移した `FormAptitudePrediction`、共通の `MarketWinProbability` |
+| `LegWinPredictor` | 選んだ時点で、対象レースの全頭の今のモデルの1着の確率（2つのモデルの平均）を出す。当日に券種のオッズが無いときに券種オッズなしのモデルに切り替えるのは、今のモデルの流れの中で行われる。「オッズだけ」のときは、オッズから見た勝率をそのまま確率にする。`FormAptitudePrediction` は `command/` が作って渡す（材料を作る部品 `MaterialAttachers` を、接続から作る関数として渡す） | `predict(接続, レースID, LegModel)` | 移した `FormAptitudePrediction`、共通の `MarketWinProbability` |
 | `RaceWinShare` | 1レースの全頭の1着の確率を、合計が 1 になるようにそろえ、オッズから見た勝率と上乗せの列を足す | `of(1レースの予測の結果)` | 共通の `MarketWinProbability` |
 
 ### payout/ — 配当の見積もり
@@ -132,8 +134,7 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | `Win5ForecastTables` | この予想 | 予測の結果を、日のまとめ・選んだ買い目・対象レースごとの全頭の表・予算の候補ごとの表にする（下の「4.」） | `tables()` |
 | `CommonArguments` | `shared` | 共通の引数（`--db` `--format` `--out`。`--models` はこの予想では式の置き場所） | `add_to(parser)` |
 | `FigureCacheArgument` | `shared` | 今のモデルの予測に要る引数 `--figure-cache`（今のモデルのコマンドと同じ） | `add_to(parser)` |
-
-今のモデルの予測に要る `--development-root`（前日のモデルが使う、予想「展開から着順を予想」の置き場所）の引数も、今のモデルの `command/` から `shared/command/` に移して使う。
+| `DevelopmentRootArgument` | `shared` | 今のモデルの予測に要る引数 `--development-root`（前日のモデルが使う、予想「展開から着順を予想」の置き場所。今のモデルのコマンドと同じ） | `add_to(parser)` |
 
 過去の WIN5 での確かめの入口は、この予想のコマンドではなく、道具「印の成績」に足す（`--win5`。[16-evaluation.md の 7.](16-evaluation.md#7-道具と全券種の回収率)）。道具は、この予想の `settlement/`・`formation/`・`payout/` の部品を呼ぶだけにする（同じ精算を2か所に書かない）。
 
@@ -162,3 +163,4 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | 作成日 | 2026-11-08 |
 | 更新 | 2026-11-08: 15 の 3〜12 が決まり、パッケージ名をフォルダ名に合わせ、実際の予想の記録（15 の 7）を足した |
 | 更新 | 2026-11-08: 15 の 1 が決まり、1着のモデルを学ぶクラスを外し、今のモデルの1着の確率を受け取る形にした |
+| 更新 | 2026-11-08: 「1.」の部品を移した。材料を作る部品 `MaterialAttachers` は、予想「展開から着順を予想」を使うので `shared` でなく `yosou.form_aptitude_materials` に置き、`shared` には決まり `FormAptitudeMaterials` を置いた。`--development-root` の引数を表に入れた |

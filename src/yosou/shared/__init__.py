@@ -7,7 +7,7 @@
 | フォルダ | 中身 |
 |---|---|
 | ``command/`` | コマンドの部品のうち、予想に依らないもの（共通の引数・結果の表） |
-| ``workflow/`` | 学習の流れ（``TrainingWorkflow``）。予測の流れは予想ごとなので入れない |
+| ``workflow/`` | 学習の流れ（``TrainingWorkflow``）・予測の流れ（``PredictionWorkflow``）と、今のモデルの予測の流れの組み立て（``FormAptitudePrediction``）・時点の選び方（``TimingChooser``）。人気の扱いが違う予想の予測の流れは予想ごと |
 | ``evaluation/`` | 当たり具合を測る。学習の結果の入れ物 |
 | ``ml_model/`` | 機械学習のモデル（LightGBM・CatBoost・エンコーダー・平均） |
 | ``dataset/`` | 学習データ・予測用データを作る（記録を集める・期間で分ける・予測のときの人気を決める・3着以内の目的変数） |
@@ -17,7 +17,8 @@
 | ``setting/`` | ハイパーパラメータの設定ファイルを読む（初期値のファイルは予想ごと） |
 | ``tests/`` | 共通の部品のテストと、テスト用の合成DB（``synthetic_season/``） |
 
-決まり: **``shared`` から予想のパッケージ（``form_aptitude_top3`` など）を参照しない。**
+決まり: **``shared`` から予想のパッケージ（``form_aptitude_top3`` など）を参照しない。** 予想「展開から着順を予想」を使う材料の部品
+（``yosou.form_aptitude_materials``）も参照せず、決まり（``FormAptitudeMaterials``）を守るものとして受け取る。
 参照の向きは上から下へ一方向（``command`` → ``workflow`` → ``evaluation`` → ``ml_model`` → ``dataset`` → ``feature``。
 ``dataset`` は ``repository`` を、``ml_model`` と ``repository`` は ``setting`` を使う）。
 """

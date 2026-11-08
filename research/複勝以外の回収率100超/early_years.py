@@ -34,7 +34,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from yosou.form_aptitude_top3.dataset import WinTargetData  # noqa: E402
+from yosou.shared.dataset import WinTargetData  # noqa: E402
 from yosou.shared.setting import HyperparameterSettings  # noqa: E402
 
 from 共通 import db  # noqa: E402

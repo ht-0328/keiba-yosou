@@ -1,10 +1,14 @@
-"""この予想が予測を出す時点と、時点ごとに使うモデル（設計書 07）。"""
+"""今のモデル（予想「近走と適性から3着以内を予想」）が予測を出す時点と、時点ごとに使うモデル（設計書「近走と適性から3着以内を予想」07）。
+
+今のモデルの予測は、今のモデルのパッケージ・道具「今週の予想」・予想「近走と適性からWIN5の買い目を決める」が同じ部品で出すので、
+時点の並びとモデルの置き場所の名前も ``shared`` に置く（設計書「近走と適性からWIN5の買い目を決める」04 の 1）。
+"""
 
 from __future__ import annotations
 
-from yosou.shared.feature import PredictionTiming
+from ..feature import PredictionTiming
 
-#: この予想が学習し、予測を出す時点（木曜・前日・当日の3つ全部）。
+#: 今のモデルが学習し、予測を出す時点（木曜・前日・当日の3つ全部）。
 TIMINGS: tuple[PredictionTiming, ...] = tuple(PredictionTiming)
 #: 馬の力の材料（まとまり M。``ability_dataset_builder``）のモデルで予測する時点。研究「一番人気を疑う」の直し方を移し、
 #: 7つの区切りで今の予想と比べて採用の基準を満たした時点だけ（設計書 15 の 11）。

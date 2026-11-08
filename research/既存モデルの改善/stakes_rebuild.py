@@ -12,7 +12,7 @@
 ``stakes_rows`` は、全レースで学んだ手本の予測（general-*）から重賞の行だけを取り出し、``<表>/general-<時点>-stakes.pkl`` に書く。
 道具「印の成績」に専用モデルの予測と並べて渡すと、同じ重賞のレースについて印ごとの成績と全券種の買い目の回収率を比べられる
 （危険な人気馬の判定は、区切りが半年ずつの人気馬の予想と区切りの名前が合わないので使わない）。
-学習データは予想のパッケージ（``src/yosou/stakes_tendency_top3``・``src/yosou/form_aptitude_top3``）の組み立て関数で作る。
+学習データは予想のパッケージ（``src/yosou/stakes_tendency_top3``）と今のモデル（``src/yosou/shared/dataset/form_aptitude_assembly.py``）の組み立て関数で作る。
 重賞だけの表（作り直した専用モデル）と全レースの表（手本を重賞だけに使ったときの比べ先）の4つで、どれも 2012年から。
 区切りと区切りごとの学習（LightGBM と CatBoost。ハイパーパラメータは予想の初期値）はこの研究のもの。
 出るもの（Git 対象外）: ``reports/既存モデルの改善/tables/<表>/``・``predictions/<表>/<作り方>.pkl``。

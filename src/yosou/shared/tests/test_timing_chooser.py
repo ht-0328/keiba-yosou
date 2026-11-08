@@ -8,7 +8,7 @@ import pytest
 
 from 共通 import db
 from 共通.tests.test_race_signals import CARD_RID, NAME_LIST_RID, build
-from 今週の予想.timing_chooser import TimingChooser
+from yosou.shared.workflow import TimingChooser
 
 
 def choose(path: Path, rid: str) -> str:

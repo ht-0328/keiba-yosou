@@ -1,6 +1,9 @@
-"""この予想が使う特徴量の一覧（設計書 09）。
+"""今のモデル（予想「近走と適性から3着以内を予想」）が使う特徴量の一覧（設計書「近走と適性から3着以内を予想」09）。
 
-この予想は、時点によって2つの材料の組を使い分ける（設計書 07）。
+今のモデルの予測は、今のモデルのパッケージ・道具「今週の予想」・予想「近走と適性からWIN5の買い目を決める」が同じ部品で出すので、
+一覧も ``shared`` に置く（設計書「近走と適性からWIN5の買い目を決める」04 の 1）。
+
+今のモデルは、時点によって2つの材料の組を使い分ける（設計書 07）。
 
 - 今の材料（当日）: どの予想でも同じ A〜I（``BASE_FEATURES``）に、J（市場の評価）の4個と、
   L（騎手・調教師・血統の市場に対する成績）の4個を足す。当日のモデルは N（券種ごとのオッズから見た支持）の6個と、
@@ -13,7 +16,8 @@
 
 from __future__ import annotations
 
-from yosou.shared.feature import (
+from .feature import Feature
+from .feature_catalog import (
     ABILITY_FEATURES,
     BASE_FEATURES,
     FINISH_POWER_FEATURES,
@@ -21,11 +25,10 @@ from yosou.shared.feature import (
     MARKET_FEATURES,
     PEOPLE_MARKET_FEATURES,
     POOL_SUPPORT_FEATURES,
-    Feature,
     FeatureCatalog,
 )
 
-#: J. 市場の評価（4個）。荒れ具合の予想とも共通なので、一覧は ``yosou.shared.feature`` にある。
+#: J. 市場の評価（4個）。荒れ具合の予想とも共通なので、一覧は ``feature_catalog.py`` にある。
 J_FEATURES: tuple[Feature, ...] = MARKET_FEATURES
 
 #: 今の材料の特徴量の一覧（まとまり A〜I と J・L。当日は 79個）。当日に券種のオッズが無いときのモデルもこれで学ぶ。

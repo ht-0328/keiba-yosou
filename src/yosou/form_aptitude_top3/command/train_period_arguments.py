@@ -7,7 +7,7 @@ from datetime import date
 
 from yosou.shared.dataset import DEFAULT_TEST_FIRST_DAY, DEFAULT_TRAIN_FIRST_DAY, DEFAULT_VALID_FIRST_DAY, TrainingPeriod
 
-from ..dataset import ABILITY_TRAIN_FIRST_DAY
+from yosou.shared.dataset.form_aptitude_assembly import ABILITY_TRAIN_FIRST_DAY
 
 
 class TrainPeriodArguments:
