@@ -63,7 +63,7 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | 決まり | 理由 |
 |---|---|
 | 参照の向きは一方向にする: `form_aptitude_win5_tickets` → `form_aptitude_materials`（`command/` だけ）→ `shared`。`shared` から予想のパッケージと `form_aptitude_materials` を参照しない | 参照が循環すると、1つを直すと全部に響く |
-| 予想のパッケージの中も一方向にする: `command` → `workflow` → `leg`・`formation`、`formation` → `payout`。`settlement` は `formation` と `payout` を使う。`repository` は `workflow` と `command` から使う | 手本と同じ決まり |
+| 予想のパッケージの中も一方向にする: `command` → `workflow` → `leg`・`formation`、`formation` → `payout`。`settlement` は `formation` と `payout` を使う。`repository` は `workflow`・`command`・`leg`（障害の対象レースの出走馬を読む `LegRunnerRepository`）から使う。`payout`・`settlement` は、過去の WIN5 の表の列の名前（`repository/win5_columns.py`）だけを参照する | 手本と同じ決まり。`leg` と列の名前は、作りながら足した |
 | 各フォルダの `__init__.py` で外に出すのは、ほかのフォルダから使うクラスだけにする | 外に見せるものが少ないほど、中を変えても外に響かない |
 | この構成は、作りながら動かしてよい | 作る前に決めた構成は、少ない情報で決めたものだからである |
 
@@ -73,7 +73,9 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `Win5PredictionWorkflow` | WIN5 の日の予測の流れを進める。その日の WIN5 を読み、対象レースごとに使う確率を選んで今のモデルの1着の確率を出してそろえ、発売票数を見積もり、買い目を組み、買うかどうかを決める | `run(開催日, 予算, 買う日の線)` | `Win5DayRepository`、`LegModelChooser`、`LegWinPredictor`、`RaceWinShare`、`Win5HistoryRepository`、`PoolSizeEstimate`、`FormationSearch`、`DayBuyJudge` |
+| `Win5PredictionWorkflow` | WIN5 の日の予測の流れを進める。その日の WIN5 を読み、対象レースごとに使う確率を選んで今のモデルの1着の確率を出してそろえ、発売票数を見積もり、買い目を組み（予算の候補ごとにも）、買うかどうかを決める。元DB への接続・`LegWinPredictor`・`FormationSearch` はコマンドが作って渡す | `run(開催日, 予算, 買う日の線)` | `Win5DayRepository`、`LegModelChooser`、`LegWinPredictor`、`RaceWinShare`、`Win5HistoryRepository`、`PoolSizeEstimate`、`FormationSearch`、`DayBuyJudge` |
+| `Win5Forecast` | WIN5 の日の予測の結果を表す値（日・対象レースごとの予測・払戻に回るお金の見込み・並べ方・予算・線・選んだ買い目・予算の候補ごとの買い目・判断）。記録の形（辞書）にもする | `to_dict()` | ― |
+| `LegForecast` | 対象レース1つの予測の結果を表す値（レースID・使った確率と理由・全頭の確率の表） | `to_dict(買い目の馬番)` | ― |
 
 `Win5PredictionWorkflow` は、ほかのクラスを呼んで受け渡すだけで、計算・判断・SQL は書かない。
 
@@ -81,38 +83,50 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `LegModel` | 対象レースで使う確率を表す値（列挙。今のモデルの当日・今のモデルの前日・オッズだけ）と、選んだ理由の文 | ―（値） | ― |
-| `LegModelChooser` | 対象レースが障害なら「オッズだけ」。平地なら、`shared` に移した時点の選び方で今のモデルの時点を選び、木曜（オッズが無い）なら止める（[06-flowchart.md の図1](06-flowchart.md#図1-対象レースで使う確率の選び方)） | `choose(接続, レースID)` | 移した `TimingChooser` |
-| `LegWinPredictor` | 選んだ時点で、対象レースの全頭の今のモデルの1着の確率（2つのモデルの平均）を出す。当日に券種のオッズが無いときに券種オッズなしのモデルに切り替えるのは、今のモデルの流れの中で行われる。「オッズだけ」のときは、オッズから見た勝率をそのまま確率にする。`FormAptitudePrediction` は `command/` が作って渡す（材料を作る部品 `MaterialAttachers` を、接続から作る関数として渡す） | `predict(接続, レースID, LegModel)` | 移した `FormAptitudePrediction`、共通の `MarketWinProbability` |
+| `LegModel` | 対象レースで使う確率を表す値（列挙。今のモデルの当日・今のモデルの前日・オッズだけ） | ―（値） | ― |
+| `LegModelChoice` | 選んだ確率（`LegModel`）と、選んだ理由の文と、使ったオッズの断面（締め切り前の単勝オッズの発表月日時分。記録に残す） | ―（値） | ― |
+| `LegModelChooser` | 対象レースが障害なら「オッズだけ」。平地なら、`shared` に移した時点の選び方で今のモデルの時点を選び、木曜（オッズが無い）なら止める（[06-flowchart.md の図1](06-flowchart.md#図1-対象レースで使う確率の選び方)）。`LegModelChoice` を返す | `choose(接続, レースID)` | 移した `TimingChooser`（材料の有無は `共通.race_signals` の `RaceSignalReader` で1回だけ読む） |
+| `LegWinPredictor` | 選んだ時点で、対象レースの全頭の今のモデルの1着の確率（2つのモデルの平均）を出す。当日に券種のオッズが無いときに券種オッズなしのモデルに切り替えるのは、今のモデルの流れの中で行われる。「オッズだけ」のときは、オッズから見た勝率をそのまま確率にする。`FormAptitudePrediction` は `command/` が作って渡す（材料を作る部品 `MaterialAttachers` を、接続から作る関数として渡す） | `predict(接続, レースID, LegModelChoice)` | 移した `FormAptitudePrediction`、共通の `MarketWinProbability`、`LegRunnerRepository`（オッズだけのとき） |
 | `RaceWinShare` | 1レースの全頭の1着の確率を、合計が 1 になるようにそろえ、オッズから見た勝率と上乗せの列を足す | `of(1レースの予測の結果)` | 共通の `MarketWinProbability` |
 
 ### payout/ — 配当の見積もり
 
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `PoolSizeEstimate` | その日の発売票数を、それより前の WIN5 の発売票数から見積もる（[09-features.md の 2.](09-features.md#2-配当の見積もりに使う値)） | `of(過去の WIN5, 開催日, 土曜か)` | ― |
+| `PoolSizeEstimate` | その日の発売票数を、それより前の WIN5 の発売票数から見積もる（[09-features.md の 2.](09-features.md#2-配当の見積もりに使う値)）。同じ曜日の種類の回が無ければ、曜日を問わず直近 10回 | `of(過去の WIN5, 開催日, 土曜か)` | ― |
+| `PayoutPool` | その日の払戻に回るお金の見込みを表す値（発売票数の見積もりとキャリーオーバー。払戻に回るお金 = 発売票数の見積もり × 100円 × 払戻率 + キャリーオーバー） | ―（値） | ― |
+| `ComboMarketProbability` | 過去の当たり組の5頭の確定単勝オッズと、各対象レースの全頭の単勝オッズの逆数の合計から、市場の組の確率を出す（`MarketWinProbability` と同じ決まり） | `of_winners(当たり組のオッズ, 逆数の合計)` | ― |
 | `PayoutFeatures` | 組の材料（市場の組の確率の逆数の対数、キャリーオーバーの比の対数）を作る | `of(市場の組の確率, キャリーオーバー, 発売票数の見積もり)` | ― |
-| `PayoutEstimator` | 配当の見積もりの式。過去の当たり組で傾きと切片と戻すときの補正を決め（`fit`）、組の材料から式の値を出す（`estimate`）（[10-target.md の 2.](10-target.md#2-配当の見積もりで当てるもの)） | `fit(材料, 払戻)`、`estimate(材料)`、`to_dict()`、`from_dict(値)` | scikit-learn の `LinearRegression` |
+| `PayoutEstimator` | 配当の見積もりの式。過去の当たり組で傾きと切片と戻すときの補正を決め（`fit`。新しい式を返す）、組の材料から式の値を出す（`estimate`）（[10-target.md の 2.](10-target.md#2-配当の見積もりで当てるもの)） | `fit(材料, 払戻)`、`estimate(材料)`、`to_dict()`、`from_dict(値)` | scikit-learn の `LinearRegression` |
 | `PayoutCeiling` | 式の値に、払戻の上限と自分の1票の分を当てて、見積もりの配当にする（[06-flowchart.md の図2](06-flowchart.md#図2-組1つの配当の見積もり)） | `apply(式の値, 払戻に回るお金)` | ― |
+| `PayoutTrainingRows` | 過去の WIN5 の表から、式を作るのに使う当たり組の行（開催日・材料・払戻）を作る。的中無の回と、前の回が無く発売票数を見積もれない回は入れない。`fit-payout` と道具「印の成績」の `--win5`（区切りごと）が使う | `of(過去の WIN5)` | `PoolSizeEstimate`、`ComboMarketProbability`、`PayoutFeatures` |
 
 ### formation/ — 買い目
 
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
 | `LegOrdering` | 対象レースの馬を、買い目に入れる順に並べる決まり（列挙。上乗せの順・1着の確率の順。[15-decisions.md の 5](15-decisions.md#5-買い目の組み方と予算の決め方)） | `order(1レースの確率の表)` | ― |
-| `Formation` | フォーメーションを表す値。レースごとに選んだ馬番の並びと、点数（頭数のかけ算） | `points`、`combos()` | ― |
-| `FormationValue` | フォーメーションの全部の組について、当たる確率と見積もりの配当を出し、買い目のどれかが当たる確率と日の期待値を返す | `of(Formation, そろえた確率, 市場の組の材料)` | `PayoutFeatures`、`PayoutEstimator`、`PayoutCeiling` |
-| `FormationSearch` | 予算に収まる頭数の並び（各レース何頭か）を全部試し、各レースは `LegOrdering` の順に上から選んで、見積もりの払戻の合計がいちばん大きいフォーメーションを選ぶ（[06-flowchart.md の図3](06-flowchart.md#図3-買い目の組み方と買う日の判断)） | `best(5レースの確率の表, 予算)` | `LegOrdering`、`Formation`、`FormationValue` |
+| `Formation` | フォーメーションを表す値。レースごとに選んだ馬番の並びと、点数（頭数のかけ算） | `points`、`combos()`、`contains(組)` | ― |
+| `ComboGrid` | フォーメーションの全部の組の、当たる確率と見積もりの配当を表す値（各レースの馬の並びの位置の5次元の並び） | ―（値） | ― |
+| `FormationChoice` | 組んだフォーメーションと、買い目のどれかが当たる確率・見積もりの払戻の合計・日の期待値を表す値 | `expected_value`、`to_dict()` | ― |
+| `FormationValue` | フォーメーションの全部の組について、当たる確率と見積もりの配当を表の計算でまとめて出し（`grid`）、買い目のどれかが当たる確率と日の期待値を返す（`of`） | `grid(5レースの確率の表, PayoutPool)`、`of(Formation, 5レースの確率の表, PayoutPool)` | `PayoutFeatures`、`PayoutEstimator`、`PayoutCeiling` |
+| `FormationSearch` | 予算に収まる頭数の並び（各レース何頭か）を全部試し、各レースは `LegOrdering` の順に上から選んで、見積もりの払戻の合計がいちばん大きいフォーメーションを選ぶ（[06-flowchart.md の図3](06-flowchart.md#図3-買い目の組み方と買う日の判断)） | `best(5レースの確率の表, 予算, PayoutPool)`、`best_by_budget(5レースの確率の表, 予算の候補, PayoutPool)` | `LegOrdering`、`Formation`、`FormationValue` |
+| `DayDecision` | 買う か 見送り（列挙） | ―（値） | ― |
 | `DayBuyJudge` | 日の期待値が買う日の線以上なら「買う」、未満なら「見送り」 | `judge(日の期待値, 線)` | ― |
+
+`FormationSearch` は、予算の候補の上限まで各レースの上位の馬を並べた全部の組の値（`ComboGrid`）を1回だけ出し、5つの向きに累積の和をとって、どの頭数の並びの合計も引くだけで分かるようにする（[06-flowchart.md の図3](06-flowchart.md#図3-買い目の組み方と買う日の判断) の「計算を使い回す」）。試す予算・線・並べ方の候補と `predict` の既定は `formation/buying_defaults.py` に置く。既定は、道具「印の成績」の `--win5` で選ぶまでの仮の値（1着の確率の順・100点・線 1.00）である。
 
 ### settlement/ — 過去の WIN5 での精算（[16-evaluation.md](16-evaluation.md) の確かめに使う）
 
 | クラス | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `Win5Settlement` | 過去の WIN5 の1回について、買い目が当たったか、返還があったかを元DB の当たり組と照らし、払戻（返還の代金を含む）を出す | `settle(Formation, 過去の WIN5 の1回)` | ― |
+| `Win5Outcome` | 過去の WIN5 の1回の結果を表す値（当たり組と100円あたりの払戻・的中無の印・対象レースごとの取消と除外の馬番・発売票数・キャリーオーバー） | ―（値） | ― |
+| `Win5Outcomes` | `Win5HistoryRepository` と `Win5ScratchRepository` の表から、開催日ごとの `Win5Outcome` を作る | `of(過去の WIN5, 取消と除外)` | ― |
+| `Win5Settlement` | 過去の WIN5 の1回について、買い目が当たったか、返還があったかを元DB の当たり組と照らし、払戻（返還の代金を含む）を出す。取消・除外の馬を含む組は代金が戻る。的中無の回に当たり組を買っていたら、払戻に回るお金（その回の発売票数 × 100円 × 払戻率 + キャリーオーバー）を自分の1票で受け取る（上限で頭打ち）。組を1つずつ並べずに数える | `settle(Formation, Win5Outcome)` | `PayoutPool` |
+| `Win5Settled` | 1回の精算の結果を表す値（点数・代金・払戻・当たり・返還の点数） | ―（値） | ― |
 | `RuleFormations` | 比べる相手 (1)。ルール集の WIN5 のルール（1レースだけ穴馬3頭・残り上位人気2頭の 48点 × 5セット = 240点）の買い目を、オッズの順の人気から作る | `of(5レースの人気)` | `Formation` |
 | `PopularityFormation` | 比べる相手 (2)。各レースの人気の上位から、予算に収まるいちばん大きいフォーメーション（各レースの頭数をなるべくそろえる）を作る | `of(5レースの人気, 予算)` | `Formation` |
-| `Win5BacktestTables` | 買い方ごと・期間ごとの、買った日数・投資・払戻・回収率・的中率・開催日を単位にした 90% の幅を表にする | `tables(精算の結果)` | ― |
+| `Win5BacktestTables` | 買い方ごと・期間ごと（と年ごと）の、買った日数・投資・払戻・回収率・的中率・開催日を単位にした 90% の幅を表にする | `tables(精算の結果)` | 共通の `BootstrapInterval` |
 
 ### repository/ — この予想だけの読み書き
 
@@ -120,9 +134,11 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 |---|---|---|
 | `Win5Day` | WIN5 の日を表す値。開催日、対象レース5つのレースID（発売の順）、キャリーオーバー金額初期、土曜か日曜・祝日か（手本の `TargetScope` と同じく、リポジトリが返す値なので `repository/` に置く） | ―（値） |
 | `Win5DayRepository` | 元DB の `wf` と子表 `wf__重勝式対象レース情報` から、1つの開催日の WIN5（対象レース5つ・キャリーオーバー金額初期）を読み、`Win5Day` にする（SQL 1本） | `read(開催日)` |
-| `Win5HistoryRepository` | 元DB の `wf`・`wf__重勝式対象レース情報`・`wf__重勝式払戻情報` と事実表から、ある日より前の WIN5 の回ごとに、対象レース・当たり組・払戻・発売票数・キャリーオーバー・返還と的中無の印・当たり組の5頭の確定単勝オッズを読む（SQL 1本。中止の回は読まない） | `read(この日より前)` |
-| `Win5ForecastRecordRepository` | 実際に予想した結果（日のまとめ・買い目・対象レースごとの確率と、使ったオッズの断面）を `記録/<開催日>.json` に書く・読む（SQL は持たない）。確定オッズで確かめた成績と、実際に予想した成績を同じ表で比べるため（[15-decisions.md の 7](15-decisions.md#7-締め切り時点のオッズと確定オッズの差の扱い)） | `save(予測の結果)`、`load(開催日)` |
-| `PayoutEstimatorRepository` | 配当の見積もりの式（傾き・切片・戻すときの補正・使った期間）を `payout_estimator.json` に書く・読む（SQL は持たない） | `save(式)`、`load()` |
+| `Win5HistoryRepository` | 元DB の `wf`・`wf__重勝式対象レース情報`・`wf__重勝式払戻情報` と `se` から、ある日より前の WIN5 の回ごとに、対象レース・当たり組・払戻・発売票数・キャリーオーバー・返還と的中無の印・当たり組の5頭の確定単勝オッズと、各対象レースの全頭の単勝オッズの逆数の合計を読む（SQL 1本。中止の回は読まない。事実表は作らないので速い） | `read(この日より前)` |
+| `Win5ScratchRepository` | ある日より前の WIN5 の対象レースで、出走取消・発走除外・競走除外になった馬の馬番を読む（SQL 1本。精算の返還に使う） | `read(この日より前)` |
+| `LegRunnerRepository` | 1レースの出走馬（取消・除外を除く）の馬番・馬名と、出走の行の単勝オッズを読む（SQL 1本。障害の対象レースを「オッズだけ」で予想するのに使う） | `read(レースID)` |
+| `Win5ForecastRecordRepository` | 実際に予想した結果（日のまとめ・買い目・対象レースごとの確率と、使ったオッズの断面）を `記録/<開催日>.json` に書く・読む（SQL は持たない）。確定オッズで確かめた成績と、実際に予想した成績を同じ表で比べるため（[15-decisions.md の 7](15-decisions.md#7-締め切り時点のオッズと確定オッズの差の扱い)）。同じ日に予想し直したら上書きする | `save(Win5Forecast.to_dict() の辞書, 開催日)`、`load(開催日)` |
+| `PayoutEstimatorRepository` | 配当の見積もりの式（傾き・切片・戻すときの補正・使った期間）を `payout_estimator.json` に書く・読む（SQL は持たない） | `save(PayoutEstimator.to_dict() の辞書, 使った期間)`、`load()` |
 
 ### command/ — コマンド
 
@@ -130,9 +146,10 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 |---|---|---|---|
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
 | `FitPayoutCommand` | この予想 | `fit-payout`: 配当の見積もりの式を作る。`--before` の日より前の WIN5 の当たり組で `PayoutEstimator` を作り、`PayoutEstimatorRepository` で保存する。式の傾き・切片・外れの散らばり・使った回数の表を返す | `run(引数)` |
-| `PredictCommand` | この予想 | `predict`: WIN5 の日を予測する。`--budget` と `--min-value` を受け取り、保存した式を読んで `Win5PredictionWorkflow` に渡す。結果は `Win5ForecastRecordRepository` で自動で記録する | `run(引数)` |
+| `PredictCommand` | この予想 | `predict`: WIN5 の日を予測する。`--budget`・`--min-value`・`--ordering` を受け取り、保存した式を読んで `Win5PredictionWorkflow` に渡す。結果は `Win5ForecastRecordRepository` で自動で記録する | `run(引数)` |
+| `FormModelsArgument` | この予想 | `predict` の引数 `--form-models`（今のモデルの学習済みモデルの置き場所） | `add_to(parser)` |
 | `Win5ForecastTables` | この予想 | 予測の結果を、日のまとめ・選んだ買い目・対象レースごとの全頭の表・予算の候補ごとの表にする（下の「4.」） | `tables()` |
-| `CommonArguments` | `shared` | 共通の引数（`--db` `--format` `--out`。`--models` はこの予想では式の置き場所） | `add_to(parser)` |
+| `CommonArguments` | `shared` | 共通の引数（`--db` `--format` `--out`。`--models` はこの予想では式と記録の置き場所で、下のフォルダを持たない既定（`models_folder=""`）で使う） | `add_to(parser)` |
 | `FigureCacheArgument` | `shared` | 今のモデルの予測に要る引数 `--figure-cache`（今のモデルのコマンドと同じ） | `add_to(parser)` |
 | `DevelopmentRootArgument` | `shared` | 今のモデルの予測に要る引数 `--development-root`（前日のモデルが使う、予想「展開から着順を予想」の置き場所。今のモデルのコマンドと同じ） | `add_to(parser)` |
 
@@ -151,6 +168,7 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | `predict` | `--date` | WIN5 の開催日（省略すると今日） |
 | `predict` | `--budget 点数` | 1回の予算（点数）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値 |
 | `predict` | `--min-value 期待値` | 買う日の線。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値 |
+| `predict` | `--ordering 並べ方` | 各レースの馬を選ぶ順（上乗せの順・1着の確率の順）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値。選ぶまでの既定（予算・線も）は `formation/buying_defaults.py` の仮の値 |
 | `predict` | `--figure-cache`・`--development-root` | 今のモデルの予測に要る置き場所。意味と既定は今のモデルのコマンドと同じ |
 | `predict` | `--odds`・`--timing` | 受け取らない。対象レースが5つあり、オッズは元DB の締め切り前のオッズを、時点はレースごとに選ぶ（[07-prediction-timing.md](07-prediction-timing.md#対象レースごとの確率の選び方)） |
 | `predict` | 出す表 | (1) 日のまとめ（キャリーオーバー・発売票数の見積もり・点数・金額・買い目のどれかが当たる確率・日の期待値・買う／見送り）、(2) 選んだ買い目（レースごとの馬番）、(3) 対象レースごとの全頭の表（馬番・馬名・使った時点・そろえた1着の確率・オッズから見た勝率・上乗せ・買い目に入れたか）、(4) 予算の候補ごとの、いちばん良い買い目の当たる確率と日の期待値 |
@@ -163,4 +181,5 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | 作成日 | 2026-11-08 |
 | 更新 | 2026-11-08: 15 の 3〜12 が決まり、パッケージ名をフォルダ名に合わせ、実際の予想の記録（15 の 7）を足した |
 | 更新 | 2026-11-08: 15 の 1 が決まり、1着のモデルを学ぶクラスを外し、今のモデルの1着の確率を受け取る形にした |
+| 更新 | 2026-11-08: パッケージを作り、作りながら足したクラス（値を表すクラス・`LegRunnerRepository`・`Win5ScratchRepository`・`PayoutTrainingRows`・`FormModelsArgument` など）と引数 `--ordering` を表に入れた。`Win5HistoryRepository` は事実表でなく `se` から読む形にした |
 | 更新 | 2026-11-08: 「1.」の部品を移した。材料を作る部品 `MaterialAttachers` は、予想「展開から着順を予想」を使うので `shared` でなく `yosou.form_aptitude_materials` に置き、`shared` には決まり `FormAptitudeMaterials` を置いた。`--development-root` の引数を表に入れた |
