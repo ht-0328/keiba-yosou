@@ -101,6 +101,14 @@ def test_どの券種も頭数に届かなければ_計算せずに対象外():
     assert chosen.none and chosen.reason == "9頭なので 3連単 は推奨買目の対象外"
 
 
+def test_単勝オッズが欠けた馬がいれば_止まらずに理由つきで点が無い():
+    forecast = _forecast()
+    for row in forecast["rows"][2:]:
+        row[2] = None   # 2026-11-08 佐賀6R は 11頭のうち 2頭しか単勝オッズが無かった
+    chosen = Recommender(_db(), _zero(), plans=(TicketPlan("単勝", 1.0, 0.0, 30.0),)).recommend(RID, forecast)
+    assert chosen.none and chosen.reason == "オッズか予想の確率が欠けた馬がいるので推奨買目を出さない"
+
+
 class _Upsets:
     """架空の荒れ具合の予想（どの券種も同じ中荒れ以上の確率）。"""
 

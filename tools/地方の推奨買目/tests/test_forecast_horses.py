@@ -25,6 +25,13 @@ def test_列を付け替え_人気は単勝オッズの順_着順は無し():
     assert np.isclose(horses["win_odds"].iloc[0], 2.7)
 
 
+def test_単勝オッズが無い馬は人気も欠損値_ほかの馬はオッズの順():
+    rows = [ROWS[0], [*ROWS[1][:3], None, *ROWS[1][4:]], ROWS[2]]
+    horses = ForecastHorses().of({"columns": COLUMNS, "rows": rows}, 2026110550170505, "2026-11-05")
+    assert horses["popularity"].isna().tolist() == [True, False, False]
+    assert horses["popularity"].iloc[1:].tolist() == [1, 2]
+
+
 def test_モデルごとの1着の確率が無い古い結果は誤り():
     columns = [name for name in COLUMNS if "（" not in name]
     rows = [[value for value, name in zip(row, COLUMNS, strict=True) if "（" not in name] for row in ROWS]

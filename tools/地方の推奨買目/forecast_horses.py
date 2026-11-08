@@ -27,6 +27,7 @@ class ForecastHorses:
         horses = pd.DataFrame({"race_id": race_id, "race_date": race_date, "horse_no": pd.to_numeric(table[_HORSE_NO], errors="coerce").astype(int)})
         for name, source in _SOURCES.items():
             horses[name] = pd.to_numeric(table[source], errors="coerce").astype(float)
-        horses["popularity"] = horses["win_odds"].rank(method="min").astype(int)
+        # 単勝オッズがまだ無い馬（速報の途中など）は人気も欠損値のままにする。そのレースは票の表を組むところで外れ、理由つきで点が無くなる
+        horses["popularity"] = horses["win_odds"].rank(method="min").astype("Int64")
         horses["finish"] = np.nan
         return horses.sort_values("horse_no").reset_index(drop=True)
