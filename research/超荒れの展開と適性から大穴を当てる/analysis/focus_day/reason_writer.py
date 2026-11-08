@@ -8,8 +8,8 @@ import pandas as pd
 
 from .material_groups import DEVELOPMENT, FORM, HANDICAP, TRACK
 
-#: 文にする寄与の大きさの下限（ロジット）。これより小さいまとまりは書かない。
-MIN_EFFECT = 0.05
+#: 文にする寄与の大きさの下限（ロジット）。これより小さいまとまりは書かない。展開・馬場・ハンデは寄与がもともと小さいので低い線にする。
+MIN_EFFECT = {DEVELOPMENT: 0.01, TRACK: 0.01, HANDICAP: 0.01, FORM: 0.05}
 _PACE_NAMES = {0: "スロー", 1: "平均", 2: "ハイ"}
 
 
@@ -22,7 +22,7 @@ class ReasonWriter:
         effects = {group: float(row.get(group, 0.0)) for group in (DEVELOPMENT, TRACK, HANDICAP, FORM)}
         parts = []
         for group, effect in sorted(effects.items(), key=lambda item: -abs(item[1])):
-            if abs(effect) < MIN_EFFECT:
+            if abs(effect) < MIN_EFFECT[group]:
                 continue
             fact = self._fact(group, row, effect > 0)
             parts.append(f"{group}で{'得' if effect > 0 else '損'}（{fact}）" if fact else f"{group}で{'得' if effect > 0 else '損'}")

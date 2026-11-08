@@ -16,12 +16,14 @@ class MarkTicketFile:
     """``path`` は ``reports/…/印の成績/…/買い目/<名前>.csv``（列 レースID・開催日・区切り・買い方・券種・組番・単位・払戻（100円あたり） …）。
 
     ``main`` は 3連複・3連単の元の買い目（買い方の名前が「（◎」で始まる括弧を持つもの。組の期待値の買い方や ◎軸・軸馬の足し分を除く）、
-    ``favorites`` はレースごとの ◎ の馬番（単勝の買い目の組番）。"""
+    ``favorites`` はレースごとの ◎ の馬番（買い方「単勝」の組番）。トリガミなどで外した点（外した理由のある行）は読まない。"""
 
     path: Path
 
     def frame(self) -> pd.DataFrame:
         table = pd.read_csv(self.path, dtype={"レースID": str, "組番": str}, encoding="utf-8-sig")
+        if "外した理由" in table:
+            table = table.loc[table["外した理由"].isna()]
         return table.rename(columns={"レースID": "race_id", "開催日": "race_date", "券種": "ticket_type", "買い方": "rule", "組番": "combo",
                                      "単位": "unit", "払戻（100円あたり）": "payout"})
 
@@ -31,5 +33,5 @@ class MarkTicketFile:
 
     @staticmethod
     def favorites(table: pd.DataFrame) -> pd.Series:
-        win = table.loc[table["ticket_type"] == "単勝"].drop_duplicates("race_id")
+        win = table.loc[table["rule"] == "単勝"].drop_duplicates("race_id")
         return win.set_index("race_id")["combo"].astype(int)

@@ -95,11 +95,12 @@ def test_印の成績の買い目から本線と本命を取り出す(tmp_path: 
 def test_危険な人気馬の表は今の消と同じ馬だけを1から引いて残す():
     top3 = pd.DataFrame({"レースID": ["r1", "r1"], "開催日": ["2024-01-01"] * 2, "馬ID": ["a", "b"], "馬番": [1, 2], "LightGBM": [0.7, 0.2],
                          "CatBoost": [0.5, 0.2], "確率": [0.6, 0.2], "区切り": "x", "期間": "テスト", "区分": "全体"})
-    current = pd.DataFrame({"レースID": ["r1"], "馬番": [1], "区切り": ["x"], "期間": ["テスト"]})
+    current = pd.DataFrame({"レースID": ["r1"], "馬番": [1], "区切り": ["x"], "期間": ["テスト"], "区分": ["1番人気"]})
     table = DangerFileWriter(top3, current).build()
     assert table.columns.tolist() == list(COLUMNS)
     assert table["確率"].tolist() == [pytest.approx(0.4)]
     assert table["LightGBM"].tolist() == [pytest.approx(0.3)]
+    assert table["区分"].tolist() == ["1番人気"]
 
 
 def test_人気馬の表は市場より負けやすいと見た上位1割の実際を並べる():

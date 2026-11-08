@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import duckdb
 import numpy as np
@@ -30,13 +30,16 @@ _MARKET_TOP3 = "オッズから見た3着以内率"
 @dataclass(frozen=True)
 class FocusDayData:
     """``prediction`` は今のモデルの予測の流れ、``materials`` は足す材料の表、``columns`` は（目的変数 → 学習の列の並び）、
-    ``categorical`` は（目的変数 → カテゴリ特徴量）。``build`` は（目的変数 → 予測用データ）と、今のモデルの確率の表
+    ``categorical`` は（目的変数 → カテゴリ特徴量）。``pace_races``・``pace_horses`` はその日の展開の予想（``DayPaceForecast``）で、
+    足す材料の予想のペース・位置の確率が無い行を埋める。``build`` は（目的変数 → 予測用データ）と、今のモデルの確率の表
     （レースID・馬番・単勝オッズ・3着以内・1着の確率）を返す。人気は、元DB にある最新の単勝オッズ（締め切り前）の順。"""
 
     prediction: FormAptitudePrediction
     materials: pd.DataFrame
     columns: dict[str, Sequence[str]]
     categorical: dict[str, tuple[str, ...]]
+    pace_races: pd.DataFrame = field(default_factory=pd.DataFrame)
+    pace_horses: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def build(self, con: duckdb.DuckDBPyConnection, race_ids: Sequence[str], timing: PredictionTiming) -> tuple[dict[str, LongshotData], pd.DataFrame]:
         workflow = self.prediction.workflow(con, timing)
@@ -67,6 +70,7 @@ class FocusDayData:
         added = keys.merge(self.materials, on=["race_id", "horse_no"], how="left").drop(columns=["race_id", "horse_no"])
         added = added.drop(columns=[column for column in added.columns if column in base.columns])
         features = pd.concat([base, added.reset_index(drop=True)], axis=1)
+        features = self._with_day_pace(features, ids)
         for mine, theirs in _FILLED_FROM.items():
             if theirs in features:
                 features[mine] = features[mine].fillna(features[theirs])
@@ -75,6 +79,20 @@ class FocusDayData:
             features[FORECAST[0]] = features[FORECAST[0]].fillna(features[_SLOW])
             features[FORECAST[1]] = features[FORECAST[1]].fillna(1 - features[_HIGH] - features[_SLOW])
         return features.reindex(columns=list(self.columns[target]))
+
+    def _with_day_pace(self, features: pd.DataFrame, ids: pd.DataFrame) -> pd.DataFrame:
+        """その日の展開の予想で、予想のペースと位置の確率の欠けを埋める。"""
+        if self.pace_races.empty or self.pace_horses.empty:
+            return features
+        keys = ids[[RACE_ID, HORSE_ID]].rename(columns={RACE_ID: "race_id", HORSE_ID: "horse_id"}).astype({"race_id": str, "horse_id": str})
+        races = keys.merge(self.pace_races, on="race_id", how="left")
+        horses = keys.merge(self.pace_horses, on=["race_id", "horse_id"], how="left")
+        filled = features.copy()
+        for mine, column in zip(FORECAST, ("p_slow", "p_even", "p_high")):
+            filled[mine] = filled[mine].fillna(pd.Series(races[column].to_numpy(), index=filled.index))
+        for mine, column in (("位置_先頭", "p_leader"), ("位置_前", "p_front"), ("位置_中", "p_middle"), ("位置_後ろ", "p_back")):
+            filled[mine] = filled[mine].fillna(pd.Series(horses[column].to_numpy(), index=filled.index))
+        return filled
 
     def _concat(self, parts: list[LongshotData], target: str) -> LongshotData:
         return LongshotData(*(pd.concat([getattr(part, name) for part in parts], ignore_index=True)

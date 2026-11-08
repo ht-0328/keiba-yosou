@@ -28,6 +28,7 @@ from ..scenario_forecast.scenario_material_source import ScenarioMaterialSource
 from ..scenario_forecast.scenario_variant import variant_named
 from ..scenario_forecast.scenario_window_trainer import ScenarioWindowTrainer
 from .contribution_lightgbm import ContributionLightGbm
+from .day_pace_forecast import DayPaceForecast
 from .focus_day_data import FocusDayData
 from .focus_day_report import FocusDayReport
 from .focus_day_runner import FINAL_WINDOW, FocusDayRunner
@@ -59,7 +60,8 @@ class FocusDayStudy:
         runner = FocusDayRunner(members)
         race_ids = list(runner.race_ids(materials, race_date))
         prediction = FormAptitudePrediction(DEFAULT_FORM_MODELS, lambda c: MaterialAttachers(c, DEFAULT_DEVELOPMENT_ROOT))
-        focus, current = FocusDayData(prediction, materials, columns, categorical).build(con, race_ids, timing)
+        pace_races, pace_horses = DayPaceForecast().predict(con, race_ids, timing)
+        focus, current = FocusDayData(prediction, materials, columns, categorical, pace_races, pace_horses).build(con, race_ids, timing)
         horses = self._with_facts(runner.ranks(runner.table(focus), current), con, race_date)
         pairs, _ = PairProbability(("s_top3_0", "s_top3_1", "s_top3_2")).races(self._pair_frame(horses))
         report = FocusDayReport(horses, pairs)
@@ -68,7 +70,7 @@ class FocusDayStudy:
         path = self.root / f"段3の詳しく見る日-{race_date}.md"
         parts = [f"# 超荒れの展開と適性から大穴を当てる: {race_date} の予想（当日の時点）",
                  "最後の区切り（学習の表の最後の日 2026-10-12 まで）で学び直したモデルで予想した。予想のペースと位置の確率は、"
-                 "今のモデルの予測の流れが作った展開の予想の値。その日の先のレースの傾きは、傾きの表がその日まで無いので使っていない。",
+                 "予想「展開から着順を予想」の学習済みモデルでその日に予測した値。その日の先のレースの傾きは、傾きの表がその日まで無いので使っていない。",
                  *[render.to_markdown(table) for table in tables]]
         path.write_bytes(("\n\n".join(parts) + "\n").encode("utf-8"))
         horses.to_csv(self.root / f"段3の詳しく見る日-{race_date}.csv", index=False, encoding="utf-8-sig")

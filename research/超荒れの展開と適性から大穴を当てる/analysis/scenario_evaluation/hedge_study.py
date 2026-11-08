@@ -35,6 +35,18 @@ class HedgeStudy:
                 candidates[f"{shape}・上位{int(share * 100)}%（線 {line:.3f}）"] = self.settlement.settle(tickets)
         return candidates, self._choose(candidates)
 
+    def fixed(self, shape: str, share: float, favorites: pd.Series, popular: pd.Series, main: pd.DataFrame) -> pd.DataFrame:
+        """組み方と割合を決めて作る（選んだ候補と同じ買い方を、別の組の確率（市場など）で作って比べるときに使う）。"""
+        explore = self.races.loc[self.races["period"] == EXPLORE, "two_or_more"]
+        chosen = self.races.loc[self.races["two_or_more"] >= float(explore.quantile(1 - share))]
+        return self.settlement.settle(HedgeTickets(shape).build(chosen, favorites, popular, main))
+
+    @staticmethod
+    def parse(name: str) -> tuple[str, float]:
+        """候補の名前（「◎−組・上位30%（線 0.500）」）から、組み方と割合を取り出す。"""
+        shape, rest = name.split("・上位", 1)
+        return shape, int(rest.split("%", 1)[0]) / 100
+
     @staticmethod
     def _choose(candidates: dict[str, pd.DataFrame]) -> str:
         scores = {}
