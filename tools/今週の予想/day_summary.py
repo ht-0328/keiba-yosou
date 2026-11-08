@@ -16,6 +16,9 @@ from 今週の予想.plan_table import PlanTable
 from 今週の予想.race_describer import RaceDescriber
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
+from 今週の予想.win5_plan import Win5Plan
+from 今週の予想.win5_record_store import Win5RecordStore
+from 今週の予想.win5_section import Win5Section
 
 #: 一覧の列。
 OVERVIEW_COLUMNS: list[str] = ["場R", "レース名", "条件", "発走", "時点", "◎ランク（的中率）", "配当率", "◎", "○", "▲", "消", "買う"]
@@ -33,15 +36,17 @@ class DaySummary:
     """1開催日のまとめの Markdown。保存してある予想（``<置き場所>/<開催日>/<rid>.json``）と計画（``plan.json``）だけから作り、
     DB は開かない（forecast.py が予想している間でも出せる）。
 
-    中身は、見出し（予想した数と時点の内訳・買う合計）→ 一覧（1行1レース）→ 買うレース（計画の表）→ 競馬場ごとにレースの文
-    （``RaceDescriber``。印・買い目・◎ の理由と近走）。``brief=True`` は、レースの文を平地の重賞と実際に買うレースだけにする
+    中身は、見出し（予想した数と時点の内訳・買う合計）→ 一覧（1行1レース）→ 買うレース（計画の表）→ WIN5（その日の WIN5 の予想の記録が
+    あるときだけ。``Win5Section``）→ 競馬場ごとにレースの文（``RaceDescriber``。印・買い目・◎ の理由と近走）。``brief=True`` は、レースの文を平地の重賞と実際に買うレースだけにする
     （チャットに貼れる長さ。次のレースの予想のスキルと同じ文）。
     """
 
-    def __init__(self, forecasts: ForecastStore, plans: PlanStore | None = None, describer: RaceDescriber | None = None) -> None:
+    def __init__(self, forecasts: ForecastStore, plans: PlanStore | None = None, describer: RaceDescriber | None = None,
+                 win5: Win5RecordStore | None = None) -> None:
         self._forecasts = forecasts
         self._plans = plans or PlanStore(forecasts)
         self._describer = describer or RaceDescriber()
+        self._win5 = win5 or Win5RecordStore.beside(forecasts)
 
     def markdown(self, day: date, *, brief: bool = False) -> str:
         forecasts = self._forecasts.load_day(day)
@@ -50,11 +55,21 @@ class DaySummary:
             return f"{title}\n\n（予想がありません）\n"
         payload = self._plans.load(day)
         plans = {race["rid"]: RacePlan.from_dict(race) for race in (payload or {}).get("races", [])}
-        lines = [title, "", *self._head(forecasts, payload, plans), "",
+        win5 = self._win5_lines(day, payload)
+        lines = [title, "", *self._head(forecasts, payload, plans), *win5[:1], "",
                  "## 一覧", "", to_markdown(self._overview(forecasts, plans)), "",
                  "## 買うレース", "", *self._plan_lines(day, payload, plans), "",
-                 *self._race_sections(forecasts, plans, brief)]
+                 *win5[1:], *self._race_sections(forecasts, plans, brief)]
         return "\n".join(lines).rstrip("\n") + "\n"
+
+    def _win5_lines(self, day: date, payload: dict[str, Any] | None) -> list[str]:
+        """WIN5 の予想の記録がある日だけ、[見出しの1行, 節の行…]。無い日は空。"""
+        record = self._win5.load(day)
+        if record is None:
+            return []
+        plan = Win5Plan.from_dict(payload["win5"]) if payload and payload.get("win5") else None
+        section = Win5Section()
+        return [section.head_line(record, plan), *section.lines(record, plan)]
 
     def _head(self, forecasts: list[dict[str, Any]], payload: dict[str, Any] | None, plans: dict[str, RacePlan]) -> list[str]:
         """見出しの箇条書き（予想した数と時点の内訳・買う合計・全頭の根拠の場所）。"""

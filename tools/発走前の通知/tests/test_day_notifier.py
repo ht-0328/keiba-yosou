@@ -11,6 +11,7 @@ from 今週の予想.tests.test_forecast_store import sample_forecast
 from 発走前の通知.day_notifier import DayNotifier
 from 発走前の通知.race_notice import RaceNotice
 from 発走前の通知.scheduled_race import ScheduledRace
+from 発走前の通知.win5_slot import Win5Slot
 
 DAY = "2025-04-19"
 RACE1 = ScheduledRace("2025041905010101", "東京", 1, "", datetime(2025, 4, 19, 10, 0))
@@ -108,13 +109,36 @@ class _Poster:
         self.posts.append(text)
 
 
+class _Win5:
+    """WIN5 の段の代わり。``slot`` の WIN5 を返し、``build`` で文を作ったことにする（``fail`` なら失敗）。"""
+
+    def __init__(self, slot: Win5Slot | None, calls: list[str], fail: bool = False) -> None:
+        self._slot = slot
+        self._calls = calls
+        self._fail = fail
+
+    def slot(self, day: str) -> Win5Slot | None:
+        return self._slot
+
+    def build(self, slot: Win5Slot) -> RaceNotice:
+        self._calls.append("win5")
+        if self._fail:
+            raise RuntimeError("WIN5 の予想に失敗")
+        return RaceNotice("文 WIN5")
+
+
+#: 1レース目が 10:35 発走の WIN5（25分前の 10:10 に始める）。
+WIN5_SLOT = Win5Slot(DAY, ("2025041905010110", "2025041908010110", "2025041903010111", "2025041905010111", "2025041908010111"),
+                     (datetime(2025, 4, 19, 10, 35),) + (None,) * 4)
+
+
 def _notifier(tmp_path: Path, clock: _Clock, races: list[ScheduledRace], calls: list[str], poster: _Poster, *,
               fetch_fail: str = "", run_fail: str = "", run_silent: str = "", run_locked: int = 0,
-              schedule_locked: tuple[int, ...] = ()) -> DayNotifier:
+              schedule_locked: tuple[int, ...] = (), win5: _Win5 | None = None) -> DayNotifier:
     store = ForecastStore(tmp_path)
     return DayNotifier(minutes_before=10, schedule=_Schedule(races, schedule_locked), fetcher=_Fetcher(calls, fetch_fail),
                        runner=_Runner(store, calls, run_fail, run_silent, run_locked), message=_Message(), poster=poster, store=store,
-                       now=lambda: clock.now, sleep=clock.sleep, log=lambda _: None)
+                       now=lambda: clock.now, sleep=clock.sleep, log=lambda _: None, win5=win5, win5_minutes=25)
 
 
 def test_朝の準備のあと発走10分前ごとに取り込んで予想して投稿する(tmp_path: Path) -> None:
@@ -201,3 +225,31 @@ def test_起動時に元DBが使用中なら待って読み直す(tmp_path: Path
     assert _notifier(tmp_path, clock, [RACE1], calls, poster, schedule_locked=(1,)).run(DAY, prepare=False) == 0
     assert clock.naps[0] == 20.0
     assert poster.posts == [f"文 {RACE1.rid}"]
+
+
+def test_WIN5は1レース目の発走の25分前にレースの通知の間に入れる(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    win5 = _Win5(WIN5_SLOT, calls)
+    assert _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, win5=win5).run(DAY, prepare=False) == 0
+    assert calls == [f"fetch_race {RACE1.rid}", f"run_race {RACE1.rid}", "win5", f"fetch_race {RACE2.rid}", f"run_race {RACE2.rid}"]
+    assert poster.posts == [f"文 {RACE1.rid}", "文 WIN5", f"文 {RACE2.rid}"]
+
+
+def test_WIN5が失敗しても知らせてレースの通知を続ける(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, win5=_Win5(WIN5_SLOT, calls, fail=True)).run(DAY, prepare=False)
+    assert poster.posts[1].startswith(f"⚠ {WIN5_SLOT.label} の予想を通知できませんでした。\nWIN5 の予想に失敗")
+    assert poster.posts[2] == f"文 {RACE2.rid}"
+
+
+def test_WIN5の無い日と間に合わない日はWIN5だけ飛ばす(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, win5=_Win5(None, calls)).run(DAY, prepare=False)
+    assert "win5" not in calls
+    assert poster.posts == [f"文 {RACE1.rid}", f"文 {RACE2.rid}"]
+    # 1レース目の発走（10:35）の 8 分前を過ぎて起動したら、WIN5 は飛ばす
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 10, 28)), [], _Poster()
+    late = ScheduledRace("2025041905010103", "東京", 3, "", datetime(2025, 4, 19, 11, 0))
+    _notifier(tmp_path, clock, [late], calls, poster, win5=_Win5(WIN5_SLOT, calls)).run(DAY, prepare=False)
+    assert "win5" not in calls
+    assert poster.posts == [f"文 {late.rid}"]

@@ -16,6 +16,8 @@ from 発走前の通知.uv_locator import child_env, uv_command
 DAY_DATASPECS: tuple[str, ...] = ("0B15", "0B14", "0B11", "0B13", "0B17")
 #: 発走前にそのレースだけ取り直す速報: 全賭式のオッズ。
 RACE_DATASPEC = "0B30"
+#: WIN5 の速報（対象5レース・キャリーオーバー）。キーは開催日。WIN5 の無い日は「該当データなし」で終わる。
+WIN5_DATASPEC = "0B51"
 #: 地方（nvdata-store の realtime と同じ並び。地方競馬DATA にマイニング予想は無い）: 出馬表の更新、天候と馬場状態、馬体重。
 LOCAL_DAY_DATASPECS: tuple[str, ...] = ("0B15", "0B14", "0B11")
 #: 地方の出馬表の取り込みで取る蓄積系（生産者マスタ DIFF は予想に要らず、取るのに時間がかかるので外す）。
@@ -36,6 +38,7 @@ class StoreFetcher:
     """取り込みの中身は jvdata-store（地方は nvdata-store）の責務で、ここは jvstore（nvstore）のコマンドを呼ぶだけ（地方は ``local()``）。
     朝は出馬表（``jvstore sync``）とその日の速報（``jvstore realtime``。全レースのオッズまで取るので 20〜30 秒）、
     発走前は開催日単位の速報 5 種類とそのレースのオッズ（``jvstore rt``。合わせて 10 秒ほど）。
+    WIN5 の前は、速報の WIN5（0B51）と、開催日単位の速報と対象レース5つのオッズ（中央だけ）。
     失敗したら、出力の最後の数行を添えて ``RuntimeError``。
     """
 
@@ -67,10 +70,20 @@ class StoreFetcher:
 
     def fetch_race(self, day: str, rid: str) -> None:
         """発走前に、開催日単位の速報とそのレースのオッズだけを取り直す。"""
+        self.fetch_races(day, (rid,))
+
+    def fetch_races(self, day: str, rids: tuple[str, ...]) -> None:
+        """開催日単位の速報を1回と、レースごとのオッズを取り直す（WIN5 の対象レース5つなど）。"""
         key = day.replace("-", "")
         for dataspec in self._day_dataspecs:
             self._run(["rt", "--dataspec", dataspec, "--key", key, "--db", self._db], f"速報 {dataspec}（{day}）")
-        self._run(["rt", "--dataspec", RACE_DATASPEC, "--key", rid, "--db", self._db], f"速報 {RACE_DATASPEC}（{rid}）")
+        for rid in rids:
+            self._run(["rt", "--dataspec", RACE_DATASPEC, "--key", rid, "--db", self._db], f"速報 {RACE_DATASPEC}（{rid}）")
+
+    def fetch_win5(self, day: str) -> None:
+        """その日の速報の WIN5（対象5レース・キャリーオーバー）を取り込む（jvstore realtime も取るが、朝の取り込みの後に発表される
+        こともあるので、WIN5 の前にも取り直す）。"""
+        self._run(["rt", "--dataspec", WIN5_DATASPEC, "--key", day.replace("-", ""), "--db", self._db], f"速報 {WIN5_DATASPEC}（{day}）")
 
     def _run(self, arguments: list[str], label: str) -> None:
         command = [self._uv or uv_command(), "run", "--project", str(self._project), self._tool, *arguments]

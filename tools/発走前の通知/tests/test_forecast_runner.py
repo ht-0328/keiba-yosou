@@ -41,6 +41,13 @@ def test_朝は全レースを同じ時点なら飛ばして_発走前は1レー
     assert log.count("表\n") == 2
 
 
+def test_計画だけの決め直しは予想と回顧を飛ばす(tmp_path: Path) -> None:
+    run = _Run()
+    _runner(run, tmp_path).run_plan("2025-04-20")
+    assert run.commands[0][6:] == ["--date", "2025-04-20", "--plan-only", "--no-review"]
+    assert "# 2025-04-20 の買うレースの計画" in (tmp_path / "2025-04-20.log").read_text(encoding="utf-8")
+
+
 def test_失敗したら記録の最後を添えて止まる(tmp_path: Path) -> None:
     run = _Run(returncode=1, output="進み具合\nTraceback\nValueError: 馬体重がない\n")
     with pytest.raises(RuntimeError, match=r"(?s)の予想に失敗しました（記録: .*2025-04-19\.log）:\n.*ValueError: 馬体重がない"):

@@ -239,6 +239,8 @@ def build_parser():
                         help="印の代わりに WIN5 の買い方を過去の WIN5 で確かめる（設計書「近走と適性からWIN5の買い目を決める」16 の 7.）。"
                              "当日・前日の区切りごとの1着の予測の pkl をこの順に渡す（省略すると研究「複勝以外の回収率100超」の予測）。"
                              "結果は reports/近走と適性からWIN5の買い目を決める/成績/。3〜5分")
+    parser.add_argument("--win5-budget", type=int, default=None, metavar="点数",
+                        help="--win5 で、探索期間で選ぶ候補をこの予算（20・50・100・240・500 点）の買い方だけにする（利用者が予算を決めたとき）")
     parser.add_argument("--out-dir", type=Path, default=None,
                         help="結果を書く場所（既定: reports/印の成績。--win5 のときは reports/近走と適性からWIN5の買い目を決める/成績）")
     return parser

@@ -46,6 +46,10 @@ class ForecastRunner:
     def run_race(self, rid: str, day: str) -> None:
         self.run([rid, "--no-review"], f"{rid} の予想", day)
 
+    def run_plan(self, day: str) -> None:
+        """予想はせず、保存してある予想（と WIN5 の予想の記録）から、その日の買うレースの計画とまとめだけを決め直す（回顧は飛ばす）。"""
+        self.run(["--date", day, "--plan-only", "--no-review"], f"{day} の買うレースの計画", day)
+
     def log_path(self, day: str) -> Path:
         return self._log_folder / f"{self._log_name}{day}.log"
 

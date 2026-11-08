@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from 共通 import db
 
 from 今週の予想.forecast_store import ForecastStore
+from 今週の予想.plan_store import PlanStore
+from 今週の予想.win5_record_store import Win5RecordStore
 
-from 発走前の通知.day_notifier import Fetcher, Message, Runner, SavedAt, Schedule
+from 発走前の通知.day_notifier import Fetcher, Message, Runner, SavedAt, Schedule, Win5
+from 発走前の通知.folders import WIN5_LOG_NAME, WIN5_PROGRAM
 from 発走前の通知.forecast_runner import ForecastRunner
 from 発走前の通知.local_forecast_runner import LocalForecastRunner
 from 発走前の通知.local_forecast_store import LocalForecastStore
@@ -21,6 +24,9 @@ from 発走前の通知.race_styles import RaceStyles
 from 発走前の通知.saved_upset_probabilities import SavedUpsetProbabilities
 from 発走前の通知.store_fetcher import StoreFetcher
 from 発走前の通知.track_tendencies import TrackTendencies
+from 発走前の通知.win5_job import Win5Job
+from 発走前の通知.win5_message import Win5Message
+from 発走前の通知.win5_schedule import Win5Schedule
 
 
 @dataclass(frozen=True)
@@ -30,15 +36,27 @@ class NotifierParts:
     runner: Runner
     message: Message
     store: SavedAt
+    #: WIN5 の段（中央だけ。地方は None）。
+    win5: Win5 | None = None
 
     @classmethod
     def jra(cls) -> NotifierParts:
         """中央: 今週の出馬表のレース一覧、jvstore、forecast.py、馬場の傾向と印と実際に買う買い目の文と表の画像（と全頭の予想根拠）、
-        今週の予想の保存。"""
+        今週の予想の保存。WIN5 の段（``Win5Job``。WIN5 の予想と、その日の買う計画の決め直し）も付ける。"""
         store = ForecastStore()
         schedule = RaceSchedule()
         message = RaceMessage(store, schedule=schedule, tendencies=TrackTendencies(default=db.JRA), styles=RaceStyles())
-        return cls(schedule=schedule, fetcher=StoreFetcher(), runner=ForecastRunner(), message=message, store=store)
+        fetcher, runner = StoreFetcher(), ForecastRunner()
+        return cls(schedule=schedule, fetcher=fetcher, runner=runner, message=message, store=store,
+                   win5=cls.win5_job(store, fetcher, runner))
+
+    @staticmethod
+    def win5_job(store: ForecastStore, fetcher: StoreFetcher, planner: ForecastRunner) -> Win5Job:
+        """中央の WIN5 の段: 元DB の WIN5 と発走時刻、jvstore（0B51 と対象レースのオッズ）、WIN5 の予想（予想のパッケージの predict）、
+        forecast.py の --plan-only（WIN5 の買う計画）、WIN5 の文。"""
+        records = Win5RecordStore.beside(store)
+        return Win5Job(schedule=Win5Schedule(), fetcher=fetcher, predictor=ForecastRunner(program=WIN5_PROGRAM, log_name=WIN5_LOG_NAME),
+                       planner=planner, message=Win5Message(records, PlanStore(store)), records=records)
 
     @classmethod
     def local(cls) -> NotifierParts:

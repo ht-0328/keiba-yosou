@@ -65,7 +65,10 @@ _CARRY_PERIOD = "キャリーオーバーの日（2019年から）"
 class Win5Stats:
     """設計書「近走と適性からWIN5の買い目を決める」16 の 7.。区切りごとの予測と元DB の ``wf`` から、40 通りの買い方と比べる相手を精算し、
     探索期間で決まりどおりに1つ選んで、確認期間で採用の基準に照らす。精算・組み方・配当の見積もりは、この予想のパッケージの部品を呼ぶ
-    （``Win5DayBets`` など）。数値は Git の対象外の ``reports/`` に出す。``records_root`` は実際の予想の記録（``記録/``）のある場所。"""
+    （``Win5DayBets`` など）。数値は Git の対象外の ``reports/`` に出す。``records_root`` は実際の予想の記録（``記録/``）のある場所。
+
+    引数 ``--win5-budget`` で予算（点数）を渡すと、探索期間で選ぶ候補をその予算の買い方だけにする（利用者が予算を決めたとき、
+    その予算の中で同じ決まりで選び直し、確認期間で1回だけ確かめる）。"""
 
     def __init__(self, records_root: Path = WIN5_ROOT) -> None:
         self._records_root = Path(records_root)
@@ -91,7 +94,7 @@ class Win5Stats:
         record_rows, record_note = Win5RecordBets(self._records_root).rows(outcomes)
         if record_rows:
             settled = pd.concat([settled, self._with_period(pd.DataFrame(record_rows))], ignore_index=True)
-        tables = self._tables(settled, days, skipped, files, record_note)
+        tables = self._tables(settled, days, skipped, files, record_note, getattr(args, "win5_budget", None))
         tables += Win5ProbabilityReport().tables(predictions, results, set(runners[RACE_ID]))
         tables += Win5PayoutReport().tables(history, estimators, predictions.folds)
         cli.emit(tables, args)
@@ -117,13 +120,14 @@ class Win5Stats:
         return rows.assign(**{PERIOD: rows[RACE_DATE].map(periods.label_of)})
 
     def _tables(self, settled: pd.DataFrame, days: list[Win5BacktestDay], skipped: pd.DataFrame, files: Win5PredictionFiles,
-                record_note: str) -> list[Table]:
+                record_note: str, budget_only: int | None = None) -> list[Table]:
         summary = Win5StrategySummary()
         choice = Win5StrategyChoice()
         ours = settled.loc[settled[KIND] == OURS]
         explore_ours = summary.of(ours.loc[ours[PERIOD] == EXPLORE])
-        chosen = choice.choose(explore_ours)
-        shown = chosen or choice.best(explore_ours) or STRATEGIES[0].label
+        candidates = self._within_budget(explore_ours, budget_only)
+        chosen = choice.choose(candidates)
+        shown = chosen or choice.best(candidates) or STRATEGIES[0].label
         budget = next(strategy.budget for strategy in STRATEGIES if strategy.label == shown)
         labels = [shown, RULE, RULE_CARRY, popularity_label(budget)]
         if (settled[STRATEGY] == RECORDED).any():
@@ -132,7 +136,7 @@ class Win5Stats:
         verdict = self._verdict(summaries[CONFIRM], chosen, budget) if chosen else None
         compared = settled.loc[settled[STRATEGY].isin(labels)]
         carry = compared.loc[compared[CARRY_DAY].astype(bool)].assign(**{PERIOD: _CARRY_PERIOD})
-        tables = [self._conditions(files, chosen, shown, record_note), Win5CoverageReport().table(days, skipped)]
+        tables = [self._conditions(files, chosen, shown, record_note, budget_only), Win5CoverageReport().table(days, skipped)]
         tables += Win5SelectionReport().tables(explore_ours, chosen)
         tables += Win5ConfirmationReport().tables(summaries, labels, chosen, verdict)
         tables += Win5BacktestTables().tables(compared[list(SETTLED_COLUMNS)])
@@ -142,20 +146,31 @@ class Win5Stats:
             tables.append(carry_table)
         return tables
 
+    @staticmethod
+    def _within_budget(summary: pd.DataFrame, budget: int | None) -> pd.DataFrame:
+        """選ぶ候補（``budget`` を渡したら、その予算の買い方だけ）。"""
+        if budget is None:
+            return summary
+        labels = {strategy.label for strategy in STRATEGIES if strategy.budget == budget}
+        if not labels:
+            raise ValueError(f"--win5-budget は {sorted({strategy.budget for strategy in STRATEGIES})} のどれかにしてください（{budget}）")
+        return summary.loc[summary[STRATEGY].isin(labels)]
+
     def _verdict(self, confirm: pd.DataFrame, chosen: str, budget: int) -> tuple[str, str]:
         by_label = confirm.set_index(STRATEGY)
         if chosen not in by_label.index:
             return NOT_REACHED, "確認期間に、日の期待値が線以上の日が無く、1日も買わなかった"
         return Win5AdoptionJudge().judge(by_label.loc[chosen], by_label.loc[RULE], by_label.loc[popularity_label(budget)])
 
-    def _conditions(self, files: Win5PredictionFiles, chosen: str | None, shown: str, record_note: str) -> Table:
+    def _conditions(self, files: Win5PredictionFiles, chosen: str | None, shown: str, record_note: str, budget_only: int | None) -> Table:
         race_day, day_before = files.names
         rows = [
             ["1着の確率", f"区切りごとの予測（その半年より前だけで学び直した今のモデルと同じ作り）。当日: {race_day}。前日: {day_before}"],
             ["期間", f"{EXPLORE}で買い方を選び、{CONFIRM}で1回だけ確かめる（区切りごとの予測のある日まで）"],
             ["時点のまね方", "1レース目の発走から 60分以上あとのレースは前日の予測。障害のレースはオッズから見た勝率。オッズは確定オッズ"],
             ["配当の見積もり", "区切りごとに、テスト期間の始まりより前の WIN5 だけで作った式。発売票数はその日より前の回から見積もる"],
-            ["選んだ買い方", chosen or f"選べる買い方なし（表には探索期間でいちばん良かった {shown} を並べる）"],
+            ["選んだ買い方", (chosen or f"選べる買い方なし（表には探索期間でいちばん良かった {shown} を並べる）")
+             + (f"（予算 {budget_only}点の買い方の中から選んだ）" if budget_only else "")],
             ["実際の予想", record_note],
         ]
         return Table(["項目", "内容"], rows, title="WIN5 の確かめの条件",

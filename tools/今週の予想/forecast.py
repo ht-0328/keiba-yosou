@@ -21,7 +21,9 @@
 予想のあと、開催日ごとに買うレースの計画（勝負／ノルマ参加（重賞）／ノルマ参加（日）／買わない と、複勝の買い目と金額。設計書 03・08 の 1）を
 財布（reports/回顧/財布.json。初めの額は利用者が決める）の予算で決めて、reports/今週の予想/<開催日>/plan.json と回顧の表1「買い目の記録」に書く
 （前日・当日の予想だけ。木曜はオッズが無いので計画しない）。そのあと、開催日ごとのまとめ（一覧・買うレース・レースごとの印と買い目・◎ の理由と近走）を
-reports/今週の予想/<開催日>/まとめ.md に書く（summary.py で出し直せる）。予想の前には、終わったレースの回顧（レースの回顧・馬の回顧ノート）を自動で書き足し、
+reports/今週の予想/<開催日>/まとめ.md に書く（summary.py で出し直せる）。WIN5 の予想の記録（予想「近走と適性からWIN5の買い目を決める」の predict が
+reports/近走と適性からWIN5の買い目を決める/記録/<開催日>.json に書くもの）がある日は、WIN5 の買う計画（日の期待値が線以上ならポリシー用の財布から）も
+plan.json と表1に書き、まとめに WIN5 の節を足す。予想の前には、終わったレースの回顧（レースの回顧・馬の回顧ノート）を自動で書き足し、
 買い目の記録に払戻を入れる（tools/回顧/review.py と同じ。--no-review で飛ばす）。
 1レースに数十秒かかる（はじめの1レースは、事実表とスピード指数を作るので数分）。
 """
@@ -57,6 +59,10 @@ from 今週の予想.ticket_table import TicketTable  # noqa: E402
 from yosou.shared.workflow import TimingChooser  # noqa: E402
 from 今週の予想.ticket_rules import ALL_COMBO_VALUE_RULES  # noqa: E402
 from 今週の予想.wallet import COMBO_WALLET, LONGSHOT_WALLET, MATCH_WALLET, POINT_RATE, POLICY_WALLET, WIN_WALLET, Wallet  # noqa: E402
+from 今週の予想.win5_bet_recorder import Win5BetRecorder  # noqa: E402
+from 今週の予想.win5_bet_settler import Win5BetSettler  # noqa: E402
+from 今週の予想.win5_planner import Win5Planner  # noqa: E402
+from 今週の予想.win5_record_store import Win5RecordStore  # noqa: E402
 
 _RID = card.CARD_LIST_HEADERS.index("rid")
 
@@ -103,14 +109,17 @@ def _update_review(con, review: ReviewStore, store: ForecastStore) -> None:
     """終わったレースの回顧（表2・表3）を書き足し、買い目の記録（表1）に払戻を入れる（初めての1回は 2011年からさかのぼるので 2〜3分）。"""
     print("終わったレースの回顧を書き足しています …", file=sys.stderr, flush=True)
     written = ReviewWorkflow(review).run(con, None, ForecastPaces(store).table())
+    win5 = Win5BetSettler(review).settle(con)
     print(f"  レースの回顧 {written[review_names.RACES_TABLE]:,} 行・馬の回顧ノート {written[review_names.HORSES_TABLE]:,} 行・"
-          f"精算した買い目 {written[review_names.BETS_TABLE]:,} 点（{review.path}）", file=sys.stderr, flush=True)
+          f"精算した買い目 {written[review_names.BETS_TABLE] + win5:,} 点（うち WIN5 {win5:,} 点。{review.path}）", file=sys.stderr, flush=True)
 
 
 def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[str]) -> list[Table]:
-    """予想したレースの開催日ごとに、その日の全部の予想（保存してあるもの）から買うレースの計画を決めて、保存と記録をする。"""
+    """予想したレースの開催日ごとに、その日の全部の予想（保存してあるもの）から買うレースの計画を決めて、保存と記録をする。
+    WIN5 の予想の記録がある日は、WIN5 の買う計画（ポリシー用の財布）も決めて、同じ plan.json と表1に書く。"""
     wallet = Wallet(review)
     planner, recorder, plans_store = DayPlanner(wallet), BetRecorder(review), PlanStore(store)
+    win5_records, win5_planner, win5_recorder = Win5RecordStore.beside(store), Win5Planner(wallet), Win5BetRecorder(review)
     tables = []
     for day in sorted({date(int(rid[:4]), int(rid[4:6]), int(rid[6:8])) for rid in race_ids}):
         listed = card.list_cards(con, date_from=day.isoformat(), date_to=day.isoformat(), limit=card.MAX_LIST_LIMIT)
@@ -125,10 +134,15 @@ def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[st
                    "組の期待値の1点": {rule.ticket_type.label: wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET)
                                     for rule in ALL_COMBO_VALUE_RULES if rule.adopted},
                    "6番人気以下の複勝の1点": wallet.point_yen("複勝", day, LONGSHOT_WALLET)}
-        plans_store.save(day, plans, summary)
+        win5_record = win5_records.load(day)
+        win5 = win5_planner.plan(win5_record, day) if win5_record else None
+        plans_store.save(day, plans, summary, win5)
         odds_at = max((forecast.get("made_at") or "" for forecast in forecasts), default="")
         recorder.record(plans, odds_at)
         tables.append(PlanTable().table(day, plans, summary))
+        if win5 is not None:
+            win5_recorder.record(win5, win5_record.made_at)
+            print(f"  WIN5: {'買う' if win5.buys else '買わない'}（{win5.reason}）", file=sys.stderr, flush=True)
     return tables
 
 

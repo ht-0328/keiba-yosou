@@ -28,3 +28,7 @@ LOCAL_FOLDER = DEFAULT_FOLDER / "地方"
 LOCAL_PREDICT_SCRIPT = PROJECT / "tools" / "発走前の通知" / "local_predict.py"
 #: 地方の記録のファイル名の頭（中央の記録と分ける）。
 LOCAL_LOG_NAME = "地方-"
+#: WIN5 の予想（予想「近走と適性からWIN5の買い目を決める」の predict。予算と線は予想のパッケージの formation/buying_defaults.py の既定）。
+WIN5_PROGRAM: tuple[str, ...] = ("python", "-m", "yosou.form_aptitude_win5_tickets", "predict")
+#: WIN5 の予想の記録のファイル名の頭。
+WIN5_LOG_NAME = "WIN5-"

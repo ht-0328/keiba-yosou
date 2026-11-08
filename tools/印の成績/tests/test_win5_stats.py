@@ -212,3 +212,14 @@ def test_win5に渡す予測は2つか0(tmp_path: Path) -> None:
     args = build_parser().parse_args(["--win5", "only_one.pkl", "--out-dir", str(tmp_path)])
     with pytest.raises(ValueError, match="2つ"):
         main(args)
+
+
+def test_予算を渡すとその予算の買い方の中から選ぶ(win5_db: Path, tmp_path: Path) -> None:
+    race_day, day_before = _write_predictions(win5_db, tmp_path)
+    args = build_parser().parse_args(["--db", str(win5_db), "--win5", str(race_day), str(day_before), "--win5-budget", "50",
+                                      "--out-dir", str(tmp_path / "out")])
+    Win5Stats(tmp_path / "予想の置き場所").run(args)
+    report = (tmp_path / "out" / REPORT_NAME).read_text(encoding="utf-8")
+    assert "予算 50点の買い方の中から選んだ" in report
+    with pytest.raises(ValueError, match="--win5-budget"):
+        Win5Stats._within_budget(pd.DataFrame({STRATEGY: []}), 30)
