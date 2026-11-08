@@ -4,7 +4,7 @@
     uv run python tools/発走前の通知/notify.py                       # 今日。朝の準備（出馬表・速報の取り込み・全レースの予想）のあと、発走10分前ごとに通知
     uv run python tools/発走前の通知/notify.py --date 2026-11-08     # その日
     uv run python tools/発走前の通知/notify.py --rid 2026110105041101   # そのレースだけ今すぐ（取り込み → 予想 → 投稿）
-    uv run python tools/発走前の通知/notify.py --win5 --date 2026-11-08  # その日の WIN5 だけ今すぐ（取り込み → WIN5 の予想 → 計画 → 投稿）
+    uv run python tools/発走前の通知/notify.py --win5 --date 2026-11-08  # その日の WIN5 だけ今すぐ（取り込み → 元DB の写しで WIN5 の予想 → 投稿）
     uv run python tools/発走前の通知/notify.py --no-win5             # WIN5 を飛ばす（レースの通知だけ）
     uv run python tools/発走前の通知/notify.py --test                # 短い文を投稿して、ウェブフックがつながるかを確かめる
     uv run python tools/発走前の通知/notify.py --dry-run             # Discord に投稿せず標準出力に出す
@@ -21,8 +21,9 @@
 馬体重が届く前のレースは前日の時点（オッズだけ）で予想する。
 取り込みと予想に 1〜2分かかるので、通知は発走の 8〜9分前に届く。
 中央は、WIN5 のある日（元DB に速報の WIN5 0B51 がある日。無ければ朝に1回だけ jvstore rt で取り込んで探す）に、1レース目の発走の 25分前
-（設定ファイルの win5_minutes_before で変えられる）から WIN5 の予想（予想「近走と適性からWIN5の買い目を決める」の predict。3〜6分）を行い、
-その日の買う計画（ポリシー用の財布）を決め直してから、買う／見送り・買い目・当たる確率・日の期待値を投稿する（1レース目の発走の 15〜20分前に届く）。
+（設定ファイルの win5_minutes_before で変えられる）に、速報の WIN5 と対象レースのオッズを取り込んで元DB の写しを作り（合わせて 20 秒ほど）、
+WIN5 の予想（予想「近走と適性からWIN5の買い目を決める」の predict。3〜6分）は写しに向けて裏の処理で動かす。レースの通知は待たずに続け、
+予想が終わったら、買う／見送り・買い目・当たる確率・日の期待値を投稿する（1レース目の発走の 15〜20分前に届く。発走時刻までに終わらなければ投稿せずに知らせる）。
 WIN5 の予算と線は、予想のパッケージの formation/buying_defaults.py の既定（ここでは変えない）。WIN5 が失敗しても、ほかのレースの通知は続ける。
 ダブルクリックなら同じフォルダの run.bat。毎日自動で動かすなら register_task.bat（中央は 8:30、地方は 8:35 の2つのタスク。解除は unregister_task.bat）。
 """

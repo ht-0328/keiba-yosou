@@ -110,21 +110,45 @@ class _Poster:
 
 
 class _Win5:
-    """WIN5 の段の代わり。``slot`` の WIN5 を返し、``build`` で文を作ったことにする（``fail`` なら失敗）。"""
+    """WIN5 の段の代わり。``start`` で裏の予想を始めたことにし、時計が ``done_at`` を過ぎたら終わったことにする。
+    どの時刻に何をしたかを ``calls`` に残す（レースの通知が WIN5 を待っていないかを確かめるため）。"""
 
-    def __init__(self, slot: Win5Slot | None, calls: list[str], fail: bool = False) -> None:
+    def __init__(self, slot: Win5Slot | None, calls: list[str], clock: _Clock, *, done_at: datetime | None = None,
+                 fail_start: bool = False) -> None:
         self._slot = slot
         self._calls = calls
-        self._fail = fail
+        self._clock = clock
+        self._done_at = done_at
+        self._fail_start = fail_start
 
     def slot(self, day: str) -> Win5Slot | None:
         return self._slot
 
+    def start(self, slot: Win5Slot) -> None:
+        if self._fail_start:
+            raise RuntimeError("WIN5 の取り込みに失敗")
+        self._calls.append(f"win5 start {self._clock.now:%H:%M}")
+
+    def finished(self) -> bool:
+        return self._done_at is not None and self._clock.now >= self._done_at
+
     def build(self, slot: Win5Slot) -> RaceNotice:
-        self._calls.append("win5")
-        if self._fail:
-            raise RuntimeError("WIN5 の予想に失敗")
+        self._calls.append(f"win5 post {self._clock.now:%H:%M:%S}")
         return RaceNotice("文 WIN5")
+
+    def cancel(self) -> None:
+        self._calls.append(f"win5 cancel {self._clock.now:%H:%M}")
+
+
+class _TimedFetcher(_Fetcher):
+    """そのレースの取り込みを始めた時刻も残す。"""
+
+    def __init__(self, calls: list[str], clock: _Clock) -> None:
+        super().__init__(calls)
+        self._clock = clock
+
+    def fetch_race(self, day: str, rid: str) -> None:
+        self._calls.append(f"fetch_race {rid} {self._clock.now:%H:%M}")
 
 
 #: 1レース目が 10:35 発走の WIN5（25分前の 10:10 に始める）。
@@ -227,29 +251,69 @@ def test_起動時に元DBが使用中なら待って読み直す(tmp_path: Path
     assert poster.posts == [f"文 {RACE1.rid}"]
 
 
-def test_WIN5は1レース目の発走の25分前にレースの通知の間に入れる(tmp_path: Path) -> None:
+def _win5_notifier(tmp_path: Path, clock: _Clock, calls: list[str], poster: _Poster, win5: _Win5) -> DayNotifier:
+    store = ForecastStore(tmp_path)
+    return DayNotifier(minutes_before=10, schedule=_Schedule([RACE1, RACE2]), fetcher=_TimedFetcher(calls, clock),
+                       runner=_Runner(store, calls), message=_Message(), poster=poster, store=store,
+                       now=lambda: clock.now, sleep=clock.sleep, log=lambda _: None, win5=win5, win5_minutes=25)
+
+
+def _timeline(calls: list[str]) -> list[str]:
+    return [call for call in calls if not call.startswith("run_race")]
+
+
+def test_WIN5は25分前に裏で始め_終わったら投稿し_レースの通知は待たない(tmp_path: Path) -> None:
     clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
-    win5 = _Win5(WIN5_SLOT, calls)
-    assert _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, win5=win5).run(DAY, prepare=False) == 0
-    assert calls == [f"fetch_race {RACE1.rid}", f"run_race {RACE1.rid}", "win5", f"fetch_race {RACE2.rid}", f"run_race {RACE2.rid}"]
+    win5 = _Win5(WIN5_SLOT, calls, clock, done_at=datetime(2025, 4, 19, 10, 16))
+    assert _win5_notifier(tmp_path, clock, calls, poster, win5).run(DAY, prepare=False) == 0
+    assert _timeline(calls) == [f"fetch_race {RACE1.rid} 09:55", "win5 start 10:10", "win5 post 10:16:00", f"fetch_race {RACE2.rid} 10:20"]
     assert poster.posts == [f"文 {RACE1.rid}", "文 WIN5", f"文 {RACE2.rid}"]
 
 
-def test_WIN5が失敗しても知らせてレースの通知を続ける(tmp_path: Path) -> None:
+def test_WIN5の予想が長引いてもレースの通知は発走10分前ちょうどに行い_そのあとWIN5を投稿する(tmp_path: Path) -> None:
     clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
-    _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, win5=_Win5(WIN5_SLOT, calls, fail=True)).run(DAY, prepare=False)
-    assert poster.posts[1].startswith(f"⚠ {WIN5_SLOT.label} の予想を通知できませんでした。\nWIN5 の予想に失敗")
+    win5 = _Win5(WIN5_SLOT, calls, clock, done_at=datetime(2025, 4, 19, 10, 24))
+    _win5_notifier(tmp_path, clock, calls, poster, win5).run(DAY, prepare=False)
+    assert _timeline(calls) == [f"fetch_race {RACE1.rid} 09:55", "win5 start 10:10", f"fetch_race {RACE2.rid} 10:20", "win5 post 10:24:00"]
+    assert poster.posts == [f"文 {RACE1.rid}", f"文 {RACE2.rid}", "文 WIN5"]
+
+
+def test_1レース目の発走までにWIN5の予想が終わらなければ止めて間に合わなかったと知らせる(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    win5 = _Win5(WIN5_SLOT, calls, clock, done_at=None)
+    assert _win5_notifier(tmp_path, clock, calls, poster, win5).run(DAY, prepare=False) == 0
+    assert "win5 cancel 10:35" in calls and not any(call.startswith("win5 post") for call in calls)
+    assert poster.posts[:2] == [f"文 {RACE1.rid}", f"文 {RACE2.rid}"]
+    assert poster.posts[2] == f"⚠ {WIN5_SLOT.label} の予想が1レース目の発走に間に合わなかったので、WIN5 は投稿しません。"
+
+
+def test_WIN5を始められなくても知らせてレースの通知を続ける(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
+    win5 = _Win5(WIN5_SLOT, calls, clock, fail_start=True)
+    _win5_notifier(tmp_path, clock, calls, poster, win5).run(DAY, prepare=False)
+    assert poster.posts[1].startswith(f"⚠ {WIN5_SLOT.label} の予想を通知できませんでした。\nWIN5 の取り込みに失敗")
     assert poster.posts[2] == f"文 {RACE2.rid}"
 
 
 def test_WIN5の無い日と間に合わない日はWIN5だけ飛ばす(tmp_path: Path) -> None:
     clock, calls, poster = _Clock(datetime(2025, 4, 19, 9, 55)), [], _Poster()
-    _notifier(tmp_path, clock, [RACE1, RACE2], calls, poster, win5=_Win5(None, calls)).run(DAY, prepare=False)
-    assert "win5" not in calls
+    _win5_notifier(tmp_path, clock, calls, poster, _Win5(None, calls, clock)).run(DAY, prepare=False)
+    assert not any(call.startswith("win5") for call in calls)
     assert poster.posts == [f"文 {RACE1.rid}", f"文 {RACE2.rid}"]
     # 1レース目の発走（10:35）の 8 分前を過ぎて起動したら、WIN5 は飛ばす
     clock, calls, poster = _Clock(datetime(2025, 4, 19, 10, 28)), [], _Poster()
     late = ScheduledRace("2025041905010103", "東京", 3, "", datetime(2025, 4, 19, 11, 0))
-    _notifier(tmp_path, clock, [late], calls, poster, win5=_Win5(WIN5_SLOT, calls)).run(DAY, prepare=False)
-    assert "win5" not in calls
+    store = ForecastStore(tmp_path)
+    DayNotifier(minutes_before=10, schedule=_Schedule([late]), fetcher=_Fetcher(calls), runner=_Runner(store, calls), message=_Message(),
+                poster=poster, store=store, now=lambda: clock.now, sleep=clock.sleep, log=lambda _: None,
+                win5=_Win5(WIN5_SLOT, calls, clock, done_at=datetime(2025, 4, 19, 10, 30)), win5_minutes=25).run(DAY, prepare=False)
+    assert not any(call.startswith("win5") for call in calls)
     assert poster.posts == [f"文 {late.rid}"]
+
+
+def test_WIN5だけ今すぐは終わるまで待って投稿する_締め切りは見ない(tmp_path: Path) -> None:
+    clock, calls, poster = _Clock(datetime(2025, 4, 19, 20, 0)), [], _Poster()
+    win5 = _Win5(WIN5_SLOT, calls, clock, done_at=datetime(2025, 4, 19, 20, 4))
+    assert _win5_notifier(tmp_path, clock, calls, poster, win5).notify_win5(WIN5_SLOT)
+    assert calls == ["win5 start 20:00", "win5 post 20:04:00"]
+    assert poster.posts == ["文 WIN5"]

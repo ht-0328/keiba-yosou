@@ -1,12 +1,12 @@
-"""保存してある WIN5 の予想の記録と買う計画から、通知の文を作る。"""
+"""保存してある WIN5 の予想の記録から、通知の文を作る（財布で買うかは、その場で決める）。"""
 
 from __future__ import annotations
 
 from datetime import date
 
-from 今週の予想.plan_store import PlanStore
 from 今週の予想.win5_decision import Win5Decision
 from 今週の予想.win5_plan import POLICY_NOTE, Win5Plan
+from 今週の予想.win5_planner import Win5Planner
 from 今週の予想.win5_record import Win5Record
 from 今週の予想.win5_record_store import Win5RecordStore
 
@@ -18,20 +18,22 @@ class Win5Message:
     """文はレースの通知と同じ短い形で、見出し・判断（買う／見送りと、日の期待値と線）・買い目（点数と金額、レースごとの選んだ馬番と馬名）・
     当たる確率とキャリーオーバー・「楽しむ用の財布で」の1行。表の画像は付けない（全頭の確率は予想の記録と開催日のまとめの WIN5 の節にある）。
 
-    予想の記録は予想のパッケージの predict が書いたもの（``Win5RecordStore``）、買う計画は forecast.py の ``--plan-only`` が plan.json に書いた
-    ``win5``（``PlanStore``）。買うかどうかは ``Win5Decision`` で決める（ポリシー用の財布の残高が足りなければ見送り）。
+    予想の記録は予想のパッケージの predict が書いたもの（``Win5RecordStore``）。買うかどうかは、買う計画と同じ決まり（``Win5Planner``。
+    ポリシー用の財布のその日より前の残高が代金に足りなければ見送り）でその場で決め、``Win5Decision`` で文にする（``planner`` が無ければ予想の判断）。
+    計画そのもの（plan.json・回顧の表1）は、このあとのレースの予想で forecast.py が書き直す。
     """
 
-    def __init__(self, records: Win5RecordStore | None = None, plans: PlanStore | None = None) -> None:
+    def __init__(self, records: Win5RecordStore | None = None, planner: Win5Planner | None = None) -> None:
         self._records = records or Win5RecordStore()
-        self._plans = plans
+        self._planner = planner
 
     def build(self, slot: Win5Slot) -> RaceNotice:
         day = date.fromisoformat(slot.day)
         record = self._records.load(day)
         if record is None:
             raise LookupError(f"{slot.day} の WIN5 の予想の記録がありません")
-        return RaceNotice(self.describe(record, self._plan(day), slot))
+        plan = self._planner.plan(record, day) if self._planner is not None else None
+        return RaceNotice(self.describe(record, plan, slot))
 
     def describe(self, record: Win5Record, plan: Win5Plan | None, slot: Win5Slot) -> str:
         decision = Win5Decision.of(record, plan)
@@ -45,7 +47,3 @@ class Win5Message:
             f"当たる確率 {record.hit_probability:.1%}・日の期待値 {record.expected_value:.2f}・キャリーオーバー {record.carry_text()}",
             POLICY_NOTE,
         ])
-
-    def _plan(self, day: date) -> Win5Plan | None:
-        payload = self._plans.load(day) if self._plans is not None else None
-        return Win5Plan.from_dict(payload["win5"]) if payload and payload.get("win5") else None

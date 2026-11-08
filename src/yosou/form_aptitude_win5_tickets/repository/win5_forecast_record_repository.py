@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -25,7 +26,11 @@ class Win5ForecastRecordRepository:
     def save(self, record: dict[str, Any], race_date: date) -> Path:
         path = self._path(race_date)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes((json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+        # 書きかけを読まれないように、別の名前で書いてから置き換える（道具「発走前の通知」が裏で予想している間に、
+        # 道具「今週の予想」がこの記録を読むことがある）
+        written = path.with_suffix(".tmp")
+        written.write_bytes((json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+        os.replace(written, path)
         return path
 
     def load(self, race_date: date) -> dict[str, Any]:
