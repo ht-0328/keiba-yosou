@@ -24,3 +24,9 @@ INVERSE_SUMS = "単勝オッズの逆数の合計"
 #: 何レース目か（1〜5）と、出走取消・競走除外の馬番（``Win5ScratchRepository``）。
 LEG = "何レース目"
 HORSE_NO = "馬番"
+#: 対象レースの出走馬（``Win5LegRunnerHistoryRepository``）: レースID・障害のレースか・発走時刻（``HHMM``）・確定の単勝オッズ（倍）。
+#: レースID と単勝オッズは、今のモデルの予測の結果の列（``RaceWinShare`` が読む列）と同じ名前にする。
+RACE_ID = "レースID"
+JUMP = "障害か"
+POST_TIME = "発走時刻"
+WIN_ODDS = "単勝オッズ"

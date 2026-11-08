@@ -16,6 +16,7 @@ from ..repository import (
     Win5DayRepository,
     Win5ForecastRecordRepository,
     Win5HistoryRepository,
+    Win5LegRunnerHistoryRepository,
     Win5ScratchRepository,
 )
 from ..repository.leg_runner_repository import HORSE_NO as RUNNER_NO
@@ -24,13 +25,17 @@ from ..repository.win5_columns import (
     COMBO,
     HORSE_NO,
     INVERSE_SUMS,
+    JUMP,
     LEG,
     NO_HIT,
     PAYOUT,
+    POST_TIME,
     RACE_DATE,
+    RACE_ID,
     RACE_IDS,
     REFUNDED,
     SATURDAY,
+    WIN_ODDS,
     WINNER_ODDS,
 )
 from .win5_sample import (
@@ -111,6 +116,22 @@ def test_出走馬は取消を除いて馬番の順に読む(win5_db: Path) -> N
         race_ids = Win5DayRepository(con).read(day).race_ids
         runners = LegRunnerRepository(con).read(race_ids[SCRATCHED_LEG - 1])
     assert runners[RUNNER_NO].tolist() == [number for number in range(1, 9) if number != SCRATCHED_HORSE]
+
+
+def test_過去のWIN5の対象レースの出走馬を取消を除いて発走時刻と障害かとともに読む(win5_db: Path, win5_sample: Win5Sample) -> None:
+    refund_day = FIRST_SUNDAY + timedelta(weeks=REFUND_SUNDAY)
+    with db.open_db(win5_db) as con:
+        runners = Win5LegRunnerHistoryRepository(con).read(FORECAST_DAY)
+    saturdays = len(range(0, SUNDAY_COUNT, SATURDAY_EVERY))
+    assert runners[RACE_DATE].nunique() == SUNDAY_COUNT + saturdays
+    assert runners[RACE_DATE].max() < FORECAST_DAY.isoformat()
+    first = runners.loc[(runners[RACE_DATE] == FIRST_SUNDAY.isoformat()) & (runners[LEG] == 1)]
+    assert first[HORSE_NO].tolist() == list(range(1, 9))
+    assert first[WIN_ODDS].tolist() == pytest.approx([win5_sample.odds[(FIRST_SUNDAY, 1)][number] for number in range(1, 9)])
+    assert first[RACE_ID].iloc[0] == f"{FIRST_SUNDAY:%Y%m%d}05010107"
+    assert set(runners[POST_TIME]) == {"1500"} and not runners[JUMP].any()
+    scratched_leg = runners.loc[(runners[RACE_DATE] == refund_day.isoformat()) & (runners[LEG] == SCRATCHED_LEG), HORSE_NO]
+    assert SCRATCHED_HORSE not in scratched_leg.tolist() and len(scratched_leg) == 7
 
 
 def test_配当の見積もりの式のファイルは無ければfit_payoutを案内する(tmp_path: Path) -> None:
