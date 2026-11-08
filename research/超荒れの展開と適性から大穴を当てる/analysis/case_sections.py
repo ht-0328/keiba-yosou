@@ -40,7 +40,7 @@ class CaseSections:
 
     def build(self) -> Sections:
         return [*self.counts(), *self.development(), *self.bias(), *self.pairs(), *self.weights(), *self.aptitude(),
-                *self.periods(), *self.which_longshot()]
+                *self.periods(), *self.which_longshot(), *self.popularity_bands(), *self.beaten_favorites()]
 
     def counts(self) -> Sections:
         table = UpsetCountTable()
@@ -147,6 +147,41 @@ class CaseSections:
             top3.build(in_multi, ["ハンデ戦か", "斤量の軽さ"], "大穴2頭以上のレース: 斤量の軽さ"),
         ]
         return [("8. 大穴が来たレースの中で、どの大穴が来たか", tables)]
+
+    def popularity_bands(self) -> Sections:
+        """人気馬・中穴・大穴を同じ見方で並べる（展開・その日の馬場の傾向・ハンデ。前半と後半の年も）。"""
+        gap = GapTable()
+        handicap = self.runners.loc[self.runners["handicap"] == "ハンデ戦"]
+        tables = [
+            gap.build(self.runners, ["人気帯", "予想のペース", "推定脚質"], "人気帯 × 予想のペース × 推定脚質（レース前に分かる）"),
+            gap.build(self.runners, ["人気帯", "期間", "予想のペース", "推定脚質（前後）"], "人気帯 × 予想のペース × 推定脚質（前後）（前半・後半の年）"),
+            gap.build(self.runners, ["人気帯", "結果のペース", "いつもとの位置の差"], "人気帯 × 結果のペース × いつもとの位置の差（結果側）"),
+            gap.build(self.runners, ["人気帯", "その日の内外の傾き", "枠の側"], "人気帯 × その日の内外の傾き × 枠の側"),
+            gap.build(self.runners, ["人気帯", "期間", "その日の内外の傾き", "枠の側"], "人気帯 × その日の内外の傾き × 枠の側（前半・後半の年）"),
+            gap.build(handicap, ["人気帯", "トップハンデか"], "ハンデ戦: 人気帯 × トップハンデか"),
+            gap.build(handicap, ["人気帯", "期間", "トップハンデか"], "ハンデ戦: 人気帯 × トップハンデか（前半・後半の年）"),
+            gap.build(handicap, ["人気帯", "前走との差（3つ）"], "ハンデ戦: 人気帯 × 前走との斤量の差"),
+            gap.build(handicap, ["人気帯", "クラスの替わり", "前走との差（3つ）"], "ハンデ戦: 人気帯 × クラスの替わり × 前走との斤量の差"),
+            gap.build(handicap, ["人気帯", "期間", "クラスの替わり", "前走との差（3つ）"],
+                      "ハンデ戦: 人気帯 × クラスの替わり × 前走との斤量の差（前半・後半の年）"),
+        ]
+        return [("10. 人気馬・中穴・大穴を同じ見方で", tables)]
+
+    def beaten_favorites(self) -> Sections:
+        """負けた人気馬の型（4着以下になる側。人気から見た3着以内の差がマイナスなら、4着以下が人気より多い）。"""
+        gap = GapTable()
+        favorites = self.runners.loc[self.runners["popularity"] == 1]
+        handicap = favorites.loc[favorites["handicap"] == "ハンデ戦"]
+        tables = [
+            gap.build(favorites, ["予想のペース", "推定脚質"], "1番人気: 予想のペース × 推定脚質（レース前に分かる）"),
+            gap.build(favorites, ["期間", "予想のペース", "推定脚質（前後）"], "1番人気: 予想のペース × 推定脚質（前後）（前半・後半の年）"),
+            gap.build(favorites, ["結果のペース", "結果の脚質"], "1番人気: 結果のペース × 結果の脚質（結果側）"),
+            gap.build(favorites, ["期間", "結果のペース", "結果の脚質"], "1番人気: 結果のペース × 結果の脚質（前半・後半の年。結果側）"),
+            gap.build(favorites, ["その日の内外の傾き", "枠の側"], "1番人気: その日の内外の傾き × 枠の側"),
+            gap.build(handicap, ["期間", "トップハンデか"], "ハンデ戦の1番人気: トップハンデか（前半・後半の年）"),
+            gap.build(handicap, ["前走との差（3つ）"], "ハンデ戦の1番人気: 前走との斤量の差"),
+        ]
+        return [("11. 負けた人気馬の型", tables)]
 
     def longshots(self) -> pd.DataFrame:
         return self.runners.loc[self.runners["longshot"]]

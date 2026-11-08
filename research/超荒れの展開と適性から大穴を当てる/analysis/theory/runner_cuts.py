@@ -37,6 +37,7 @@ class RunnerCuts:
                                                  "追込": "後ろ（差し・追込）"}).fillna("不明")
         frame["距離"] = distance_band(frame["distance_m"])
         frame["馬場"] = np.where(frame["condition"] == "良", "良", "道悪（稍重〜不良）")
+        frame["人気帯"] = pd.cut(frame["popularity"], [0, 3, 9, 18], labels=["人気馬（1〜3番人気）", "中穴（4〜9番人気）", "大穴（10番人気以下）"])
         frame["人気"] = pd.cut(frame["popularity"], [0, 1, 3, 5, 9, 18], labels=["1番人気", "2〜3番人気", "4〜5番人気", "6〜9番人気",
                                                                               "10番人気以下"])
         frame["トップハンデか"] = np.where(frame["carried_vs_top"] == 0, "トップ", "トップ以外")
