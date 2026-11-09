@@ -45,9 +45,11 @@
 | `analysis/theory/` | 1行 = 1レースの表 `race_table.py`（決着の分け方）・表の切り口の列 `runner_cuts.py` |
 | `analysis/tables/` | 表（事例の数・締め切り前の人気・ペースの割合・予想の当たり方・勝ち方の形・人気から見た差・集まり方・大穴の組の形と組み合わせ・並べ方・事例の選び方・事例の一覧と数え） |
 | `forecast.py` | 入口（段3 の①）。足す材料の表を作り（`features`）、展開の型で混ぜる着順の予想を区切りごとに学び直し（`train`）、詳しく見る日を予想する（`focus`） |
-| `evaluate.py` | 入口（段3 の②）。確かめの表を書き（`report`）、道具「印の成績」に渡す 4着以下の確率の表を書く（`danger`） |
+| `evaluate.py` | 入口（段3 の②）。確かめの表を書き（`report`）、道具「印の成績」に渡す 4着以下の確率の表を書く（`danger`。今のモデルの 1 − 3着以内の確率は `danger-current`） |
+| `danger_search.py` | 入口（段3 の③。消の決め方の探索）。消の元（今の消・今のモデルの消）と人気帯ごとの固定の線を替えて、道具「印の成績」と同じ部品で全券種の成績を数え直し、探索の期間だけで線を選ぶ |
 | `analysis/scenario_forecast/` | 段3 の予想。その日の先のレースの傾き `prior_race_bias.py`・足す材料 `scenario_materials.py`（置き場所 `scenario_material_source.py`）・学習データ `scenario_dataset.py`・作り方 `scenario_variant.py`・混ぜる重み `scenario_weights.py`・展開の型ごとの予測と混ぜ方 `scenario_predictor.py`・区切りごとの学び `scenario_window_trainer.py` |
 | `analysis/scenario_evaluation/` | 段3 の確かめ。比べる相手 `comparison_files.py`・確かめの表の元 `evaluation_frame.py`・人気帯 `popularity_band.py`・並べ方 `band_ranking_table.py`・確率の当たり具合 `band_logloss_table.py`・人気馬の4着以下 `favorite_out_table.py`・印の成績に渡す表 `danger_file_writer.py`・組の確率 `pair_probability.py`（混ぜる重み `race_weights_attacher.py`、表 `pair_calibration_table.py`）・抑えの買い目（印の成績の買い目 `mark_ticket_file.py`・組み方 `hedge_tickets.py`・精算 `hedge_settlement.py`・候補と選び方 `hedge_study.py`・表 `hedge_table.py`）・流れ `scenario_evaluation.py` |
+| `analysis/danger_search/` | 消の決め方の探索。入力 `search_inputs.py`・消の元 `danger_sources.py`・払戻 `payout_table.py`・オッズ `odds_cache.py`・レースごとの消の組の印と買い目 `race_variant_cache.py`（印付けは複数のプロセス `race_variant_workers.py`）・組の期待値と枠連の候補 `combo_candidates.py`・成績 `ticket_metrics.py`・1つの決め方の評価 `danger_evaluator.py`・線の探索 `line_search.py`・表 `search_report.py` |
 | `analysis/focus_day/` | 段3 の詳しく見る日。予測用データ `focus_day_data.py`・寄与 `contribution_lightgbm.py`・まとまり `material_groups.py`・理由の文 `reason_writer.py`・予想と順位 `focus_day_runner.py`・表 `focus_day_report.py`・流れ `focus_day_study.py` |
 | `docs/` | 01 事例・02 理論・03 次の段の案・04 段3 の結果 |
 | `tests/` | 合成DB と架空の値で部品を確かめるテスト（実DB は要らない） |
@@ -65,7 +67,9 @@ uv run python research/超荒れの展開と適性から大穴を当てる/forec
 uv run python research/超荒れの展開と適性から大穴を当てる/forecast.py focus --date 2026-11-08   # 段3: 詳しく見る日（10分ほど）
 uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py danger --timing 当日   # 段3: 印の成績に渡す表
 uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py report --timing 当日 --marks <印の成績の買い目の csv>   # 段3: 確かめの表
+uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py danger-current --timing 前日   # 段3: 今のモデルの 1 − 3着以内の確率を同じ形で
+uv run python research/超荒れの展開と適性から大穴を当てる/danger_search.py --timing 当日 --db <元DB の写し>   # 段3: 消の決め方の探索（20分 ＋ 線1つにつき 1〜3分）
 uv run python -m pytest research/超荒れの展開と適性から大穴を当てる -q          # 部品のテスト
 ```
 
-開催日のレースの時間（発走前の通知が動いている間）には、元DB を使う入口（`cases.py`・`forecast.py features`・`forecast.py focus`・`evaluate.py report --marks`）を動かさない（`--cached` と `train` は元DB を使わない）。
+開催日のレースの時間（発走前の通知が動いている間）には、元DB を使う入口（`cases.py`・`forecast.py features`・`forecast.py focus`・`evaluate.py report --marks`・`danger_search.py`）を動かさない（`--cached` と `train` は元DB を使わない）。

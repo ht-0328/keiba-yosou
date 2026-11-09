@@ -1,6 +1,7 @@
 """超荒れの展開と適性から大穴を当てる: 段3 の予測を確かめる（段3 の入口②）。
 
     uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py danger --timing 当日     # 印の成績に渡す「4着以下の確率」の表を書く
+    uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py danger-current --timing 前日   # 今のモデルの 1 − 3着以内の確率を同じ形で書く
     uv run python research/超荒れの展開と適性から大穴を当てる/evaluate.py report --timing 当日 --marks <印の成績の買い目の csv>
 
 report は、中穴・大穴の並べ方と荒れる前提の確率、人気帯ごとの確率の当たり具合、人気馬が4着以下になる確率、中穴・大穴2頭の組の確率、
@@ -35,6 +36,9 @@ def main() -> None:
     if args.step == "danger":
         print(f"書きました: {evaluation.write_danger_file()}", flush=True)
         return
+    if args.step == "danger-current":
+        print(f"書きました: {evaluation.write_current_danger_file()}", flush=True)
+        return
     frame = evaluation.frame()
     if args.marks is not None:
         with db.open_db(args.db, default=db.JRA) as con:
@@ -46,7 +50,8 @@ def main() -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
-    parser.add_argument("step", choices=("danger", "report"), help="danger（印の成績に渡す表）・report（確かめの表）")
+    parser.add_argument("step", choices=("danger", "danger-current", "report"),
+                        help="danger（印の成績に渡す表）・danger-current（今のモデルの 1 − 3着以内の確率を同じ形で）・report（確かめの表）")
     parser.add_argument("--timing", default="当日", choices=tuple(_TIMINGS), help="時点（既定: 当日）")
     parser.add_argument("--marks", type=Path, default=None, help="道具「印の成績」の買い目の csv（抑えの買い目を確かめるとき）")
     parser.add_argument("--compare", nargs="*", default=[], metavar="名前=csv",

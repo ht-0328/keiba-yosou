@@ -65,8 +65,17 @@ class ScenarioEvaluation:
     def write_danger_file(self) -> Path:
         """道具「印の成績」の ``--danger`` に渡す、新しい予想の 4着以下の確率の表を書く。"""
         top3 = LongshotPredictionStore(self.root / "predictions").read("mixed-top3", self.timing.value)
+        return self._write_danger(top3, f"danger-{self.timing.value}.pkl")
+
+    def write_current_danger_file(self) -> Path:
+        """道具「印の成績」の ``--danger`` に渡す、今のモデル（近走と適性から3着以内を予想）の「1 − 3着以内の確率」の表を書く
+        （全頭数のレース。今の消と同じ馬の行）。"""
+        top3 = pd.read_pickle(ComparisonFiles(self.timing).paths()[(CURRENT, "top3")])
+        return self._write_danger(top3, f"danger-current-top3-{self.timing.value}.pkl")
+
+    def _write_danger(self, top3: pd.DataFrame, name: str) -> Path:
         table = DangerFileWriter(top3, pd.read_pickle(CURRENT_DANGER)).build()
-        path = self.root / "predictions" / f"danger-{self.timing.value}.pkl"
+        path = self.root / "predictions" / name
         table.to_pickle(path)
         return path
 

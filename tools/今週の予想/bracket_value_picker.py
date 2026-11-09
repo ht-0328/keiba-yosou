@@ -41,6 +41,7 @@ class BracketValuePicker:
     3. 枠連の市場（枠連のオッズの逆数をレースで合計 1）と合わせ、重み（``BracketBlendWeights``）で組の確率にし、期待値 = 確率 × 枠連のオッズ。
     4. ルール（``ComboValueRule``。券種は ``BRACKET``）の線・上限・対象・レースの条件・点数で選ぶ。
     重みか板か枠番が無ければ 0点。
+    ``ComboValuePicker`` と同じく2段に分かれている（``candidates`` は印と消に依らない段、``select`` は印と消で決まる段。``pick`` は続けて行う）。
     """
 
     def __init__(self, rule: ComboValueRule, weights: BracketBlendWeights | None) -> None:
@@ -56,14 +57,26 @@ class BracketValuePicker:
 
     def pick(self, marked: pd.DataFrame, boards: dict[TicketType, pd.DataFrame], bracket_board: pd.DataFrame,
              frames: pd.DataFrame) -> pd.DataFrame:
-        empty = pd.DataFrame(columns=list(COLUMNS))
+        return self.select(self.candidates(marked, boards, bracket_board, frames), self.races(marked, frames))
+
+    def candidates(self, horses: pd.DataFrame, boards: dict[TicketType, pd.DataFrame], bracket_board: pd.DataFrame,
+                   frames: pd.DataFrame) -> pd.DataFrame:
+        """印と消に依らない段。枠の組ごとの組の期待値が線以上でオッズが上限以下の組（列 ``race_id``・``combo``・``f1``・``f2``・``odds``・``value``）。
+        ``horses`` は1行 = 1頭の表（確率と市場の見立ての列だけ使う）。重みか板か枠番が無ければ空の表。"""
         quinella, trifecta = boards.get(TicketType.QUINELLA), boards.get(TicketType.TRIFECTA)
-        if (self._weights is None or marked.empty or any(board is None or board.empty for board in (quinella, trifecta))
+        if (self._weights is None or horses.empty or any(board is None or board.empty for board in (quinella, trifecta))
                 or bracket_board.empty or frames.empty):
+            return pd.DataFrame()
+        valued = self._valued(horses, quinella, trifecta, bracket_board, frames)
+        return valued[(valued[VALUE] >= self._rule.value_line) & (valued["odds"] <= self._rule.odds_cap)]
+
+    def select(self, candidates: pd.DataFrame, races: pd.DataFrame) -> pd.DataFrame:
+        """印と消で決まる段。``candidates`` を ``races``（``races`` の戻り値）で絞って買い目の形にする
+        （◎の期待値の帯・◎ の枠を含む組・レースの条件・1レースの点数の上限）。"""
+        empty = pd.DataFrame(columns=list(COLUMNS))
+        if candidates.empty:
             return empty
-        valued = self._valued(marked, quinella, trifecta, bracket_board, frames)
-        chosen = valued[(valued[VALUE] >= self._rule.value_line) & (valued["odds"] <= self._rule.odds_cap)]
-        chosen = chosen.merge(self._races(marked, frames), on="race_id", how="inner")
+        chosen = candidates.merge(races, on="race_id", how="inner")
         if self._rule.scope in (HIGH_RACES, HIGH_TOP_COMBOS):
             chosen = chosen[chosen[WIN_VALUE_BAND] == HIGH]
         if self._rule.scope in (TOP_COMBOS, HIGH_TOP_COMBOS):
@@ -100,8 +113,8 @@ class BracketValuePicker:
         probability = exponent / exponent.groupby(table["race_id"]).transform("sum")
         return table.assign(**{VALUE: probability * table["odds"]})
 
-    def _races(self, marked: pd.DataFrame, frames: pd.DataFrame) -> pd.DataFrame:
-        """1行 = 1レースの、買い目に写す列と ◎ の枠（``top_frame``。◎ がいなければ欠損）と、レースの中身（``ComboRaceTraits``）。"""
+    def races(self, marked: pd.DataFrame, frames: pd.DataFrame) -> pd.DataFrame:
+        """1行 = 1レースの、買い目に写す列と ◎ の枠（``top_frame``。◎ がいなければ欠損）と、レースの中身（``ComboRaceTraits``）。``select`` に渡す。"""
         first = marked.groupby("race_id", sort=False).first().reset_index()
         races = pd.DataFrame({name: (first[name] if name in first.columns else np.nan) for name in _RACE_COLUMNS}, index=first.index)
         races["race_id"] = races["race_id"].astype(str)
