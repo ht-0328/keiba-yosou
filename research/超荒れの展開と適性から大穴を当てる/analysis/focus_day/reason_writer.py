@@ -59,10 +59,12 @@ class ReasonWriter:
     @staticmethod
     def _track(row: pd.Series) -> str:
         inner, side = row.get("先のレースの内の傾き"), row.get("馬番の位置")
-        if pd.isna(inner) or pd.isna(side):
-            return "枠の位置" if pd.notna(side) else ""
-        tilt = "内が来ている" if inner > 0.1 else "外が来ている" if inner < -0.1 else "内外の差は小さい"
+        if pd.isna(side):
+            return ""
         frame = "内枠" if side <= 1 / 3 else "外枠" if side > 2 / 3 else "真ん中の枠"
+        if pd.isna(inner):
+            return frame
+        tilt = "内が来ている" if inner > 0.1 else "外が来ている" if inner < -0.1 else "内外の差は小さい"
         return f"先のレースは{tilt}（{inner:+.2f}）で{frame}"
 
     @staticmethod
