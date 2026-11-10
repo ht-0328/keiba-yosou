@@ -46,3 +46,14 @@ def test_ランクごとに二重丸の成績と割合を並べ_無いランク�
 def test_1着の予想が無ければどのランクにも入らない() -> None:
     rows = {row[0]: row for row in GradeReport().table(_marked(with_values=False)).rows}
     assert all(rows[grade][1] == "0" for grade in "SABC") and rows["◎ 全体"][1] == "4"
+
+
+def test_地方は期待度の決め方で分ける() -> None:
+    from yosou.shared.race_grade import EXPECTATION_LABEL, EXPECTATION_MEANING, LocalExpectationScale
+
+    table = GradeReport(LocalExpectationScale(), EXPECTATION_LABEL, EXPECTATION_MEANING).table(_marked())
+    assert table.title == "13. 期待度ごとの ◎ の単勝・複勝の成績" and table.columns[0] == "期待度"
+    rows = {row[0]: row for row in table.rows}
+    # 点数は 1着の確率 ＋ 3 ×（期待値 − 1）: A 0.5 − 0.3 = 0.20（A）・B 0.3 − 0.3 = 0.00（B）・C 0.2 − 0.45 = −0.25（C）・D 0.1 − 0.6 = −0.5（C）
+    assert [rows[grade][1] for grade in "SABC"] == ["0", "1", "1", "2"]
+    assert "S 0.45 以上・A 0.15 以上・B -0.1 以上・C -0.1 未満" in table.note and "期待度が高いほど" in table.note

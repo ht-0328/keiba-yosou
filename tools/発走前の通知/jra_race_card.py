@@ -41,6 +41,11 @@ class JraRaceCard:
     styles: Mapping[int, str] = field(default_factory=dict)
 
     @property
+    def badge(self) -> str:
+        """画像の見出しの札。中央は ◎ランク・的中率・配当率を文に出すので、画像には札を描かない（空）。"""
+        return ""
+
+    @property
     def title(self) -> str:
         """例 ``京都 11R みやこＳ（15:35 発走）``。"""
         name = f" {self.name}" if self.name else ""
