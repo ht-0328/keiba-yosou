@@ -13,6 +13,7 @@ from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 発走前の通知 import image_style as style
 from 発走前の通知.jra_race_card import JraRaceCard
+from 発走前の通知.local_expectation import LocalExpectation
 from 発走前の通知.local_race_card import LocalRaceCard
 from 発走前の通知.race_image import RaceImage
 
@@ -26,9 +27,9 @@ def _table() -> pd.DataFrame:
     ])
 
 
-def _card(bets: RecommendationSet, race_day: bool = True) -> LocalRaceCard:
+def _card(bets: RecommendationSet, race_day: bool = True, expectation: LocalExpectation | None = None) -> LocalRaceCard:
     return LocalRaceCard(heading="園田 5R", name="テスト特別", post="12:40 発走", timing="当日の時点", race_day=race_day,
-                         table=_table(), frames={6: 5, 10: 7}, bets=bets)
+                         table=_table(), frames={6: 5, 10: 7}, bets=bets, expectation=expectation or LocalExpectation(0.21, "A"))
 
 
 def _row(ticket: str, *numbers: int) -> Recommendation:
@@ -51,6 +52,19 @@ def test_長い券種の行は折り返し_理由は最後に添える() -> None
     bets = RecommendationSet(tuple(_row("3連単", a, b, c) for a in (1, 2, 3) for b in (4, 5, 6) for c in (7, 8, 9)), "11頭未満のレース（8頭）は推奨買目の対象外")
     image = RaceImage().draw(_card(bets))
     assert image.height > _height(1 + 1 + 1)   # 27点は1行に収まらないので、3連単の行が何行かに分かれる
+
+
+def test_期待度の札は見出しの発走時刻の左に描き_無ければ描かない() -> None:
+    bets = RecommendationSet((_row("単勝", 6),))
+    with_badge = RaceImage().draw(_card(bets, expectation=LocalExpectation(0.50, "S")))
+    without = RaceImage().draw(_card(bets, expectation=LocalExpectation(None, None)))
+    assert with_badge.size == without.size
+    # 札は上の段（見出しの帯の中、発走時刻の左）。その帯の中の色が変わり、下の表は同じ
+    header = (style.PAD, style.PAD, style.WIDTH - style.PAD, style.PAD + style.HEADER_H)
+    assert with_badge.crop(header).tobytes() != without.crop(header).tobytes()
+    below = (0, style.PAD + style.HEADER_H, style.WIDTH, with_badge.height)
+    assert with_badge.crop(below).tobytes() == without.crop(below).tobytes()
+    assert _card(bets).badge == "期待度 A" and _card(bets, expectation=LocalExpectation(None, None)).badge == ""
 
 
 def test_列の幅は画像の幅に収まる() -> None:

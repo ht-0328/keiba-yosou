@@ -127,6 +127,7 @@ Phase 2 以降で新しい予想モデル（例: トラックバイアスの補�
 | [08-bankroll-and-review.md](08-bankroll-and-review.md) | モジュール6: 予算の式、回顧データの形 | 決定（作った） |
 | [09-decisions.md](09-decisions.md) | 決めたこと | 決定 |
 | [10-local-recommended-tickets.md](10-local-recommended-tickets.md) | 地方の推奨買目: 1着・2着・3着を分けて市場に合わせた組の確率で、8券種を期待値の線とオッズの帯（馬連は組の形、3連複は荒れ具合の条件つき）で選ぶ | 決定（作った） |
+| [11-local-expectation.md](11-local-expectation.md) | 地方の期待度: 地方のレースに添える1つだけの目安（◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）の S・A・B・C）。買い目は変えない | 決定（作った） |
 
 ## 進め方
 
