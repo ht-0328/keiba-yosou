@@ -124,7 +124,7 @@ def _jra_card(bets: tuple[tuple[str, int], ...], notes: tuple[str, ...] = ()) ->
          PLACE_VALUE: float("nan"), WIN_VALUE: None},
     ])], ignore_index=True)
     return JraRaceCard(heading="京都 11R", name="みやこＳ", post="15:35 発走", timing="当日の時点", race_day=True,
-                       grades="◎ランク A（的中率 23%）・配当率 A（56%）", table=table, frames={6: 5, 8: 6}, bets=bets, notes=notes)
+                       grades="期待度 A（点数 0.28）", table=table, frames={6: 5, 8: 6}, bets=bets, notes=notes)
 
 
 def test_中央は消の札と_値の無い馬も描き_買い目の行と合計のぶんの高さ() -> None:

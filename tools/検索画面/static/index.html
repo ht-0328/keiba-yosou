@@ -409,16 +409,14 @@ function appendRaceDays(main, table, view, extra = () => null) {
 const MARK_CLASS = {"◎": "m1", "○": "m2", "▲": "m3", "△": "m4", "☆": "m5", "注": "m6", "消": "m7", "－": "m8"};
 function markEl(mark) { return el("span", {class: "mark " + (MARK_CLASS[mark] || "")}, mark); }
 function percent(v) { return v === null || v === undefined ? "" : (v * 100).toFixed(1) + "%"; }
-// レースの的中率・配当率（等級と %）。前の版の結果（鍵が無い）は「なし」
-function gradeText(grade, rate) { return grade === null || grade === undefined || rate === null || rate === undefined ? "なし" : grade + "（" + Math.round(rate * 100) + "%）"; }
+// レースの期待度（◎ の点数の S・A・B・C）。木曜（オッズが無い）と前の版の結果（鍵が無い）は「なし」
 function gradesText(f) {
-  const rank = f.rank === null || f.rank === undefined ? "なし" : f.rank + "（的中率 " + Math.round(f.hit_rate * 100) + "%）";
-  return "◎ランク " + rank + "・配当率 " + gradeText(f.payout_grade, f.payout_rate);
+  if (f.rank === null || f.rank === undefined || f.rank_score === null || f.rank_score === undefined) return "期待度 なし（単勝オッズが出る前なので出さない）";
+  return "期待度 " + f.rank + "（点数 " + f.rank_score.toFixed(2) + "）";
 }
 function gradesNote(f) {
-  if (f.rank === undefined && f.payout_grade === undefined) return "";   // 目安を出す前の版の結果
-  return " " + gradesText(f) + "（◎ランクは ◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数で、高いほど ◎ の単勝・複勝の的中率と回収率が高い。S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満。"
-    + "的中率は ◎ の単勝が当たる確率。配当率は配当が中荒れ以上になる確率で、S 75% 以上・A 50% 以上・B 25% 以上・C 25% 未満）。";
+  if (f.rank === undefined) return "";   // 目安を出す前の版の結果
+  return " " + gradesText(f) + "（期待度は ◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数で、高いほど ◎ の単勝・複勝の的中率と回収率が高い。S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満）。";
 }
 function points(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1); }
 function forecastLegend(legend) {

@@ -21,7 +21,7 @@ from 今週の予想.win5_record_store import Win5RecordStore
 from 今週の予想.win5_section import Win5Section
 
 #: 一覧の列。
-OVERVIEW_COLUMNS: list[str] = ["場R", "レース名", "条件", "発走", "時点", "◎ランク（的中率）", "配当率", "◎", "○", "▲", "消", "買う"]
+OVERVIEW_COLUMNS: list[str] = ["場R", "レース名", "条件", "発走", "時点", "期待度", "◎", "○", "▲", "消", "買う"]
 #: 曜日の字（``date.weekday`` の順）。
 WEEKDAYS = "月火水木金土日"
 #: 見出しに書く時点の順。
@@ -105,8 +105,7 @@ class DaySummary:
                 f"{header.get('コース', '')} {header.get('距離', '')}m {header.get('頭数', '')}頭",
                 header.get("発走", ""),
                 forecast["timing"],
-                "" if grades.rank is None else f"{grades.rank}（{_percent(grades.hit_rate)}）",
-                "" if grades.payout_grade is None else f"{grades.payout_grade}（{_percent(grades.payout_rate)}）",
+                f"{grades.rank}（{grades.rank_score:.2f}）" if grades.has_grade else "",
                 _top_text(first_by_mark.get(TOP_MARK)),
                 _horse_text(first_by_mark.get(RANK_MARKS[0])),
                 _horse_text(first_by_mark.get(RANK_MARKS[1])),
@@ -141,10 +140,6 @@ class DaySummary:
         if plan is not None and (plan.graded or plan.buys):
             return True
         return str((forecast.get("header") or {}).get("クラス", "")) in GRADED_CLASSES
-
-
-def _percent(rate: float | None) -> str:
-    return "なし" if rate is None else f"{rate:.0%}"
 
 
 def _horse_text(horse: dict[str, Any] | None) -> str:

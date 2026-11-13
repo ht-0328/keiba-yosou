@@ -1,4 +1,4 @@
-"""◎ランクごとの ◎ の成績の表（GradeReport）のテスト。値は架空。"""
+"""期待度ごとの ◎ の成績の表（GradeReport）のテスト。値は架空。"""
 
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ def _marked(with_values: bool = True) -> pd.DataFrame:
 
 def test_ランクごとに二重丸の成績と割合を並べ_無いランクは0で出す() -> None:
     table = GradeReport().table(_marked())
-    assert table.title == "13. ◎ランクごとの ◎ の単勝・複勝の成績"
-    assert table.columns[:4] == ["◎ランク", "レース数", "レースの割合", "着別度数"]
+    assert table.title == "13. 期待度ごとの ◎ の単勝・複勝の成績"
+    assert table.columns[:4] == ["期待度", "レース数", "レースの割合", "着別度数"]
     assert table.columns[-4:] == ["同じ人気の馬全体の勝率", "同じ人気の馬全体の単勝回収率", "同じ人気の馬全体の複勝率", "同じ人気の馬全体の複勝回収率"]
     rows = {row[0]: row for row in table.rows}
     assert list(rows) == ["S", "A", "B", "C", "◎ 全体"]
