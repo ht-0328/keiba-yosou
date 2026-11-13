@@ -6,7 +6,7 @@
 
 - 番号と題名は、ほかの設計書とそろえるために残してある。
 - この予想が学ぶ配当の見積もりの式は、傾きと切片を過去の WIN5 から決める1次式で、ハイパーパラメータを持たない（[10-target.md の 2.](10-target.md#2-配当の見積もりで当てるもの)）。
-- 1回の予算（点数）と買う日の線は、ハイパーパラメータではなく買い方の決まりである。`predict` の引数（`--budget`・`--min-value`）で渡し、既定の値は過去の WIN5 で決める（[04-classes.md の 4.](04-classes.md#4-コマンドの引数)、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線)）。
+- 1回の予算（段階の予算）と買う日の線は、ハイパーパラメータではなく買い方の決まりである。`predict` の引数（`--judge-budget`・`--min-value`・`--small-budget`・`--large-budget`・`--favorite-product-line`）で渡し、既定の値は過去の WIN5 で決める（[04-classes.md の 4.](04-classes.md#4-コマンドの引数)、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線)、[15-decisions.md の 13](15-decisions.md#13-1回の予算段階の予算)）。
 
 ## 文書情報
 

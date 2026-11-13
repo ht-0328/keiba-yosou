@@ -73,8 +73,8 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 
 | 名前 | 仕事 | 主な public メソッド | 呼ぶクラス |
 |---|---|---|---|
-| `Win5PredictionWorkflow` | WIN5 の日の予測の流れを進める。その日の WIN5 を読み、対象レースごとに使う確率を選んで今のモデルの1着の確率を出してそろえ、発売票数を見積もり、買い目を組み（予算の候補ごとにも）、買うかどうかを決める。元DB への接続・`LegWinPredictor`・`FormationSearch` はコマンドが作って渡す | `run(開催日, 予算, 買う日の線)` | `Win5DayRepository`、`LegModelChooser`、`LegWinPredictor`、`RaceWinShare`、`Win5HistoryRepository`、`PoolSizeEstimate`、`FormationSearch`、`DayBuyJudge` |
-| `Win5Forecast` | WIN5 の日の予測の結果を表す値（日・対象レースごとの予測・払戻に回るお金の見込み・並べ方・予算・線・選んだ買い目・予算の候補ごとの買い目・判断）。記録の形（辞書）にもする | `to_dict()` | ― |
+| `Win5PredictionWorkflow` | WIN5 の日の予測の流れを進める。その日の WIN5 を読み、対象レースごとに使う確率を選んで今のモデルの1着の確率を出してそろえ、発売票数を見積もり、判断用・少なく買う日・多く買う日の予算（と予算の候補）の買い目を1回の探索で組み、本命の確率の積を出して、買う（多く）・買う（少なく）・見送り を決める。元DB への接続・`LegWinPredictor`・`FormationSearch` はコマンドが作って渡す | `run(開催日, 段階の予算, 買う日の線)` | `Win5DayRepository`、`LegModelChooser`、`LegWinPredictor`、`RaceWinShare`、`Win5HistoryRepository`、`PoolSizeEstimate`、`FormationSearch`、`FavoriteProduct`、`BudgetTierJudge` |
+| `Win5Forecast` | WIN5 の日の予測の結果を表す値（日・対象レースごとの予測・払戻に回るお金の見込み・並べ方・段階の予算・線・判断用の買い目・本命の確率の積・買う買い目・予算の候補ごとの買い目・判断）。記録の形（辞書）にもする。「予算」「買い目」「点数」「代金」は買う買い目のもので、判断用の買い目の値は「判断用の…」の鍵に書く（段階の予算より前の記録と同じ鍵で読める） | `to_dict()`、`budget` | ― |
 | `LegForecast` | 対象レース1つの予測の結果を表す値（レースID・使った確率と理由・全頭の確率の表） | `to_dict(買い目の馬番)` | ― |
 
 `Win5PredictionWorkflow` は、ほかのクラスを呼んで受け渡すだけで、計算・判断・SQL は書かない。
@@ -111,10 +111,12 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | `FormationChoice` | 組んだフォーメーションと、買い目のどれかが当たる確率・見積もりの払戻の合計・日の期待値を表す値 | `expected_value`、`to_dict()` | ― |
 | `FormationValue` | フォーメーションの全部の組について、当たる確率と見積もりの配当を表の計算でまとめて出し（`grid`）、買い目のどれかが当たる確率と日の期待値を返す（`of`） | `grid(5レースの確率の表, PayoutPool)`、`of(Formation, 5レースの確率の表, PayoutPool)` | `PayoutFeatures`、`PayoutEstimator`、`PayoutCeiling` |
 | `FormationSearch` | 予算に収まる頭数の並び（各レース何頭か）を全部試し、各レースは `LegOrdering` の順に上から選んで、見積もりの払戻の合計がいちばん大きいフォーメーションを選ぶ（[06-flowchart.md の図3](06-flowchart.md#図3-買い目の組み方と買う日の判断)） | `best(5レースの確率の表, 予算, PayoutPool)`、`best_by_budget(5レースの確率の表, 予算の候補, PayoutPool)` | `LegOrdering`、`Formation`、`FormationValue` |
-| `DayDecision` | 買う か 見送り（列挙） | ―（値） | ― |
-| `DayBuyJudge` | 日の期待値が買う日の線以上なら「買う」、未満なら「見送り」 | `judge(日の期待値, 線)` | ― |
+| `FavoriteProduct` | 本命の確率の積（5レースそれぞれの本命＝そろえた1着の確率が最大の馬の確率のかけ算）を出す。買い目に依らない、その日の値 | `of(5レースの確率の表)` | ― |
+| `BudgetTiers` | 段階の予算を表す値（判断用の買い目の予算・少なく買う日の予算・多く買う日の予算・多く買う日の線）。判断からその日に買う予算を返す | `budgets`、`budget_for(判断)`、`to_dict()` | `DayDecision` |
+| `DayDecision` | 買う（多く）・買う（少なく）・見送り（列挙）。記録の「判断」の文字が買う日かも読む（段階の予算より前の記録の「買う」も買う日） | `buys`、`tier_label`、`parse(文字)`、`buys_text(文字)` | ― |
+| `BudgetTierJudge` | 判断用の買い目の日の期待値が買う日の線未満なら「見送り」。線以上なら、本命の確率の積が多く買う日の線以上で「買う（多く）」、未満で「買う（少なく）」 | `judge(判断用の日の期待値, 線, 本命の確率の積, 多く買う日の線)` | `DayDecision` |
 
-`FormationSearch` は、予算の候補の上限まで各レースの上位の馬を並べた全部の組の値（`ComboGrid`）を1回だけ出し、5つの向きに累積の和をとって、どの頭数の並びの合計も引くだけで分かるようにする（[06-flowchart.md の図3](06-flowchart.md#図3-買い目の組み方と買う日の判断) の「計算を使い回す」）。試す予算・線・並べ方の候補と `predict` の既定は `formation/buying_defaults.py` に置く。既定は、道具「印の成績」の `--win5` で探索期間から選んだ1着の確率の順・240点・線 1.50 である（[16-evaluation.md の「確かめた結果」](16-evaluation.md#確かめた結果)）。
+`FormationSearch` は、予算の候補の上限まで各レースの上位の馬を並べた全部の組の値（`ComboGrid`）を1回だけ出し、5つの向きに累積の和をとって、どの頭数の並びの合計も引くだけで分かるようにする（[06-flowchart.md の図3](06-flowchart.md#図3-買い目の組み方と買う日の判断) の「計算を使い回す」）。試す予算・線・並べ方の候補と `predict` の既定は `formation/buying_defaults.py` に置く。既定は、判断用の買い目が道具「印の成績」の `--win5 --win5-budget 50` で探索期間から選んだ1着の確率の順・50点・線 1.25、買う日の予算が段階の予算（本命の確率の積 0.0025 以上は 100点、ほか 30点）である（[15-decisions.md の 13](15-decisions.md#13-1回の予算段階の予算)、[16-evaluation.md の「確かめた結果」](16-evaluation.md#確かめた結果)）。
 
 ### settlement/ — 過去の WIN5 での精算（[16-evaluation.md](16-evaluation.md) の確かめに使う）
 
@@ -147,9 +149,9 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 |---|---|---|---|
 | `CommandLine` | この予想 | 入口。引数を読み、サブコマンドを実行し、結果の表を出す | `run(引数)` |
 | `FitPayoutCommand` | この予想 | `fit-payout`: 配当の見積もりの式を作る。`--before` の日より前の WIN5 の当たり組で `PayoutEstimator` を作り、`PayoutEstimatorRepository` で保存する。式の傾き・切片・外れの散らばり・使った回数の表を返す | `run(引数)` |
-| `PredictCommand` | この予想 | `predict`: WIN5 の日を予測する。`--budget`・`--min-value`・`--ordering` を受け取り、保存した式を読んで `Win5PredictionWorkflow` に渡す。結果は `Win5ForecastRecordRepository` で自動で記録する | `run(引数)` |
+| `PredictCommand` | この予想 | `predict`: WIN5 の日を予測する。`--judge-budget`・`--min-value`・`--small-budget`・`--large-budget`・`--favorite-product-line`・`--ordering` を受け取り、段階の予算（`BudgetTiers`）にして、保存した式を読んで `Win5PredictionWorkflow` に渡す。結果は `Win5ForecastRecordRepository` で自動で記録する | `run(引数)` |
 | `FormModelsArgument` | この予想 | `predict` の引数 `--form-models`（今のモデルの学習済みモデルの置き場所） | `add_to(parser)` |
-| `Win5ForecastTables` | この予想 | 予測の結果を、日のまとめ・選んだ買い目・対象レースごとの全頭の表・予算の候補ごとの表にする（下の「4.」） | `tables()` |
+| `Win5ForecastTables` | この予想 | 予測の結果を、日のまとめ（判断用の期待値・本命の確率の積・段階・代金）・買う買い目・対象レースごとの全頭の表・予算の候補ごとの表にする（下の「4.」） | `tables()` |
 | `CommonArguments` | `shared` | 共通の引数（`--db` `--format` `--out`。`--models` はこの予想では式と記録の置き場所で、下のフォルダを持たない既定（`models_folder=""`）で使う） | `add_to(parser)` |
 | `FigureCacheArgument` | `shared` | 今のモデルの予測に要る引数 `--figure-cache`（今のモデルのコマンドと同じ） | `add_to(parser)` |
 | `DevelopmentRootArgument` | `shared` | 今のモデルの予測に要る引数 `--development-root`（前日のモデルが使う、予想「展開から着順を予想」の置き場所。今のモデルのコマンドと同じ） | `add_to(parser)` |
@@ -167,12 +169,14 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | `fit-payout` | `--before 日` | この日より前の WIN5 で式を作る。既定は今日 |
 | `fit-payout` | 出す表 | 配当の見積もりの式の表（傾き・切片・外れの散らばり・使った回数） |
 | `predict` | `--date` | WIN5 の開催日（省略すると今日） |
-| `predict` | `--budget 点数` | 1回の予算（点数）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値 |
-| `predict` | `--min-value 期待値` | 買う日の線。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値 |
-| `predict` | `--ordering 並べ方` | 各レースの馬を選ぶ順（上乗せの順・1着の確率の順）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値。既定（予算・線も）は `formation/buying_defaults.py` に置く |
+| `predict` | `--judge-budget 点数` | 判断用の買い目の予算（点数。この買い目の日の期待値で買うか見送りかを決める）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値（50） |
+| `predict` | `--min-value 期待値` | 買う日の線（判断用の買い目の日の期待値がこの値以上なら買う）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値（1.25） |
+| `predict` | `--small-budget 点数`・`--large-budget 点数` | 少なく買う日・多く買う日の予算（点数）。省略すると 30・100（[15-decisions.md の 13](15-decisions.md#13-1回の予算段階の予算)）。見送りの日も少なく買う日の予算の買い目を参考に出す |
+| `predict` | `--favorite-product-line 確率` | 多く買う日の線（本命の確率の積がこの値以上なら多く買う）。省略すると 0.0025 |
+| `predict` | `--ordering 並べ方` | 各レースの馬を選ぶ順（上乗せの順・1着の確率の順）。省略すると、[16-evaluation.md の 4.](16-evaluation.md#4-買い目の組み方と買う日の線) で選んだ値。既定（判断用の予算・線・段階の予算も）は `formation/buying_defaults.py` に置く |
 | `predict` | `--figure-cache`・`--development-root` | 今のモデルの予測に要る置き場所。意味と既定は今のモデルのコマンドと同じ |
 | `predict` | `--odds`・`--timing` | 受け取らない。対象レースが5つあり、オッズは元DB の締め切り前のオッズを、時点はレースごとに選ぶ（[07-prediction-timing.md](07-prediction-timing.md#対象レースごとの確率の選び方)） |
-| `predict` | 出す表 | (1) 日のまとめ（キャリーオーバー・発売票数の見積もり・点数・金額・買い目のどれかが当たる確率・日の期待値・買う／見送り）、(2) 選んだ買い目（レースごとの馬番）、(3) 対象レースごとの全頭の表（馬番・馬名・使った時点・そろえた1着の確率・オッズから見た勝率・上乗せ・買い目に入れたか）、(4) 予算の候補ごとの、いちばん良い買い目の当たる確率と日の期待値 |
+| `predict` | 出す表 | (1) 日のまとめ（キャリーオーバー・発売票数の見積もり・判断用の買い目の日の期待値と線・本命の確率の積と多く買う日の線・判断（買う（多く）／買う（少なく）／見送り）・段階・予算・点数・代金・買い目のどれかが当たる確率・日の期待値）、(2) 買う買い目（レースごとの馬番。見送りの日は参考の買い目）、(3) 対象レースごとの全頭の表（馬番・馬名・使った時点・そろえた1着の確率・オッズから見た勝率・上乗せ・買い目に入れたか）、(4) 予算の候補ごとの、いちばん良い買い目の当たる確率と日の期待値（判断用・少なく買う日・多く買う日の予算に印） |
 | `predict` | 止まるとき | その日の WIN5 が元DB に無い（jvdata-store で速報の WIN5 を取り込む案内を出す）、対象レースのどれかに締め切り前のオッズが無い（速報のオッズを取り込む案内を出す）、配当の見積もりの式が無い（`fit-payout` を案内する）、今のモデルの学習済みモデルが無い（今のモデルの `train` を案内する） |
 
 ## 文書情報
@@ -185,3 +189,4 @@ src/yosou/form_aptitude_win5_tickets/       近走と適性からWIN5の買い�
 | 更新 | 2026-11-08: パッケージを作り、作りながら足したクラス（値を表すクラス・`LegRunnerRepository`・`Win5ScratchRepository`・`PayoutTrainingRows`・`FormModelsArgument` など）と引数 `--ordering` を表に入れた。`Win5HistoryRepository` は事実表でなく `se` から読む形にした |
 | 更新 | 2026-11-08: 「1.」の部品を移した。材料を作る部品 `MaterialAttachers` は、予想「展開から着順を予想」を使うので `shared` でなく `yosou.form_aptitude_materials` に置き、`shared` には決まり `FormAptitudeMaterials` を置いた。`--development-root` の引数を表に入れた |
 | 更新 | 2026-11-08: 道具「印の成績」の `--win5` を作り、`Win5LegRunnerHistoryRepository` と道具の側の分担を書いた。`predict` の既定を、探索期間で選んだ買い方にした |
+| 更新 | 2026-11-14: 段階の予算（15 の 13）の `FavoriteProduct`・`BudgetTiers`・`BudgetTierJudge` を足し、`DayBuyJudge` を外した。`Win5PredictionWorkflow`・`Win5Forecast`・`predict` の引数と出す表を段階の予算に合わせた |
