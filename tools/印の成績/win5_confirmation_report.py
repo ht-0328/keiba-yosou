@@ -24,9 +24,10 @@ class Win5ConfirmationReport:
         self._cells = Win5SummaryCells()
 
     def tables(self, summaries: dict[str, pd.DataFrame], labels: Sequence[str], chosen: str | None,
-               verdict: tuple[str, str] | None) -> list[Table]:
-        """``summaries`` は期間の名前 → その期間の成績（``Win5StrategySummary``）。``labels`` は並べる買い方（選んだ買い方と比べる相手）。
-        ``verdict`` は（判定, 理由）。選べる買い方が無ければ None。"""
+               verdict: tuple[str, str] | None, others: Sequence[tuple[str, tuple[str, str]]] = ()) -> list[Table]:
+        """``summaries`` は期間の名前 → その期間の成績（``Win5StrategySummary``）。``labels`` は並べる買い方（選んだ買い方・採用した段階の予算・
+        比べる相手）。``verdict`` は選んだ買い方の（判定, 理由）。選べる買い方が無ければ None。``others`` は判定の表に足す
+        （買い方, （判定, 理由））の並び（採用した段階の予算など）。"""
         rows = []
         for period, summary in summaries.items():
             by_label = summary.set_index(STRATEGY)
@@ -34,11 +35,13 @@ class Win5ConfirmationReport:
                 row = by_label.loc[label] if label in by_label.index else None
                 rows.append([period, label, *self._cells.cells(row)])
         note = ("確定オッズで確かめた値。実際に買うとき（締め切り前のオッズ）より良く出ることがある。払戻には返還の代金を含む。"
-                "比べる相手は毎回買う（キャリーオーバーの日だけの行は、その日だけ）。")
+                "比べる相手は毎回買う（キャリーオーバーの日だけの行は、その日だけ）。段階の予算は、判断用の買い目の日の期待値が線以上の日に、"
+                "多く買う日は多く買う日の予算、ほかは少なく買う日の予算の買い目を買う。")
         compared = Table(["期間", "買い方", *HEADERS], rows, title="WIN5 の選んだ買い方と比べる相手", note=note)
-        judged = Table(["選んだ買い方", "判定", "理由"], [self._verdict_row(chosen, verdict)], title="WIN5 の採用の判定（確認期間）",
+        judged_rows = [self._verdict_row(chosen, verdict), *([label, *each] for label, each in others)]
+        judged = Table(["買い方", "判定", "理由"], judged_rows, title="WIN5 の採用の判定（確認期間）",
                        note="基準（設計書 16 の 6.。結果を見る前に固定）: 確認期間で回収率と 90% の幅の下の端が 100% を超え、"
-                            "回収率が比べる相手 (1) ルール集の 240点・(2) 人気だけ（同じ予算）を上回る。")
+                            "回収率が比べる相手 (1) ルール集の 240点・(2) 人気だけ（同じ予算。段階の予算は判断用の予算）を上回る。")
         return [compared, judged]
 
     def _verdict_row(self, chosen: str | None, verdict: tuple[str, str] | None) -> list[str]:

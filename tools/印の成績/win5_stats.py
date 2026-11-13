@@ -1,4 +1,4 @@
-"""道具「印の成績」の ``--win5``: 過去の WIN5 で、40 通りの買い方と比べる相手を確かめ、表にする（流れを進めるだけ）。"""
+"""道具「印の成績」の ``--win5``: 過去の WIN5 で、40 通りの買い方・段階の予算の候補・比べる相手を確かめ、表にする（流れを進めるだけ）。"""
 
 from __future__ import annotations
 
@@ -36,7 +36,8 @@ from 印の成績.win5_backtest_day import Win5BacktestDay
 from 印の成績.win5_backtest_days import Win5BacktestDays
 from 印の成績.win5_confirmation_report import Win5ConfirmationReport
 from 印の成績.win5_coverage_report import Win5CoverageReport
-from 印の成績.win5_day_bets import CARRY_DAY, KIND, OURS, RULE, RULE_CARRY, STRATEGIES, Win5DayBets, popularity_label
+from 印の成績.win5_bet_columns import CARRY_DAY, KIND, OURS, TIERED
+from 印の成績.win5_day_bets import RULE, RULE_CARRY, STRATEGIES, Win5DayBets, popularity_label
 from 印の成績.win5_fold_estimators import Win5FoldEstimators
 from 印の成績.win5_payout_report import Win5PayoutReport
 from 印の成績.win5_periods import CONFIRM, EXPLORE, Win5Periods
@@ -46,6 +47,8 @@ from 印の成績.win5_record_bets import RECORDED, Win5RecordBets
 from 印の成績.win5_selection_report import Win5SelectionReport
 from 印の成績.win5_strategy_choice import Win5StrategyChoice
 from 印の成績.win5_strategy_summary import Win5StrategySummary
+from 印の成績.win5_tier_report import Win5TierReport
+from 印の成績.win5_tier_strategy import ADOPTED_TIER, TIER_JUDGE
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 #: WIN5 の予想の置き場所（実際の予想の記録 ``記録/`` がある）と、結果を書く場所の既定。
@@ -63,9 +66,11 @@ _CARRY_PERIOD = "キャリーオーバーの日（2019年から）"
 
 
 class Win5Stats:
-    """設計書「近走と適性からWIN5の買い目を決める」16 の 7.。区切りごとの予測と元DB の ``wf`` から、40 通りの買い方と比べる相手を精算し、
-    探索期間で決まりどおりに1つ選んで、確認期間で採用の基準に照らす。精算・組み方・配当の見積もりは、この予想のパッケージの部品を呼ぶ
-    （``Win5DayBets`` など）。数値は Git の対象外の ``reports/`` に出す。``records_root`` は実際の予想の記録（``記録/``）のある場所。
+    """設計書「近走と適性からWIN5の買い目を決める」16 の 7.。区切りごとの予測と元DB の ``wf`` から、40 通りの買い方・段階の予算の候補・比べる相手を
+    精算し、探索期間で決まりどおりに1つ選んで、確認期間で採用の基準に照らす。採用した段階の予算（``ADOPTED_TIER``。predict の既定と同じ）も、
+    選んだ買い方・比べる相手と同じ表に並べて判定し、段階の予算の候補は期間ごとの表（``Win5TierReport``）に出す。精算・組み方・配当の見積もりは、
+    この予想のパッケージの部品を呼ぶ（``Win5DayBets`` など）。数値は Git の対象外の ``reports/`` に出す。``records_root`` は実際の予想の記録
+    （``記録/``）のある場所。
 
     引数 ``--win5-budget`` で予算（点数）を渡すと、探索期間で選ぶ候補をその予算の買い方だけにする（利用者が予算を決めたとき、
     その予算の中で同じ決まりで選び直し、確認期間で1回だけ確かめる）。"""
@@ -106,7 +111,7 @@ class Win5Stats:
 
     def _settle(self, days: list[Win5BacktestDay], history: pd.DataFrame, estimators: dict[str, PayoutEstimator],
                 outcomes: dict[str, Win5Outcome]) -> pd.DataFrame:
-        """確かめる日ごとに、40 通りと比べる相手を精算した行（買った日だけ）。"""
+        """確かめる日ごとに、40 通り・段階の予算の候補・比べる相手を精算した行（買った日だけ）。"""
         bets = Win5DayBets(history)
         rows: list[dict[str, object]] = []
         for count, day in enumerate(days, start=1):
@@ -129,16 +134,18 @@ class Win5Stats:
         chosen = choice.choose(candidates)
         shown = chosen or choice.best(candidates) or STRATEGIES[0].label
         budget = next(strategy.budget for strategy in STRATEGIES if strategy.label == shown)
-        labels = [shown, RULE, RULE_CARRY, popularity_label(budget)]
+        labels = [shown, ADOPTED_TIER.label, RULE, RULE_CARRY, popularity_label(budget)]
         if (settled[STRATEGY] == RECORDED).any():
             labels.append(RECORDED)
         summaries = {period: summary.of(settled.loc[settled[PERIOD] == period]) for period in (EXPLORE, CONFIRM)}
         verdict = self._verdict(summaries[CONFIRM], chosen, budget) if chosen else None
+        tier_verdict = self._verdict(summaries[CONFIRM], ADOPTED_TIER.label, TIER_JUDGE.budget)
         compared = settled.loc[settled[STRATEGY].isin(labels)]
         carry = compared.loc[compared[CARRY_DAY].astype(bool)].assign(**{PERIOD: _CARRY_PERIOD})
         tables = [self._conditions(files, chosen, shown, record_note, budget_only), Win5CoverageReport().table(days, skipped)]
         tables += Win5SelectionReport().tables(explore_ours, chosen)
-        tables += Win5ConfirmationReport().tables(summaries, labels, chosen, verdict)
+        tables += Win5ConfirmationReport().tables(summaries, labels, chosen, verdict, [(ADOPTED_TIER.label, tier_verdict)])
+        tables.append(Win5TierReport().table(settled.loc[settled[KIND] == TIERED]))
         tables += Win5BacktestTables().tables(compared[list(SETTLED_COLUMNS)])
         if not carry.empty:
             carry_table = Win5BacktestTables().tables(carry[list(SETTLED_COLUMNS)])[0]
@@ -157,6 +164,7 @@ class Win5Stats:
         return summary.loc[summary[STRATEGY].isin(labels)]
 
     def _verdict(self, confirm: pd.DataFrame, chosen: str, budget: int) -> tuple[str, str]:
+        """``chosen`` の買い方を、比べる相手 (1) と (2)（``budget`` 点の人気だけ）に照らした判定。"""
         by_label = confirm.set_index(STRATEGY)
         if chosen not in by_label.index:
             return NOT_REACHED, "確認期間に、日の期待値が線以上の日が無く、1日も買わなかった"
@@ -171,6 +179,8 @@ class Win5Stats:
             ["配当の見積もり", "区切りごとに、テスト期間の始まりより前の WIN5 だけで作った式。発売票数はその日より前の回から見積もる"],
             ["選んだ買い方", (chosen or f"選べる買い方なし（表には探索期間でいちばん良かった {shown} を並べる）")
              + (f"（予算 {budget_only}点の買い方の中から選んだ）" if budget_only else "")],
+            ["段階の予算", f"買う日は判断用の買い目（{TIER_JUDGE.label}）の日の期待値が線以上の日。採用した決め方は {ADOPTED_TIER.rule_text}"
+                        "（predict の既定と同じ）。候補の一覧は「WIN5 の段階の予算の候補」の表（設計書 15 の 13）"],
             ["実際の予想", record_note],
         ]
         return Table(["項目", "内容"], rows, title="WIN5 の確かめの条件",
