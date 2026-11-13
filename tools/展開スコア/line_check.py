@@ -21,7 +21,7 @@ from 共通 import cli, db, render  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
 from yosou.development_score import DEFAULT_LINE, AdvantageRuns, DevelopmentRunRepository, ScoreHistory, names  # noqa: E402
-from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
+from yosou.shared.command import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 
 from line_tally import LineTally  # noqa: E402

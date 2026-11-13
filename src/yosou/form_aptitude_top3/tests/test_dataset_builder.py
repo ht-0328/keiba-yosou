@@ -18,8 +18,9 @@ from yosou.shared.dataset.column_names import FINISH
 from yosou.shared.feature import PredictionTiming
 from yosou.shared.tests import synthetic_season as season
 
-from ..dataset import TOP3, WIN, dataset_builder
-from ..feature import CATALOG
+from yosou.shared.dataset import TOP3, WIN
+from yosou.shared.dataset.form_aptitude_assembly import dataset_builder
+from yosou.shared.feature.form_aptitude_catalog import CATALOG
 
 #: 出馬表のレース（確定前なので DB にオッズが無い）に、手で渡す単勝オッズ。馬番が小さいほど人気。
 CARD_ODDS: dict[int, float] = {horse_no: 1.5 + horse_no for horse_no in range(1, 9)}

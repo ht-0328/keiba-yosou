@@ -13,7 +13,8 @@
 - 表3「馬の回顧ノート」: 不利のあった馬だけ。出遅れ（最初のコーナーの位置が近5走の平均より 0.4 以上後ろ）・展開が向かなかった
   （結果の脚質とペースで引いた表 G が −0.01 以下）・バイアスと逆（結果の位置で出したバイアスの補正が −0.02 以下）。どれも 4着以下の馬だけ。
   程度（小・中・大）は線をどれだけ超えたかで、中以上なら次走の扱いは「見直す」。
-- 表1「買い目の記録」: 今週の予想が買うレースを決めたときに書く行に、レースが終わったら払戻を書き足す（複勝・単勝）。
+- 表1「買い目の記録」: 今週の予想が買うレースを決めたときに書く行に、レースが終わったら払戻を書き足す（複勝・単勝・組の券種。
+  WIN5 は元DB の WIN5 の表の当たり組から。成績の版が入る月曜より後）。
 
 表3の判定に使う表 G と過去の傾きの表は、さかのぼって書くときはレースの年ごとに「その年より前のレース」で作る（学習データの材料と同じ決まり）。
 """
@@ -36,6 +37,7 @@ from yosou.review import DEFAULT_REVIEW_DB, ReviewStore, ReviewWorkflow, names  
 from 今週の予想.forecast_paces import ForecastPaces  # noqa: E402
 from 今週の予想.forecast_store import DEFAULT_FOLDER as FORECAST_FOLDER  # noqa: E402
 from 今週の予想.forecast_store import ForecastStore  # noqa: E402
+from 今週の予想.win5_bet_settler import Win5BetSettler  # noqa: E402
 
 #: さかのぼって書くときの最初の開催日（事実表の最初の年）。
 BACKFILL_FROM = date(2011, 1, 1)
@@ -49,9 +51,10 @@ def main(args) -> None:
     start = BACKFILL_FROM if args.backfill else args.date_from
     with db.open_db(args.db) as con:
         written = ReviewWorkflow(store).run(con, start, ForecastPaces(ForecastStore(args.forecasts)).table())
+        win5 = Win5BetSettler(store).settle(con)
     as_of = store.as_of()
     print(f"書き足しました: レースの回顧 {written[names.RACES_TABLE]:,} 行・馬の回顧ノート {written[names.HORSES_TABLE]:,} 行・"
-          f"精算した買い目 {written[names.BETS_TABLE]:,} 点（範囲は {as_of} まで）→ {store.path}", file=sys.stderr, flush=True)
+          f"精算した買い目 {written[names.BETS_TABLE] + win5:,} 点（うち WIN5 {win5:,} 点。範囲は {as_of} まで）→ {store.path}", file=sys.stderr, flush=True)
 
 
 def _views(store: ReviewStore, args) -> list[Table]:

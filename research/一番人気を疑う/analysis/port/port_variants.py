@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from 既存モデルの改善.analysis.variants import ModelVariant
 
-from yosou.form_aptitude_top3.feature import CATALOG, POOL_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import CATALOG, POOL_CATALOG
 from yosou.shared.feature import PredictionTiming
 
 from .port_tables import ABILITY_TABLE_CATALOG, ADDED_ABILITY_FEATURES

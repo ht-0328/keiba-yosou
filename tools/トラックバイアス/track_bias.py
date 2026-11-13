@@ -27,10 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import card, cli, db, race  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
-from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
+from yosou.shared.workflow import TimingChooser  # noqa: E402
 
 from yosou.development_score.repository import HORSE_NAME, HORSE_NO, EntryNameRepository  # noqa: E402
-from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
+from yosou.shared.command import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.track_bias import (  # noqa: E402
     DEFAULT_CACHE_FOLDER,

@@ -17,7 +17,8 @@ class BetRecorder:
     複勝のほかの買い目の参加の種類は、その1点の ``kind``（「勝負（単勝・馬単）」「勝負（組の期待値）」「勝負（穴馬の複勝）」。
     それぞれの財布から出す）。
 
-    同じレースの未精算の行は書き直す（前日の計画を当日に作り直したときに、古い買い目を残さない）。
+    同じレースの未精算の行は書き直す（前日の計画を当日に作り直したときに、古い買い目を残さない）。WIN5 の行（1レース目のレース ID で書く）は
+    ``Win5BetRecorder`` のものなので消さない。
     記録だけの行は作らない（今の決まりで買わない券種は記録もしない）。
     """
 
@@ -27,7 +28,8 @@ class BetRecorder:
     def record(self, plans: list[RacePlan], odds_at: str) -> int:
         rows = []
         for plan in plans:
-            self._store.delete(names.BETS_TABLE, f"{names.RACE_ID} = ? AND NOT {names.SETTLED}", [plan.rid])
+            self._store.delete(names.BETS_TABLE, f"{names.RACE_ID} = ? AND NOT {names.SETTLED} AND {names.TICKET_TYPE} <> ?",
+                               [plan.rid, names.WIN5_TICKET])
             day = date(int(plan.rid[:4]), int(plan.rid[4:6]), int(plan.rid[6:8]))
             if plan.kind != NO_BET:
                 rows += [self._row(plan.rid, day, plan.kind, TicketType.PLACE.label, f"{pick.horse_no:02d}", pick.yen, pick.probability,

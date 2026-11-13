@@ -27,18 +27,15 @@ from yosou.shared.repository.model_repository import SETTINGS_FILE
 from yosou.shared.win_value import WIN_VALUE
 from yosou.shared.tests import synthetic_season as season
 
-from ..command import CommandLine, predict_command
-from ..dataset import (
-    OddsInput,
-    OddsResolver,
-    PoolAvailability,
-    PoolFreeData,
-    ability_dataset_builder,
-    race_day_dataset_builder,
-)
-from ..feature import WIN_ODDS
+from yosou.race_development.workflow import DevelopmentPaceWorkflow
+from yosou.shared.dataset import OddsInput, OddsResolver, PoolAvailability, PoolFreeData
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder, race_day_dataset_builder
+from yosou.shared.feature.group import WIN_ODDS
+from yosou.shared.workflow import PROBABILITY, WIN_PROBABILITY, PredictionWorkflow
+from yosou.shared.workflow.form_aptitude_timings import FORM_TIMINGS, POOL_FREE_FOLDER, WIN_FOLDER
+
+from ..command import CommandLine
 from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import FORM_TIMINGS, POOL_FREE_FOLDER, PROBABILITY, WIN_FOLDER, WIN_PROBABILITY, PredictionWorkflow
 from .test_dataset_builder import CARD_ODDS
 
 #: 出馬表のレースに手で渡す単勝オッズ（``--odds`` の書き方）。
@@ -150,6 +147,19 @@ def test_prediction_averages_the_two_models(season_db: Path, trained: tuple[Path
     np.testing.assert_allclose(prediction[WIN_VALUE], prediction[WIN_PROBABILITY] * prediction[WIN_ODDS])
 
 
+def test_win_data_is_the_data_given_to_the_win_model(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
+    """``win_data`` は、``run`` の1着の確率と同じ材料・同じ基準（オッズから見た勝率のロジット）の予測用データ。"""
+    models, _ = trained
+    with db.open_db(season_db) as con:
+        workflow = _workflow(con, models, figure_cache)
+        given = OddsInput.of(CARD_ODDS_TEXTS)
+        data = workflow.win_data(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given)
+        prediction = workflow.run(season.CARD_RACE_ID, PredictionTiming.RACE_DAY, given)
+    assert len(data.features) == len(prediction) == 7
+    assert data.baseline is not None
+    np.testing.assert_allclose(data.baseline.probabilities().sum(), 1.0, rtol=0.2)
+
+
 def test_thursday_prediction_has_no_odds_column(season_db: Path, trained: tuple[Path, str], figure_cache: Path):
     models, _ = trained
     with db.open_db(season_db) as con:
@@ -225,7 +235,7 @@ def test_command_predicts_a_race_by_date_venue_and_number(season_db: Path, train
                                                           monkeypatch: pytest.MonkeyPatch):
     models, _ = trained
     # 展開のモデルは合成DB では学べないので、展開の予測は予測の無い表にする（P は欠損値）
-    monkeypatch.setattr(predict_command.DevelopmentPaceWorkflow, "run", lambda self, con, race_id, timing, given: pd.DataFrame())
+    monkeypatch.setattr(DevelopmentPaceWorkflow, "run", lambda self, con, race_id, timing, given: pd.DataFrame())
     code = _run_command([
         "predict", "--date", "2025-01-11", "--venue", "東京", "--race", "2", "--timing", "木曜",
         "--figure-cache", str(figure_cache), "--db", str(season_db), "--models", str(models), "--format", "csv",

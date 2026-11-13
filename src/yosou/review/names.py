@@ -17,6 +17,11 @@ BOUGHT_PROBABILITY, BOUGHT_VALUE, BOUGHT_ODDS, ODDS_AT, PAYOUT_YEN, SETTLED = "�
 MATCH, POLICY_STAKES, POLICY_DAY, MATCH_WIN = "勝負", "ノルマ（重賞）", "ノルマ（日）", "勝負（単勝・馬単）"
 MATCH_COMBO = "勝負（組の期待値）"
 MATCH_LONGSHOT = "勝負（穴馬の複勝）"
+#: ポリシー（WIN5）は、予想「近走と適性からWIN5の買い目を決める」で日の期待値が線以上の日に買う WIN5（楽しむための参加費。ポリシー用の財布から）。
+#: 1日1行で、レース ID は1レース目、買い目はフォーメーション（``3,5/6/...`` の形。レースごとの馬番を「/」で区切る）。
+POLICY_WIN5 = "ポリシー（WIN5）"
+#: WIN5 の券種の名前（表1の券種の列）。払戻は事実表ではなく元DB の WIN5 の表から入れる（道具「今週の予想」の ``Win5BetSettler``）。
+WIN5_TICKET = "WIN5"
 
 #: 表2「レースの回顧」の列。
 FORECAST_PACE, FORECAST_HIGH, FORECAST_SLOW = "予想のペース", "予想のハイの確率", "予想のスローの確率"

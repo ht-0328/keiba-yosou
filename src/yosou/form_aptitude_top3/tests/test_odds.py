@@ -12,7 +12,7 @@ import pytest
 
 from yosou.shared.tests import synthetic_season as season
 
-from ..dataset import OddsInput, OddsResolver
+from yosou.shared.dataset import OddsInput, OddsResolver
 
 RACE = season.CARD_RACE_ID
 

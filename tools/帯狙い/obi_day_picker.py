@@ -16,7 +16,7 @@ from yosou.upset_premise.selection import BigPayoutChance, RaceSelectionScore
 
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.race_forecaster import RaceForecaster
-from 今週の予想.timing_chooser import TimingChooser
+from yosou.shared.workflow import TimingChooser
 from 帯狙い.announced_combo_odds import AnnouncedComboOdds
 from 帯狙い.forecast_horses import ForecastHorses
 

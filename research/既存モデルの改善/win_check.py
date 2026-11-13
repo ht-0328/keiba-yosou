@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from yosou.form_aptitude_top3.dataset import WinTargetData  # noqa: E402
+from yosou.shared.dataset import WinTargetData  # noqa: E402
 from yosou.form_aptitude_top3.setting import DEFAULT_SETTINGS_PATH  # noqa: E402
 from yosou.shared.setting import HyperparameterSettings  # noqa: E402
 

@@ -16,18 +16,22 @@ SETTINGS_FILE = "設定.json"
 WEBHOOK_ENV = "KEIBA_DISCORD_WEBHOOK"
 #: 発走の何分前に取り込みと予想を始めるか（既定）。10分前のオッズ ≒ 確定オッズ を前提にしているので前倒ししない。
 DEFAULT_MINUTES_BEFORE = 10
+#: WIN5 の取り込みと予想を、1レース目の発走の何分前に始めるか（既定）。WIN5 の予想は 3〜6 分かかるので、レースより前に始める。
+DEFAULT_WIN5_MINUTES_BEFORE = 25
 
 
 @dataclass(frozen=True)
 class NotifySettings:
-    """ウェブフック URL と、発走の何分前に始めるか。
+    """ウェブフック URL と、発走の何分前に始めるか（WIN5 は1レース目の発走の何分前に始めるか）。
 
-    設定ファイル ``reports/発走前の通知/設定.json``（``{"webhook_url": "https://discord.com/api/webhooks/…", "minutes_before": 10}``）
-    から読む。URL は環境変数 ``KEIBA_DISCORD_WEBHOOK`` があればそちら。無ければ空（投稿するときに ``require_webhook`` で止める）。
+    設定ファイル ``reports/発走前の通知/設定.json``（``{"webhook_url": "https://discord.com/api/webhooks/…", "minutes_before": 10,
+    "win5_minutes_before": 25}``。分の2つは省略できる）から読む。URL は環境変数 ``KEIBA_DISCORD_WEBHOOK`` があればそちら。
+    無ければ空（投稿するときに ``require_webhook`` で止める）。
     """
 
     webhook_url: str = ""
     minutes_before: int = DEFAULT_MINUTES_BEFORE
+    win5_minutes_before: int = DEFAULT_WIN5_MINUTES_BEFORE
 
     @classmethod
     def load(cls, folder: Path = DEFAULT_FOLDER, environ: Mapping[str, str] | None = None) -> NotifySettings:
@@ -35,7 +39,8 @@ class NotifySettings:
         path = folder / SETTINGS_FILE
         data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
         url = environ.get(WEBHOOK_ENV) or str(data.get("webhook_url") or "")
-        return cls(url, int(data.get("minutes_before") or DEFAULT_MINUTES_BEFORE))
+        return cls(url, int(data.get("minutes_before") or DEFAULT_MINUTES_BEFORE),
+                   int(data.get("win5_minutes_before") or DEFAULT_WIN5_MINUTES_BEFORE))
 
     def require_webhook(self, folder: Path = DEFAULT_FOLDER) -> str:
         """ウェブフック URL。無ければ、どこに書けばよいかを添えて ``FileNotFoundError``。"""

@@ -37,6 +37,17 @@ def test_発走前は開催日単位の速報5種類とそのレースのオッ�
     assert run.commands[0][-2:] == ["--db", "x.duckdb"]
 
 
+def test_WIN5の前は速報のWIN5と開催日単位の速報と対象レースのオッズ() -> None:
+    run = _Run()
+    fetcher = _fetcher(run)
+    fetcher.fetch_win5("2025-04-20")
+    fetcher.fetch_races("2025-04-20", ("2025042005010210", "2025042008010210"))
+    assert [(command[5], command[7], command[9]) for command in run.commands] == [
+        ("rt", "0B51", "20250420"), ("rt", "0B15", "20250420"), ("rt", "0B14", "20250420"), ("rt", "0B11", "20250420"),
+        ("rt", "0B13", "20250420"), ("rt", "0B17", "20250420"), ("rt", "0B30", "2025042005010210"), ("rt", "0B30", "2025042008010210"),
+    ]
+
+
 def test_朝は出馬表とその日の速報() -> None:
     run = _Run()
     logs: list[str] = []

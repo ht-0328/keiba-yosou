@@ -42,6 +42,10 @@ class ComboValuePicker:
     3連単の板か、その券種の板か、重みが無い券種は 0点。◎の期待値 1.00 以上のレースだけのルールは、ほかのレースの組を落とし、
     ◎ を含む組だけのルールは ◎ を含まない組（馬単・3連単は ◎ が1着でない組）を落とす。レースの条件（``race_conditions``）のあるルールは、
     条件のどれかに合わないレース（中身は ``ComboRaceTraits``）の組を落とす。1レースの点数の上限があれば、組の期待値の高い順に残す。
+
+    2段に分かれている。``candidates`` は印と消に依らない段（確率と板から、線以上・上限以下の組を出す）、``select`` は印と消で決まる段
+    （◎の期待値の帯・◎ を含む組・レースの条件・点数で絞る）。``pick`` はその2段を続けて行う。消の決め方を替えて比べるときは、
+    ``candidates`` を1回だけ作って ``select`` を繰り返せる。
     """
 
     def __init__(self, rules: tuple[ComboValueRule, ...], weights: dict[TicketType, ComboBlendWeights]) -> None:
@@ -56,32 +60,42 @@ class ComboValuePicker:
         rolling = {rule.ticket_type for rule in self._rules if rule.rolling}
         return ComboValuePicker(self._rules, {**self._weights, **{key: value for key, value in weights.items() if key in rolling}})
 
+    @property
+    def rules(self) -> tuple[ComboValueRule, ...]:
+        """買い目のルール（``candidates`` の並びと同じ順）。"""
+        return self._rules
+
     def needed(self) -> tuple[TicketType, ...]:
         """読むオッズの板の券種（ルールの券種と、組の確率のもとになる3連単）。重みの無い券種は読まない。"""
         wanted = [rule.ticket_type for rule in self._rules if rule.ticket_type in self._weights]
         return tuple(dict.fromkeys([*wanted, TicketType.TRIFECTA])) if wanted else ()
 
     def pick(self, marked: pd.DataFrame, boards: dict[TicketType, pd.DataFrame]) -> pd.DataFrame:
-        trifecta = boards.get(TicketType.TRIFECTA)
-        if marked.empty or trifecta is None or trifecta.empty:
+        candidates = self.candidates(marked, boards)
+        if not candidates:
             return pd.DataFrame(columns=list(COLUMNS))
-        strength = HorseStrength().of(marked)
-        sources = TrifectaSources().of(split_combo(trifecta, 3), strength)
-        races = self._races(marked)
-        parts = [self._rule_tickets(rule, boards.get(rule.ticket_type), sources, strength, races) for rule in self._rules]
+        races = self.races(marked)
+        parts = [self.select(rule, candidate, races) for rule, candidate in zip(self._rules, candidates, strict=True)]
         parts = [part for part in parts if not part.empty]
         return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=list(COLUMNS))
 
-    def _rule_tickets(self, rule: ComboValueRule, board: pd.DataFrame | None, sources: pd.DataFrame, strength: pd.DataFrame,
-                      races: pd.DataFrame) -> pd.DataFrame:
-        weights = self._weights.get(rule.ticket_type)
-        if weights is None or board is None or board.empty:
+    def candidates(self, horses: pd.DataFrame, boards: dict[TicketType, pd.DataFrame]) -> list[pd.DataFrame]:
+        """印と消に依らない段。ルールごと（``rules`` の順）に、組の期待値が線以上でオッズが上限以下の組
+        （列 ``race_id``・``combo``・``h1``〜・``odds``・``value``）。``horses`` は1行 = 1頭の表（確率と市場の見立ての列だけ使う。印の列は見ない）。
+        3連単の板が無いか表が空なら空の一覧。重みや板の無いルールは空の表。"""
+        trifecta = boards.get(TicketType.TRIFECTA)
+        if horses.empty or trifecta is None or trifecta.empty:
+            return []
+        strength = HorseStrength().of(horses)
+        sources = TrifectaSources().of(split_combo(trifecta, 3), strength)
+        return [self._candidates_of(rule, boards.get(rule.ticket_type), sources, strength) for rule in self._rules]
+
+    def select(self, rule: ComboValueRule, candidates: pd.DataFrame, races: pd.DataFrame) -> pd.DataFrame:
+        """印と消で決まる段。``candidates``（``candidates`` の1つ）を、``races``（``races`` の戻り値）で絞って買い目の形にする。
+        ◎の期待値 1.00 以上のレースだけのルール・◎ を含む組だけのルール・レースの条件・1レースの点数の上限を当てる。"""
+        if candidates.empty:
             return pd.DataFrame()
-        folded = self._folding.fold(rule.ticket_type, sources, [MARKET, HARVILLE])
-        features = self._features.build(rule.ticket_type, board, folded, strength)
-        valued = self._blend.of(rule.ticket_type, features, weights)
-        chosen = valued[(valued[VALUE] >= rule.value_line) & (valued["odds"] <= rule.odds_cap)]
-        chosen = chosen.merge(races, on="race_id", how="inner")
+        chosen = candidates.merge(races, on="race_id", how="inner")
         if rule.scope in (HIGH_RACES, HIGH_TOP_COMBOS):
             chosen = chosen[chosen[WIN_VALUE_BAND] == HIGH]
         if rule.scope in (TOP_COMBOS, HIGH_TOP_COMBOS):
@@ -92,15 +106,8 @@ class ComboValuePicker:
             chosen = chosen[chosen.groupby("race_id")[VALUE].rank(ascending=False, method="first") <= rule.max_points]
         return chosen.assign(**{RULE: rule.label, "ticket_type": rule.ticket_type.label, "stake_units": rule.stake_units})[list(COLUMNS)]
 
-    def _has_top(self, ticket_type: TicketType, chosen: pd.DataFrame) -> pd.Series:
-        """◎ を含む組か（着順を区別する券種は ◎ が1着の組か）。"""
-        if ticket_type.spec.is_ordered:
-            return chosen["h1"] == chosen[_TOP]
-        names = ("h1", "h2", "h3")[:ticket_type.spec.horse_count]
-        return chosen[list(names)].eq(chosen[_TOP], axis=0).any(axis=1)
-
-    def _races(self, marked: pd.DataFrame) -> pd.DataFrame:
-        """1行 = 1レースの、買い目に写す列と ◎ の馬番（印が無ければ欠損）と、レースの中身（``ComboRaceTraits``）。"""
+    def races(self, marked: pd.DataFrame) -> pd.DataFrame:
+        """1行 = 1レースの、買い目に写す列と ◎ の馬番（印が無ければ欠損）と、レースの中身（``ComboRaceTraits``）。``select`` に渡す。"""
         first = marked.groupby("race_id", sort=False).first().reset_index()
         columns = {name: (first[name] if name in first.columns else np.nan) for name in _RACE_COLUMNS}
         races = pd.DataFrame(columns, index=first.index)
@@ -111,3 +118,19 @@ class ComboValuePicker:
         for flag in (AGREEMENT, POOL_BACKED):
             races[flag] = races[flag].fillna(False).astype(bool)
         return races.merge(ComboRaceTraits().of(marked), on="race_id", how="left")
+
+    def _candidates_of(self, rule: ComboValueRule, board: pd.DataFrame | None, sources: pd.DataFrame, strength: pd.DataFrame) -> pd.DataFrame:
+        weights = self._weights.get(rule.ticket_type)
+        if weights is None or board is None or board.empty:
+            return pd.DataFrame()
+        folded = self._folding.fold(rule.ticket_type, sources, [MARKET, HARVILLE])
+        features = self._features.build(rule.ticket_type, board, folded, strength)
+        valued = self._blend.of(rule.ticket_type, features, weights)
+        return valued[(valued[VALUE] >= rule.value_line) & (valued["odds"] <= rule.odds_cap)]
+
+    def _has_top(self, ticket_type: TicketType, chosen: pd.DataFrame) -> pd.Series:
+        """◎ を含む組か（着順を区別する券種は ◎ が1着の組か）。"""
+        if ticket_type.spec.is_ordered:
+            return chosen["h1"] == chosen[_TOP]
+        names = ("h1", "h2", "h3")[:ticket_type.spec.horse_count]
+        return chosen[list(names)].eq(chosen[_TOP], axis=0).any(axis=1)

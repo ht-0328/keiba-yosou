@@ -15,6 +15,9 @@ def test_設定ファイルから読む(tmp_path: Path) -> None:
     settings = NotifySettings.load(tmp_path, environ={})
     assert settings.require_webhook(tmp_path) == "https://example.invalid/hook"
     assert settings.minutes_before == 12
+    assert settings.win5_minutes_before == 25
+    (tmp_path / SETTINGS_FILE).write_text(json.dumps({"win5_minutes_before": 30}), encoding="utf-8")
+    assert NotifySettings.load(tmp_path, environ={}).win5_minutes_before == 30
 
 
 def test_環境変数が設定ファイルより優先(tmp_path: Path) -> None:

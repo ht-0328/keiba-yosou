@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from yosou.form_aptitude_top3.dataset import ability_dataset_builder as form_ability_builder
-from yosou.form_aptitude_top3.dataset import race_day_dataset_builder as form_race_day_builder
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG as FORM_ABILITY_CATALOG
-from yosou.form_aptitude_top3.feature import RACE_DAY_CATALOG as FORM_RACE_DAY_CATALOG
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder as form_ability_builder
+from yosou.shared.dataset.form_aptitude_assembly import race_day_dataset_builder as form_race_day_builder
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG as FORM_ABILITY_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import RACE_DAY_CATALOG as FORM_RACE_DAY_CATALOG
 from yosou.stakes_tendency_top3.dataset import ability_dataset_builder as stakes_ability_builder
 from yosou.stakes_tendency_top3.dataset import race_day_dataset_builder as stakes_race_day_builder
 from yosou.stakes_tendency_top3.feature import ABILITY_CATALOG as STAKES_ABILITY_CATALOG

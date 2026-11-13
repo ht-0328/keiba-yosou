@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import db  # noqa: E402
 
 from yosou.development_score import DEVELOPMENT_SCORE_NAMES, AdvantageRuns, DevelopmentRunRepository  # noqa: E402
-from yosou.form_aptitude_top3.dataset import WinTargetData  # noqa: E402
+from yosou.shared.dataset import WinTargetData  # noqa: E402
 from yosou.form_aptitude_top3.setting import DEFAULT_SETTINGS_PATH  # noqa: E402
 from yosou.race_development.workflow import PaceForecastHistory  # noqa: E402
 from yosou.shared.dataset import WIN  # noqa: E402

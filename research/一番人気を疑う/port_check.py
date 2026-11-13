@@ -5,7 +5,7 @@
     uv run python research/一番人気を疑う/port_check.py run --variants pool-race_day  # 1つだけ
     uv run --with tabulate python research/一番人気を疑う/port_check.py summary      # 時点ごとの採否と、◎と1番人気の表を書く
 
-学習データは予想のパッケージ（``src/yosou/form_aptitude_top3``）の ``pool_dataset_builder``・``ability_dataset_builder`` で作る。
+学習データは今のモデルの組み立て（``src/yosou/shared/dataset/form_aptitude_assembly.py``）の ``pool_dataset_builder``・``ability_dataset_builder`` で作る。
 区切りと区切りごとの学習（LightGBM と CatBoost。ハイパーパラメータは予想の初期値）は研究「既存モデルの改善」のもの。
 出るもの（Git 対象外）: ``reports/一番人気を疑う/移したあとの確かめ/`` の ``tables/``・``predictions/``・``結果.md``。
 学習は、同じマシンのほかの学習とぶつからないように1つずつ走らせ、Windows では P コア（論理 CPU 0〜11）に絞る。

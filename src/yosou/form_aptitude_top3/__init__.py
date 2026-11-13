@@ -5,18 +5,17 @@
 （木曜・前日は馬の力の材料、当日は今の材料に券種ごとのオッズから見た支持を足したもの。設計書 07）。
 
 データを読む・特徴量を作る・学習する・予測するクラスは、ほかの予想と共通で ``yosou.shared``（設計書 04）。
-ここには、この予想だけの決めごとと、それを渡してほかを呼ぶところを置く。
+この予想の予測は、道具「今週の予想」と予想「近走と適性からWIN5の買い目を決める」も同じ部品で出すので、特徴量の一覧
+（``shared/feature/form_aptitude_catalog.py``）・``DatasetBuilder`` の組み立て（``shared/dataset/form_aptitude_assembly.py``）・
+時点の並び（``shared/workflow/form_aptitude_timings.py``）・予測の流れの組み立て（``FormAptitudePrediction``）も ``yosou.shared`` にある。
+予測用データに足す材料（P・S・T・U・V）を作る部品は ``yosou.form_aptitude_materials``。ここには、コマンドと初期値のファイルだけを置く。
 
 | フォルダ | 中身 |
 |---|---|
 | ``command/`` | コマンド（train・predict）の引数。入口 |
-| ``workflow/`` | 予測の流れ（ほかを順に呼ぶだけ）と、予測を出す時点 |
-| ``dataset/`` | 入れる行の選び方と、共通の ``DatasetBuilder`` の組み立て（目的変数「3着以内」は穴馬の予想と共通なので ``yosou.shared``） |
-| ``feature/`` | この予想の特徴量の一覧（今の材料 ``CATALOG``・券種の支持を足した ``POOL_CATALOG``・馬の力の材料 ``ABILITY_CATALOG``） |
 | ``setting/`` | ハイパーパラメータの初期値のファイル |
 | ``tests/`` | この予想の組み立てのテスト（共通の部品のテストは ``yosou.shared.tests``） |
 
 決まり: 1ファイルに1クラス。1クラスに1つの仕事。SQL は ``yosou.shared.repository`` だけ。
-参照の向きは上から下へ一方向（``command`` → ``workflow`` → ``dataset`` → ``feature``）。
-``yosou.shared`` は参照してよいが、``yosou.shared`` からここを参照しない。
+参照の向きは一方向（``command`` → ``setting``）。``yosou.shared``・``yosou.form_aptitude_materials`` は参照してよいが、そちらからここを参照しない。
 """

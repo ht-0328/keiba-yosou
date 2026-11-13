@@ -9,6 +9,7 @@ from typing import Any
 
 from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.race_plan import RacePlan
+from 今週の予想.win5_plan import Win5Plan
 
 #: 1日の計画のファイル名。
 PLAN_FILE = "plan.json"
@@ -16,15 +17,17 @@ PLAN_FILE = "plan.json"
 
 class PlanStore:
     """1開催日の計画を ``<置き場所>/<開催日>/plan.json`` に書き、各レースの結果の JSON にも ``plan``（参加の種類・理由・買い目・金額）を書き足す
-    （画面の「今週の予想」タブが、レースの一覧と1レースの頭に出す）。"""
+    （画面の「今週の予想」タブが、レースの一覧と1レースの頭に出す）。WIN5 の日は、WIN5 の買う計画（``Win5Plan``）を ``win5`` に書く。"""
 
     def __init__(self, forecasts: ForecastStore) -> None:
         self._forecasts = forecasts
 
-    def save(self, day: date, plans: list[RacePlan], wallet: dict[str, Any]) -> Path:
+    def save(self, day: date, plans: list[RacePlan], wallet: dict[str, Any], win5: Win5Plan | None = None) -> Path:
         folder = self._forecasts.folder / day.isoformat()
         folder.mkdir(parents=True, exist_ok=True)
         payload = {"date": day.isoformat(), "wallet": wallet, "races": [plan.to_dict() for plan in plans]}
+        if win5 is not None:
+            payload["win5"] = win5.to_dict()
         path = folder / PLAN_FILE
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
         for plan in plans:

@@ -4,6 +4,8 @@
     uv run python tools/発走前の通知/notify.py                       # 今日。朝の準備（出馬表・速報の取り込み・全レースの予想）のあと、発走10分前ごとに通知
     uv run python tools/発走前の通知/notify.py --date 2026-11-08     # その日
     uv run python tools/発走前の通知/notify.py --rid 2026110105041101   # そのレースだけ今すぐ（取り込み → 予想 → 投稿）
+    uv run python tools/発走前の通知/notify.py --win5 --date 2026-11-08  # その日の WIN5 だけ今すぐ（取り込み → 元DB の写しで WIN5 の予想 → 投稿）
+    uv run python tools/発走前の通知/notify.py --no-win5             # WIN5 を飛ばす（レースの通知だけ）
     uv run python tools/発走前の通知/notify.py --test                # 短い文を投稿して、ウェブフックがつながるかを確かめる
     uv run python tools/発走前の通知/notify.py --dry-run             # Discord に投稿せず標準出力に出す
     uv run python tools/発走前の通知/notify.py --no-prepare          # 朝の準備を飛ばす（週末の予想を済ませてあるとき）
@@ -18,6 +20,11 @@
 （係数 reports/地方の推奨買目/係数.json が要る。無ければ tools/地方の推奨買目/fit.py で当てはめる）。朝の全レースの予想は無く、
 馬体重が届く前のレースは前日の時点（オッズだけ）で予想する。
 取り込みと予想に 1〜2分かかるので、通知は発走の 8〜9分前に届く。
+中央は、WIN5 のある日（元DB に速報の WIN5 0B51 がある日。無ければ朝に1回だけ jvstore rt で取り込んで探す）に、1レース目の発走の 25分前
+（設定ファイルの win5_minutes_before で変えられる）に、速報の WIN5 と対象レースのオッズを取り込んで元DB の写しを作り（合わせて 20 秒ほど）、
+WIN5 の予想（予想「近走と適性からWIN5の買い目を決める」の predict。3〜6分）は写しに向けて裏の処理で動かす。レースの通知は待たずに続け、
+予想が終わったら、買う／見送り・買い目・当たる確率・日の期待値を投稿する（1レース目の発走の 15〜20分前に届く。発走時刻までに終わらなければ投稿せずに知らせる）。
+WIN5 の予算と線は、予想のパッケージの formation/buying_defaults.py の既定（ここでは変えない）。WIN5 が失敗しても、ほかのレースの通知は続ける。
 ダブルクリックなら同じフォルダの run.bat。毎日自動で動かすなら register_task.bat（中央は 8:30、地方は 8:35 の2つのタスク。解除は unregister_task.bat）。
 """
 
@@ -32,7 +39,7 @@ HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE.parents[0])]
 
 from 発走前の通知.console_poster import ConsolePoster  # noqa: E402
-from 発走前の通知.day_notifier import DayNotifier, Schedule  # noqa: E402
+from 発走前の通知.day_notifier import DayNotifier, Schedule, Win5  # noqa: E402
 from 発走前の通知.discord_webhook import DiscordWebhook  # noqa: E402
 from 発走前の通知.notifier_parts import NotifierParts  # noqa: E402
 from 発走前の通知.notify_settings import NotifySettings  # noqa: E402
@@ -51,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-sync", action="store_true", help="出馬表の取り込み（jvstore sync）を飛ばす")
     parser.add_argument("--minutes", type=int, help="発走の何分前に取り込みと予想を始めるか（既定: 設定ファイルの値か 10）")
     parser.add_argument("--local", action="store_true", help="地方競馬で動かす（nvdata-store の速報と地方の予想モデル）")
+    parser.add_argument("--win5", action="store_true", help="その日の WIN5 だけを今すぐ通知する（中央だけ）")
+    parser.add_argument("--no-win5", action="store_true", help="WIN5 を飛ばす（レースの通知だけ）")
     return parser
 
 
@@ -64,11 +73,26 @@ def main() -> int:
         return 0
     day = args.date or (f"{args.rid[:4]}-{args.rid[4:6]}-{args.rid[6:8]}" if args.rid else date.today().isoformat())
     parts = NotifierParts.local() if args.local else NotifierParts.jra()
+    win5 = None if args.no_win5 else parts.win5
     notifier = DayNotifier(minutes_before=args.minutes or settings.minutes_before, schedule=parts.schedule, fetcher=parts.fetcher,
-                           runner=parts.runner, message=parts.message, poster=poster, store=parts.store, sync=not args.no_sync)
+                           runner=parts.runner, message=parts.message, poster=poster, store=parts.store, sync=not args.no_sync,
+                           win5=win5, win5_minutes=settings.win5_minutes_before)
+    if args.win5:
+        return _notify_win5(notifier, win5, day)
     if args.rid:
         return _notify_one(notifier, parts.schedule, day, args.rid)
     return notifier.run(day, prepare=not args.no_prepare)
+
+
+def _notify_win5(notifier: DayNotifier, win5: Win5 | None, day: str) -> int:
+    if win5 is None:
+        print("WIN5 は中央の通知だけが扱います（--local・--no-win5 とは一緒に使えません）", file=sys.stderr)
+        return 1
+    slot = win5.slot(day)
+    if slot is None:
+        print(f"{day} の WIN5 が元DB にありません（WIN5 の無い日か、速報の WIN5 の取り込みがまだ）", file=sys.stderr)
+        return 1
+    return 0 if notifier.notify_win5(slot) else 1
 
 
 def _notify_one(notifier: DayNotifier, schedule: Schedule, day: str, rid: str) -> int:

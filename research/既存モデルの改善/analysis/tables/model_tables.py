@@ -6,8 +6,8 @@ from datetime import date
 
 from yosou.favorites_out_of_top3.dataset import dataset_builder as favorites_builder
 from yosou.favorites_out_of_top3.feature import CATALOG as FAVORITES_CATALOG
-from yosou.form_aptitude_top3.dataset import dataset_builder as form_builder
-from yosou.form_aptitude_top3.feature import CATALOG as FORM_CATALOG
+from yosou.shared.dataset.form_aptitude_assembly import dataset_builder as form_builder
+from yosou.shared.feature.form_aptitude_catalog import CATALOG as FORM_CATALOG
 from yosou.longshots_in_top3.dataset import dataset_builder as longshots_builder
 from yosou.longshots_in_top3.feature import CATALOG as LONGSHOTS_CATALOG
 from yosou.shared.dataset import TrainingPeriod

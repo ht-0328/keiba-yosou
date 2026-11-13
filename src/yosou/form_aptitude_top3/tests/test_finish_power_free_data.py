@@ -9,8 +9,10 @@ from 共通 import db
 from yosou.shared.dataset import WIN, TrainingPeriod
 from yosou.shared.feature import PredictionTiming
 
-from ..dataset import FinishPowerFreeData, PoolFreeData, WinTargetData, race_day_dataset_builder
-from ..feature import FINISH_POWER_NAMES, RACE_DAY_CATALOG, RACE_DAY_WIN_CATALOG
+from yosou.shared.dataset import FinishPowerFreeData, PoolFreeData, WinTargetData
+from yosou.shared.dataset.form_aptitude_assembly import race_day_dataset_builder
+from yosou.shared.feature import FINISH_POWER_NAMES
+from yosou.shared.feature.form_aptitude_catalog import RACE_DAY_CATALOG, RACE_DAY_WIN_CATALOG
 from .test_dataset_builder import CARD_ODDS
 
 

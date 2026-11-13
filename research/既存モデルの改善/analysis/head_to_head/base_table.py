@@ -8,8 +8,8 @@ from datetime import date
 
 import duckdb
 
-from yosou.form_aptitude_top3.dataset import ability_dataset_builder, race_day_dataset_builder
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, RACE_DAY_CATALOG
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder, race_day_dataset_builder
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG, RACE_DAY_CATALOG
 from yosou.shared.dataset import DatasetBuilder, TrainingPeriod
 from yosou.shared.feature import HEAD_TO_HEAD_FEATURES, FeatureCatalog
 

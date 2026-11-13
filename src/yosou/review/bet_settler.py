@@ -25,6 +25,7 @@ class BetSettler:
     馬単のような組の券種の払戻は、``con`` を渡したときに払戻の明細（``PayoutRepository``）から読み、金額 ÷ 100 を掛けて円にする。
     組の券種は、レースが終わっていて組の馬が全部走っていれば明細の払戻（無ければ外れで 0）、組の馬に取消・除外がいれば返還（金額をそのまま戻す）。
     枠連は組番が枠の番号なので、組の枠のどれかに走った馬が1頭もいなければ（その枠の馬が全部取消・除外）返還、そうでなければ明細の払戻。
+    WIN5（ポリシー（WIN5））の行は飛ばす（払戻は元DB の WIN5 の表にあるので、道具「今週の予想」の ``Win5BetSettler`` が入れる）。
     """
 
     def __init__(self, store: ReviewStore) -> None:
@@ -52,7 +53,9 @@ class BetSettler:
 
     def _settled_row(self, bet: pd.Series, by_key: pd.DataFrame, combo_races: set[str],
                      combos: dict[tuple[str, str, str], float], paid: set[tuple[str, str]]) -> dict | None:
-        """1点を精算した行。レースが終わっていない・払戻がまだ無ければ None。"""
+        """1点を精算した行。レースが終わっていない・払戻がまだ無ければ None。WIN5 はここでは精算しない（None）。"""
+        if str(bet[names.TICKET_TYPE]) == names.WIN5_TICKET:
+            return None
         ticket_type = ticket_kind(str(bet[names.TICKET_TYPE]))
         key = (str(bet[names.RACE_ID]), str(bet[names.COMBO]))
         if ticket_type in _SINGLE_HORSE_TICKETS:
@@ -94,7 +97,8 @@ class BetSettler:
 
     def _combo_payouts(self, con: duckdb.DuckDBPyConnection, pending: pd.DataFrame) -> dict[tuple[str, str, str], float]:
         """（券種, レース, 組番）→ 100円あたりの払戻。未精算の組の券種の開催日の範囲だけ読む。同着で払戻が複数ある組は足す。"""
-        combo_bets = pending[~pending[names.TICKET_TYPE].isin([ticket_type.label for ticket_type in _SINGLE_HORSE_TICKETS])]
+        skipped = [ticket_type.label for ticket_type in _SINGLE_HORSE_TICKETS] + [names.WIN5_TICKET]
+        combo_bets = pending[~pending[names.TICKET_TYPE].isin(skipped)]
         found: dict[tuple[str, str, str], float] = {}
         for label, group in combo_bets.groupby(names.TICKET_TYPE, sort=False):
             found.update(self._payouts_of(con, ticket_kind(str(label)), group))

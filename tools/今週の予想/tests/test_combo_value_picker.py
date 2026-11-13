@@ -105,3 +105,16 @@ def test_中身の分からないレースは条件のあるルールでは買�
     rule = ComboValueRule(TicketType.TRIFECTA, ALL_RACES, 1.3, 3000, adopted=True,
                           race_conditions=(RaceCondition(TOP_VALUE, None, 0.99, "◎ の単勝の期待値が 0.99 以下"),))
     assert rule.condition == "全レース・期待値 1.3 以上・3,000倍以下・◎ の単勝の期待値が 0.99 以下のレースだけ"
+
+
+def test_2段に分けても一度に選んでも同じ買い目になる() -> None:
+    """``candidates``（印と消に依らない段）と ``select``（印で決まる段）を続けると ``pick`` と同じ。"""
+    rules = (ComboValueRule(TicketType.QUINELLA, TOP_COMBOS, 1.1, 1000, adopted=True, max_points=1),)
+    marked = _marked("r1", "1.00 以上").assign(mark=["－", "◎", "－"])
+    picker = ComboValuePicker(rules, {TicketType.QUINELLA: _MARKET_ONLY})
+    boards = _boards(["r1"])
+    candidates = picker.candidates(marked, boards)
+    assert len(candidates) == 1 and sorted(candidates[0]["combo"]) == ["0102", "0103", "0203"]   # 線以上・上限以下の組（◎ はまだ見ない）
+    selected = picker.select(rules[0], candidates[0], picker.races(marked))
+    assert selected.reset_index(drop=True).equals(picker.pick(marked, boards).reset_index(drop=True))
+    assert selected["combo"].tolist() == ["0102"] or selected["combo"].tolist() == ["0203"]   # ◎（2番）を含む組を1点

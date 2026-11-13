@@ -10,8 +10,9 @@ import pandas as pd
 from 共通 import db
 from 共通.render import Table
 
-from yosou.shared.command import CommonArguments, FigureCacheArgument, PlacePriceStep, TrainingReportTables
-from yosou.shared.dataset import AllRows, TrainingData, TrainingPeriod, TrainingRows
+from yosou.shared.command import CommonArguments, DevelopmentRootArgument, FigureCacheArgument, PlacePriceStep, TrainingReportTables
+from yosou.shared.dataset import AllRows, FinishPowerFreeData, PaceAttachment, PoolFreeData, TrainingData, TrainingPeriod, TrainingRows, WinTargetData
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder, race_day_dataset_builder
 from yosou.ability_score import ABILITY_SCORE_NAMES, AbilityScoreAttachment, AbilityScoreFreeData
 from yosou.development_score import (
     DEVELOPMENT_SCORE_NAMES,
@@ -30,16 +31,7 @@ from yosou.shared.ml_model import MEMBER_TYPES
 from yosou.shared.repository import ModelRepository
 from yosou.shared.workflow import TrainingWorkflow
 
-from ..dataset import (
-    FinishPowerFreeData,
-    PaceAttachment,
-    PoolFreeData,
-    WinTargetData,
-    ability_dataset_builder,
-    race_day_dataset_builder,
-)
-from ..setting import DEFAULT_SETTINGS_PATH
-from ..workflow import (
+from yosou.shared.workflow.form_aptitude_timings import (
     ABILITY_SCORE_TIMINGS,
     TIMINGS,
     ABILITY_SCORE_TOP3_TIMINGS,
@@ -59,7 +51,8 @@ from ..workflow import (
     WEIGHT_DISCOUNT_WIN_TIMINGS,
     WIN_FOLDER,
 )
-from .development_root_argument import DevelopmentRootArgument
+
+from ..setting import DEFAULT_SETTINGS_PATH
 from .train_period_arguments import TrainPeriodArguments
 from .yosou_name import YOSOU_NAME
 

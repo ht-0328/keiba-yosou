@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from yosou.favorites_out_of_top3.workflow import PROBABILITY as DANGER_PROBABILITY_JA
-from yosou.form_aptitude_top3.workflow import PROBABILITY as FORM_PROBABILITY_JA
+from yosou.shared.workflow import PROBABILITY as FORM_PROBABILITY_JA
 from yosou.longshots_in_top3.dataset.column_names import LONGSHOT_ZONE as LONGSHOT_ZONE_JA
 from yosou.longshots_in_top3.workflow import PROBABILITY as LONGSHOT_PROBABILITY_JA
 from yosou.shared.dataset import column_names as ja

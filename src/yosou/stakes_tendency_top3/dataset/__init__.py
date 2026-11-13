@@ -14,8 +14,8 @@
 別の作業が同時に変えているあいだは手本から借り、落ち着いたら ``shared`` に移す（設計書 04 の 1）。
 """
 
-from yosou.form_aptitude_top3.dataset import PoolAvailability, PoolFreeData
-from yosou.form_aptitude_top3.workflow import POOL_FREE_FOLDER
+from yosou.shared.dataset import PoolAvailability, PoolFreeData
+from yosou.shared.workflow.form_aptitude_timings import POOL_FREE_FOLDER
 from yosou.shared.dataset import TOP3, WIN, OddsInput, OddsResolver
 
 from .dataset_assembly import ability_dataset_builder, race_day_dataset_builder

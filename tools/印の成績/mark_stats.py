@@ -8,6 +8,7 @@
     uv run python tools/印の成績/mark_stats.py --danger-bands 1番人気 2〜3番人気 --out-dir reports/印の成績/比べ  # 消にできる人気帯を替えて比べる
     uv run python tools/印の成績/mark_stats.py --danger-flags reports/…/flags.pkl   # 決まりで決めた消（1レースに何頭でも）を使う
     uv run python tools/印の成績/mark_stats.py --upset reports/…/upset_level/unseen.pkl   # 3連複の荒れ具合の予測を替える
+    uv run python tools/印の成績/mark_stats.py --win5                                   # 印の代わりに、WIN5 の買い方を過去の WIN5 で確かめる
 
 予測は、研究「既存モデルの改善」の入口② walk_forward.py（1着の予想は入口⑪ win_check.py）が書く
 reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切りごとに、それより前で学習したモデルで次の半年を予測したもので、
@@ -41,6 +42,13 @@ reports/既存モデルの改善/predictions/<予想>/<作り方>.pkl。区切�
 --timing 木曜 にすると、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝と単勝の期待値・危険な人気馬・絞り込み）を使わずに印を付ける
 （◎ は1着になる確率の1位。☆・注・期待値の帯は付かない）。
 結果は reports/印の成績/<全頭の予想の名前>.md にも書く。元DB の事実表を作り、買い目の払戻とオッズ・3連単のオッズ・時系列オッズも読むので、10〜15分かかる。
+
+--win5 [当日の予測 前日の予測] は、印の代わりに WIN5 の買い方を確かめる（設計書「近走と適性からWIN5の買い目を決める」16 の 7.。win5_stats.py）。
+当日・前日の区切りごとの1着の予測で、2019年からの WIN5 の日ごとに、40 通りの買い方（並べ方 × 予算 × 買う日の線）と比べる相手
+（ルール集の 240点・人気だけ）の買い目を組んで精算し、探索期間（2019〜2024年）で決まりどおりに1つ選び、確認期間（2025年から）で採用の基準に照らす。
+段階の予算（判断用の 50点の買い目の日の期待値が線 1.25 以上の日に買い、本命の確率の積が 0.0025 以上なら 100点、ほか 30点。predict の既定）も
+同じ表に並べて判定し、選ばなかった候補（一律・150点と200点で多く・当たる確率や期待値で多く）も期間ごとの表に出す（設計書 15 の 13）。
+1着の確率の当たり具合と配当の見積もりの確かめ（参考）も出す。結果は reports/近走と適性からWIN5の買い目を決める/成績/ の WIN5の成績.md と WIN5の精算.csv。
 """
 
 from __future__ import annotations
@@ -93,6 +101,7 @@ from 印の成績.ticket_report import TicketReport  # noqa: E402
 from 印の成績.upset_file import DEFAULT_UPSET, UpsetFile  # noqa: E402
 from 印の成績.win_pool_size_repository import WinPoolSizeRepository  # noqa: E402
 from 印の成績.win_value_attacher import WinValueAttacher  # noqa: E402
+from 印の成績.win5_stats import Win5Stats  # noqa: E402
 
 #: 既定の予測。全頭の予想は今の本番の前日のモデルと同じ作り（馬の力の材料 + 対戦レーティング）、1着の予想はその同じ材料で目的変数を1着にしたもの、
 #: 人気馬の予想は今の本番と同じ作り。
@@ -108,6 +117,10 @@ DEFAULT_OUT_DIR = HERE.parents[1] / "reports" / "印の成績"
 
 
 def main(args) -> None:
+    if args.win5 is not None:
+        Win5Stats().run(args)
+        return
+    out_dir = Path(args.out_dir or DEFAULT_OUT_DIR)
     form = PredictionFile(args.form)
     win = None if args.no_win else PredictionFile(args.win)
     flags = DangerFlagFile(args.danger_flags) if args.danger_flags else None
@@ -171,10 +184,10 @@ def main(args) -> None:
         tables.append(DangerBandReport().table(marked))
     tables.append(_grade_report(scheme).table(marked))
     cli.emit(tables, args)
-    saved = Path(args.out_dir) / f"{form.label()}.md"
+    saved = out_dir / f"{form.label()}.md"
     saved.parent.mkdir(parents=True, exist_ok=True)
     render.write(render.render(tables, "markdown"), saved, fmt="markdown")
-    tickets_csv = Path(args.out_dir) / "買い目" / f"{form.label()}.csv"
+    tickets_csv = out_dir / "買い目" / f"{form.label()}.csv"
     tickets_csv.parent.mkdir(parents=True, exist_ok=True)
     report.csv_frame(tickets).to_csv(tickets_csv, index=False, encoding="utf-8-sig")
     print(f"\n保存先: {saved}\n買い目: {tickets_csv}", file=sys.stderr)
@@ -233,7 +246,15 @@ def build_parser():
     parser.add_argument("--bracket-fold-weights", type=Path, default=None, metavar="json",
                         help="枠連の組の期待値の買い方で、区切りごとに使う重み（研究「レースの種類ごとの買い方」の all_tickets.py bracket-weights が書く JSON）。"
                              "省略すると --models の bracket_blend.json の重みを全部の区切りに使う")
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="結果を書く場所（既定: reports/印の成績）")
+    parser.add_argument("--win5", nargs="*", default=None, metavar="pkl",
+                        help="印の代わりに WIN5 の買い方（40 通り・段階の予算・比べる相手）を過去の WIN5 で確かめる"
+                             "（設計書「近走と適性からWIN5の買い目を決める」16 の 7.）。"
+                             "当日・前日の区切りごとの1着の予測の pkl をこの順に渡す（省略すると研究「複勝以外の回収率100超」の予測）。"
+                             "結果は reports/近走と適性からWIN5の買い目を決める/成績/。3〜5分")
+    parser.add_argument("--win5-budget", type=int, default=None, metavar="点数",
+                        help="--win5 で、探索期間で選ぶ候補をこの予算（20・50・100・240・500 点）の買い方だけにする（利用者が予算を決めたとき）")
+    parser.add_argument("--out-dir", type=Path, default=None,
+                        help="結果を書く場所（既定: reports/印の成績。--win5 のときは reports/近走と適性からWIN5の買い目を決める/成績）")
     return parser
 
 

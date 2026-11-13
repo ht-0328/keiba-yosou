@@ -141,6 +141,13 @@ RANGE_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連
 COMBO_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "組番", "オッズ", "人気順")
 COMBO_RANGE_ODDS_COLUMNS: tuple[str, ...] = (*KEY_COLUMNS, "発表月日時分", "_連番", "組番", "最低オッズ", "最高オッズ", "人気順")
 ODDS_PARENTS: tuple[str, ...] = ("o1", "o2", "o3", "o4", "o5", "o6")
+#: 重勝式（WIN5。``wf``）と子表（対象レース・払戻）。鍵は開催年・開催月日。値は架空。WIN5 の買い目の予想のテストに使う。
+WF_COLUMNS: tuple[str, ...] = (
+    *_HEADER, "開催年", "開催月日", "重勝式発売票数", "返還フラグ", "不成立フラグ", "的中無フラグ",
+    "キャリーオーバー金額初期", "キャリーオーバー金額残高",
+)
+WF_RACE_COLUMNS: tuple[str, ...] = ("開催年", "開催月日", "_連番", *KEY_COLUMNS[2:])
+WF_PAYOUT_COLUMNS: tuple[str, ...] = ("開催年", "開催月日", "_連番", "組番", "重勝式払戻金", "的中票数")
 #: オッズの子の表と列。複勝・ワイドは最低と最高の2つ、ほかはオッズ1つ。
 ODDS_TABLES: dict[str, tuple[str, ...]] = {
     "o1__単勝オッズ": ODDS_COLUMNS, "o1__複勝オッズ": RANGE_ODDS_COLUMNS, "o2__馬連オッズ": COMBO_ODDS_COLUMNS,
@@ -171,6 +178,7 @@ OPTIONAL_TABLES: dict[str, tuple[str, ...]] = {
     "hr__3連単払戻": COMBO_PAYOUT_COLUMNS, "hr__ワイド払戻": COMBO_PAYOUT_COLUMNS, "hr__馬単払戻": COMBO_PAYOUT_COLUMNS,
     "hr__枠連払戻": COMBO_PAYOUT_COLUMNS,
     **{parent: ODDS_HEADER_COLUMNS for parent in ODDS_PARENTS}, **ODDS_TABLES,
+    "wf": WF_COLUMNS, "wf__重勝式対象レース情報": WF_RACE_COLUMNS, "wf__重勝式払戻情報": WF_PAYOUT_COLUMNS,
 }
 #: 親の表の表題（実DB の ``_tables`` と同じ）。
 TITLES: dict[str, str] = {
@@ -179,7 +187,7 @@ TITLES: dict[str, str] = {
     "wc": "ウッドチップ調教", "we": "天候馬場状態", "wh": "馬体重", "av": "出走取消・競走除外",
     "o1": "オッズ1（単複枠）", "o2": "オッズ2（馬連）", "o3": "オッズ3（ワイド）", "o4": "オッズ4（馬単）",
     "o5": "オッズ5（3連複）", "o6": "オッズ6（3連単）",
-    "nd": "出走別着度数地方", "nu": "競走馬マスタ地方", "tk": "特別登録馬",
+    "nd": "出走別着度数地方", "nu": "競走馬マスタ地方", "tk": "特別登録馬", "wf": "重勝式(WIN5)",
 }
 #: 親の表の鍵（実DB の ``_tables`` の keys）。書いていない表は血統登録番号。
 _TABLE_KEYS: dict[str, tuple[str, ...]] = {
@@ -188,6 +196,7 @@ _TABLE_KEYS: dict[str, tuple[str, ...]] = {
     "hc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
     "wc": ("トレセン区分", "調教年月日", "調教時刻", "血統登録番号"),
     "we": (*KEY_COLUMNS[:-1], "発表月日時分", "変更識別"),
+    "wf": ("開催年", "開催月日"),
 }
 #: 文字列でない列。
 INTEGER_COLUMNS: frozenset[str] = frozenset({"_連番"})
@@ -481,6 +490,35 @@ def registered_horse(registration_row: dict[str, str], seq: int, hid: str, name:
     })
 
 
+def win5_day(day: str, *, stage: str = "7", votes: int = 5_000_000, carry: int = 0, carry_left: int = 0,
+             refunded: bool = False, void: bool = False, no_hit: bool = False) -> dict[str, str]:
+    """重勝式（WIN5）の1日（``wf`` の1行）。``day`` は ``YYYYMMDD``。データ区分は 7（成績の月曜の版）が既定で、
+    速報の詳細発表時は 1、中止は 9。``votes`` は発売票数、``carry`` はキャリーオーバー金額初期（円）。"""
+    return _row(WF_COLUMNS, {
+        "レコード種別ID": "WF", "データ区分": stage, "データ作成年月日": day, "開催年": day[:4], "開催月日": day[4:],
+        "重勝式発売票数": f"{votes:011d}", "返還フラグ": "1" if refunded else "0", "不成立フラグ": "1" if void else "0",
+        "的中無フラグ": "1" if no_hit else "0", "キャリーオーバー金額初期": f"{carry:015d}",
+        "キャリーオーバー金額残高": f"{carry_left:015d}",
+    })
+
+
+def win5_race(day: str, seq: int, race_row: dict[str, str]) -> dict[str, str]:
+    """WIN5 の対象レース1つ（子表 ``wf__重勝式対象レース情報`` の1行）。``seq`` は発売の順（1〜5）。"""
+    return _row(WF_RACE_COLUMNS, {
+        "開催年": day[:4], "開催月日": day[4:], "_連番": str(seq),
+        **{name: race_row[name] for name in KEY_COLUMNS[2:]},
+    })
+
+
+def win5_payout(day: str, combo: str, yen: int, votes: int, *, seq: int = 1) -> dict[str, str]:
+    """WIN5 の当たり組1つ（子表 ``wf__重勝式払戻情報`` の1行）。``combo`` は5頭の馬番を2桁ずつ並べた10文字、
+    ``yen`` は100円あたりの払戻金、``votes`` は的中票数（的中無なら払戻金も票数も 0）。"""
+    return _row(WF_PAYOUT_COLUMNS, {
+        "開催年": day[:4], "開催月日": day[4:], "_連番": str(seq), "組番": combo,
+        "重勝式払戻金": f"{yen:09d}", "的中票数": f"{votes:010d}",
+    })
+
+
 @dataclass
 class Sample:
     """合成DB に入れる行の束。表ごとの行のリスト。"""
@@ -519,6 +557,10 @@ class Sample:
     nd: list[dict[str, str]] = field(default_factory=list)
     nu: list[dict[str, str]] = field(default_factory=list)
     nu_pedigree: list[dict[str, str]] = field(default_factory=list)
+    #: 重勝式（WIN5）の日・対象レース・当たり組。WIN5 の買い目の予想のテストに使う。
+    win5: list[dict[str, str]] = field(default_factory=list)
+    win5_races: list[dict[str, str]] = field(default_factory=list)
+    win5_payouts: list[dict[str, str]] = field(default_factory=list)
 
     def extend(self, other: "Sample") -> "Sample":
         """別の束を足す。"""
@@ -539,6 +581,7 @@ class Sample:
             "hr__ワイド払戻": self.wide, "hr__馬単払戻": self.exacta, "hr__枠連払戻": self.bracket, **odds_tables,
             "nd": self.nd, "nu": _unique(self.nu, ("血統登録番号",)),
             "nu__3代血統情報": _unique(self.nu_pedigree, ("血統登録番号", "_連番")),
+            "wf": self.win5, "wf__重勝式対象レース情報": self.win5_races, "wf__重勝式払戻情報": self.win5_payouts,
         }
         return {
             "ra": self.ra, "se": self.se, "hr__単勝払戻": self.win, "hr__複勝払戻": self.place,

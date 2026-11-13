@@ -28,7 +28,7 @@ from yosou.shared.feature import PredictionTiming
 from yosou.shared.tests import synthetic_season as season
 
 from ..command import CommandLine
-from ..dataset import ability_dataset_builder, dataset_builder
+from yosou.shared.dataset.form_aptitude_assembly import ability_dataset_builder, dataset_builder
 
 
 @pytest.fixture(scope="session")

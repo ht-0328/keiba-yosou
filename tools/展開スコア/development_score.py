@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from 共通 import card, cli, codes, db, race  # noqa: E402
 from 共通.render import Table  # noqa: E402
 
-from 今週の予想.timing_chooser import TimingChooser  # noqa: E402
+from yosou.shared.workflow import TimingChooser  # noqa: E402
 
 from yosou.development_score import (  # noqa: E402
     DEFAULT_CACHE_FOLDER,
@@ -40,7 +40,7 @@ from yosou.development_score import (  # noqa: E402
     names,
 )
 from yosou.development_score.repository import HORSE_NAME, HORSE_NO  # noqa: E402
-from yosou.form_aptitude_top3.command.development_root_argument import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
+from yosou.shared.command import DEFAULT_DEVELOPMENT_ROOT  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 
 #: 1頭ごとの表の列（``--detail`` で内訳の4列を足す）。

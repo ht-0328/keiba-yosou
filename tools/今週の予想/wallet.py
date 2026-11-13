@@ -16,8 +16,9 @@ from yosou.review import ReviewStore, names
 MATCH_WALLET, POLICY_WALLET, WIN_WALLET, COMBO_WALLET = "勝負用", "ポリシー用", "単勝・馬単用", "組の期待値用"
 LONGSHOT_WALLET = "穴馬の複勝用"
 #: 参加の種類 → 出す財布。
+#: WIN5（ポリシー（WIN5））は楽しむための参加費なので、ノルマ参加と同じポリシー用の財布から出す（予想「近走と適性からWIN5の買い目を決める」15 の 8）。
 WALLET_OF: dict[str, str] = {names.MATCH: MATCH_WALLET, names.POLICY_STAKES: POLICY_WALLET, names.POLICY_DAY: POLICY_WALLET,
-                             names.MATCH_WIN: WIN_WALLET, names.MATCH_COMBO: COMBO_WALLET,
+                             names.POLICY_WIN5: POLICY_WALLET, names.MATCH_WIN: WIN_WALLET, names.MATCH_COMBO: COMBO_WALLET,
                              names.MATCH_LONGSHOT: LONGSHOT_WALLET}
 #: 予算の割合（残高に対して）。勝負レース 5%・ノルマ参加（重賞）3%・ノルマ参加（日）1.5%。
 BUDGET_RATE: dict[str, float] = {names.MATCH: 0.05, names.POLICY_STAKES: 0.03, names.POLICY_DAY: 0.015}

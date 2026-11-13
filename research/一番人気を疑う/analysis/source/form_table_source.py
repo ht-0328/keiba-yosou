@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 from 既存モデルの改善.analysis.experiments import EXPERIMENT_GROUPS
 
-from yosou.form_aptitude_top3.feature import CATALOG
+from yosou.shared.feature.form_aptitude_catalog import CATALOG
 from yosou.shared.feature import BASE_FEATURES, MARKET_FEATURES, PredictionTiming
 
 from .runner_frame import RunnerFrame

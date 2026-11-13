@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from yosou.ability_score import ABILITY_SCORE_NAMES
 from yosou.development_score import DEVELOPMENT_SCORE_NAMES
-from yosou.form_aptitude_top3.feature import ABILITY_CATALOG, RACE_DAY_CATALOG
+from yosou.shared.feature.form_aptitude_catalog import ABILITY_CATALOG, RACE_DAY_CATALOG
 from yosou.shared.dataset import TOP3, WIN
 from yosou.shared.feature import FINISH_POWER_NAMES, PredictionTiming
 
