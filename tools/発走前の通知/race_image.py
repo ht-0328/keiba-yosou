@@ -59,11 +59,16 @@ class RaceCard(Protocol):
     styles: Mapping[int, str]
 
     @property
+    def badge(self) -> str:
+        """見出しの札の字（地方の ``期待度 A`` など）。空なら描かない。"""
+        ...
+
+    @property
     def footer(self) -> BetFooter: ...
 
 
 class RaceImage:
-    """上から 見出しの帯（場・R・レース名・発走時刻・時点の札）→ 列の見出し → 1頭1行（印の札・枠番（枠の色の札）・馬番・馬名・推定脚質・単勝・
+    """上から 見出しの帯（場・R・レース名・発走時刻・時点の札。地方は期待度の札も）→ 列の見出し → 1頭1行（印の札・枠番（枠の色の札）・馬番・馬名・推定脚質・単勝・
     3着以内の確率の棒・複勝と単勝の期待値）→ 買い目の欄（札・券種ごとに1行。長ければ折り返す・合計・理由）。
     ◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。値が無ければ「-」を描く。"""
 
@@ -89,7 +94,12 @@ class RaceImage:
         draw.text((left + 26, y + 22), card.heading, font=style.font(40, bold=True), fill=style.TEXT, anchor="la")
         name = self._fit(draw, card.name, style.font(22), right - left - 52 - 320)
         draw.text((left + 26, y + 84), name, font=style.font(22), fill=style.DIM, anchor="la")
-        draw.text((right - 26, y + 26), card.post, font=style.font(28, bold=True), fill=style.TEXT, anchor="ra")
+        post_font = style.font(28, bold=True)
+        draw.text((right - 26, y + 26), card.post, font=post_font, fill=style.TEXT, anchor="ra")
+        if card.badge:
+            # 期待度の札は発走時刻の左（上の段。下の段の時点の札はレース名と並ぶので、長い時点の文と重ならないように）
+            fill, color = style.GRADE_PILLS.get(card.badge[-1], (style.LINE, style.DIM))
+            self._pill(draw, card.badge, right - 26 - round(draw.textlength(card.post, font=post_font)) - GAP * 2, y + 24, fill, color, align="r")
         pill = style.RACE_DAY_PILL if card.race_day else style.EVE_PILL
         self._pill(draw, card.timing, right - 26, y + 78, pill, style.TEXT, align="r")
         return y + style.HEADER_H

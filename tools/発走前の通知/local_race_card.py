@@ -1,4 +1,4 @@
-"""地方の1レースの通知に載せる中身（見出し・時点・馬場の傾向・印の順の全頭の表・枠番・推定脚質・買い目）。文と画像の両方がここから作られる。"""
+"""地方の1レースの通知に載せる中身（見出し・時点・期待度・馬場の傾向・印の順の全頭の表・枠番・推定脚質・買い目）。文と画像の両方がここから作られる。"""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 発走前の通知.bet_footer import BetFooter
+from 発走前の通知.local_expectation import LocalExpectation
 
 #: 画像の買い目の欄の札。
 FOOTER_LABEL = "推奨買目"
@@ -37,6 +38,13 @@ class LocalRaceCard:
     tendency: str = ""
     #: 馬番 → 推定脚質（逃げ・先行・差し・追込。``RaceStyles.local()``）。過去走の無い馬は入らない。
     styles: Mapping[int, str] = field(default_factory=dict)
+    #: レースの期待度（◎ の点数と S・A・B・C。``LocalExpectation.of``）。買い目はこれで変えない。
+    expectation: LocalExpectation = field(default_factory=lambda: LocalExpectation(None, None))
+
+    @property
+    def badge(self) -> str:
+        """画像の見出しの札（例 ``期待度 A``。出せなければ空）。"""
+        return self.expectation.badge()
 
     @property
     def title(self) -> str:

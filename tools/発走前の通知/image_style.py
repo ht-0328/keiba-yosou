@@ -39,6 +39,10 @@ GOOD: Color = (82, 220, 130)
 #: 時点の札（当日 / 前日）。
 RACE_DAY_PILL: Color = (34, 150, 96)
 EVE_PILL: Color = (190, 120, 30)
+#: 期待度の札（等級 → 札の色と字の色。地方の見出しに描く）。S は ◎ の帯と同じ金色。
+GRADE_PILLS: dict[str, tuple[Color, Color]] = {
+    "S": (GOLD, BG), "A": ((58, 128, 240), TEXT), "B": ((104, 118, 142), TEXT), "C": ((70, 74, 90), DIM),
+}
 
 #: 枠番の色（1 白・2 黒・3 赤・4 青・5 黄・6 緑・7 橙・8 桃）と、黒い字にする枠。
 FRAME_COLORS: dict[int, Color] = {

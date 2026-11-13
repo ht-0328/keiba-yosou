@@ -24,6 +24,7 @@ from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 発走前の通知.local_bet_rule import LocalBetRule
+from 発走前の通知.local_expectation import LocalExpectation
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.race_frames import RaceFrames
 from 発走前の通知.local_race_card import LocalRaceCard
@@ -65,8 +66,10 @@ RACE_DAY = "当日"
 
 class LocalRaceMessage:
     """印は中央と同じ ``MarkRule``（◎○▲△☆注。地方には危険な人気馬の判定が無いので 消 は付かない）。
-    文は 見出し・その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）だけにし、
-    全頭の表は画像（``RaceImage``。推定脚質の列は ``styles``）にして添付する。画像は ``reports/発走前の通知/地方/<開催日>/<rid>.png`` に置く。"""
+    文は 見出し・期待度（``LocalExpectation``。◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）の点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
+    買い目と同じく当日の時点だけ出し、買い目は変えない）・
+    その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）だけにし、
+    全頭の表は画像（``RaceImage``。推定脚質の列は ``styles``。見出しに期待度の札）にして添付する。画像は ``reports/発走前の通知/地方/<開催日>/<rid>.png`` に置く。"""
 
     def __init__(self, store: LocalForecastStore | None = None, schedule: LocalRaceSchedule | None = None,
                  marks: MarkRule | None = None, frames: RaceFrames | None = None, bets: LocalBetRule | None = None,
@@ -105,11 +108,12 @@ class LocalRaceMessage:
         bets = self._bets.pick(table, race_day, recommended or RecommendationSet((), ""))
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
-                             frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}))
+                             frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}),
+                             expectation=LocalExpectation.of(table) if race_day else LocalExpectation.not_race_day())
 
     def describe(self, card: LocalRaceCard) -> str:
-        """通知の文: 見出し・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・推奨買目。"""
-        return "\n".join([f"**{card.title}** 地方の予想・{card.timing}", *([card.tendency] if card.tendency else []),
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・推奨買目。"""
+        return "\n".join([f"**{card.title}** 地方の予想・{card.timing}", card.expectation.text(), *([card.tendency] if card.tendency else []),
                           *MarkLines().lines(card.table), *self.bet_lines(card.bets)])
 
     @staticmethod

@@ -67,11 +67,12 @@ def test_中身は印の順の全頭と_見出し_推奨買目() -> None:
     assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"] and card.bets.points == 4
 
 
-def test_文は_見出し_印の付いた馬_推奨買目だけ() -> None:
+def test_文は_見出し_期待度_印の付いた馬_推奨買目だけ() -> None:
     message = LocalRaceMessage()
     text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
+        "期待度 S（点数 0.50）",   # ◎ の 1着の確率 0.35 ＋ 3 ×（1.05 − 1）
         "◎ 7 イチバン：単勝 30倍以下の馬の中で単勝の期待値がレース内1位（1着になる確率 35.0% × 単勝 3.0倍 = 1.05）",
         "○ 4 ニバン",
         "▲ 8 サンバン",
@@ -89,15 +90,23 @@ def test_文は_見出し_印の付いた馬_推奨買目だけ() -> None:
 def test_推奨買目が無ければ_全頭の予想の単勝と複勝だけ() -> None:
     message = LocalRaceMessage()
     text = message.describe(message.card(_forecast("当日"), RACE, {}))
-    assert text.splitlines()[7:] == ["推奨買目（1点 100円・合計 2点 200円）:", "単勝 7", "複勝 3"]
+    assert text.splitlines()[8:] == ["推奨買目（1点 100円・合計 2点 200円）:", "単勝 7", "複勝 3"]
 
 
-def test_前日の時点は買い目を出さず_その旨を書く() -> None:
+def test_前日の時点は買い目も期待度も出さず_その旨を書く() -> None:
     message = LocalRaceMessage()
-    text = message.describe(message.card(_forecast("前日"), RACE, {}, RECOMMENDED))
+    card = message.card(_forecast("前日"), RACE, {}, RECOMMENDED)
+    text = message.describe(card)
     assert "前日の時点（馬体重が届く前なのでオッズだけ）" in text.splitlines()[0]
+    assert text.splitlines()[1] == "期待度 なし（馬体重が届く前の前日の時点では出さない。当日の時点で出す）" and card.badge == ""
     assert "推奨買目: なし（馬体重が届く前の前日の時点では買わない）" in text
     assert "100円" not in text.splitlines()[-1]
+
+
+def test_期待度を付けても_買い目は前と同じ() -> None:
+    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED)
+    assert card.expectation.grade == "S" and card.badge == "期待度 S"
+    assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"]   # 期待度は買い目の条件に使わない
 
 
 def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
@@ -157,5 +166,6 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), tendencies=tendencies).build(RID)
     assert tendencies.calls == [(RID, "笠松")]
     lines = notice.text.splitlines()
-    assert lines[1] == "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）"
-    assert lines[2].startswith("◎ 7 イチバン：")
+    assert lines[1] == "期待度 S（点数 0.50）"
+    assert lines[2] == "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）"
+    assert lines[3].startswith("◎ 7 イチバン：")
