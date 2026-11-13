@@ -13,8 +13,9 @@ from 今週の予想.win5_record import Win5Record
 class Win5Planner:
     """WIN5 は楽しむための参加費なので、ポリシー用の財布から買う（勝負用の財布とは混ぜない）。
 
-    - 予想の判断が「見送り」（日の期待値が線未満）なら買わない。
-    - 「買う」なら、代金（点数 × 100円。予算と線は予想のパッケージの ``formation/buying_defaults.py`` で決まる）を、ポリシー用の財布から出す。
+    - 予想の判断が「見送り」（判断用の買い目の日の期待値が線未満）なら買わない。
+    - 「買う（多く）」「買う（少なく）」なら、その段階の買い目の代金（点数 × 100円。段階の予算と線は予想のパッケージの
+      ``formation/buying_defaults.py`` で決まる）を、ポリシー用の財布から出す。
       ただし、その日より前の残高が代金に足りなければ買わない（財布を負にしない）。ポリシー用の財布は減るのが想定内なので、初めの 70% の止まりは置かない。
     """
 
@@ -25,8 +26,8 @@ class Win5Planner:
         base = Win5Plan(record.race_date, record.legs[0].race_id, record.decision, False, record.points, 0, record.formation,
                         record.hit_probability, record.expected_value, record.line, "")
         if not record.buys:
-            return replace(base, reason=f"{record.value_text()} なので見送り")
+            return replace(base, reason=f"{record.reason_text()} なので見送り")
         balance = self._wallet.balance(POLICY_WALLET, day)
         if balance < record.stake:
-            return replace(base, reason=f"{record.value_text()} だが、ポリシー用の財布の残高 {balance:,}円 が代金 {record.stake:,}円 に足りないので買わない")
-        return replace(base, buys=True, stake_yen=record.stake, reason=f"{record.value_text()} なので、ポリシー用の財布から買う")
+            return replace(base, reason=f"{record.reason_text()}が、ポリシー用の財布の残高 {balance:,}円 が代金 {record.stake:,}円 に足りないので買わない")
+        return replace(base, buys=True, stake_yen=record.stake, reason=f"{record.reason_text()}。ポリシー用の財布から買う")

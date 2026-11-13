@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from itertools import product
 
-from yosou.form_aptitude_win5_tickets.formation import DEFAULT_BUDGET, DEFAULT_MIN_VALUE
+from yosou.form_aptitude_win5_tickets.formation import DEFAULT_MIN_VALUE, JUDGE_BUDGET
 
 from .hedge_candidate import BY_MARKET, BY_SHARE, CURRENT, NEW, HedgeCandidate
 
-#: 本線（今の買い目。予想「近走と適性からWIN5の買い目を決める」の既定: 1着の確率の順・50点・線 1.25）。
-MAIN_BUDGET = DEFAULT_BUDGET
+#: 本線（予想「近走と適性からWIN5の買い目を決める」の判断用の買い目: 1着の確率の順・50点・線 1.25。この研究のときの買う買い目と同じ）。
+MAIN_BUDGET = JUDGE_BUDGET
 MAIN_LINE = DEFAULT_MIN_VALUE
 #: 抑えの組の名前。
 NEW_HEDGE = "抑え（人気薄の1着の予想）"

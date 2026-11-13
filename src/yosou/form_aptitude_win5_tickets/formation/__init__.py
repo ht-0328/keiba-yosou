@@ -1,4 +1,4 @@
-"""買い目（設計書 06 の図3、16 の 3.・4.）。
+"""買い目（設計書 06 の図3、16 の 3.・4.、15 の 13）。
 
 | クラス | 仕事 |
 |---|---|
@@ -8,16 +8,30 @@
 | ``FormationValue`` | 全部の組の当たる確率と見積もりの配当を、表の計算でまとめて出す |
 | ``FormationChoice`` | 組んだフォーメーションと、買い目のどれかが当たる確率・見積もりの払戻の合計・日の期待値 |
 | ``FormationSearch`` | 予算に収まる頭数の並びを全部試し、見積もりの払戻の合計がいちばん大きいフォーメーションを選ぶ（予算の候補ごとにも） |
-| ``DayDecision`` | 買う か 見送り（列挙） |
-| ``DayBuyJudge`` | 日の期待値が買う日の線以上なら「買う」、未満なら「見送り」 |
+| ``FavoriteProduct`` | 本命の確率の積（5レースの本命のそろえた1着の確率のかけ算）を出す |
+| ``BudgetTiers`` | 段階の予算を表す値（判断用・少なく買う日・多く買う日の予算と、多く買う日の線） |
+| ``DayDecision`` | 買う（多く）・買う（少なく）・見送り（列挙） |
+| ``BudgetTierJudge`` | 判断用の買い目の日の期待値が買う日の線未満なら「見送り」、以上なら本命の確率の積が線以上で「買う（多く）」、未満で「買う（少なく）」 |
 
-``buying_defaults.py`` は、試す予算・線・並べ方の候補と、``predict`` の既定。
+``buying_defaults.py`` は、試す予算・線・並べ方の候補と、``predict`` の既定（判断用の予算・買う日の線・少なく買う日と多く買う日の予算・多く買う日の線）。
 """
 
-from .buying_defaults import BUDGETS, DEFAULT_BUDGET, DEFAULT_MIN_VALUE, DEFAULT_ORDERING, MIN_VALUES, ORDERINGS
+from .budget_tier_judge import BudgetTierJudge
+from .budget_tiers import BudgetTiers
+from .buying_defaults import (
+    BUDGETS,
+    DEFAULT_MIN_VALUE,
+    DEFAULT_ORDERING,
+    FAVORITE_PRODUCT_LINE,
+    JUDGE_BUDGET,
+    LARGE_BUDGET,
+    MIN_VALUES,
+    ORDERINGS,
+    SMALL_BUDGET,
+)
 from .combo_grid import ComboGrid
-from .day_buy_judge import DayBuyJudge
 from .day_decision import DayDecision
+from .favorite_product import FavoriteProduct
 from .formation import Formation
 from .formation_choice import FormationChoice
 from .formation_search import FormationSearch
@@ -25,6 +39,8 @@ from .formation_value import FormationValue
 from .leg_ordering import LegOrdering
 
 __all__ = [
-    "LegOrdering", "Formation", "ComboGrid", "FormationValue", "FormationChoice", "FormationSearch", "DayDecision", "DayBuyJudge",
-    "BUDGETS", "MIN_VALUES", "ORDERINGS", "DEFAULT_ORDERING", "DEFAULT_BUDGET", "DEFAULT_MIN_VALUE",
+    "LegOrdering", "Formation", "ComboGrid", "FormationValue", "FormationChoice", "FormationSearch", "FavoriteProduct", "BudgetTiers",
+    "DayDecision", "BudgetTierJudge",
+    "BUDGETS", "MIN_VALUES", "ORDERINGS", "DEFAULT_ORDERING", "JUDGE_BUDGET", "DEFAULT_MIN_VALUE", "SMALL_BUDGET", "LARGE_BUDGET",
+    "FAVORITE_PRODUCT_LINE",
 ]

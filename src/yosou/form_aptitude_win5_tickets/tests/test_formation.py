@@ -11,7 +11,16 @@ import pytest
 
 from yosou.shared.dataset import HORSE_NO
 
-from ..formation import DayBuyJudge, DayDecision, Formation, FormationSearch, FormationValue, LegOrdering
+from ..formation import (
+    BudgetTierJudge,
+    BudgetTiers,
+    DayDecision,
+    FavoriteProduct,
+    Formation,
+    FormationSearch,
+    FormationValue,
+    LegOrdering,
+)
 from ..leg import EDGE, MARKET, SHARE
 from ..payout import CARRY_LOG, INVERSE_LOG, PayoutEstimator, PayoutPool
 
@@ -113,10 +122,39 @@ def test_予算ごとの探索は1回の計算で全部の予算に答える() -
     assert by_budget[50] == search.best(legs, 50, POOL)
 
 
-def test_日の期待値が線以上なら買い_未満なら見送り() -> None:
-    judge = DayBuyJudge()
-    assert judge.judge(1.0, 1.0) is DayDecision.BUY
-    assert judge.judge(0.99, 1.0) is DayDecision.SKIP
+def test_判断用の期待値が線未満なら見送り_以上なら本命の確率の積で多く少なくを分ける() -> None:
+    judge = BudgetTierJudge()
+    assert judge.judge(0.99, 1.0, 0.01, 0.0025) is DayDecision.SKIP
+    assert judge.judge(1.0, 1.0, 0.0025, 0.0025) is DayDecision.BUY_LARGE
+    assert judge.judge(1.0, 1.0, 0.0024, 0.0025) is DayDecision.BUY_SMALL
+    assert DayDecision.BUY_LARGE.buys and DayDecision.BUY_SMALL.buys and not DayDecision.SKIP.buys
+    assert [each.tier_label for each in DayDecision] == ["多く", "少なく", "見送り"]
+    assert DayDecision.parse("買う（多く）") is DayDecision.BUY_LARGE
+    assert DayDecision.buys_text("買う") and DayDecision.buys_text("買う（少なく）") and not DayDecision.buys_text("見送り")
+    with pytest.raises(ValueError):
+        DayDecision.parse("買う")
+
+
+def test_本命の確率の積は各レースの最大のそろえた確率のかけ算() -> None:
+    legs = [_leg([0.5, 0.3, 0.2], [0.6, 0.2, 0.2]), _leg([0.1, 0.6, 0.3], [0.3, 0.4, 0.3]), _leg([0.25, 0.25, 0.5], [0.3, 0.3, 0.4]),
+            _leg([0.9, 0.1], [0.5, 0.5]), _leg([0.4, 0.4, 0.2], [0.4, 0.4, 0.2])]
+    assert FavoriteProduct().of(legs) == pytest.approx(0.5 * 0.6 * 0.5 * 0.9 * 0.4)
+    with pytest.raises(ValueError):
+        FavoriteProduct().of([])
+
+
+def test_段階の予算は判断で買う予算を決め_組む予算は重なりを除く() -> None:
+    tiers = BudgetTiers(50, 30, 100, 0.0025)
+    assert tiers.budgets == (30, 50, 100)
+    assert tiers.budget_for(DayDecision.BUY_LARGE) == 100
+    assert tiers.budget_for(DayDecision.BUY_SMALL) == 30
+    assert tiers.budget_for(DayDecision.SKIP) == 30
+    assert tiers.to_dict() == {"判断用の予算": 50, "少なく買う日の予算": 30, "多く買う日の予算": 100, "多く買う日の線": 0.0025}
+    assert BudgetTiers(50, 50, 50, 0.0).budgets == (50,)
+    with pytest.raises(ValueError):
+        BudgetTiers(50, 100, 30, 0.0025)
+    with pytest.raises(ValueError):
+        BudgetTiers(0, 30, 100, 0.0025)
 
 
 def test_材料の列の名前は式と同じ() -> None:

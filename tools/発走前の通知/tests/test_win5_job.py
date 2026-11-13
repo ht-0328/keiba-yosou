@@ -16,7 +16,7 @@ from 合成DB import synth
 from yosou.form_aptitude_win5_tickets.tests.win5_sample import FORECAST_DAY, NO_ODDS_DAY, Win5Sample
 
 from 今週の予想.forecast_store import ForecastStore
-from 今週の予想.tests.test_win5_plan import DAY, LEGS, _wallet, sample_win5_record, write_win5_record
+from 今週の予想.tests.test_win5_plan import DAY, LEGS, SKIP, SMALL, _wallet, old_win5_record, sample_win5_record, write_win5_record
 from 今週の予想.win5_plan import POLICY_NOTE
 from 今週の予想.win5_planner import Win5Planner
 from 今週の予想.win5_record import Win5Record
@@ -187,12 +187,12 @@ def test_元DBが使用中なら前に読めたWIN5で続け_まだ無ければ�
         _job(tmp_path, [], source=_Source(locked=(1,))).slot(DAY.isoformat())
 
 
-def test_文は判断と買い目と当たる確率と楽しむ用の1行() -> None:
+def test_文は判断と段階の理由と買い目と当たる確率と楽しむ用の1行() -> None:
     record = Win5Record.from_dict(sample_win5_record())
     text = Win5Message().describe(record, None, SLOT)
     assert text.splitlines() == [
         "**WIN5（1レース目 東京10R 14:50 発走）** 中央の予想",
-        "判断: **買う**（日の期待値 1.83 ≥ 線 1.50）",
+        "判断: **買う（多く）**（判断用の買い目（50点）の期待値 1.83 ≥ 線 1.25。本命の確率の積 0.31% ≥ 0.25% なので多く買う（予算 100点 10,000円））",
         "買い目（48点 4,800円・ポリシー用の財布から）:",
         "- 1 東京10R: 10 馬10・5 馬5・3 馬3",
         "- 2 京都10R: 6 馬6・8 馬8",
@@ -202,20 +202,26 @@ def test_文は判断と買い目と当たる確率と楽しむ用の1行() -> N
         "当たる確率 2.1%・日の期待値 1.83・キャリーオーバー なし",
         POLICY_NOTE,
     ]
-    skipped = Win5Message().describe(Win5Record.from_dict(sample_win5_record("見送り", value=1.2)), None, SLOT)
-    assert "判断: **見送り**（日の期待値 1.20 < 線 1.50）" in skipped
-    assert "買い目（参考。買わない。48点 4,800円）:" in skipped
+    small = Win5Message().describe(Win5Record.from_dict(sample_win5_record(SMALL, value=1.40, favorite=0.0012)), None, SLOT)
+    assert "判断: **買う（少なく）**（判断用の買い目（50点）の期待値 1.40 ≥ 線 1.25。本命の確率の積 0.12% < 0.25% なので少なく買う（予算 30点 3,000円））" in small
+    assert "買い目（12点 1,200円・ポリシー用の財布から）:" in small and "- 1 東京10R: 10 馬10・5 馬5" in small
+    skipped = Win5Message().describe(Win5Record.from_dict(sample_win5_record(SKIP, value=1.2)), None, SLOT)
+    assert "判断: **見送り**（判断用の買い目（50点）の期待値 1.20 < 線 1.25）" in skipped
+    assert "買い目（参考。買わない。12点 1,200円）:" in skipped
+    old = Win5Message().describe(Win5Record.from_dict(old_win5_record()), None, SLOT)
+    assert "判断: **買う**（判断用の買い目（48点）の期待値 1.83 ≥ 線 1.50）" in old and "買い目（48点 4,800円・ポリシー用の財布から）:" in old
 
 
 def test_文の財布の判断は買う計画と同じ決まりでその場で出す(tmp_path: Path) -> None:
     write_win5_record(tmp_path / "win5", sample_win5_record())
     _, short = _wallet(tmp_path, policy=3_000)
     text = Win5Message(Win5RecordStore(tmp_path / "win5"), Win5Planner(short)).build(SLOT).text
-    assert "判断: **見送り**（日の期待値 1.83 ≥ 線 1.50 だが、ポリシー用の財布の残高 3,000円 が代金 4,800円 に足りないので買わない）" in text
+    assert ("判断: **見送り**（判断用の買い目（50点）の期待値 1.83 ≥ 線 1.25。本命の確率の積 0.31% ≥ 0.25% なので多く買う（予算 100点 10,000円）が、"
+            "ポリシー用の財布の残高 3,000円 が代金 4,800円 に足りないので買わない）") in text
     (tmp_path / "enough").mkdir()
     _, enough = _wallet(tmp_path / "enough")
-    assert "判断: **買う**（日の期待値 1.83 ≥ 線 1.50 なので、ポリシー用の財布から買う）" in \
-        Win5Message(Win5RecordStore(tmp_path / "win5"), Win5Planner(enough)).build(SLOT).text
+    assert ("判断: **買う（多く）**（判断用の買い目（50点）の期待値 1.83 ≥ 線 1.25。本命の確率の積 0.31% ≥ 0.25% なので多く買う（予算 100点 10,000円）。"
+            "ポリシー用の財布から買う）") in Win5Message(Win5RecordStore(tmp_path / "win5"), Win5Planner(enough)).build(SLOT).text
 
 
 def test_1レース目の発走時刻から始める時刻を決める() -> None:

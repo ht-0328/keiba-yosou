@@ -32,13 +32,16 @@ def test_fit_payoutは式を保存して表を出し_predictは記録を書い�
     assert "配当の見積もりの式" in fit_out.read_text(encoding="utf-8")
     saved = json.loads((root / FILE_NAME).read_text(encoding="utf-8"))
     assert saved["使った期間"]["この日より前"] == FORECAST_DAY.isoformat()
-    code = _run(command_line, ["predict", "--date", FORECAST_DAY.isoformat(), "--budget", "20", "--ordering", "上乗せ",
+    code = _run(command_line, ["predict", "--date", FORECAST_DAY.isoformat(), "--judge-budget", "20", "--small-budget", "10",
+                               "--large-budget", "40", "--favorite-product-line", "0", "--min-value", "0", "--ordering", "上乗せ",
                                "--db", str(win5_db), "--models", str(root), "--out", str(predict_out)])
     assert code == 0
     text = predict_out.read_text(encoding="utf-8")
-    assert "日のまとめ" in text and "選んだ買い目" in text and "5レース目" in text and "予算の候補ごと" in text
+    assert "日のまとめ" in text and "買う買い目" in text and "5レース目" in text and "予算の候補ごと" in text
+    assert "判断用の買い目（20点）の日の期待値" in text and "本命の確率の積" in text and "多く買う日（予算 40点・4,000円まで）" in text
     record = json.loads((root / "記録" / f"{FORECAST_DAY.isoformat()}.json").read_text(encoding="utf-8"))
-    assert record["予算"] == 20 and record["点数"] <= 20
+    assert record["判断"] == "買う（多く）" and record["予算"] == 40 and record["点数"] <= 40
+    assert record["判断用の予算"] == 20 and record["判断用の点数"] <= 20 and record["少なく買う日の予算"] == 10
 
 
 def test_式が無ければfit_payoutを案内して止まる(win5_db: Path, win5_sample: Win5Sample, tmp_path: Path, capsys) -> None:
