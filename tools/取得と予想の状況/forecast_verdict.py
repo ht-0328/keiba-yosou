@@ -11,7 +11,7 @@ from 取得と予想の状況.verdict_kind import VerdictKind
 @dataclass(frozen=True)
 class ForecastVerdict:
     """``ForecastCheck`` の結果。``current_timing`` は今の DB で選ぶ時点、``saved_timing`` は作ってある予想の時点（無ければ None）。
-    ``marks`` は作ってある予想の印（``◎3 ○7 …``）、``grades`` はレースの的中率・配当率の1行（``的中率 B（38%）・配当率 A（56%）``。目安を出す前の版の結果なら空）。
+    ``marks`` は作ってある予想の印（``◎3 ○7 …``）、``grades`` はレースの期待度の1行（``期待度 A（点数 0.21）``。木曜か目安を出す前の版の結果なら空）。
     """
 
     kind: VerdictKind

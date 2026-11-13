@@ -34,4 +34,4 @@ class TopRankScale:
     @staticmethod
     def legend() -> str:
         """人が読む線の説明。"""
-        return "◎ランクの点数は ◎ の1着の確率 ＋ 単勝の期待値 − 1。S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満"
+        return "期待度の点数は ◎ の1着の確率 ＋ 単勝の期待値 − 1。S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満"

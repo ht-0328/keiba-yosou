@@ -1,4 +1,4 @@
-"""◎ランク（中央）か期待度（地方）の等級（S・A・B・C）ごとに、◎ の単勝・複勝の成績を並べる表を作る。"""
+"""期待度（中央と地方で式と線が違う）の等級（S・A・B・C）ごとに、◎ の単勝・複勝の成績を並べる表を作る。"""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class RankScale(Protocol):
 class GradeReport:
     """印を付けた表（``BacktestMarker.mark``）から、等級ごとの ◎ の成績の表（表13）を作る。
 
-    等級は、◎ の1着になる確率と単勝の期待値（``win_probability``・``win_value``）から ``scale`` が決める。既定は中央の ◎ランク
+    等級は、◎ の1着になる確率と単勝の期待値（``win_probability``・``win_value``）から ``scale`` が決める。既定は中央の期待度
     （``TopRankScale``。◎ の1着の確率 ＋ 単勝の期待値 − 1 を S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満）で、地方の予測は
     ``--scene 地方`` で期待度（``LocalExpectationScale``。期待値の重みが 3 で、線は S 0.45・A 0.15・B −0.10）にする。
     ``label``・``meaning`` は表の見出しと注に書く名前と意味。1着の予想が無ければ（◎ の期待値が無い）どの等級にも入らない。
