@@ -9,6 +9,9 @@ from ..race_grade import (
     GRADES,
     LOWER_LINES,
     RANK_LINES,
+    RANK_VALUE_WEIGHT,
+    SKIP_GRADE,
+    SKIP_VALUE,
     VALUE_WEIGHT,
     GradeScale,
     LocalExpectationScale,
@@ -34,13 +37,17 @@ def test_legend_names_every_line() -> None:
     assert GradeScale.legend() == "S 75% 以上・A 50% 以上・B 25% 以上・C 25% 未満"
 
 
-def test_top_rank_is_the_sum_of_win_probability_and_value_edge() -> None:
+def test_top_rank_skips_low_value_and_weights_the_value_edge() -> None:
     scale = TopRankScale()
-    assert RANK_LINES["S"] == 0.35 and RANK_LINES["A"] == 0.15 and RANK_LINES["B"] == 0.0
-    assert TopRankScale.score(0.3, 1.05) == pytest.approx(0.35) and TopRankScale.score(0.3, None) is None and TopRankScale.score(None, 1.0) is None
-    assert scale.of(0.35) == "S" and scale.of(0.34) == "A" and scale.of(0.15) == "A" and scale.of(0.0) == "B" and scale.of(-0.01) == "C"
+    assert RANK_VALUE_WEIGHT == 1.25 and SKIP_VALUE == 0.90 and SKIP_GRADE == "見送り"
+    assert RANK_LINES["S"] == 0.28 and RANK_LINES["A"] == 0.14 and RANK_LINES["B"] == 0.02
+    assert TopRankScale.score(0.3, 1.04) == pytest.approx(0.35) and TopRankScale.score(0.3, None) is None and TopRankScale.score(None, 1.0) is None
+    assert scale.of(0.28) == "S" and scale.of(0.279) == "A" and scale.of(0.14) == "A" and scale.of(0.02) == "B" and scale.of(0.019) == "C"
     assert scale.of(None) is None and scale.of(float("nan")) is None
-    assert TopRankScale.legend().endswith("S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満")
+    assert scale.grade(0.50, 0.89) == "見送り" and scale.grade(0.10, 0.90) == "C" and scale.grade(0.30, 1.04) == "S"   # 線ちょうどは見送りでない
+    assert scale.grade(0.3, None) is None and scale.grade(None, 1.0) is None
+    assert TopRankScale.legend().startswith("◎ の単勝の期待値が 0.90 未満なら見送り")
+    assert TopRankScale.legend().endswith("S 0.28 以上・A 0.14 以上・B 0.02 以上・C 0.02 未満")
 
 
 def test_local_expectation_weights_the_value_edge_three_times() -> None:
@@ -50,6 +57,7 @@ def test_local_expectation_weights_the_value_edge_three_times() -> None:
     assert LocalExpectationScale.score(0.20, 0.90) == pytest.approx(-0.10)     # 0.20 − 3 × 0.10
     assert LocalExpectationScale.score(0.3, None) is None and LocalExpectationScale.score(None, 1.0) is None
     assert LocalExpectationScale.score(float("nan"), 1.0) is None
+    assert scale.grade(0.30, 1.05) == "S" and scale.grade(None, 1.0) is None
     assert scale.of(0.45) == "S" and scale.of(0.449) == "A" and scale.of(0.15) == "A" and scale.of(0.149) == "B"
     assert scale.of(-0.10) == "B" and scale.of(-0.101) == "C" and scale.of(None) is None and scale.of(float("nan")) is None
     assert LocalExpectationScale.legend() == "期待度の点数は ◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）。S 0.45 以上・A 0.15 以上・B -0.1 以上・C -0.1 未満"

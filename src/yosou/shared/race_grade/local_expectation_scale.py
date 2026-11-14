@@ -23,7 +23,7 @@ class LocalExpectationScale:
 
     点数 = ◎ の1着になる確率 ＋ ``VALUE_WEIGHT`` ×（◎ の単勝の期待値 − 1）。「当たりやすさ」と「市場より得か」を足したもので、
     等級が高いほど ◎ の単勝・複勝をべた買いしたときの的中率と回収率が高い。期待値が無い（オッズの無い出馬表の時点）なら点数も等級も None。
-    中央の ◎ランク（``TopRankScale``）とは重みと線が違う（地方の線は地方の未見の予測で決めた）。
+    中央の期待度（``TopRankScale``）とは重みと線が違い、中央にある見送りも無い（地方の線は地方の未見の予測で決めた）。
     """
 
     @staticmethod
@@ -37,6 +37,10 @@ class LocalExpectationScale:
         if score is None or math.isnan(score):
             return None
         return next(grade for grade in GRADES if score >= EXPECTATION_LINES[grade])
+
+    def grade(self, win_probability: float | None, win_value: float | None) -> str | None:
+        """期待度（S・A・B・C）。点数を出せなければ None（地方には見送りが無い）。"""
+        return self.of(self.score(win_probability, win_value))
 
     @staticmethod
     def legend() -> str:

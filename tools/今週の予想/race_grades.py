@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from yosou.shared.race_grade import EXPECTATION_LABEL, TopRankScale
+from yosou.shared.race_grade import EXPECTATION_LABEL, SKIP_GRADE, SKIP_VALUE, TopRankScale
 
 #: 予想の結果（JSON）の鍵。レースに1組（全頭に共通）。
 RANK_SCORE, RANK = "rank_score", "rank"
@@ -16,10 +16,13 @@ TRIO_UPSET = "trio_upset"
 GRADE_KEYS: tuple[str, ...] = (RANK_SCORE, RANK, HIT_RATE, PAYOUT_RATE, PAYOUT_GRADE, TRIO_UPSET)
 #: 人が読む名前と意味（通知の文・まとめ・表の注・画面・全頭の予想根拠・印の成績の表13 で使う）。地方の通知と同じ「期待度」の1つにする。
 RANK_LABEL = EXPECTATION_LABEL
-RANK_MEANING = "◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い"
+RANK_MEANING = ("◎ の単勝の期待値が 0.90 未満のレースは見送り（◎ の単勝が 100% を割る）。それ以外は S・A・B・C のどれも ◎ の単勝の回収率が 100% を超え、"
+                "等級が高いほど ◎ の的中率が高い")
 #: 期待度を出せないとき（木曜。単勝オッズがまだ無い）の字と理由。
 NONE = "なし"
 NO_VALUE_REASON = "単勝オッズが出る前なので出さない"
+#: 見送りのときに添える理由。
+SKIP_REASON = f"◎ の単勝の期待値が {SKIP_VALUE:.2f} 未満"
 
 
 @dataclass(frozen=True)
@@ -27,8 +30,9 @@ class RaceGrades:
     """1レースの期待度（◎ の点数 ``rank_score`` と S・A・B・C の ``rank``）・的中率（◎ の1着の確率）・配当率（0〜1）とその等級（S・A・B・C）と、
     3連複の荒れ具合（固い・中荒れ・大荒れ・超荒れ）。出せなかったものは None（設計書「買うレースと買い目を決める」の 03 の 5）。
 
-    人に見せる文（``text``・``lines``・``legend``・``badge``）は、地方の通知と同じく期待度の1つだけにする。点数は ◎ の1着の確率 ＋（◎ の単勝の期待値 − 1）で、
-    線は ``TopRankScale``（S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満）。的中率・配当率・3連複の荒れ具合は文に出さないが、予想の結果（JSON）には
+    人に見せる文（``text``・``lines``・``legend``・``badge``）は、地方の通知と同じく期待度の1つだけにする。等級は ``TopRankScale.grade``
+    （◎ の単勝の期待値 0.90 未満は見送り、それ以外は 1着の確率 ＋ 1.25 ×（期待値 − 1）の点数を S 0.28・A 0.14・B 0.02 の線で）。
+    的中率・配当率・3連複の荒れ具合は文に出さないが、予想の結果（JSON）には
     今までどおり入れる（配当率と3連複の荒れ具合は買い目の判断に使う）。鍵の名前（``rank``・``rank_score``）は前の版の結果と同じ。
     """
 
@@ -55,10 +59,18 @@ class RaceGrades:
         """期待度を出せたか（木曜と、目安を出す前の版の結果は出せない）。"""
         return self.rank is not None and self.rank_score is not None
 
+    @property
+    def skipped(self) -> bool:
+        """見送りのレースか。"""
+        return self.rank == SKIP_GRADE
+
     def text(self) -> str:
-        """通知の文・一覧・表の注に出す1行。例: ``期待度 A（点数 0.21）``。出せなければ ``期待度 なし（単勝オッズが出る前なので出さない）``。"""
+        """通知の文・一覧・表の注に出す1行。例: ``期待度 A（点数 0.21）``・``期待度 見送り（◎ の単勝の期待値が 0.90 未満）``。
+        出せなければ ``期待度 なし（単勝オッズが出る前なので出さない）``。"""
         if not self.has_grade:
             return f"{RANK_LABEL} {NONE}（{NO_VALUE_REASON}）"
+        if self.skipped:
+            return f"{RANK_LABEL} {SKIP_GRADE}（{SKIP_REASON}）"
         return f"{RANK_LABEL} {self.rank}（点数 {self.rank_score:.2f}）"
 
     def text_if_any(self) -> str:

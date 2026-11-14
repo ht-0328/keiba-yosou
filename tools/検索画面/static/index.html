@@ -412,11 +412,13 @@ function percent(v) { return v === null || v === undefined ? "" : (v * 100).toFi
 // レースの期待度（◎ の点数の S・A・B・C）。木曜（オッズが無い）と前の版の結果（鍵が無い）は「なし」
 function gradesText(f) {
   if (f.rank === null || f.rank === undefined || f.rank_score === null || f.rank_score === undefined) return "期待度 なし（単勝オッズが出る前なので出さない）";
+  if (f.rank === "見送り") return "期待度 見送り（◎ の単勝の期待値が 0.90 未満）";
   return "期待度 " + f.rank + "（点数 " + f.rank_score.toFixed(2) + "）";
 }
 function gradesNote(f) {
   if (f.rank === undefined) return "";   // 目安を出す前の版の結果
-  return " " + gradesText(f) + "（期待度は ◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数で、高いほど ◎ の単勝・複勝の的中率と回収率が高い。S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満）。";
+  return " " + gradesText(f) + "（期待度: ◎ の単勝の期待値が 0.90 未満は見送り。それ以外は 1着の確率 ＋ 1.25 ×（単勝の期待値 − 1）の点数で S 0.28 以上・A 0.14 以上・B 0.02 以上・C 0.02 未満。"
+    + "S・A・B・C のどれも ◎ の単勝の回収率が 100% を超え、等級が高いほど ◎ の的中率が高い）。";
 }
 function points(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1); }
 function forecastLegend(legend) {
