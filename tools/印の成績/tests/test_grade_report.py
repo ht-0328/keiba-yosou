@@ -1,4 +1,4 @@
-"""◎ランクごとの ◎ の成績の表（GradeReport）のテスト。値は架空。"""
+"""期待度ごとの ◎ の成績の表（GradeReport）のテスト。値は架空。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import pandas as pd
 
 from 印の成績.grade_report import GradeReport
 
-#: 4レース。◎ の点数（1着の確率 ＋ 期待値 − 1）は S（0.5 + 0.9 − 1 = 0.4）・A（0.3 + 0.9 − 1 = 0.2）・B（0.2 + 0.85 − 1 = 0.05）・C（0.1 + 0.8 − 1 = −0.1）。
+#: 4レース。中央の期待度は、期待値 0.90 未満の C・D が見送り、A は 0.5 − 1.25 × 0.1 = 0.375（S）、B は 0.3 − 0.125 = 0.175（A）。
 #: （印, 1着の確率, 期待値, 人気, 着順, 単勝払戻, 複勝払戻）。
 _RACES = {
     "A": [("◎", 0.50, 0.90, 1, 1, 200, 110), ("○", 0.20, 0.8, 2, 2, 0, 150)],
@@ -30,22 +30,22 @@ def _marked(with_values: bool = True) -> pd.DataFrame:
 
 def test_ランクごとに二重丸の成績と割合を並べ_無いランクは0で出す() -> None:
     table = GradeReport().table(_marked())
-    assert table.title == "13. ◎ランクごとの ◎ の単勝・複勝の成績"
-    assert table.columns[:4] == ["◎ランク", "レース数", "レースの割合", "着別度数"]
+    assert table.title == "13. 期待度ごとの ◎ の単勝・複勝の成績"
+    assert table.columns[:4] == ["期待度", "レース数", "レースの割合", "着別度数"]
     assert table.columns[-4:] == ["同じ人気の馬全体の勝率", "同じ人気の馬全体の単勝回収率", "同じ人気の馬全体の複勝率", "同じ人気の馬全体の複勝回収率"]
     rows = {row[0]: row for row in table.rows}
-    assert list(rows) == ["S", "A", "B", "C", "◎ 全体"]
+    assert list(rows) == ["S", "A", "B", "C", "見送り", "◎ 全体"]
     assert rows["S"][1:4] == ["1", "25.0%", "1-0-0-0"] and rows["S"][4] == "100.0%"   # 勝率
     assert rows["A"][1:4] == ["1", "25.0%", "0-0-0-1"]
-    assert rows["B"][1:4] == ["1", "25.0%", "0-0-1-0"] and rows["B"][6] == "100.0%"   # 複勝率
-    assert rows["C"][1:4] == ["1", "25.0%", "0-0-0-1"]
+    assert rows["B"][1] == "0" and rows["C"][1] == "0"
+    assert rows["見送り"][1:4] == ["2", "50.0%", "0-0-1-1"] and rows["見送り"][6] == "50.0%"   # 複勝率
     assert rows["◎ 全体"][1:3] == ["4", "100.0%"]
-    assert "S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満" in table.note
+    assert "見送り" in table.note and "S 0.28 以上・A 0.14 以上・B 0.02 以上・C 0.02 未満" in table.note
 
 
 def test_1着の予想が無ければどのランクにも入らない() -> None:
     rows = {row[0]: row for row in GradeReport().table(_marked(with_values=False)).rows}
-    assert all(rows[grade][1] == "0" for grade in "SABC") and rows["◎ 全体"][1] == "4"
+    assert all(rows[grade][1] == "0" for grade in "SABC") and rows["◎ 全体"][1] == "4" and "見送り" not in rows
 
 
 def test_地方は期待度の決め方で分ける() -> None:

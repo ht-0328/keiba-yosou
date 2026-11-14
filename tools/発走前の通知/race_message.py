@@ -36,7 +36,7 @@ _RACE_DAY = "当日"
 
 
 class RaceMessage:
-    """文は地方の通知と同じ短い形で、見出し・◎ランクと的中率と配当率・その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``。◎○▲△☆注消）・実際に買う買い目（``RaceDescriber.bought``。
+    """文は地方の通知と同じ短い形で、見出し・期待度（◎ の点数の S・A・B・C。画像の見出しにも札）・その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``。◎○▲△☆注消）・実際に買う買い目（``RaceDescriber.bought``。
     買う計画は forecast.py が結果の JSON に書き足した ``plan``）だけ。参考の買い目と ◎ の理由・近走は、添付の全頭の予想根拠で見る。
     添付は、全頭の表の画像（``RaceImage``。推定脚質の列は ``styles``。``reports/発走前の通知/中央/<開催日>/<rid>.png``）と、``ForecastStore`` が書いた
     全頭の予想根拠（``<rid>.md``。あれば）。"""
@@ -77,16 +77,16 @@ class RaceMessage:
         bets = tuple(self._describer.bought(forecast, plan))
         graded = str(forecast.get("header", {}).get("クラス", "")) in GRADED_CLASSES
         timing = str(forecast.get("timing", ""))
+        grades = RaceGrades.from_dict(forecast)
         return JraRaceCard(heading=f"{race.venue} {race.number}R" if race else str(forecast["title"]),
                            name=race.name if race else "", post=f"{race.post:%H:%M} 発走" if race else "",
-                           timing=f"{timing}の時点", race_day=timing == _RACE_DAY, grades=RaceGrades.from_dict(forecast).text(),
+                           timing=f"{timing}の時点", race_day=timing == _RACE_DAY, grades=grades.text(),
                            table=self._table(forecast), frames=dict(frames), bets=bets, notes=() if bets else self._notes(plan),
-                           tendency=tendency, styles=dict(styles or {}),
+                           tendency=tendency, styles=dict(styles or {}), grade_badge=grades.badge(),
                            mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else ())
 
     def describe(self, card: JraRaceCard) -> str:
-        """通知の文: 見出し・◎ランクと的中率と配当率・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目と、
-        重賞なら印で組む買い方（参考）。"""
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目と、重賞なら印で組む買い方（参考）。"""
         lines = [f"**{card.title}** 中央の予想・{card.timing}", card.grades, *([card.tendency] if card.tendency else []),
                  *MarkLines().lines(card.table)]
         if not card.bets:

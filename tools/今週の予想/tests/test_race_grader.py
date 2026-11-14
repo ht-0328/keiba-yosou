@@ -1,4 +1,4 @@
-"""レースの ◎ランク・的中率・配当率と等級（RaceGrades・PayoutRate・RaceGrader）のテスト。値は架空。"""
+"""レースの期待度・的中率・配当率と等級（RaceGrades・PayoutRate・RaceGrader）のテスト。値は架空。"""
 
 from __future__ import annotations
 
@@ -45,14 +45,25 @@ def test_配当率は4券種の中荒れ以上の確率の平均で3連複の荒
     assert "配当率（荒れ具合の予想）を出せません" in capsys.readouterr().err
 
 
-def test_二重丸ランクは1着の確率と期待値の点数で_配当率は同じ線で等級にする() -> None:
+def test_期待度は1着の確率と重みつきの期待値の点数で_配当率は確率の線で等級にする() -> None:
     grader = RaceGrader(Path("models"))
     grader._payout = PayoutRate(Path("models"), runner=lambda con: _Workflow([0.8, 0.8, 0.7, 0.9]))
     grades = grader.grade(None, "R", PredictionTiming.RACE_DAY, _horses())
-    assert grades.rank_score == pytest.approx(0.28) and grades.rank == "A" and grades.hit_rate == 0.23
+    assert grades.rank_score == pytest.approx(0.23 + 1.25 * 0.05) and grades.rank == "S" and grades.hit_rate == 0.23   # 0.2925 は S（0.28 以上）
     assert grades.payout_rate == pytest.approx(0.8) and grades.payout_grade == "S" and grades.trio_upset == "大荒れ"
     assert tuple(grades.as_dict()) == GRADE_KEYS
-    assert grades.text() == "◎ランク A（的中率 23%）・配当率 S（80%）"
+    assert grades.text() == "期待度 S（点数 0.29）" and grades.badge() == "期待度 S"
+
+
+def test_二重丸の期待値が線未満なら見送り() -> None:
+    grader = RaceGrader(Path("models"))
+    grader._payout = PayoutRate(Path("models"), runner=lambda con: _Workflow([0.8, 0.8, 0.7, 0.9]))
+    skipped = grader.grade(None, "R", PredictionTiming.RACE_DAY, _horses(win_probability=0.40, win_value=0.89))
+    assert skipped.rank == "見送り" and skipped.skipped and skipped.rank_score == pytest.approx(0.40 - 1.25 * 0.11)
+    assert skipped.text() == "期待度 見送り（◎ の単勝の期待値が 0.90 未満）" and skipped.badge() == "期待度 見送り"
+    assert skipped.text_if_any() == skipped.text()
+    edge = grader.grade(None, "R", PredictionTiming.RACE_DAY, _horses(win_probability=0.10, win_value=0.90))   # 線ちょうどは見送りでない
+    assert edge.rank == "C" and not edge.skipped   # 0.10 − 0.125 = −0.025 は C（0.02 未満）
 
 
 def test_期待値が無い木曜はランクが無く_二重丸がいなければ的中率も無し() -> None:
@@ -60,20 +71,18 @@ def test_期待値が無い木曜はランクが無く_二重丸がいなけれ�
     grader._payout = PayoutRate(Path("models"), runner=lambda con: _Workflow([], fail=ValueError("オッズがそろっていない")))
     thursday = grader.grade(None, "R", PredictionTiming.THURSDAY, _horses(win_value=None))
     assert thursday.rank is None and thursday.rank_score is None and thursday.hit_rate == 0.23 and thursday.payout_grade is None
-    assert thursday.text() == "◎ランク なし・配当率 なし"
+    assert thursday.text() == "期待度 なし（単勝オッズが出る前なので出さない）" and thursday.badge() == ""
     none = grader.grade(None, "R", PredictionTiming.DAY_BEFORE, _horses(win_probability=None))
     assert none == RaceGrades(None, None, None, None, None)
-    assert none.lines() == ["- ◎ランク: なし。◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い",
-                            "- 的中率: なし。◎ の単勝が当たる確率（1着になる確率）",
-                            "- 配当率: なし。配当が中荒れ以上になる確率（荒れ具合の予想の単勝・馬連・3連複・3連単の平均）"]
+    assert none.lines() == ["- 期待度 なし（単勝オッズが出る前なので出さない）。◎ の単勝の期待値が 0.90 未満のレースは見送り（◎ の単勝が 100% を割る）。それ以外は S・A・B・C のどれも ◎ の単勝の回収率が 100% を超え、等級が高いほど ◎ の的中率が高い"]
 
 
 def test_予想の結果の辞書から戻せて前の版の結果は全部無し() -> None:
     forecast = {"rid": "R", "rank_score": 0.4, "rank": "S", "hit_rate": 0.31, "payout_rate": 0.3, "payout_grade": "B", "trio_upset": "中荒れ"}
     assert RaceGrades.from_dict(forecast) == RaceGrades(0.4, "S", 0.31, 0.3, "B", "中荒れ")
     assert RaceGrades.from_dict({"rid": "R", "expectation": "高"}) == RaceGrades(None, None, None, None, None)
-    assert RaceGrades.from_dict({"rid": "R"}).text_if_any() == "" and RaceGrades.from_dict(forecast).text_if_any() == "◎ランク S（的中率 31%）・配当率 B（30%）"
-    assert RaceGrades(None, None, None, 0.3, "B").text_if_any() == "◎ランク なし・配当率 B（30%）"
-    assert RaceGrades.from_dict(forecast).lines()[0] == "- ◎ランク: S（点数 0.40）。◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い"
-    assert RaceGrades.legend().startswith("◎ランクは◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数")
-    assert RaceGrades.legend().endswith("等級は S 75% 以上・A 50% 以上・B 25% 以上・C 25% 未満")
+    assert RaceGrades.from_dict({"rid": "R"}).text_if_any() == "" and RaceGrades.from_dict(forecast).text_if_any() == "期待度 S（点数 0.40）"
+    assert RaceGrades(None, None, None, 0.3, "B").text_if_any() == ""   # 配当率だけあっても、期待度が無ければ出さない
+    assert RaceGrades.from_dict(forecast).lines() == ["- 期待度 S（点数 0.40）。◎ の単勝の期待値が 0.90 未満のレースは見送り（◎ の単勝が 100% を割る）。それ以外は S・A・B・C のどれも ◎ の単勝の回収率が 100% を超え、等級が高いほど ◎ の的中率が高い"]
+    assert RaceGrades.legend().startswith("期待度は◎ の単勝の期待値が 0.90 未満のレースは見送り")
+    assert RaceGrades.legend().endswith("S 0.28 以上・A 0.14 以上・B 0.02 以上・C 0.02 未満）") and "配当率" not in RaceGrades.legend()

@@ -61,7 +61,7 @@ def test_印の付いた馬と危険な人気馬だけを書き_無印と危険�
     text = RaceDescriber().describe(_forecast())
     lines = text.splitlines()
     assert lines[0] == "### 2025-04-19（土） 東京 1R"
-    assert lines[1] == "時点: 前日（出馬表とオッズがある）。◎ランク A（的中率 23%）・配当率 A（56%）。"
+    assert lines[1] == "時点: 前日（出馬表とオッズがある）。期待度 A（点数 0.28）。"
     assert lines[2] == "◎  3 馬A  1人気 3.1倍  3着内 42%  単勝の期待値 1.08  複勝の期待値 1.05"
     assert lines[3] == "○  1 馬B  2人気 5.0倍  3着内 30%  単勝の期待値 0.80  複勝の期待値 0.90"
     assert lines[4] == "消  8 馬C  1人気 2.5倍  3着内 20%  単勝の期待値 0.60  複勝の期待値 0.70  （危険な人気馬なので消）"

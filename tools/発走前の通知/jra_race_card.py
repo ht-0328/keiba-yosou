@@ -1,4 +1,4 @@
-"""中央の1レースの通知に載せる中身（見出し・時点・◎ランクと的中率と配当率・馬場の傾向・印の順の全頭の表・枠番・推定脚質・実際に買う買い目）。
+"""中央の1レースの通知に載せる中身（見出し・時点・期待度・馬場の傾向・印の順の全頭の表・枠番・推定脚質・実際に買う買い目）。
 文と画像の両方がここから作られる。"""
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ class JraRaceCard:
     #: 時点（例 ``当日の時点``）。
     timing: str
     race_day: bool
-    #: ◎ランク・的中率・配当率の1行（``RaceGrades.text()``）。
+    #: 期待度の1行（``RaceGrades.text()``。例 ``期待度 A（点数 0.21）``）。
     grades: str
     #: 印の順（◎○▲△☆注消、最後に無印）に並べた全頭。列名は ``今週の予想.forecast_columns``。消は危険な人気馬だけ。
     table: pd.DataFrame
@@ -43,11 +43,13 @@ class JraRaceCard:
     styles: Mapping[int, str] = field(default_factory=dict)
     #: 重賞のときの、印で組む買い方の行（``RaceDescriber.mark_bets``。参考で、1点 100円で数えた額。重賞でなければ空）。
     mark_bets: tuple[str, ...] = ()
+    #: 画像の見出しの札（``RaceGrades.badge()``。例 ``期待度 A``。出せなければ空）。地方と同じ形。
+    grade_badge: str = ""
 
     @property
     def badge(self) -> str:
-        """画像の見出しの札。中央は ◎ランク・的中率・配当率を文に出すので、画像には札を描かない（空）。"""
-        return ""
+        """画像の見出しの札（例 ``期待度 A``。出せなければ空）。"""
+        return self.grade_badge
 
     @property
     def title(self) -> str:

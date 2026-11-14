@@ -57,7 +57,10 @@ def test_文は見出し_目安_印の付いた馬_買い目だけで_添付は�
     notice = message.build(RID)
     lines = notice.text.splitlines()
     assert lines[0] == "**東京 1R テスト特別（10:05 発走）** 中央の予想・当日の時点"
-    assert lines[1] == "◎ランク A（的中率 23%）・配当率 A（56%）"
+    assert lines[1] == "期待度 A（点数 0.28）"
+    # 画像の見出しにも地方と同じ期待度の札。オッズの無い木曜は札を描かない
+    assert message.card(_forecast(plan=plan), None, {}).badge == "期待度 A"
+    assert message.card({**_forecast(plan=plan), "rank": None, "rank_score": None}, None, {}).badge == ""
     # 印の付いた馬を1つの印につき1行（◎・消 は印の理由を添える）。無印は書かない
     assert lines[2:4] == ["◎ 3 馬A：単勝の期待値がレース内1位", "消 7 馬B：危険な人気馬（2番人気）"]
     assert lines[4] == "買い目（合計 1,500円）:"

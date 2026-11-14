@@ -1,11 +1,11 @@
-"""レースの目安（◎ランク・的中率・配当率と、その等級）。"""
+"""レースの目安。人に見せるのは期待度（◎ の点数と S・A・B・C）の1つだけ。的中率・配当率は買い方の判断と記録のために持ち続ける。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from yosou.shared.race_grade import GradeScale, TopRankScale
+from yosou.shared.race_grade import EXPECTATION_LABEL, SKIP_GRADE, SKIP_VALUE, TopRankScale
 
 #: 予想の結果（JSON）の鍵。レースに1組（全頭に共通）。
 RANK_SCORE, RANK = "rank_score", "rank"
@@ -14,20 +14,26 @@ PAYOUT_RATE, PAYOUT_GRADE = "payout_rate", "payout_grade"
 #: 3連複の荒れ具合（``TrioUpsetJudge`` が決めたもの。6番人気以下を軸にした3連複で買うレースを選ぶのに使う）。
 TRIO_UPSET = "trio_upset"
 GRADE_KEYS: tuple[str, ...] = (RANK_SCORE, RANK, HIT_RATE, PAYOUT_RATE, PAYOUT_GRADE, TRIO_UPSET)
-#: 人が読む名前と意味（表の注・画面・全頭の予想根拠で使う）。
-RANK_LABEL, HIT_LABEL, PAYOUT_LABEL = "◎ランク", "的中率", "配当率"
-RANK_MEANING = "◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。高いほど ◎ の単勝・複勝の的中率と回収率が高い"
-HIT_MEANING = "◎ の単勝が当たる確率（1着になる確率）"
-PAYOUT_MEANING = "配当が中荒れ以上になる確率（荒れ具合の予想の単勝・馬連・3連複・3連単の平均）"
+#: 人が読む名前と意味（通知の文・まとめ・表の注・画面・全頭の予想根拠・印の成績の表13 で使う）。地方の通知と同じ「期待度」の1つにする。
+RANK_LABEL = EXPECTATION_LABEL
+RANK_MEANING = ("◎ の単勝の期待値が 0.90 未満のレースは見送り（◎ の単勝が 100% を割る）。それ以外は S・A・B・C のどれも ◎ の単勝の回収率が 100% を超え、"
+                "等級が高いほど ◎ の的中率が高い")
+#: 期待度を出せないとき（木曜。単勝オッズがまだ無い）の字と理由。
+NONE = "なし"
+NO_VALUE_REASON = "単勝オッズが出る前なので出さない"
+#: 見送りのときに添える理由。
+SKIP_REASON = f"◎ の単勝の期待値が {SKIP_VALUE:.2f} 未満"
 
 
 @dataclass(frozen=True)
 class RaceGrades:
-    """1レースの ◎ランク（点数と S・A・B・C）・的中率（◎ の1着の確率）・配当率（0〜1）とその等級（S・A・B・C）と、3連複の荒れ具合
-    （固い・中荒れ・大荒れ・超荒れ）。出せなかったものは None（設計書「買うレースと買い目を決める」の 03 の 5）。
+    """1レースの期待度（◎ の点数 ``rank_score`` と S・A・B・C の ``rank``）・的中率（◎ の1着の確率）・配当率（0〜1）とその等級（S・A・B・C）と、
+    3連複の荒れ具合（固い・中荒れ・大荒れ・超荒れ）。出せなかったものは None（設計書「買うレースと買い目を決める」の 03 の 5）。
 
-    ◎ランクの点数は ◎ の1着の確率 ＋（◎ の単勝の期待値 − 1）で、線は ``TopRankScale``（S 0.35 以上・A 0.15 以上・B 0 以上・C 0 未満）。
-    配当率は荒れ具合の予想の4券種の「中荒れ以上の確率」の平均で、線は ``GradeScale``（S 75% 以上・A 50% 以上・B 25% 以上・C 25% 未満）。
+    人に見せる文（``text``・``lines``・``legend``・``badge``）は、地方の通知と同じく期待度の1つだけにする。等級は ``TopRankScale.grade``
+    （◎ の単勝の期待値 0.90 未満は見送り、それ以外は 1着の確率 ＋ 1.25 ×（期待値 − 1）の点数を S 0.28・A 0.14・B 0.02 の線で）。
+    的中率・配当率・3連複の荒れ具合は文に出さないが、予想の結果（JSON）には
+    今までどおり入れる（配当率と3連複の荒れ具合は買い目の判断に使う）。鍵の名前（``rank``・``rank_score``）は前の版の結果と同じ。
     """
 
     rank_score: float | None
@@ -48,32 +54,38 @@ class RaceGrades:
         return cls(forecast.get(RANK_SCORE), forecast.get(RANK), forecast.get(HIT_RATE), forecast.get(PAYOUT_RATE), forecast.get(PAYOUT_GRADE),
                    forecast.get(TRIO_UPSET))
 
+    @property
+    def has_grade(self) -> bool:
+        """期待度を出せたか（木曜と、目安を出す前の版の結果は出せない）。"""
+        return self.rank is not None and self.rank_score is not None
+
+    @property
+    def skipped(self) -> bool:
+        """見送りのレースか。"""
+        return self.rank == SKIP_GRADE
+
     def text(self) -> str:
-        """一覧や表の注に出す1行。例: ``◎ランク A（的中率 23%）・配当率 S（82%）``。出せなかったものは ``なし``。"""
-        rank = "なし" if self.rank is None else f"{self.rank}（{HIT_LABEL} {_percent(self.hit_rate)}）"
-        return f"{RANK_LABEL} {rank}・{PAYOUT_LABEL} {_grade_text(self.payout_grade, self.payout_rate)}"
+        """通知の文・一覧・表の注に出す1行。例: ``期待度 A（点数 0.21）``・``期待度 見送り（◎ の単勝の期待値が 0.90 未満）``。
+        出せなければ ``期待度 なし（単勝オッズが出る前なので出さない）``。"""
+        if not self.has_grade:
+            return f"{RANK_LABEL} {NONE}（{NO_VALUE_REASON}）"
+        if self.skipped:
+            return f"{RANK_LABEL} {SKIP_GRADE}（{SKIP_REASON}）"
+        return f"{RANK_LABEL} {self.rank}（点数 {self.rank_score:.2f}）"
 
     def text_if_any(self) -> str:
-        """``text()`` と同じだが、◎ランクも配当率も無い（目安を出す前の版の結果）なら空。レースの一覧や状況の要約に使う。"""
-        return self.text() if self.rank is not None or self.payout_grade is not None else ""
+        """``text()`` と同じだが、期待度を出せなければ空。レースの一覧や状況の要約に使う。"""
+        return self.text() if self.has_grade else ""
+
+    def badge(self) -> str:
+        """表の画像の見出しの札。例 ``期待度 A``。出せなければ空（札を描かない）。"""
+        return f"{RANK_LABEL} {self.rank}" if self.has_grade else ""
 
     def lines(self) -> list[str]:
-        """全頭の予想根拠の頭に書く3行（意味つき）。"""
-        score = "なし" if self.rank is None or self.rank_score is None else f"{self.rank}（点数 {self.rank_score:.2f}）"
-        return [f"- {RANK_LABEL}: {score}。{RANK_MEANING}",
-                f"- {HIT_LABEL}: {_percent(self.hit_rate)}。{HIT_MEANING}",
-                f"- {PAYOUT_LABEL}: {_grade_text(self.payout_grade, self.payout_rate)}。{PAYOUT_MEANING}"]
+        """全頭の予想根拠の頭に書く1行（意味つき）。"""
+        return [f"- {self.text()}。{RANK_MEANING}"]
 
     @staticmethod
     def legend() -> str:
         """意味と線の説明（表の注・画面の凡例）。"""
-        return (f"{RANK_LABEL}は{RANK_MEANING}（{TopRankScale.legend()}）。{HIT_LABEL}は{HIT_MEANING}。"
-                f"{PAYOUT_LABEL}は{PAYOUT_MEANING}で、等級は {GradeScale.legend()}")
-
-
-def _percent(rate: float | None) -> str:
-    return "なし" if rate is None else f"{rate:.0%}"
-
-
-def _grade_text(grade: str | None, rate: float | None) -> str:
-    return "なし" if grade is None or rate is None else f"{grade}（{rate:.0%}）"
+        return f"{RANK_LABEL}は{RANK_MEANING}（{TopRankScale.legend()}）"

@@ -68,7 +68,7 @@ def test_まとめは_見出し_一覧_買うレース_競馬場ごとのレー�
     assert text.index("## 一覧") < text.index("## 買うレース") < text.index("## 東京") < text.index("## 京都")
     rows = [line for line in text.splitlines() if line.startswith("| 東京") or line.startswith("| 京都")]
     assert [_cells(row)[0] for row in rows] == ["東京 1R", "東京 11R", "京都 5R"]
-    assert _cells(rows[0]) == ["東京 1R", "未勝利", "芝・左 1200m 16頭", "09:50", "前日", "A（23%）", "A（56%）", "3 馬A（1人気 3.1倍）", "7 馬B", "2 馬C", "9 馬D",
+    assert _cells(rows[0]) == ["東京 1R", "未勝利", "芝・左 1200m 16頭", "09:50", "前日", "A（0.28）", "3 馬A（1人気 3.1倍）", "7 馬B", "2 馬C", "9 馬D",
                                "複勝（勝負）1,600円"]
     assert _cells(rows[1])[1] == "テスト記念（G3）" and _cells(rows[1])[-1] == "複勝（ノルマ（重賞））300円"
     assert _cells(rows[2])[-1] == "買わない"
@@ -112,7 +112,7 @@ def test_枠順の無い木曜の予想は一覧に馬名だけを書く(tmp_pat
     store.save(forecast)
     text = DaySummary(store).markdown(DAY)
     row = next(line for line in text.splitlines() if line.startswith("| 東京 1R"))
-    assert _cells(row)[4:] == ["木曜", "A（23%）", "A（56%）", "馬A", "馬B", "馬C", "馬D", ""]
+    assert _cells(row)[4:] == ["木曜", "A（0.28）", "馬A", "馬B", "馬C", "馬D", ""]
 
 
 def test_予想が無い日は_無いと書く(tmp_path: Path) -> None:
