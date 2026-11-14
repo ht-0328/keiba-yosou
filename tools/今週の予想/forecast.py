@@ -18,7 +18,7 @@
 印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（単勝・複勝・ワイド・馬連・馬単・3連複・3連単。3連複・3連単は前からの形と、
 ◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す（今の決まりで実際に買うのは、複勝と、当日の予想の単勝（期待値）・◎の単勝の期待値が 1.00 以上のレースの馬単・組の期待値の買い目。ほかは参考）。
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
-予想のあと、開催日ごとに買うレースの計画（勝負／ノルマ参加（重賞）／ノルマ参加（日）／買わない と、複勝の買い目と金額。設計書 03・08 の 1）を
+予想のあと、開催日ごとに買うレースの計画（勝負／ノルマ参加（日）／買わない と、複勝の買い目と金額。平地の重賞は当日の予想で重賞の3連単（組の期待値の高い順に10点）を勝負レースの予算で必ず買う。設計書 03・08 の 1・2）を
 財布（reports/回顧/財布.json。初めの額は利用者が決める）の予算で決めて、reports/今週の予想/<開催日>/plan.json と回顧の表1「買い目の記録」に書く
 （前日・当日の予想だけ。木曜はオッズが無いので計画しない）。そのあと、開催日ごとのまとめ（一覧・買うレース・レースごとの印と買い目・◎ の理由と近走）を
 reports/今週の予想/<開催日>/まとめ.md に書く（summary.py で出し直せる）。WIN5 の予想の記録（予想「近走と適性からWIN5の買い目を決める」の predict が
@@ -129,7 +129,7 @@ def _plan_days(con, store: ForecastStore, review: ReviewStore, race_ids: list[st
         plans = planner.plan(con, day, forecasts)
         summary = {**{name: wallet.balance(name, wallet.month_start(day)) for name in (MATCH_WALLET, POLICY_WALLET, WIN_WALLET, COMBO_WALLET,
                                                                                          LONGSHOT_WALLET)},
-                   "予算": {kind: wallet.budget(kind, day) for kind in (review_names.MATCH, review_names.POLICY_STAKES, review_names.POLICY_DAY)},
+                   "予算": {kind: wallet.budget(kind, day) for kind in (review_names.MATCH, review_names.POLICY_DAY)},
                    "1点": wallet.unit(day), "単勝・馬単の1点": {label: wallet.point_yen(label, day) for label in POINT_RATE[WIN_WALLET]},
                    "組の期待値の1点": {rule.ticket_type.label: wallet.point_yen(rule.ticket_type.label, day, COMBO_WALLET)
                                     for rule in ALL_COMBO_VALUE_RULES if rule.adopted},

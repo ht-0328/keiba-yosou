@@ -16,7 +16,7 @@ from 今週の予想.bracket_value_picker import BracketValuePicker
 from 今週の予想.combo_value_picker import ComboValuePicker
 from 今週の予想.forecast_columns import HORSE_NO, WIN_VALUE_BAND
 from 今週の予想.mark_tickets import COLUMNS, ODDS, RULE, VALUE, MarkTickets
-from 今週の予想.ticket_rules import BRACKET_VALUE_RULE, COMBO_VALUE_RULES
+from 今週の予想.ticket_rules import BRACKET_VALUE_RULE, COMBO_VALUE_RULES, STAKES_TRIFECTA_RULE
 from 今週の予想.torigami_filter import DROPPED, TorigamiFilter
 
 #: 結果の辞書の鍵（買い目1点）。
@@ -36,6 +36,7 @@ class ForecastTickets:
     締め切り前のオッズの板で組を選んで足す。重み（``weights``。モデルの置き場所の ``combo_blend.json``）が無ければ足さない。
     枠連の組の期待値の買い目（``BRACKET_VALUE_RULE``。``BracketValuePicker``）も、馬連・3連単・枠連の締め切り前の板と枠番で選んで足す
     （重み ``bracket_weights``。``bracket_blend.json`` が無ければ足さない）。
+    平地の重賞（``graded``）の当日の予想では、重賞の3連単（``STAKES_TRIFECTA_RULE``。組の期待値の高い順に10点）も同じ板と重みで選んで足す。
     組の期待値の買い目の ``probability`` は、重みで合わせた組の確率（期待値 ÷ オッズ）。
     1点は ``TICKET_KEYS`` の鍵を持つ。``combo`` は組番（馬番を2桁ずつ）、``horses`` は馬番の並び、``label`` は人が読む並び
     （着順を区別する券種は ``3→1→8``、順不同は ``1-3-8``）、``dropped`` は外した理由（空なら買う）。
@@ -48,16 +49,17 @@ class ForecastTickets:
         self._torigami = TorigamiFilter()
         self._picker = ComboValuePicker(tuple(rule for rule in COMBO_VALUE_RULES if rule.adopted), weights or {})
         self._bracket = BracketValuePicker(BRACKET_VALUE_RULE, bracket_weights)
+        self._stakes = ComboValuePicker((STAKES_TRIFECTA_RULE,), weights or {})
 
     def build(self, con: duckdb.DuckDBPyConnection, race_id: str, marked: pd.DataFrame, band: str | None,
-              odds_known: bool, race_day: bool = False) -> list[dict[str, Any]]:
+              odds_known: bool, race_day: bool = False, graded: bool = False) -> list[dict[str, Any]]:
         if marked[HORSE_NO].isna().any():
             return []
         race = marked.assign(race_id=race_id, race_date=pd.Timestamp(f"{race_id[:4]}-{race_id[4:6]}-{race_id[6:8]}"), fold="",
                              **{WIN_VALUE_BAND: band})
         tickets = self._tickets.build(race)
         if odds_known and race_day:
-            tickets = pd.concat([tickets, self._combo_value(con, race_id, race)], ignore_index=True)
+            tickets = pd.concat([tickets, self._combo_value(con, race_id, race, graded)], ignore_index=True)
         if tickets.empty:
             return []
         if odds_known:
@@ -69,12 +71,13 @@ class ForecastTickets:
         tickets["probability"] = self._value.probability(tickets[VALUE], tickets[ODDS])
         return [self._row(ticket) for _, ticket in tickets.iterrows()]
 
-    def _combo_value(self, con: duckdb.DuckDBPyConnection, race_id: str, race: pd.DataFrame) -> pd.DataFrame:
-        """組の期待値で選ぶ買い目と、枠連の組の期待値の買い目（締め切り前のオッズの板から）。板の無い券種は 0点。"""
-        wanted = (*self._picker.needed(), *((TicketType.QUINELLA, TicketType.TRIFECTA) if self._bracket.ready else ()))
+    def _combo_value(self, con: duckdb.DuckDBPyConnection, race_id: str, race: pd.DataFrame, graded: bool) -> pd.DataFrame:
+        """組の期待値で選ぶ買い目と、枠連の組の期待値の買い目と、重賞なら重賞の3連単（締め切り前のオッズの板から）。板の無い券種は 0点。"""
+        wanted = (*self._picker.needed(), *((TicketType.QUINELLA, TicketType.TRIFECTA) if self._bracket.ready else ()),
+                  *(self._stakes.needed() if graded else ()))
         boards = {ticket_type: AnnouncedTicketOddsRepository(con, ticket_type).read(race_id).assign(race_id=race_id)
                   for ticket_type in dict.fromkeys(wanted)}
-        parts = [self._picker.pick(race, boards)]
+        parts = [self._picker.pick(race, boards), *([self._stakes.pick(race, boards)] if graded else [])]
         if self._bracket.ready:
             bracket_board = AnnouncedTicketOddsRepository(con, BRACKET).read(race_id).assign(race_id=race_id)
             day = pd.Timestamp(f"{race_id[:4]}-{race_id[4:6]}-{race_id[6:8]}").date()

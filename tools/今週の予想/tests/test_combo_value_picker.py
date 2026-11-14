@@ -118,3 +118,18 @@ def test_2段に分けても一度に選んでも同じ買い目になる() -> N
     selected = picker.select(rules[0], candidates[0], picker.races(marked))
     assert selected.reset_index(drop=True).equals(picker.pick(marked, boards).reset_index(drop=True))
     assert selected["combo"].tolist() == ["0102"] or selected["combo"].tolist() == ["0203"]   # ◎（2番）を含む組を1点
+
+
+def test_組の確率の下限のあるルールは下限より低い組を落とし_名前があればその名前で出す() -> None:
+    # 確率は 1-2 が 0.664・1-3 が 0.332・2-3 が 0.003（期待値はどれも 1.33）。下限 0.01 で 2-3 を落とす
+    rule = ComboValueRule(TicketType.QUINELLA, ALL_RACES, 0.0, 1000, adopted=True, min_probability=0.01, name="馬連（重賞）")
+    tickets = ComboValuePicker((rule,), {TicketType.QUINELLA: _MARKET_ONLY}).pick(_marked("r1", "1.00 以上"), _boards(["r1"]))
+    assert sorted(tickets["combo"]) == ["0102", "0103"] and set(tickets[RULE]) == {"馬連（重賞）"}
+    assert rule.condition == "全レース・期待値 0.0 以上・1,000倍以下・組の確率 1.0% 以上"
+
+
+def test_重賞の3連単の決まりは_期待値の線なしで確率と上限と10点で選ぶ() -> None:
+    from 今週の予想.ticket_rules import STAKES_TRIFECTA_LABEL, STAKES_TRIFECTA_RULE
+    assert STAKES_TRIFECTA_RULE.label == STAKES_TRIFECTA_LABEL == "3連単（重賞）"
+    assert (STAKES_TRIFECTA_RULE.value_line, STAKES_TRIFECTA_RULE.odds_cap, STAKES_TRIFECTA_RULE.min_probability,
+            STAKES_TRIFECTA_RULE.max_points) == (0.0, 1000.0, 0.002, 10)

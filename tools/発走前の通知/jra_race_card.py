@@ -12,6 +12,8 @@ from 発走前の通知.bet_footer import BetFooter
 
 #: 画像の買い目の欄の札。
 FOOTER_LABEL = "買い目"
+#: 重賞の、印で組む買い方の見出し（参考。実際に買う買い目の合計には入らない）。
+MARK_BETS_LABEL = "印の買い目（参考・1点 100円）"
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,8 @@ class JraRaceCard:
     tendency: str = ""
     #: 馬番 → 推定脚質（逃げ・先行・差し・追込。``RaceStyles``）。過去走の無い馬は入らない。
     styles: Mapping[int, str] = field(default_factory=dict)
+    #: 重賞のときの、印で組む買い方の行（``RaceDescriber.mark_bets``。参考で、1点 100円で数えた額。重賞でなければ空）。
+    mark_bets: tuple[str, ...] = ()
 
     @property
     def badge(self) -> str:
@@ -60,6 +64,7 @@ class JraRaceCard:
     @property
     def footer(self) -> BetFooter:
         """画像の買い目の欄（券種ごとの行・合計・理由）。"""
+        notes = (*self.notes, *(f"{MARK_BETS_LABEL} {line}" for line in self.mark_bets))
         if not self.bets:
-            return BetFooter(FOOTER_LABEL, notes=self.notes)
-        return BetFooter(FOOTER_LABEL, tuple(line for line, _ in self.bets), f"合計 {self.yen:,}円", self.notes)
+            return BetFooter(FOOTER_LABEL, notes=notes)
+        return BetFooter(FOOTER_LABEL, tuple(line for line, _ in self.bets), f"合計 {self.yen:,}円", notes)

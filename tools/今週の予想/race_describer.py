@@ -10,12 +10,24 @@ from 今週の予想.mark_rule import NO_MARK, OUT_MARK, TOP_MARK
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
 from 今週の予想.ticket_pick import TicketPick
-from 今週の予想.ticket_rules import LONGSHOT_PLACE_LABEL, PLACE_LABEL, POINT_YEN, POOL_TRIO_RULES, UPSET_TRIO_LABELS
+from 今週の予想.ticket_rules import (
+    BET_RULES,
+    LONGSHOT_PLACE_LABEL,
+    PLACE_LABEL,
+    POINT_YEN,
+    POOL_TRIO_RULES,
+    STAKES_TRIFECTA_LABEL,
+    UPSET_TRIO_LABELS,
+)
 
 #: 単勝・馬単用の財布で買う券種（単勝（期待値）と、◎の単勝の期待値が 1.00 以上のレースの ◎ の馬単）。
 WIN_WALLET_TICKETS: tuple[str, ...] = ("単勝", "馬単")
 #: 組の期待値の買い目を書く券種の順（実際に買うのは、今の決まりで採用したものだけが計画に入る）。
 COMBO_LABELS: tuple[str, ...] = ("枠連", "馬連", "馬単", "ワイド", "3連複", "3連単")
+#: 重賞で勝負する券種（重賞の3連単。組の期待値の高い順に10点）。
+STAKES_TICKETS: tuple[str, ...] = ("3連単",)
+#: 印で組む買い方（08 の 2 の印のルールの、軸から流す形を除いた6つ。単勝 ◎・ワイド・馬連・馬単 ◎→○▲☆・3連複・3連単）。重賞の通知に出す。
+MARK_RULE_LABELS: tuple[str, ...] = tuple(rule.label for rule in BET_RULES[:6])
 #: 参考の買い目で、組を書き出す点数の上限（3連単のマルチは 60点を超えるので、期待値の高い順にここまで）。
 REFERENCE_SHOWN = 10
 #: 参考の買い目に出さない、比べるためだけの行（2モデル一致で絞った行）の目印。
@@ -88,7 +100,7 @@ class RaceDescriber:
         """買い目の行。実際に買う複勝・単勝・馬単・組の期待値・6番人気以下の複勝の買い目（今の決まり）と、荒れ具合で形を決める3連複と、
         参考の券種（ワイド・馬連・3連複・3連単など）。"""
         lines = ["実際に買う買い目:", *self._place_lines(forecast, plan)]
-        win_picks, combo_picks, longshot_picks = self._split(plan)
+        win_picks, combo_picks, longshot_picks, stakes_picks = self._split(plan)
         lines += self._bought_lines(WIN_WALLET_TICKETS, win_picks, "")
         if not win_picks:
             lines.append("- 単勝・馬単: なし（単勝（期待値）の馬がいない。馬単は ◎の単勝の期待値が 1.00 以上のレースだけ。くわしくは下の理由）")
@@ -99,6 +111,10 @@ class RaceDescriber:
         lines += self._bought_lines((PLACE_LABEL,), longshot_picks, "（6番人気以下）")
         if not longshot_picks:
             lines.append(self._longshot_none_line(forecast))
+        if plan is not None and plan.graded:
+            lines += self._bought_lines(STAKES_TICKETS, stakes_picks, "（重賞）")
+            if not stakes_picks:
+                lines.append("- 3連単（重賞）: なし（" + ("当日の予想で、組の期待値の高い順に10点を買う" if forecast.get("timing") != "当日" else "下の理由のとおり") + "）")
         if plan is not None and plan.ticket_reason:
             lines.append(f"  （{plan.ticket_reason}）")
         bought = {pick.ticket_type for pick in win_picks} | {f"{pick.ticket_type}（組の期待値）" for pick in combo_picks}
@@ -107,7 +123,7 @@ class RaceDescriber:
         lines.append(f"参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 {POINT_YEN}円で数えた額）:")
         # 買い方は予想に入っている順（MarkTickets が組んだ順。前の版の予想は買い方の名前が違うことがあるので、名前の一覧では引かない）
         for rule in dict.fromkeys(ticket["rule"] for ticket in forecast["tickets"]):
-            if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL) or rule in _POOL_TRIO_LABELS or REFERENCE_SKIP in rule or rule in bought:
+            if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL) or rule in _POOL_TRIO_LABELS or REFERENCE_SKIP in rule or rule in bought:
                 continue
             lines.append(self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule]))
         return lines
@@ -118,9 +134,9 @@ class RaceDescriber:
         rows: list[tuple[str, int]] = []
         if plan is not None and plan.picks:
             rows.append((self._place_lines(forecast, plan)[0].removeprefix("- "), plan.place_yen))
-        win_picks, combo_picks, longshot_picks = self._split(plan)
+        win_picks, combo_picks, longshot_picks, stakes_picks = self._split(plan)
         for labels, picks, suffix in ((WIN_WALLET_TICKETS, win_picks, ""), (COMBO_LABELS, combo_picks, "（組の期待値）"),
-                                      ((PLACE_LABEL,), longshot_picks, "（6番人気以下）")):
+                                      ((PLACE_LABEL,), longshot_picks, "（6番人気以下）"), (STAKES_TICKETS, stakes_picks, "（重賞）")):
             for label in labels:
                 chosen = [pick for pick in picks if pick.ticket_type == label]
                 if chosen:
@@ -131,13 +147,14 @@ class RaceDescriber:
         return rows
 
     @staticmethod
-    def _split(plan: RacePlan | None) -> tuple[list[TicketPick], list[TicketPick], list[TicketPick]]:
-        """計画の単勝・馬単（の財布）、組の期待値、6番人気以下の複勝の買い目。"""
+    def _split(plan: RacePlan | None) -> tuple[list[TicketPick], list[TicketPick], list[TicketPick], list[TicketPick]]:
+        """計画の単勝・馬単（の財布）、組の期待値、6番人気以下の複勝、重賞の3連単。"""
         tickets = plan.tickets if plan is not None else ()
-        win_picks = [pick for pick in tickets if pick.kind not in (names.MATCH_COMBO, names.MATCH_LONGSHOT)]
+        win_picks = [pick for pick in tickets if pick.kind not in (names.MATCH_COMBO, names.MATCH_LONGSHOT, names.MATCH_STAKES)]
         combo_picks = [pick for pick in tickets if pick.kind == names.MATCH_COMBO]
         longshot_picks = [pick for pick in tickets if pick.kind == names.MATCH_LONGSHOT]
-        return win_picks, combo_picks, longshot_picks
+        stakes_picks = [pick for pick in tickets if pick.kind == names.MATCH_STAKES]
+        return win_picks, combo_picks, longshot_picks, stakes_picks
 
     def _longshot_none_line(self, forecast: dict[str, Any]) -> str:
         """6番人気以下の複勝を買わないときの行。当日の予想でなければ、今の候補（当日の予想で買うかを決め直す）を書く。"""
@@ -168,6 +185,12 @@ class RaceDescriber:
             total = sum(pick.yen for pick in chosen)
             lines.append(f"- {label}{suffix}: {shown}{more}  1点 {chosen[0].yen:,}円 × {len(chosen)}点 = {total:,}円")
         return lines
+
+    def mark_bets(self, forecast: dict[str, Any]) -> list[str]:
+        """印で組む買い方（``MARK_RULE_LABELS``）の行（参考の買い目と同じ書き方で、先頭の「- 」は付けない。金額は1点 ``POINT_YEN`` で数えた額）。
+        予想に無い買い方（印の付かない ☆ のワイドなど）は出さない。"""
+        return [self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule]).removeprefix("- ")
+                for rule in MARK_RULE_LABELS if any(ticket["rule"] == rule for ticket in forecast["tickets"])]
 
     def _reference_line(self, rule: str, tickets: list[dict[str, Any]]) -> str:
         """参考の買い方1つの行。買う組を期待値（無ければ並び）の順に最大 ``REFERENCE_SHOWN`` 点と、点数・金額の目安。トリガミで外す組は数だけ。"""

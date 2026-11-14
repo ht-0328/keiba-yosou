@@ -119,3 +119,18 @@ def test_買わないときは_なし_と理由(tmp_path: Path) -> None:
 def test_予想が無ければ止まる(tmp_path: Path) -> None:
     with pytest.raises(LookupError, match=RID):
         RaceMessage(ForecastStore(tmp_path), schedule=_Schedule(), frames=_Frames(), folder=tmp_path).build(RID)
+
+
+def test_重賞は実際に買う買い目のあとに印の買い目を参考で出し_重賞でなければ出さない(tmp_path: Path) -> None:
+    forecast = _forecast()
+    forecast["header"] = {"クラス": "G1"}
+    forecast["tickets"].append({"rule": "3連単（◎→○▲☆→○▲△☆）", "ticket_type": "3連単", "combo": "030701", "horses": [3, 7, 1],
+                                "label": "3→7→1", "stake_units": 0.1, "value": None, "probability": None, "odds": 250.0, "dropped": ""})
+    message, _ = _message(tmp_path, forecast)
+    lines = message.build(RID).text.splitlines()
+    head = lines.index("印の買い目（参考・1点 100円）:")
+    # 単勝 ◎ と 3連単 ◎→○▲☆→○▲△☆ だけ（軸から流す形・トリガミの組は出さない）。予想に無い印の買い方は出さない
+    assert lines[head + 1:] == ["- 単勝: 1点 100円  3", "- 3連単（◎→○▲☆→○▲△☆）: 1点 100円  3→7→1"]
+    forecast["header"] = {"クラス": "3勝クラス"}
+    message, _ = _message(tmp_path / "別", forecast)
+    assert "印の買い目" not in message.build(RID).text
