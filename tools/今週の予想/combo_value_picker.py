@@ -17,7 +17,7 @@ from yosou.shared.combo_value import (
     TrifectaSources,
     split_combo,
 )
-from yosou.shared.combo_value.combo_blend import VALUE
+from yosou.shared.combo_value.combo_blend import PROBABILITY, VALUE
 from yosou.shared.win_value import HIGH
 
 from 今週の予想.combo_race_traits import ComboRaceTraits
@@ -126,7 +126,7 @@ class ComboValuePicker:
         folded = self._folding.fold(rule.ticket_type, sources, [MARKET, HARVILLE])
         features = self._features.build(rule.ticket_type, board, folded, strength)
         valued = self._blend.of(rule.ticket_type, features, weights)
-        return valued[(valued[VALUE] >= rule.value_line) & (valued["odds"] <= rule.odds_cap)]
+        return valued[(valued[VALUE] >= rule.value_line) & (valued["odds"] <= rule.odds_cap) & (valued[PROBABILITY] >= rule.min_probability)]
 
     def _has_top(self, ticket_type: TicketType, chosen: pd.DataFrame) -> pd.Series:
         """◎ を含む組か（着順を区別する券種は ◎ が1着の組か）。"""

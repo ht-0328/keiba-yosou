@@ -26,6 +26,7 @@ class ComboValueRule:
     偽の券種は、どの区切りでも combo_blend.json の重みのまま）。
     ``stake_units`` は 08 の 2 の単位（合計には入らないので、表の列を埋めるためだけ）。
     ``race_conditions`` があれば、その条件の全部に合うレースだけ買う（研究「レースの種類ごとの買い方」の docs/03・04。券種ごとに向いたレースの中身）。
+    ``min_probability`` があれば、組の確率がそれ以上の組だけにする。``name`` があれば、表に出す買い方の名前をそれにする（無ければ ``<券種>（組の期待値）``）。
     例: ワイド・◎の期待値 1.00 以上のレース・線 1.0・上限 300倍・3点なら、◎ の単勝の期待値が 1.00 以上のレースで、組の期待値が 1.0 以上で 300倍以下のワイドを、期待値の高い順に3点まで買う。
     """
 
@@ -38,15 +39,18 @@ class ComboValueRule:
     rolling: bool = False
     stake_units: float = 0.5
     race_conditions: tuple[RaceCondition, ...] = ()
+    min_probability: float = 0.0
+    name: str | None = None
 
     @property
     def label(self) -> str:
         """表に出す買い方の名前。例: ``馬連（組の期待値）``。"""
-        return f"{self.ticket_type.label}（組の期待値）"
+        return self.name or f"{self.ticket_type.label}（組の期待値）"
 
     @property
     def condition(self) -> str:
         """人が読む決まり。例: ``全レース・期待値 1.1 以上・100倍以下``。"""
         points = f"・1レース {self.max_points}点まで" if self.max_points else ""
         race = f"・{'・'.join(condition.text for condition in self.race_conditions)}のレースだけ" if self.race_conditions else ""
-        return f"{self.scope}・期待値 {self.value_line:.1f} 以上・{self.odds_cap:,.0f}倍以下{points}{race}"
+        probability = f"・組の確率 {self.min_probability:.1%} 以上" if self.min_probability else ""
+        return f"{self.scope}・期待値 {self.value_line:.1f} 以上・{self.odds_cap:,.0f}倍以下{probability}{points}{race}"

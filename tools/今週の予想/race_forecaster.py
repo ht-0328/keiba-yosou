@@ -30,6 +30,7 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.danger_finder import DangerFinder
 from 今週の予想.danger_reasons import DangerReasons
 from 今週の予想.forecast_tickets import ForecastTickets
+from 今週の予想.ticket_rules import GRADED_CLASSES
 from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.filter_columns import MEMBER_SOURCES, member_column
@@ -113,7 +114,7 @@ class RaceForecaster:
             columns.WIN_VALUE_BAND: band, **grades.as_dict(), "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
             "tickets": self._tickets.build(con, race_id, marked.assign(**{columns.TRIO_UPSET: grades.trio_upset}), band, odds_known,
-                                           chosen is PredictionTiming.RACE_DAY),
+                                           chosen is PredictionTiming.RACE_DAY, graded=str(header.get("クラス", "")) in GRADED_CLASSES),
             "pace": self._pace(race_id),
         }
 

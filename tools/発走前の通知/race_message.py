@@ -16,9 +16,10 @@ from 今週の予想.mark_rule import MARK_ORDER, NO_MARK, OUT_MARK
 from 今週の予想.race_describer import RaceDescriber
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
+from 今週の予想.ticket_rules import GRADED_CLASSES
 
 from 発走前の通知.folders import CENTRAL_FOLDER
-from 発走前の通知.jra_race_card import JraRaceCard
+from 発走前の通知.jra_race_card import MARK_BETS_LABEL, JraRaceCard
 from 発走前の通知.mark_lines import MarkLines
 from 発走前の通知.race_frames import RaceFrames
 from 発走前の通知.race_image import RaceImage
@@ -74,21 +75,27 @@ class RaceMessage:
         """予想の JSON（``horses``・``tickets``・``plan``・時点と目安）とレース一覧の行から、通知の中身を組む。"""
         plan = RacePlan.from_dict(forecast["plan"]) if forecast.get("plan") else None
         bets = tuple(self._describer.bought(forecast, plan))
+        graded = str(forecast.get("header", {}).get("クラス", "")) in GRADED_CLASSES
         timing = str(forecast.get("timing", ""))
         grades = RaceGrades.from_dict(forecast)
         return JraRaceCard(heading=f"{race.venue} {race.number}R" if race else str(forecast["title"]),
                            name=race.name if race else "", post=f"{race.post:%H:%M} 発走" if race else "",
                            timing=f"{timing}の時点", race_day=timing == _RACE_DAY, grades=grades.text(),
                            table=self._table(forecast), frames=dict(frames), bets=bets, notes=() if bets else self._notes(plan),
-                           tendency=tendency, styles=dict(styles or {}), grade_badge=grades.badge())
+                           tendency=tendency, styles=dict(styles or {}), grade_badge=grades.badge(),
+                           mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else ())
 
     def describe(self, card: JraRaceCard) -> str:
-        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目。"""
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目と、重賞なら印で組む買い方（参考）。"""
         lines = [f"**{card.title}** 中央の予想・{card.timing}", card.grades, *([card.tendency] if card.tendency else []),
                  *MarkLines().lines(card.table)]
         if not card.bets:
-            return "\n".join([*lines, f"買い目: なし（{'。'.join(card.notes)}）" if card.notes else "買い目: なし"])
-        return "\n".join([*lines, f"買い目（合計 {card.yen:,}円）:", *(f"- {line}" for line, _ in card.bets)])
+            lines.append(f"買い目: なし（{'。'.join(card.notes)}）" if card.notes else "買い目: なし")
+        else:
+            lines += [f"買い目（合計 {card.yen:,}円）:", *(f"- {line}" for line, _ in card.bets)]
+        if card.mark_bets:
+            lines += [f"{MARK_BETS_LABEL}:", *(f"- {line}" for line in card.mark_bets)]
+        return "\n".join(lines)
 
     @staticmethod
     def _notes(plan: RacePlan | None) -> tuple[str, ...]:

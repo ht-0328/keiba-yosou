@@ -19,8 +19,8 @@ LONGSHOT_WALLET = "穴馬の複勝用"
 #: WIN5（ポリシー（WIN5））は楽しむための参加費なので、ノルマ参加と同じポリシー用の財布から出す（予想「近走と適性からWIN5の買い目を決める」15 の 8）。
 WALLET_OF: dict[str, str] = {names.MATCH: MATCH_WALLET, names.POLICY_STAKES: POLICY_WALLET, names.POLICY_DAY: POLICY_WALLET,
                              names.POLICY_WIN5: POLICY_WALLET, names.MATCH_WIN: WIN_WALLET, names.MATCH_COMBO: COMBO_WALLET,
-                             names.MATCH_LONGSHOT: LONGSHOT_WALLET}
-#: 予算の割合（残高に対して）。勝負レース 5%・ノルマ参加（重賞）3%・ノルマ参加（日）1.5%。
+                             names.MATCH_LONGSHOT: LONGSHOT_WALLET, names.MATCH_STAKES: MATCH_WALLET}
+#: 予算の割合（残高に対して）。勝負レース 5%・ノルマ参加（日）1.5%。ノルマ参加（重賞）3% は前の版のもので、今は使わない（重賞はノルマ参加にしない）。
 BUDGET_RATE: dict[str, float] = {names.MATCH: 0.05, names.POLICY_STAKES: 0.03, names.POLICY_DAY: 0.015}
 #: 勝負レースの1点 = 予算 ÷ 3。1日に使う額の上限は勝負用の残高の 20%。財布が初めの 70% を下回ったら、その財布の買い目を止める。
 POINTS_PER_RACE, DAY_CAP_RATE, STOP_RATE = 3, 0.20, 0.70

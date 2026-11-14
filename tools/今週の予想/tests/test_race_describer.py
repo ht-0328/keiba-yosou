@@ -148,3 +148,18 @@ def test_実際に買う買い目だけを_文と同じ書き方と金額で返�
     # 何も買わない計画・計画が無いときは空
     assert RaceDescriber().bought(_forecast("当日"), _plan(kind="買わない", picks=(), tickets=())) == []
     assert RaceDescriber().bought(_forecast("当日"), None) == []
+
+
+def test_重賞の3連単は重賞の行に書き_組の期待値や単勝馬単の行とは分ける() -> None:
+    forecast = _forecast("当日")
+    stakes = (TicketPick("3連単", "030108", "3→1→8", 1.4, 350.0, 500, kind=names.MATCH_STAKES),
+              TicketPick("3連単", "010308", "1→3→8", 1.2, 420.0, 500, kind=names.MATCH_STAKES))
+    plan = _plan(graded=True, tickets=stakes, ticket_reason="平地の重賞なので、3連単を組の期待値の高い順に 2点、勝負レースの予算を10点で割った 500円ずつ買う")
+    describer = RaceDescriber()
+    text = describer.describe(forecast, plan)
+    line = "3連単（重賞）: 3→1→8（期待値 1.40・オッズ 350.0）・1→3→8（期待値 1.20・オッズ 420.0）  1点 500円 × 2点 = 1,000円"
+    assert f"- {line}" in text
+    assert "- 単勝・馬単: なし" in text   # 重賞の3連単は単勝・馬単の財布の行に入らない
+    assert (line, 1_000) in describer.bought(forecast, plan)
+    before = describer.describe(_forecast("前日"), _plan(graded=True, tickets=()))
+    assert "- 3連単（重賞）: なし（当日の予想で、組の期待値の高い順に10点を買う）" in before

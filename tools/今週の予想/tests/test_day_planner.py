@@ -14,7 +14,7 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.bet_recorder import BetRecorder
 from 今週の予想.day_planner import DayPlanner
 from 今週の予想.race_plan import NO_BET
-from 今週の予想.ticket_rules import LONGSHOT_PLACE_LABEL
+from 今週の予想.ticket_rules import LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL
 from 今週の予想.wallet import COMBO_WALLET, LONGSHOT_WALLET, MATCH_WALLET, POLICY_WALLET, WIN_WALLET, Wallet
 
 
@@ -59,10 +59,10 @@ def test_財布は_初めの額と買い目の記録から残高を数え_予算
     assert wallet.budget(names.MATCH, day) == 4_700 and not wallet.stopped(day)
 
 
-def test_計画は_重賞を必ず入れ_Eの大きい順に3つまで勝負にし_堅い重賞はノルマで買う(store: ReviewStore, tmp_path: Path, con):
+def test_計画は_Eの大きい順に3つまで勝負にし_複勝の買い方に合わない重賞はノルマにせず複勝を買わない(store: ReviewStore, tmp_path: Path, con):
     planner = DayPlanner(Wallet(store, tmp_path / "財布.json"))
     forecasts = [
-        _forecast("2026101105040401", "G3", [1.0, 1.0, 1.1]),                 # 堅い重賞 → ノルマ（重賞）。線に届かなくても上から2点
+        _forecast("2026101105040401", "G3", [1.0, 1.0, 1.1]),                 # 複勝の買い方に合う馬がいない重賞 → 勝負レースの複勝は買わない（重賞の3連単で勝負）
         _forecast("2026101105040402", "1勝クラス", [1.6, 1.3, 1.0]),          # E = 0.9
         _forecast("2026101105040403", "2勝クラス", [1.3, 1.0, 1.0]),          # E = 0.3
         _forecast("2026101105040404", "3勝クラス", [1.4, 1.0, 1.0]),          # E = 0.4
@@ -72,7 +72,7 @@ def test_計画は_重賞を必ず入れ_Eの大きい順に3つまで勝負に�
         _forecast("2026101105040408", "1勝クラス", [1.1, 1.0, 1.0]),          # E = 0
     ]
     plans = {plan.rid[-2:]: plan for plan in planner.plan(con, date(2026, 10, 11), forecasts)}
-    assert plans["01"].kind == names.POLICY_STAKES and [pick.horse_no for pick in plans["01"].picks] == [3, 1] and plans["01"].stake_yen == 800
+    assert plans["01"].kind == NO_BET and plans["01"].graded and not plans["01"].picks and "重賞の3連単で勝負する" in plans["01"].reason
     assert [plans[no].kind for no in ("02", "03", "04")] == [names.MATCH] * 3 and plans["05"].kind == NO_BET and "上位3つ" in plans["05"].reason
     assert plans["06"].kind == NO_BET and plans["07"].kind == NO_BET and plans["08"].kind == NO_BET
     # 勝負レース: 線以上の馬だけ、1.40 以上は 2単位（ケリー基準の4分の1の中）。02 は 1.6（2単位 → 3,200 だがケリーで 1,600 以上に収まる）と 1.3（1単位）
@@ -255,3 +255,49 @@ def test_当日の予想は6番人気以下の複勝を穴馬の複勝用の財�
     ]))
     stopped = planner.plan(con, date(2026, 10, 11), [_longshot_forecast("2026101105040401")])[0]
     assert stopped.tickets == () and "穴馬の複勝用の財布" in stopped.ticket_reason
+
+
+def _stakes_forecast(timing: str = "当日") -> dict:
+    """複勝の買い方（期待値 1.25 以上）に合う馬がいない G1。重賞の3連単の組が3点あり、1点はトリガミで外してある。"""
+    forecast = _forecast("2026101105040411", "G1", [1.0, 1.0, 1.1])
+    forecast["timing"] = timing
+    forecast["tickets"] = [
+        {"rule": STAKES_TRIFECTA_LABEL, "ticket_type": "3連単", "combo": "010203", "label": "1→2→3", "value": 1.4, "odds": 350.0, "dropped": ""},
+        {"rule": STAKES_TRIFECTA_LABEL, "ticket_type": "3連単", "combo": "020103", "label": "2→1→3", "value": 1.2, "odds": 420.0, "dropped": ""},
+        {"rule": STAKES_TRIFECTA_LABEL, "ticket_type": "3連単", "combo": "030102", "label": "3→1→2", "value": 0.9, "odds": None, "dropped": "オッズ無し"},
+    ]
+    return forecast
+
+
+def test_当日の予想の重賞は_重賞の3連単を勝負レースの予算の10分の1ずつ買う(store: ReviewStore, tmp_path: Path, con):
+    planner = DayPlanner(Wallet(store, tmp_path / "財布.json"))
+    plan = planner.plan(con, date(2026, 10, 11), [_stakes_forecast()])[0]
+    stakes = [pick for pick in plan.tickets if pick.kind == names.MATCH_STAKES]
+    # 勝負用 10万円 × 5% = 5,000円 ÷ 10点 = 500円。外した組は買わない
+    assert [(pick.ticket_type, pick.combo, pick.odds, pick.yen) for pick in stakes] == [("3連単", "010203", 350.0, 500), ("3連単", "020103", 420.0, 500)]
+    assert plan.kind == NO_BET and not plan.picks and "3連単を組の期待値の高い順に 2点、勝負レースの予算を10点で割った 500円ずつ買う" in plan.ticket_reason
+    # 重賞がある日は、ノルマ参加（日）の予備を作らない
+    assert plan.kind != names.POLICY_DAY
+    recorded = BetRecorder(store)
+    assert recorded.record([plan], "2026-10-11T10:00:00") == 2
+    bets = store.read(names.BETS_TABLE)
+    assert set(bets[names.PARTICIPATION]) == {names.MATCH_STAKES} and list(bets[names.STAKE_YEN]) == [500, 500]
+
+
+def test_重賞の3連単は前日の予想では買わず_重賞でなければ買わず_勝負用の財布が止まりの線を割れば止める(store: ReviewStore, tmp_path: Path, con):
+    wallet = Wallet(store, tmp_path / "財布.json")
+    before = DayPlanner(wallet).plan(con, date(2026, 10, 11), [_stakes_forecast("前日")])[0]
+    assert not before.tickets and "当日の予想で買う" in before.ticket_reason
+    other = _stakes_forecast()
+    other["header"]["クラス"] = "3勝クラス"
+    assert not [pick for pick in DayPlanner(wallet).plan(con, date(2026, 10, 11), [other])[0].tickets if pick.kind == names.MATCH_STAKES]
+    store.write(names.BETS_TABLE, _lost_bet(names.MATCH, 40_000))
+    stopped = DayPlanner(wallet).plan(con, date(2026, 10, 11), [_stakes_forecast()])[0]
+    assert not [pick for pick in stopped.tickets if pick.kind == names.MATCH_STAKES] and "70%" in stopped.ticket_reason
+
+
+def _lost_bet(kind: str, yen: int):
+    """9月に負けた買い目1行（財布の残高を減らすため）。"""
+    import pandas as pd
+    return pd.DataFrame([{names.RACE_ID: "r1", names.TICKET_TYPE: "複勝", names.COMBO: "01", names.RACE_DATE: date(2026, 9, 20),
+                          names.PARTICIPATION: kind, names.RECORD_ONLY: False, names.STAKE_YEN: yen, names.PAYOUT_YEN: 0, names.SETTLED: True}])

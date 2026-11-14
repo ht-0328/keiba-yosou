@@ -49,6 +49,8 @@ PLACE_AGREE_LABEL = f"{PLACE_LABEL}（2モデル一致）"
 LONGSHOT_PLACE_LABEL = f"{PLACE_LABEL}（6番人気以下・複勝オッズより来る）"
 LONGSHOT_PLACE_MIN_POPULARITY = 6
 LONGSHOT_PLACE_EDGE = 0.05
+#: 平地の重賞のクラス（障害の重賞は、障害を予想しないので最初から入らない）。
+GRADED_CLASSES: tuple[str, ...] = ("G1", "G2", "G3")
 
 
 @dataclass(frozen=True)
@@ -175,6 +177,15 @@ COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (
 #: （``BracketValuePicker``）、重みはモデルの置き場所の ``bracket_blend.json``（直前1年で推定し直す）。
 BRACKET_VALUE_RULE = ComboValueRule(BRACKET, HIGH_RACES, 1.1, 300, adopted=True, rolling=True,
                                     race_conditions=(RaceCondition(TOP3_SHARE, None, 0.62312, "市場の勝率の上位3頭の和が 0.6231 未満"),))
+#: 重賞の3連単（研究「重賞の買い方」の docs/05。利用者の決定「重賞は全部勝負。単系（単勝・馬単・3連単）で」）: 平地の重賞は全部、組の確率が
+#: ``STAKES_TRIFECTA_MIN_PROBABILITY`` 以上・``STAKES_TRIFECTA_ODDS_CAP`` 倍以下の3連単を、組の期待値の高い順に ``STAKES_TRIFECTA_POINTS`` 点（期待値の線は無い）。
+#: 重賞だけで買うので ``COMBO_VALUE_RULES`` には入れず、``ForecastTickets`` が重賞のときだけ作る。
+STAKES_TRIFECTA_LABEL = f"{TicketType.TRIFECTA.label}（重賞）"
+STAKES_TRIFECTA_POINTS = 10
+STAKES_TRIFECTA_ODDS_CAP = 1000.0
+STAKES_TRIFECTA_MIN_PROBABILITY = 0.002
+STAKES_TRIFECTA_RULE = ComboValueRule(TicketType.TRIFECTA, "平地の重賞", 0.0, STAKES_TRIFECTA_ODDS_CAP, adopted=True, max_points=STAKES_TRIFECTA_POINTS,
+                                      rolling=True, min_probability=STAKES_TRIFECTA_MIN_PROBABILITY, name=STAKES_TRIFECTA_LABEL)
 #: 実際に買う組の期待値の買い方の全部（枠連を含む。枠連は ``ComboValuePicker`` では作らないので ``COMBO_VALUE_RULES`` とは分ける）。
 ALL_COMBO_VALUE_RULES: tuple[ComboValueRule, ...] = (*COMBO_VALUE_RULES, BRACKET_VALUE_RULE)
 #: 当日の予想で実際に買う、組の期待値の買い方の名前。
