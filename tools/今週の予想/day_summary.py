@@ -105,7 +105,7 @@ class DaySummary:
                 f"{header.get('コース', '')} {header.get('距離', '')}m {header.get('頭数', '')}頭",
                 header.get("発走", ""),
                 forecast["timing"],
-                f"{grades.rank}（{grades.rank_score:.2f}）" if grades.has_grade else "",
+                "" if not grades.has_grade else grades.rank if grades.skipped else f"{grades.rank}（{grades.rank_score:.2f}）",
                 _top_text(first_by_mark.get(TOP_MARK)),
                 _horse_text(first_by_mark.get(RANK_MARKS[0])),
                 _horse_text(first_by_mark.get(RANK_MARKS[1])),
