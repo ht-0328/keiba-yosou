@@ -34,9 +34,13 @@
 | `analysis/plan_catalog.py` | 比べる買い方の一覧 |
 | `analysis/plan_summary.py` | 成績（投資・払戻・回収率・最高の1点を除く回収率・的中・見込みの回収率） |
 | `analysis/mark_study.py` | 流れと報告 |
-| `docs/` | 結果の読み方と結論（[01](docs/01-印の買い目の買い方.md)） |
+| `reverse.py` | 入口。`--build-marked` で印の全頭の表を作り、引数なしで裏を足すかの比べを書く（docs/02） |
+| `analysis/marked_table.py` | 道具「印の成績」の部品で、地方の全頭の予想に印を付けた全頭の表を作る（`MarkedTable`） |
+| `analysis/reverse_probabilities.py` | 中央と同じ材料とモデルで、学びに使わなかった年のレースの裏の当たる確率と当たり具合を出す（`ReverseProbabilities`） |
+| `analysis/reverse_study.py` | 今のままと、裏の確率が線以上のレースだけ馬単の裏を足した形の年ごとの成績（`ReverseStudy`） |
+| `docs/` | 結果の読み方と結論（[01](docs/01-印の買い目の買い方.md) 印の買い目の買い方、[02](docs/02-裏を買うかの予想.md) 裏を買うかの予想） |
 | `tests/` | 架空の値で部品を確かめるテスト（実DB は要らない） |
-| `reports/地方の印の買い目/`（Git 対象外） | `印の組.pkl`・`印の買い目の成績.md`（入れ替え）と `印の組-前の年.pkl`・`印の買い目の成績-前の年.md`（前の年だけで当てはめた係数） |
+| `reports/地方の印の買い目/`（Git 対象外） | `印の組.pkl`・`印の買い目の成績.md`（入れ替え）と `印の組-前の年.pkl`・`印の買い目の成績-前の年.md`（前の年だけで当てはめた係数）、`marked.pkl`・`裏を買うかの成績[-前の年].md` |
 
 ## 動かし方
 
@@ -48,4 +52,7 @@ uv run python research/地方の印の買い目/mark_tickets.py --build   # 印�
 uv run python research/地方の印の買い目/mark_tickets.py           # 買い方の候補の年ごとの成績を書く（20分ほど）
 uv run python research/地方の印の買い目/mark_tickets.py --build --protocol 前の年   # 前の年だけで当てはめた表（2025・2026年）
 uv run python research/地方の印の買い目/mark_tickets.py --protocol 前の年           # その表で成績を書く
+uv run python research/地方の印の買い目/reverse.py --build-marked   # 印の全頭の表を作る（元DB を読む。数分。--db で写しを渡せる）
+uv run python research/地方の印の買い目/reverse.py                  # 裏を足すかの比べ（入れ替え。印の組の表が要る。数分）
+uv run python research/地方の印の買い目/reverse.py --protocol 前の年  # 前の年だけで学んだ確率で
 ```
