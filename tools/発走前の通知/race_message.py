@@ -97,7 +97,7 @@ class RaceMessage:
         else:
             lines += [f"買い目（合計 {card.yen:,}円）:", *(f"- {line}" for line, _ in card.bets)]
         if card.mark_return:
-            lines += [f"{MARK_RETURN_LABEL}（購入額を下の割合で分ける）: {card.mark_return}", *(f"- {line}" for line in card.mark_returns)]
+            lines += [f"{MARK_RETURN_LABEL}: {card.mark_return}", *(f"- {line}" for line in card.mark_returns)]
         if card.mark_bets:
             lines += [f"{MARK_BETS_LABEL}:", *(f"- {line}" for line in card.mark_bets)]
         return "\n".join(lines)
