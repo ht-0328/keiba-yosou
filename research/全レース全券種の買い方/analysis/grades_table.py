@@ -20,7 +20,7 @@ COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", HIT_RATE, RANK_SCORE
 
 class GradesTable:
     """印を付けた表（``marked-2015から.parquet``。1行 = 1頭）と、区切りごとの配当率（``UpsetWalkForward.payout_rates``）から、
-    レースごとの ◎ランク（◎ の1着の確率 ＋ 単勝の期待値 − 1 の点数。``TopRankScale``）・的中率（◎ の1着の確率）・配当率と、その等級（``GradeScale``。今週の予想と同じ線）、
+    レースごとの ◎ランク（◎ の1着の確率 ＋ 1.25 ×（単勝の期待値 − 1）の点数。今週の予想の期待度と同じ ``TopRankScale``）・的中率（◎ の1着の確率）・配当率と、その等級（``GradeScale``。今週の予想と同じ線）、
     ◎ の単勝オッズの帯を作る（docs/01 の 2・8）。
 
     セル（``cell``）は「◎ランク × 配当率の等級」を ``S/A`` のように1つの文字列にしたもの。配当率の無いレースは ``S/－``。
