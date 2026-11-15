@@ -40,11 +40,11 @@ class MarkReturn:
     dropped: int
 
     @classmethod
-    def of(cls, forecast: dict[str, Any]) -> MarkReturn | None:
-        """当日の予想の印の買い目。当日でないか、買い目が無ければ None。"""
+    def of(cls, forecast: dict[str, Any], labels: tuple[str, ...] = MARK_VALUE_LABELS) -> MarkReturn | None:
+        """当日の予想の印の買い目（買い方の名前が ``labels`` の点。既定は中央の印の買い目）。当日でないか、買い目が無ければ None。"""
         if forecast.get("timing") != _RACE_DAY:
             return None
-        kept = [ticket for ticket in forecast.get("tickets", []) if ticket.get("rule") in MARK_VALUE_LABELS and not ticket.get("dropped")]
+        kept = [ticket for ticket in forecast.get("tickets", []) if ticket.get("rule") in labels and not ticket.get("dropped")]
         if not kept:
             return None
         chosen, multiple = EqualPayoutStakes().allocate(kept)
@@ -52,7 +52,7 @@ class MarkReturn:
         expected = sum(values) if chosen and len(values) == len(chosen) else None
         amounts = _amounts(chosen)
         paired = [(ticket, share, yen) for (ticket, share), yen in zip(chosen, amounts, strict=True)]
-        stakes = {rule: [row for row in paired if row[0]["rule"] == rule] for rule in MARK_VALUE_LABELS}
+        stakes = {rule: [row for row in paired if row[0]["rule"] == rule] for rule in labels}
         return cls({rule: rows for rule, rows in stakes.items() if rows}, multiple, expected, len(kept) - len(chosen))
 
     @property

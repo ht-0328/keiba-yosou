@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from 地方の推奨買目.mark_bets import MarkBets
 from 地方の推奨買目.recommendation import Recommendation
 from 地方の推奨買目.recommendation_set import RecommendationSet
 
@@ -29,6 +30,8 @@ ROWS = [
 ]
 RID = "2026110547150401"
 RACE = ScheduledRace(rid=RID, venue="笠松", number=1, name="", post=datetime(2026, 11, 5, 10, 25))
+MARKS = MarkBets("買う（見込みの回収率 112%）。合計 5,000円で、どれが当たっても 6,000円以上戻る",
+                 ("単勝（1点 計 3,500円）: 7 3,500円", "馬単（2点 計 1,500円）: 7→4 900円・7→8 600円"))
 RECOMMENDED = RecommendationSet((Recommendation("枠連", (3, 5), 8.0, 0.14, 1.12), Recommendation("3連単", (7, 4, 8), 25.0, 0.045, 1.13),
                                  Recommendation("単勝", (7,), 3.0, 0.36, 1.08)))
 
@@ -50,10 +53,15 @@ class _Frames:
 class _Recommendations:
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.marked: list[list[str]] = []
 
     def recommend(self, rid: str, forecast: dict) -> RecommendationSet:
         self.calls.append(rid)
         return RECOMMENDED
+
+    def marks(self, rid: str, forecast: dict, marked) -> MarkBets:
+        self.marked.append(list(marked["mark"]))
+        return MARKS
 
 
 def test_中身は印の順の全頭と_見出し_推奨買目() -> None:
@@ -122,8 +130,11 @@ def test_組み立てると_推奨買目を呼び_文と_保存した表の画�
     recommendations = _Recommendations()
     notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), recommendations=recommendations).build(RID)
     assert recommendations.calls == [RID]
+    assert recommendations.marked == [["◎", "○", "▲", "△", "△", "△", "☆", "注"]]   # 印を付けた表を渡す
     assert notice.text.startswith("**笠松 1R（10:25 発走）** 地方の予想・当日の時点")
     assert "3連単 7→4→8" in notice.text
+    assert notice.text.splitlines()[-3:] == ["印の買い目: 買う（見込みの回収率 112%）。合計 5,000円で、どれが当たっても 6,000円以上戻る",
+                                             "- 単勝（1点 計 3,500円）: 7 3,500円", "- 馬単（2点 計 1,500円）: 7→4 900円・7→8 600円"]
     assert notice.attachments == (store.image_path(RID),)
     assert store.image_path(RID).stat().st_size > 0
 
@@ -169,3 +180,25 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     assert lines[1] == "期待度 S（点数 0.50）"
     assert lines[2] == "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）"
     assert lines[3].startswith("◎ 7 イチバン：")
+
+
+def test_印の買い目は推奨買目のあとに出し_画像の欄にも添える() -> None:
+    message = LocalRaceMessage()
+    card = message.card(_forecast("当日"), RACE, {}, RECOMMENDED, marks=MARKS)
+    lines = message.describe(card).splitlines()
+    assert lines.index("3連単 7→4→8") + 1 == lines.index("印の買い目: " + MARKS.heading)
+    assert card.footer.notes[-3:] == ("印の買い目 " + MARKS.heading, "印の買い目 " + MARKS.lines[0], "印の買い目 " + MARKS.lines[1])
+
+
+def test_印の買い目が出せなければ理由を書き_前日の時点は出さない(tmp_path: Path) -> None:
+    message = LocalRaceMessage()
+    none = MarkBets.none("印の買い目を出せない: 3連単のオッズがまだ DB にありません")
+    assert message.describe(message.card(_forecast("当日"), RACE, {}, marks=none)).splitlines()[-1] == f"印の買い目: {none.heading}"
+    text = message.describe(message.card(_forecast("前日"), RACE, {}, marks=MARKS))
+    assert "印の買い目" not in text
+    store = LocalForecastStore(tmp_path)
+    store.path(RID).parent.mkdir(parents=True)
+    store.path(RID).write_text(json.dumps(_forecast("前日"), ensure_ascii=False), encoding="utf-8")
+    recommendations = _Recommendations()
+    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), recommendations=recommendations).build(RID)
+    assert recommendations.marked == []   # 前日の時点は印の買い目を呼ばない

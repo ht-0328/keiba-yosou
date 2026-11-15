@@ -16,11 +16,11 @@ from .position_model import EV, PROBABILITY, PositionModel
 from .race_pools import RacePools
 from .recommendation import Recommendation
 from .recommendation_set import RecommendationSet
-from .repository import AnnouncedTicketOddsRepository, LocalFrameRepository
+from .repository import LocalFrameRepository
 from .ticket_plan import RECOMMENDED_PLANS, TicketPlan
+from .ticket_pricer import TicketPricer
 from .ticket_probabilities import TICKET_KEYS, TicketProbabilities
 
-_TRIFECTA = "3連単"
 
 
 class UpsetSource(Protocol):
@@ -55,9 +55,10 @@ class Recommender:
         combos = self._model.predict(tables, self._coefficients)
         probabilities = TicketProbabilities().of(combos, self._frames(rid))
         forms = ComboForms(horses)
+        pricer = TicketPricer(self._con)
         rows: list[Recommendation] = []
         for plan in plans:
-            priced = self._priced(plan.ticket, probabilities[plan.ticket], combos, rid)
+            priced = pricer.priced(plan.ticket, probabilities[plan.ticket], combos, rid)
             if plan.form:
                 priced = forms.attach(priced, TICKET_KEYS[plan.ticket])
             rows += self._rows(plan, plan.choose(priced))
@@ -99,13 +100,6 @@ class Recommender:
     def _frames(self, rid: str) -> pd.DataFrame:
         frames = LocalFrameRepository(self._con).read(rid)
         return pd.DataFrame({"race_id": int(rid), "horse_no": list(frames), "frame_no": list(frames.values())})
-
-    def _priced(self, ticket: str, probabilities: pd.DataFrame, combos: pd.DataFrame, rid: str) -> pd.DataFrame:
-        """組の確率に、その券種の最新のオッズを付ける（オッズの無い組は買えないので落とす）。"""
-        if ticket == _TRIFECTA:
-            return combos.rename(columns={"first": "a", "second": "b", "third": "c"})
-        odds = AnnouncedTicketOddsRepository(self._con, ticket).load(rid)
-        return probabilities.merge(odds, on=["race_id", *TICKET_KEYS[ticket]], how="inner")
 
     @staticmethod
     def _rows(plan: TicketPlan, chosen: pd.DataFrame) -> list[Recommendation]:

@@ -146,3 +146,29 @@ def test_荒れ具合の予想が出せなければ_3連複だけ対象外にし
     assert chosen.reason == "荒れ具合の予想が出せないので 3連複 は推奨買目の対象外（当日の学習済みモデルがありません（models/trio/race_day/settings.json））"
     without = Recommender(_db(), _zero(), plans=plans).recommend(RID, _forecast())
     assert {row.ticket for row in without.rows} == {"単勝"} and without.reason == "荒れ具合の予想が無いので 3連複 は推奨買目の対象外"
+
+
+def _marked(marks: dict[int, str]):
+    import pandas as pd
+    return pd.DataFrame({"horse_no": list(range(1, N + 1)), "mark": [marks.get(no, "－") for no in range(1, N + 1)]})
+
+
+def test_印の買い目は印の組に期待値を付け_見込みの回収率で買うか決める():
+    from 地方の推奨買目.mark_recommender import MarkRecommender
+    # ◎ 11・○ 10・▲ 9・△ 8 7 6（☆ なし）。単勝 ◎ 1点・馬単 11→10・11→9 の2点・3連単 11→(10,9)→(10,9,8,7,6) の8点
+    marks = MarkRecommender(_db(), _zero()).recommend(RID, _forecast(), _marked({11: "◎", 10: "○", 9: "▲", 8: "△", 7: "△", 6: "△"}))
+    # 係数 0 なので 単勝 1/11 × 16倍・馬単 1/110 × 100倍・3連単 1/990 × 900倍。オッズに反比例で配ると、当たれば購入額の
+    # 1 ÷ (1/16 + 2/100 + 8/900) ≒ 10.9倍で、見込み = 確率の和 × 倍率 = 0.117 × 10.9 ≒ 128%
+    assert marks.heading == "買う（見込みの回収率 128%）。合計 5,200円で、どれが当たっても 50,000円以上戻る"
+    assert [line.split("（")[0] for line in marks.lines] == ["単勝", "馬単", "3連単"]
+    assert marks.lines[0].startswith("単勝（1点 計 ") and ": 11 " in marks.lines[0]
+    assert "11→10" in marks.lines[1] and "11→9" in marks.lines[1]
+    assert marks.lines[2].startswith("3連単（◎→○▲☆→○▲△☆）（8点 計 ")
+
+
+def test_印の買い目は頭数が少ないか_本命が無ければ理由つきのなし():
+    from 地方の推奨買目.mark_recommender import MarkRecommender
+    recommender = MarkRecommender(_db(), _zero())
+    few = _marked({1: "◎", 2: "○"}).head(4)
+    assert recommender.recommend(RID, _forecast(4), few).heading == "なし（4頭なので印の買い目の対象外（5頭以上））"
+    assert recommender.recommend(RID, _forecast(), _marked({})).heading == "なし（◎ が無い）"
