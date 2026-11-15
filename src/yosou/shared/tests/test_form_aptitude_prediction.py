@@ -12,6 +12,8 @@ import duckdb
 import pytest
 
 from yosou.shared.feature import PredictionTiming
+from yosou.shared.odds_move import TARGET_TOP3, OddsMoveWeights
+from yosou.shared.repository import OddsMoveWeightsRepository
 from yosou.shared.workflow import FormAptitudePrediction, PredictionWorkflow
 
 
@@ -64,3 +66,16 @@ def _calls(tmp_path: Path, timing: PredictionTiming) -> list[str]:
 ])
 def test_時点ごとに採用した材料だけを使い_予測のたびに材料の部品を作る(tmp_path: Path, timing: PredictionTiming, expected: list[str]) -> None:
     assert _calls(tmp_path, timing) == expected
+
+
+@pytest.mark.parametrize(("timing", "uses", "expected"), [
+    (PredictionTiming.RACE_DAY, True, True),
+    (PredictionTiming.DAY_BEFORE, True, False),
+    (PredictionTiming.RACE_DAY, False, False),   # WIN5 の予想は直さない
+])
+def test_当日だけ_重みがあればオッズの動きで直す(tmp_path: Path, timing: PredictionTiming, uses: bool, expected: bool) -> None:
+    prediction = FormAptitudePrediction(tmp_path / "models", lambda con: RecordingMaterials(), tmp_path / "figures", odds_move=uses)
+    with duckdb.connect() as con:
+        assert prediction.workflow(con, timing)._odds_move is None   # 重みのファイルが無ければ直さない
+        OddsMoveWeightsRepository(tmp_path / "models").save({TARGET_TOP3: OddsMoveWeights(0.0, -0.1, 0.0, 0.0)})
+        assert (prediction.workflow(con, timing)._odds_move is not None) is expected

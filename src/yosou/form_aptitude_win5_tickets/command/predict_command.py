@@ -88,4 +88,5 @@ class PredictCommand:
                 f"今のモデルの学習済みモデルがありません: {args.form_models}\n"
                 "`uv run python -m yosou.form_aptitude_top3 train` で今のモデルを学んでください"
             )
-        return FormAptitudePrediction(args.form_models, lambda con: MaterialAttachers(con, args.development_root), args.figure_cache)
+        return FormAptitudePrediction(args.form_models, lambda con: MaterialAttachers(con, args.development_root), args.figure_cache,
+                                      odds_move=False)

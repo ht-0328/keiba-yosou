@@ -48,7 +48,7 @@ def test_WIN5の前は速報のWIN5と開催日単位の速報と対象レース
     ]
 
 
-def test_朝は出馬表とその日の速報() -> None:
+def test_朝は出馬表とその日の速報と_中央は時系列オッズ() -> None:
     run = _Run()
     logs: list[str] = []
     fetcher = _fetcher(run, logs)
@@ -56,6 +56,8 @@ def test_朝は出馬表とその日の速報() -> None:
     fetcher.fetch_day("2025-04-19")
     assert run.commands[0][4:] == ["jvstore", "sync"]
     assert run.commands[1][5:] == ["realtime", "--db", "x.duckdb", "--date", "2025-04-19"]
+    assert run.commands[2][5:] == ["timeseries", "--from", "2025-04-19", "--to", "2025-04-19", "--db", "x.duckdb", "--refetch"]
+    assert len(run.commands) == 3
     assert logs[0].startswith("出馬表の取り込み（jvstore sync）が終わりました")
 
 

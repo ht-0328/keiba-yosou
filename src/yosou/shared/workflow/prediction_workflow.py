@@ -23,6 +23,7 @@ from ..feature.group import WIN_ODDS
 from ..place_value import PlaceValueColumns
 from ..win_value import WinValueColumns
 from .explained_prediction import ExplainedPrediction
+from .odds_move_adjustment import OddsMoveAdjustment
 from .prepared_prediction import PreparedPrediction
 from .segmented_prediction import AVERAGE, SegmentedPrediction
 
@@ -57,13 +58,16 @@ class PredictionWorkflow:
     ``extras``・``win_extras`` は、3着以内のモデル・1着のモデルの予測用データに列を足す関数の並び（展開スコア S を採用した時点で、
     コマンドが S を足す関数を渡す。設計書 15 の 17）。
     ``win_predictor``・``win_pool_free`` は1着のモデル（置き場所は ``1着`` のフォルダ）での予測。渡さなければ、1着の確率と単勝の期待値は出さない。
+    ``odds_move`` は、平均の確率（3着以内と1着）をオッズの動きで直す部品（中央の当日の予測でだけ、コマンドが渡す。設計書 15 の 22）。
+    直した確率から、複勝・単勝の期待値を出す。モデルごとの確率は直さない（確かめた形のまま）。
     """
 
     def __init__(self, dataset_builder: DatasetBuilder, predictor: SegmentedPrediction,
                  odds_resolver: OddsResolver, place_value: PlaceValueColumns,
                  pool_free: SegmentedPrediction | None = None, pace: PaceSource | None = None,
                  win_predictor: SegmentedPrediction | None = None, win_pool_free: SegmentedPrediction | None = None,
-                 extras: Sequence[DataAttachment] = (), win_extras: Sequence[DataAttachment] = ()) -> None:
+                 extras: Sequence[DataAttachment] = (), win_extras: Sequence[DataAttachment] = (),
+                 odds_move: OddsMoveAdjustment | None = None) -> None:
         self._dataset_builder = dataset_builder
         self._predictor = predictor
         self._odds_resolver = odds_resolver
@@ -74,6 +78,7 @@ class PredictionWorkflow:
         self._win_pool_free = win_pool_free
         self._extras = tuple(extras)
         self._win_extras = tuple(win_extras)
+        self._odds_move = odds_move
         self._pools = PoolAvailability()
         self._win_target = WinTargetData()
         self._win_value = WinValueColumns()
@@ -130,6 +135,8 @@ class PredictionWorkflow:
         data = prepared.data
         predicted = prepared.predictor.predict(prepared.top3_data)
         probability = predicted[AVERAGE].rename(PROBABILITY)
+        if self._odds_move is not None:
+            probability = self._odds_move.top3(probability, data)
         members = predicted.drop(columns=[AVERAGE])
         extra = self._place_value.of(probability, data)
         win = self._win_columns(prepared)
@@ -146,6 +153,8 @@ class PredictionWorkflow:
         except FileNotFoundError:
             return pd.DataFrame(index=win_data.ids.index)
         probability = predicted[AVERAGE].rename(WIN_PROBABILITY)
+        if self._odds_move is not None:
+            probability = self._odds_move.win(probability, win_data)
         member_names = [name for name in predicted.columns if name != AVERAGE]
         member_probabilities = [predicted[name].rename(WIN_PROBABILITY_MEMBER.format(member=name)) for name in member_names]
         members = [self._win_value.of(predicted[name], win_data).rename(columns=lambda _, n=name: WIN_VALUE_MEMBER.format(member=n))
