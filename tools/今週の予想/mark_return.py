@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,6 +16,8 @@ _RACE_DAY = "当日"
 RACE_YEN = 5000
 #: 1点の額の単位と最低額（円）。
 YEN_UNIT = 100
+#: 金額を上げ直す回数の上限（割合で当たったときの倍率が 1.1倍以上なので、ふつうは数回で落ち着く）。
+_MAX_ROUNDS = 50
 #: 買うと判断する見込みの回収率の線（これ未満は見送り）。過去のレースで、見込みが線以上のレースだけ買うと回収率が上がった。
 BUY_LINE = 1.0
 
@@ -24,6 +27,8 @@ class MarkReturn:
     """1レースの印の買い目（``MARK_VALUE_LABELS``。トリガミとオッズの無い組は除く）を、どの組が当たっても払った額より多く戻るように配ったもの
     （``EqualPayoutStakes``）と、1レース ``RACE_YEN`` 円を割合で分けた1点ごとの金額（100円単位。100円に届かない組は 100円）。
 
+    金額は、割合で分けた額を 100円単位に四捨五入し（100円に届かない組は 100円）、そのうえで、どの組が当たっても合計の購入額より多く戻るまで、
+    足りない組を 100円ずつ上げたもの（丸めで割合が崩れて、当たっても払った額を割るのを防ぐ）。
     ``stakes`` は買い方の名前 → （1点の辞書, 割合, 金額）の並び。``multiple`` は割合どおりに買って当たったときの、購入額に対する倍率。
     ``expected`` は見込みの回収率（割合で重みを付けた期待値の和）。期待値の無い点があれば欠損値。
     ``dropped`` は、全部を払った額より多く戻る形にできず、期待値の低い順に外した点数。
@@ -45,7 +50,9 @@ class MarkReturn:
         chosen, multiple = EqualPayoutStakes().allocate(kept)
         values = [share * ticket["value"] for ticket, share in chosen if isinstance(ticket.get("value"), (int, float))]
         expected = sum(values) if chosen and len(values) == len(chosen) else None
-        stakes = {rule: [(ticket, share, _yen(share)) for ticket, share in chosen if ticket["rule"] == rule] for rule in MARK_VALUE_LABELS}
+        amounts = _amounts(chosen)
+        paired = [(ticket, share, yen) for (ticket, share), yen in zip(chosen, amounts, strict=True)]
+        stakes = {rule: [row for row in paired if row[0]["rule"] == rule] for rule in MARK_VALUE_LABELS}
         return cls({rule: rows for rule, rows in stakes.items() if rows}, multiple, expected, len(kept) - len(chosen))
 
     @property
@@ -76,6 +83,13 @@ class MarkReturn:
         return f"{judge}。合計 {self.total_yen:,}円で、どれが当たっても {self.least_return_yen:,}円以上戻る{dropped}"
 
 
-def _yen(share: float) -> int:
-    """1レースの額に割合を掛けて 100円単位に四捨五入した額（100円に届かなければ 100円）。"""
-    return max(YEN_UNIT, int(RACE_YEN * share / YEN_UNIT + 0.5) * YEN_UNIT)
+def _amounts(chosen: list[tuple[dict[str, Any], float]]) -> list[int]:
+    """1点ごとの金額。四捨五入した額から始め、どれが当たっても合計より多く戻る（金額 × オッズ > 合計）まで、足りない組を上げる。"""
+    amounts = [max(YEN_UNIT, int(RACE_YEN * share / YEN_UNIT + 0.5) * YEN_UNIT) for _, share in chosen]
+    for _ in range(_MAX_ROUNDS):
+        total = sum(amounts)
+        needed = [max(yen, (math.floor(total / ticket["odds"] / YEN_UNIT) + 1) * YEN_UNIT) for (ticket, _), yen in zip(chosen, amounts, strict=True)]
+        if needed == amounts:
+            break
+        amounts = needed
+    return amounts

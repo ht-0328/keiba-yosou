@@ -73,3 +73,16 @@ def test_見込みの回収率が100パーセント未満なら見送り_100円�
 def test_当日でないか買い目が無ければ出さない() -> None:
     assert MarkReturn.of({"timing": "前日", "tickets": [_ticket("単勝", "3", 1.2, 4.0)]}) is None
     assert MarkReturn.of({"timing": "当日", "tickets": [_ticket("ワイド", "3-9", 1.2, 4.0)]}) is None
+
+
+def test_丸めで払った額を割る組は_合計より多く戻るまで100円ずつ上げる() -> None:
+    # 単勝 2.2倍と3連単 3点（120倍・150倍・200倍）。割合どおりなら 3連単は 1点 100〜180円ほどで、四捨五入で切り下がる組が出る
+    tickets = [_ticket("単勝", "3", 1.1, 2.2), _ticket(TRIFECTA, "3→5→7", 1.2, 120.0), _ticket(TRIFECTA, "3→7→5", 1.2, 150.0),
+               _ticket(TRIFECTA, "3→5→9", 1.2, 200.0)]
+    found = MarkReturn.of({"timing": "当日", "tickets": tickets})
+    assert found is not None
+    total = found.total_yen
+    for rows in found.stakes.values():
+        for ticket, _, yen in rows:
+            assert yen % 100 == 0 and yen * ticket["odds"] > total   # どれが当たっても合計より多く戻る
+    assert found.least_return_yen > total
