@@ -148,9 +148,11 @@ def test_荒れ具合の予想が出せなければ_3連複だけ対象外にし
     assert {row.ticket for row in without.rows} == {"単勝"} and without.reason == "荒れ具合の予想が無いので 3連複 は推奨買目の対象外"
 
 
-def _marked(marks: dict[int, str]):
+def _marked(marks: dict[int, str], place_values: dict[int, float] | None = None):
     import pandas as pd
-    return pd.DataFrame({"horse_no": list(range(1, N + 1)), "mark": [marks.get(no, "－") for no in range(1, N + 1)]})
+    values = place_values or {}
+    return pd.DataFrame({"horse_no": list(range(1, N + 1)), "mark": [marks.get(no, "－") for no in range(1, N + 1)],
+                         "place_value": [values.get(no, 0.9) for no in range(1, N + 1)]})
 
 
 def test_印の買い目は印の組に期待値を付け_見込みの回収率で買うか決める():
@@ -172,3 +174,13 @@ def test_印の買い目は頭数が少ないか_本命が無ければ理由つ�
     few = _marked({1: "◎", 2: "○"}).head(4)
     assert recommender.recommend(RID, _forecast(4), few).heading == "なし（4頭なので印の買い目の対象外（5頭以上））"
     assert recommender.recommend(RID, _forecast(), _marked({})).heading == "なし（◎ が無い）"
+
+
+def test_印の組の相手の星は複勝の期待値が線以上の馬だけ():
+    from 地方の推奨買目.mark_points import MarkPoints
+    marks = {11: "◎", 10: "○", 9: "▲", 8: "△", 7: "△", 6: "△", 5: "☆"}
+    below = [(rule.label, combo) for rule, combo in MarkPoints().of(_marked(marks, {5: 1.10}))]
+    above = [(rule.label, combo) for rule, combo in MarkPoints().of(_marked(marks, {5: 1.30}))]
+    assert ("馬単", (11, 5)) not in below and ("馬単", (11, 5)) in above   # 線（1.25）に届かない ☆ は表示だけで相手に入れない
+    assert not any(5 in combo for _, combo in below)
+    assert ("3連単（◎→○▲☆→○▲△☆）", (11, 5, 10)) in above
