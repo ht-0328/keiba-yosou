@@ -6,6 +6,7 @@ from typing import Any
 
 from yosou.review import names
 
+from 今週の予想.forecast_columns import REVERSE_EXACTA
 from 今週の予想.mark_rule import NO_MARK, OUT_MARK, TOP_MARK
 from 今週の予想.mark_return import MarkReturn
 from 今週の予想.race_grades import RaceGrades
@@ -207,6 +208,10 @@ class RaceDescriber:
             shown = "・".join(f"{ticket['label']} {yen:,}円" for ticket, _, yen in rows[:REFERENCE_SHOWN])
             more = f" ほか {len(rows) - REFERENCE_SHOWN}点" if len(rows) > REFERENCE_SHOWN else ""
             lines.append(f"{rule}（{len(rows)}点 計 {sum(yen for _, _, yen in rows):,}円）: {shown}{more}")
+        reverse = forecast.get(REVERSE_EXACTA)
+        if reverse:
+            judge = "馬単の裏（○▲☆→◎）も買う" if reverse["buys"] else "線に届かないので、裏は買わない"
+            lines.append(f"裏（◎ が2・3着で1着が ○▲☆）の確率 {reverse['probability']:.0%}（線 {reverse['line']:.0%}）: {judge}")
         return found.heading(), lines
 
     def mark_bets(self, forecast: dict[str, Any]) -> list[str]:

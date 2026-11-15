@@ -49,4 +49,6 @@ IS_DANGER = "is_danger"
 #: 3連複の荒れ具合（固い・中荒れ・大荒れ・超荒れ。``TrioUpsetJudge`` が決めたもの。レースに1つ。前日・当日だけ）。
 #: 6番人気以下を軸にした3連複で、買うレースを選ぶのに使う（``PoolTrioTicketRule.upset_levels``）。
 TRIO_UPSET = "trio_upset"
+#: 馬単の裏（○▲☆→◎）まで買うか（``ReverseExactaJudge`` が決めたもの。レースの全頭に同じ値。当日だけ。無ければ買わない）。
+REVERSE_EXACTA = "reverse_exacta"
 DANGER_COLUMNS: tuple[str, ...] = (FAVORITE_BAND, OUT_PROBABILITY, MARKET_OUT, DANGER_SCORE, DANGER_LINE, IS_DANGER)
