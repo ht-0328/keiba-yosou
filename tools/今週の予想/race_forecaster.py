@@ -38,6 +38,8 @@ from 今週の予想.mark_rule import OUT_MARK as DANGER_MARK
 from 今週の予想.mark_rule import MarkRule
 from 今週の予想.model_folders import DEFAULT_UPSET_MODELS
 from 今週の予想.race_grader import RaceGrader
+from 今週の予想.reverse_exacta_judge import LINE as REVERSE_LINE
+from 今週の予想.reverse_exacta_judge import ReverseExactaJudge
 from 今週の予想.story_attacher import StoryAttacher
 
 #: 予想の結果の表の列 → この道具の列。
@@ -72,6 +74,8 @@ class RaceForecaster:
     荒れ具合の予想 ``upset_models``。S・A・B・C）を出す（``RaceGrader``。設計書「買うレースと買い目を決める」の 03 の 5）。
     印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（全券種）を組み、締め切り前のオッズで組の確率とトリガミを付ける（``ForecastTickets``。
     結果の ``tickets``。木曜はオッズが無いので期待値とトリガミは付かない）。
+    当日は、裏（1着が ○▲☆ のどれかで ◎ が2着か3着）が当たる確率を出し（``ReverseExactaJudge``。結果の ``reverse_exacta``）、線以上なら
+    印の買い目に馬単の裏（○▲☆→◎）も足す。
     各馬には近走の文（``StoryAttacher``。近5走の文・負けた走の敗因の候補・評価のことば。回顧の不利は ``review_store`` から）も付ける。
     ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所、``upset_models`` は荒れ具合の予想の
     学習済みモデルの置き場所。結果は JSON にできる辞書。
@@ -90,6 +94,7 @@ class RaceForecaster:
         self._band = WinValueBand()
         self._grader = RaceGrader(upset_models)
         self._tickets = ForecastTickets(ComboBlendWeightsRepository(self._models).load(), BracketBlendWeightsRepository(self._models).load())
+        self._reverse = ReverseExactaJudge.load(self._models)
         self._danger_reasons = DangerReasons()
         self._stories = StoryAttacher(review_store)
         self._materials: MaterialAttachers | None = None
@@ -108,13 +113,16 @@ class RaceForecaster:
         band = self._win_value_band(horses)
         grades = self._grader.grade(con, race_id, chosen, horses)
         odds_known = chosen is not PredictionTiming.THURSDAY
+        race_day = chosen is PredictionTiming.RACE_DAY
+        reverse = self._reverse.probability(marked) if race_day else None
+        table = marked.assign(**{columns.TRIO_UPSET: grades.trio_upset, columns.REVERSE_EXACTA: self._reverse.buys(reverse)})
         return {
             "version": FORECAST_VERSION, "rid": race_id, "title": card.header_title(header), "header": header, "model": MODEL_NAME,
             "timing": chosen.label, "timing_reason": reason, "pool_free": explained.pool_free,
             columns.WIN_VALUE_BAND: band, **grades.as_dict(), "odds_known": odds_known,
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
-            "tickets": self._tickets.build(con, race_id, marked.assign(**{columns.TRIO_UPSET: grades.trio_upset}), band, odds_known,
-                                           chosen is PredictionTiming.RACE_DAY, graded=str(header.get("クラス", "")) in GRADED_CLASSES),
+            "tickets": self._tickets.build(con, race_id, table, band, odds_known, race_day, graded=str(header.get("クラス", "")) in GRADED_CLASSES),
+            columns.REVERSE_EXACTA: None if reverse is None else {"probability": reverse, "line": REVERSE_LINE, "buys": self._reverse.buys(reverse)},
             "pace": self._pace(race_id),
         }
 

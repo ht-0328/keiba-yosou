@@ -22,6 +22,7 @@ from 今週の予想.forecast_columns import (
     PLACE_VALUE,
     POPULARITY,
     PROBABILITY,
+    REVERSE_EXACTA,
     TRIO_UPSET,
     WIN_ODDS,
     WIN_PROBABILITY,
@@ -49,6 +50,7 @@ from 今週の予想.ticket_rules import (
     PLACE_ODDS_CAP,
     PLACE_STAKE_UNITS,
     PLACE_VALUE_LINE,
+    REVERSE_EXACTA_RULE,
     WIN_FAVORITE_MIN,
     WIN_ODDS_CAP,
     WIN_VALUE_LABEL,
@@ -77,6 +79,7 @@ class MarkTickets:
     - 軸から流す券種（``AxisTicketRule``。3連複・3連単）: 軸（◎軸は ◎、軸馬は列 ``axis`` の馬。無ければ ◎）から相手に流す。
       組の期待値（``ComboExpectedValue``。市場が見た組の確率 × 3頭の「モデル ÷ 市場」の比）を付け、線のあるルールは線以上の買い目だけにする。
       2モデル一致のルールは、LightGBM と CatBoost のそれぞれの確率で出した組の期待値も線以上の買い目だけにする（モデルごとの確率が無ければ 0点）。
+    - 馬単の裏（``REVERSE_EXACTA_RULE``。○▲☆→◎）: 列 ``reverse_exacta``（``ReverseExactaJudge`` が決めたもの）が真のレースだけ。
     - 複勝: 複勝の期待値が線（1.25）以上の馬を、高い順に最大3点。2モデル一致の行は、そのうちモデルごとの期待値も線以上の馬だけ。
     - 6番人気以下の複勝: 6番人気以下で、3着以内の確率が複勝オッズから見た3着以内率より線（0.05）以上高い馬を全部。
     - 馬の集まりから組む3連複（``POOL_TRIO_RULES``）: 1頭目・2頭目・3頭目を、人気馬（5番人気までで消でない）・強い人気馬（そのうち
@@ -110,6 +113,10 @@ class MarkTickets:
                 rows += [{**head, RULE: rule.label, "ticket_type": rule.ticket_type.label, "combo": combo_text(combo),
                           "stake_units": rule.stake_units, VALUE: value}
                          for combo, value, keep in zip(combos, values, kept, strict=True) if keep]
+            if REVERSE_EXACTA in race.columns and race[REVERSE_EXACTA].fillna(False).astype(bool).iloc[0]:
+                rule = REVERSE_EXACTA_RULE
+                rows += [{**head, RULE: rule.label, "ticket_type": rule.ticket_type.label, "combo": combo_text(combo),
+                          "stake_units": rule.stake_units, VALUE: np.nan} for combo in rule.combos(by_mark, axes)]
             rows += [{**head, RULE: WIN_VALUE_LABEL, "ticket_type": TicketType.WIN.label, "combo": combo_text((horse,)),
                       "stake_units": 1.0, VALUE: value} for horse, value in self._win_value_horses(race)]
             for label, agreement in ((PLACE_LABEL, False), (PLACE_AGREE_LABEL, True)):
