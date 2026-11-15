@@ -67,7 +67,7 @@ from yosou.favorites_out_of_top3.dataset import FavoriteBand  # noqa: E402
 from yosou.form_aptitude_top3.command.yosou_name import YOSOU_NAME  # noqa: E402
 from yosou.shared.feature import PredictionTiming  # noqa: E402
 from yosou.shared.place_value import PlacePriceEstimator  # noqa: E402
-from yosou.shared.race_grade import EXPECTATION_LABEL, EXPECTATION_MEANING, LocalExpectationScale  # noqa: E402
+from yosou.shared.race_grade import TOP_SCORE_LABEL, TOP_SCORE_MEANING, LocalTopScoreScale  # noqa: E402
 from yosou.shared.repository import BracketBlendWeightsRepository, ComboBlendWeightsRepository, PlacePriceRepository  # noqa: E402
 
 from 今週の予想.danger_picker import MARKED_BANDS  # noqa: E402
@@ -197,10 +197,11 @@ def main(args) -> None:
 
 
 def _grade_report(scheme: SceneScheme) -> GradeReport:
-    """表13 の等級の決め方。中央は今週の予想と同じ期待度、地方は発走前の通知と同じ期待度（◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1））。"""
+    """表13 の等級の決め方。中央は今週の予想と同じ期待度、地方は ◎ の点数（◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）。
+    地方の通知の期待度は推奨買目から出すので、◎ の行だけの backtest では出せない）。"""
     if scheme is JRA_SCENE_SCHEME:
         return GradeReport()
-    return GradeReport(LocalExpectationScale(), EXPECTATION_LABEL, EXPECTATION_MEANING)
+    return GradeReport(LocalTopScoreScale(), TOP_SCORE_LABEL, TOP_SCORE_MEANING)
 
 
 def _danger_name(danger: PredictionFile | None, flags: DangerFlagFile | None) -> str:

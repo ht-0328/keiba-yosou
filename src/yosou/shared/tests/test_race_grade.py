@@ -12,9 +12,11 @@ from ..race_grade import (
     RANK_VALUE_WEIGHT,
     SKIP_GRADE,
     SKIP_VALUE,
-    VALUE_WEIGHT,
+    TOP_SCORE_LINES,
+    TOP_SCORE_WEIGHT,
     GradeScale,
     LocalExpectationScale,
+    LocalTopScoreScale,
     TopRankScale,
 )
 
@@ -50,14 +52,25 @@ def test_top_rank_skips_low_value_and_weights_the_value_edge() -> None:
     assert TopRankScale.legend().endswith("S 0.28 以上・A 0.14 以上・B 0.02 以上・C 0.02 未満")
 
 
-def test_local_expectation_weights_the_value_edge_three_times() -> None:
-    scale = LocalExpectationScale()
-    assert VALUE_WEIGHT == 3.0 and EXPECTATION_LINES["S"] == 0.45 and EXPECTATION_LINES["A"] == 0.15 and EXPECTATION_LINES["B"] == -0.10
-    assert LocalExpectationScale.score(0.30, 1.05) == pytest.approx(0.45)      # 0.30 + 3 × 0.05
-    assert LocalExpectationScale.score(0.20, 0.90) == pytest.approx(-0.10)     # 0.20 − 3 × 0.10
-    assert LocalExpectationScale.score(0.3, None) is None and LocalExpectationScale.score(None, 1.0) is None
-    assert LocalExpectationScale.score(float("nan"), 1.0) is None
+def test_local_top_score_weights_the_value_edge_three_times() -> None:
+    scale = LocalTopScoreScale()
+    assert TOP_SCORE_WEIGHT == 3.0 and TOP_SCORE_LINES["S"] == 0.45 and TOP_SCORE_LINES["A"] == 0.15 and TOP_SCORE_LINES["B"] == -0.10
+    assert LocalTopScoreScale.score(0.30, 1.05) == pytest.approx(0.45)      # 0.30 + 3 × 0.05
+    assert LocalTopScoreScale.score(0.20, 0.90) == pytest.approx(-0.10)     # 0.20 − 3 × 0.10
+    assert LocalTopScoreScale.score(0.3, None) is None and LocalTopScoreScale.score(None, 1.0) is None
+    assert LocalTopScoreScale.score(float("nan"), 1.0) is None
     assert scale.grade(0.30, 1.05) == "S" and scale.grade(None, 1.0) is None
     assert scale.of(0.45) == "S" and scale.of(0.449) == "A" and scale.of(0.15) == "A" and scale.of(0.149) == "B"
     assert scale.of(-0.10) == "B" and scale.of(-0.101) == "C" and scale.of(None) is None and scale.of(float("nan")) is None
-    assert LocalExpectationScale.legend() == "期待度の点数は ◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）。S 0.45 以上・A 0.15 以上・B -0.1 以上・C -0.1 未満"
+    assert LocalTopScoreScale.legend() == "◎の点数は ◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）。S 0.45 以上・A 0.15 以上・B -0.1 以上・C -0.1 未満"
+
+
+def test_local_expectation_sums_the_value_edges_of_the_recommended_tickets() -> None:
+    scale = LocalExpectationScale()
+    assert EXPECTATION_LINES["S"] == 3.2 and EXPECTATION_LINES["A"] == 1.4 and EXPECTATION_LINES["B"] == 0.5
+    assert LocalExpectationScale.score([1.2, 1.5, 1.05]) == pytest.approx(0.75)   # 0.2 + 0.5 + 0.05
+    assert LocalExpectationScale.score([]) is None and LocalExpectationScale.score([float("nan")]) is None
+    assert scale.grade([2.5, 2.0, 1.8]) == "S" and scale.grade([1.5, 1.5, 1.4]) == "A" and scale.grade([1.5]) == "B" and scale.grade([1.1, 1.2]) == "C"
+    assert scale.of(3.2) == "S" and scale.of(3.19) == "A" and scale.of(1.4) == "A" and scale.of(0.5) == "B" and scale.of(0.49) == "C"
+    assert scale.grade([]) is None and scale.of(None) is None
+    assert LocalExpectationScale.legend() == "期待度の点数は推奨買目の（期待値 − 1）の合計。S 3.2 以上・A 1.4 以上・B 0.5 以上・C 0.5 未満"
