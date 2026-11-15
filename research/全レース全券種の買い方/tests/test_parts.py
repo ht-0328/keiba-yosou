@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from yosou.shared.betting import TicketType  # noqa: E402
+from yosou.shared.race_grade.top_rank_scale import RANK_VALUE_WEIGHT  # noqa: E402
 
 from 全レース全券種の買い方.analysis.day_table import HIT_RACES, PAYOUT, POINTS, RACES, DayTable  # noqa: E402
 from 全レース全券種の買い方.analysis.formation import DOUBLE_AXIS, FLOW, Formation, candidates  # noqa: E402
@@ -58,7 +59,7 @@ def test_馬の位置は二重丸が0でほかは確率の順_消は無し() -> 
 def test_等級の表は二重丸ランクと配当率の等級をセルにする() -> None:
     rates = pd.DataFrame({"race_id": ["R"], "payout_rate": [0.8]})
     grades = GradesTable().build(_marked(), rates)
-    assert grades.loc[0, ["hit_rate", "rank", "payout_grade", "cell"]].tolist() == [0.3, "A", "S", "A/S"] and grades.loc[0, "rank_score"] == pytest.approx(0.2)
+    assert grades.loc[0, ["hit_rate", "rank", "payout_grade", "cell"]].tolist() == [0.3, "A", "S", "A/S"] and grades.loc[0, "rank_score"] == pytest.approx(0.3 + RANK_VALUE_WEIGHT * (0.9 - 1.0))
     assert GradesTable().build(_marked(), None).loc[0, "cell"] == "A/－"
     low = _marked().assign(win_odds=[3.0, 4.0, 7.0, 1.8, 4.0, 12.0])
     assert GradesTable().build(low, rates).loc[0, ["odds_band", "cell"]].tolist() == ["2倍以下", "A/2倍以下"]
