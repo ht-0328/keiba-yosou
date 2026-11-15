@@ -19,6 +19,7 @@
 地方（--local）は nvdata-store（nvstore）と地方の予想モデル（yosou.local_form_aptitude_top3 の predict）。推奨買目は道具「地方の推奨買目」
 （係数 reports/地方の推奨買目/係数.json が要る。無ければ tools/地方の推奨買目/fit.py で当てはめる）。朝の全レースの予想は無く、
 馬体重が届く前のレースは前日の時点（オッズだけ）で予想する。
+通知は起動したらプロセスの優先度を「通常」に上げる（タスクスケジューラのタスクは「通常以下」で始まり、ほかのアプリやバッテリーの節電で予想が後回しにされて発走に間に合わないことがあったため。あとから始める予想と取り込みのプロセスも「通常」で動く）。
 取り込みと予想に 1〜2分かかるので、通知は発走の 8〜9分前に届く。
 中央は、WIN5 のある日（元DB に速報の WIN5 0B51 がある日。無ければ朝に1回だけ jvstore rt で取り込んで探す）に、1レース目の発走の 25分前
 （設定ファイルの win5_minutes_before で変えられる）に、速報の WIN5 と対象レースのオッズを取り込んで元DB の写しを作り（合わせて 20 秒ほど）、
@@ -43,6 +44,7 @@ from 発走前の通知.day_notifier import DayNotifier, Schedule, Win5  # noqa:
 from 発走前の通知.discord_webhook import DiscordWebhook  # noqa: E402
 from 発走前の通知.notifier_parts import NotifierParts  # noqa: E402
 from 発走前の通知.notify_settings import NotifySettings  # noqa: E402
+from 発走前の通知.process_priority import ProcessPriority  # noqa: E402
 
 #: --test で投稿する文。
 TEST_MESSAGE = "keiba-yosou 発走前の通知: つながりました。開催日は発走の10分前に予想を投稿します。"
@@ -72,6 +74,8 @@ def main() -> int:
         print("投稿しました", file=sys.stderr)
         return 0
     day = args.date or (f"{args.rid[:4]}-{args.rid[4:6]}-{args.rid[6:8]}" if args.rid else date.today().isoformat())
+    if not ProcessPriority().raise_to_normal():
+        print("通知の優先度を「通常」に上げられませんでした（通知は続けます）", file=sys.stderr)
     parts = NotifierParts.local() if args.local else NotifierParts.jra()
     win5 = None if args.no_win5 else parts.win5
     notifier = DayNotifier(minutes_before=args.minutes or settings.minutes_before, schedule=parts.schedule, fetcher=parts.fetcher,
