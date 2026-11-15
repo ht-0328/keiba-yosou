@@ -128,7 +128,7 @@ class RaceDescriber:
         if returns is None:
             lines.append(f"{MARK_RETURN_LABEL}: なし（当日の予想で出す）")
         else:
-            lines += [f"{MARK_RETURN_LABEL}（購入額を下の割合で分ける）: {returns[0]}", *(f"- {line}" for line in returns[1])]
+            lines += [f"{MARK_RETURN_LABEL}: {returns[0]}", *(f"- {line}" for line in returns[1])]
         lines.append(f"参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 {POINT_YEN}円で数えた額）:")
         # 買い方は予想に入っている順（MarkTickets が組んだ順。前の版の予想は買い方の名前が違うことがあるので、名前の一覧では引かない）
         for rule in dict.fromkeys(ticket["rule"] for ticket in forecast["tickets"]):
@@ -197,16 +197,16 @@ class RaceDescriber:
         return lines
 
     def mark_returns(self, forecast: dict[str, Any]) -> tuple[str, list[str]] | None:
-        """全レースの印の買い目（``MarkReturn``）の見出しの1行（当たったときの倍率と見込みの回収率）と、買い方ごとの行
-        （組と、購入額のうちその組に回す割合。先頭の「- 」は付けない）。当日の予想でないか、買い目が無ければ None。"""
+        """全レースの印の買い目（``MarkReturn``）の見出しの1行（買うか見送りか・合計・当たったときに戻る額）と、買い方ごとの行
+        （組と1点の金額。先頭の「- 」は付けない）。当日の予想でないか、買い目が無ければ None。"""
         found = MarkReturn.of(forecast)
         if found is None:
             return None
         lines = []
-        for rule, pairs in found.stakes.items():
-            shown = "・".join(f"{ticket['label']} {share * 100:.1f}%" for ticket, share in pairs[:REFERENCE_SHOWN])
-            more = f" ほか {len(pairs) - REFERENCE_SHOWN}点" if len(pairs) > REFERENCE_SHOWN else ""
-            lines.append(f"{rule}（{len(pairs)}点・計 {sum(share for _, share in pairs) * 100:.1f}%）: {shown}{more}")
+        for rule, rows in found.stakes.items():
+            shown = "・".join(f"{ticket['label']} {yen:,}円" for ticket, _, yen in rows[:REFERENCE_SHOWN])
+            more = f" ほか {len(rows) - REFERENCE_SHOWN}点" if len(rows) > REFERENCE_SHOWN else ""
+            lines.append(f"{rule}（{len(rows)}点 計 {sum(yen for _, _, yen in rows):,}円）: {shown}{more}")
         return found.heading(), lines
 
     def mark_bets(self, forecast: dict[str, Any]) -> list[str]:

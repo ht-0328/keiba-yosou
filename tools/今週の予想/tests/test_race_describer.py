@@ -125,7 +125,7 @@ def test_荒れ具合で形を決める3連複はその形の行を書き_比べ
     forecast["tickets"] += [_ticket(huge, "3連複", [2, 3, 9], "2-3-9", 1.4, 120.5), _ticket(huge, "3連複", [2, 9, 11], "2-9-11", 2.1, 480.0),
                             _ticket(POOL_TRIO_RULES[-1].label, "3連複", [2, 9, 10], "2-9-10", 1.0, 300.0)]
     text = RaceDescriber().describe(forecast, _plan())
-    assert f"\n- {huge}: 2点 200円  2-9-11・2-3-9\n印の買い目（全レース）（購入額を下の割合で分ける）: " in text
+    assert f"\n- {huge}: 2点 200円  2-9-11・2-3-9\n印の買い目（全レース）: " in text
     assert POOL_TRIO_RULES[-1].label not in text and mid not in text
     assert "- 3連複（荒れ具合で形を決める）: なし（固いレースか、3連複の荒れ具合の予想が無いか" in RaceDescriber().describe(_forecast())
 
