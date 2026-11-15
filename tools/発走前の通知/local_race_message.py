@@ -74,7 +74,7 @@ MARK_BETS_LABEL = "印の買い目"
 
 class LocalRaceMessage:
     """印は中央と同じ ``MarkRule``（◎○▲△☆注。地方には危険な人気馬の判定が無いので 消 は付かない）。
-    文は 見出し・期待度（``LocalExpectation``。◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）の点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
+    文は 見出し・期待度（``LocalExpectation``。推奨買目の1点ごとの（期待値 − 1）の合計の点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
     買い目と同じく当日の時点だけ出し、買い目は変えない）・
     その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）・
     印の買い目（道具「地方の推奨買目」の ``MarkRecommender``。単勝 ◎・馬単 ◎→○▲☆・3連単 ◎→○▲☆→○▲△☆ を 1レース 5,000円で配り、見込みの回収率で買うか見送るか。当日の時点だけ）だけにし、
@@ -119,11 +119,12 @@ class LocalRaceMessage:
         title = str(forecast.get("title", ""))
         race_day = self._race_day(forecast)
         timing = f"{RACE_DAY}の時点" if race_day else "前日の時点（馬体重が届く前なのでオッズだけ）"
-        bets = self._bets.pick(table, race_day, recommended or RecommendationSet((), ""))
+        recommended = recommended or RecommendationSet((), "")
+        bets = self._bets.pick(table, race_day, recommended)
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
                              frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}),
-                             expectation=LocalExpectation.of(table) if race_day else LocalExpectation.not_race_day(),
+                             expectation=LocalExpectation.of(recommended) if race_day else LocalExpectation.not_race_day(),
                              marks=marks if marks is not None and race_day else MarkBets())
 
     def describe(self, card: LocalRaceCard) -> str:

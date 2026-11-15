@@ -32,7 +32,7 @@ RID = "2026110547150401"
 RACE = ScheduledRace(rid=RID, venue="笠松", number=1, name="", post=datetime(2026, 11, 5, 10, 25))
 MARKS = MarkBets("買う（見込みの回収率 112%）。合計 5,000円で、どれが当たっても 6,000円以上戻る",
                  ("単勝（1点 計 3,500円）: 7 3,500円", "馬単（2点 計 1,500円）: 7→4 900円・7→8 600円"))
-RECOMMENDED = RecommendationSet((Recommendation("枠連", (3, 5), 8.0, 0.14, 1.12), Recommendation("3連単", (7, 4, 8), 25.0, 0.045, 1.13),
+RECOMMENDED = RecommendationSet((Recommendation("枠連", (3, 5), 8.0, 0.30, 2.40), Recommendation("3連単", (7, 4, 8), 25.0, 0.076, 1.90),
                                  Recommendation("単勝", (7,), 3.0, 0.36, 1.08)))
 
 
@@ -80,7 +80,7 @@ def test_文は_見出し_期待度_印の付いた馬_推奨買目だけ() -> N
     text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
-        "期待度 S（点数 0.50）",   # ◎ の 1着の確率 0.35 ＋ 3 ×（1.05 − 1）
+        "期待度 A（点数 2.38）",   # 推奨買目の（期待値 − 1）の合計: 1.40 ＋ 0.90 ＋ 0.08
         "◎ 7 イチバン：単勝 30倍以下の馬の中で単勝の期待値がレース内1位（1着になる確率 35.0% × 単勝 3.0倍 = 1.05）",
         "○ 4 ニバン",
         "▲ 8 サンバン",
@@ -111,10 +111,18 @@ def test_前日の時点は買い目も期待度も出さず_その旨を書く(
     assert "100円" not in text.splitlines()[-1]
 
 
-def test_期待度を付けても_買い目は前と同じ() -> None:
+def test_期待度は推奨買目から出し_買い目は前と同じ() -> None:
     card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED)
-    assert card.expectation.grade == "S" and card.badge == "期待度 S"
+    assert card.expectation.grade == "A" and card.badge == "期待度 A"
+    # 全頭の予想の ◎ の単勝・複勝（足した 複勝 3）は点数に入れない（推奨買目だけ）
+    assert card.expectation.score == sum(row.value - 1 for row in RECOMMENDED.rows)
     assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"]   # 期待度は買い目の条件に使わない
+
+
+def test_推奨買目が無ければ_期待度は理由つきの_なし() -> None:
+    message = LocalRaceMessage()
+    card = message.card(_forecast("当日"), RACE, {}, RecommendationSet((), "期待値が線に届く組が無い"))
+    assert message.describe(card).splitlines()[1] == "期待度 なし（推奨買目が無い: 期待値が線に届く組が無い）" and card.badge == ""
 
 
 def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
@@ -177,7 +185,7 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), tendencies=tendencies).build(RID)
     assert tendencies.calls == [(RID, "笠松")]
     lines = notice.text.splitlines()
-    assert lines[1] == "期待度 S（点数 0.50）"
+    assert lines[1] == "期待度 なし（推奨買目が無い）"   # 推奨買目を出さない組み立て
     assert lines[2] == "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）"
     assert lines[3].startswith("◎ 7 イチバン：")
 

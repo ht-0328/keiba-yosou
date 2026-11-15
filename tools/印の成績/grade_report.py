@@ -25,7 +25,7 @@ _BASELINE_RATES: tuple[str, ...] = ("勝率", "単勝回収率", "複勝率", "�
 
 
 class RankScale(Protocol):
-    """◎ の点数と等級の決め方（中央の ``TopRankScale``・地方の ``LocalExpectationScale``）。"""
+    """◎ の点数と等級の決め方（中央の ``TopRankScale``・地方の ``LocalTopScoreScale``）。"""
 
     @staticmethod
     def score(win_probability: float | None, win_value: float | None) -> float | None: ...
@@ -41,7 +41,7 @@ class GradeReport:
 
     等級は、◎ の1着になる確率と単勝の期待値（``win_probability``・``win_value``）から ``scale`` が決める。既定は中央の期待度
     （``TopRankScale``。◎ の単勝の期待値 0.90 未満は見送りの行に、それ以外は 1着の確率 ＋ 1.25 ×（期待値 − 1）を S 0.28・A 0.14・B 0.02 の線で）で、地方の予測は
-    ``--scene 地方`` で期待度（``LocalExpectationScale``。期待値の重みが 3 で、線は S 0.45・A 0.15・B −0.10）にする。
+    ``--scene 地方`` で ◎ の点数（``LocalTopScoreScale``。期待値の重みが 3 で、線は S 0.45・A 0.15・B −0.10）にする。
     ``label``・``meaning`` は表の見出しと注に書く名前と意味。1着の予想が無ければ（◎ の期待値が無い）どの等級にも入らない。
     等級ごとに、レース数と割合、成績7つ、同じ人気の馬全体（``PopularityBaseline``）の勝率・単勝回収率・複勝率・複勝回収率を並べる。
     等級が高いほど勝率・複勝率・単勝回収率・複勝回収率が上がっていれば、等級はそのまま「◎ の単勝・複勝のべた買いの目安」として読める
