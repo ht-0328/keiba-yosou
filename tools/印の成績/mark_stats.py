@@ -72,6 +72,7 @@ from yosou.shared.repository import BracketBlendWeightsRepository, ComboBlendWei
 
 from 今週の予想.danger_picker import MARKED_BANDS  # noqa: E402
 from 今週の予想.combo_value_picker import ComboValuePicker  # noqa: E402
+from 今週の予想.mark_ticket_values import MarkTicketValues  # noqa: E402
 from 今週の予想.mark_tickets import MarkTickets  # noqa: E402
 from 今週の予想.ticket_rules import COMBO_VALUE_RULES  # noqa: E402
 from 今週の予想.torigami_filter import TorigamiFilter  # noqa: E402
@@ -80,6 +81,7 @@ from 印の成績.backtest_marker import BacktestMarker  # noqa: E402
 from 印の成績.bracket_fold_weights_reader import read_bracket_fold_weights  # noqa: E402
 from 印の成績.bracket_value_tickets import BracketValueTickets  # noqa: E402
 from 印の成績.combo_value_tickets import ComboValueTickets  # noqa: E402
+from 印の成績.mark_value_tickets import MarkValueTickets  # noqa: E402
 from 印の成績.danger_band_report import DangerBandReport  # noqa: E402
 from 印の成績.danger_flag_file import DangerFlagFile  # noqa: E402
 from 印の成績.favorite_danger_judge import COLUMNS as DANGER_COLUMNS, FavoriteDangerJudge  # noqa: E402
@@ -172,6 +174,7 @@ def main(args) -> None:
             bracket_folds = read_bracket_fold_weights(args.bracket_fold_weights) if args.bracket_fold_weights else None
             bracket = BracketValueTickets(con, BracketBlendWeightsRepository(args.models).load(), bracket_folds).build(marked)
             tickets = pd.concat([tickets, bracket], ignore_index=True)
+            tickets = MarkValueTickets(con, MarkTicketValues(ComboBlendWeightsRepository(args.models).load())).attach(tickets, marked)
         print(f"買い目 {len(tickets):,} 点の払戻と確定オッズを読みます", file=sys.stderr, flush=True)
         tickets = TorigamiFilter().apply(TicketPayouts(con).attach(tickets))
     report = TicketReport()

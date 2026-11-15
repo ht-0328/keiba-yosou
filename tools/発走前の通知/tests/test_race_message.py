@@ -113,10 +113,13 @@ def test_表は印の順で_危険な人気馬でない消は無印(tmp_path: Pa
     assert list(card.table["horse_no"]) == [3, 7, 1]   # 同じ印の中は 3着以内の確率の高い順
 
 
-def test_買わないときは_なし_と理由(tmp_path: Path) -> None:
+def test_買わないときは_なし_と理由_全レースの印の買い目は当たれば払った額より多く戻る割合で出す(tmp_path: Path) -> None:
     plan = RacePlan(RID, "t", "当日", "買わない", "見込みの利益が線に届かない", 0.0, 0.9, False)
     message, _ = _message(tmp_path, _forecast(plan=plan))
-    assert message.build(RID).text.splitlines()[-1] == "買い目: なし（見込みの利益が線に届かない）"
+    lines = message.build(RID).text.splitlines()
+    assert lines[-3:] == ["買い目: なし（見込みの利益が線に届かない）",
+                          "印の買い目（購入額を下の割合で分ける）: 当たれば購入額の 3.10倍（どの組が当たっても同じ）",
+                          "- 単勝（1点・計 100.0%）: 3 100.0%"]
 
 
 def test_予想が無ければ止まる(tmp_path: Path) -> None:
@@ -136,4 +139,4 @@ def test_重賞は実際に買う買い目のあとに印の買い目を参考�
     assert lines[head + 1:] == ["- 単勝: 1点 100円  3", "- 3連単（◎→○▲☆→○▲△☆）: 1点 100円  3→7→1"]
     forecast["header"] = {"クラス": "3勝クラス"}
     message, _ = _message(tmp_path / "別", forecast)
-    assert "印の買い目" not in message.build(RID).text
+    assert "印の買い目（参考" not in message.build(RID).text   # 全レースの印の買い目（見込みの回収率）の欄だけ
