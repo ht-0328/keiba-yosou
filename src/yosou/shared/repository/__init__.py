@@ -32,12 +32,14 @@
 | ``AnnouncedGoingRepository`` | 速報の馬場状態 |
 | ``AnnouncedWeightRepository`` | 速報の馬体重 |
 | ``AnnouncedOddsRepository`` | 締め切り前の単勝オッズ（時系列オッズのいちばん新しい断面）。人気かオッズを使う予想が使う |
+| ``EveOddsRepository`` | 前日の最後の途中の単勝オッズ（開催日より前に発表された最後の断面）。当日の予想の確率をオッズの動きで直すのに使う |
 | ``AnnouncedTicketOddsRepository`` | 締め切り前の、1つの券種の全部の組のオッズ（いちばん新しい断面）。今週の予想が買い目の期待値とトリガミに使う |
 | ``PlaceOddsRepository`` | 複勝オッズ（最低・最高）。終わったレースは確定、これから走るレースは締め切り前のいちばん新しい断面 |
 | ``ScratchRepository`` | 速報の出走取消・競走除外 |
 | ``ModelRepository`` | 学習済みモデルのファイル（SQL ではなくファイルに読み書きする） |
 | ``PlacePriceRepository`` | 複勝の見込みの倍率（帯ごとの倍率）のファイル。モデルと一緒に置く |
 | ``ComboBlendWeightsRepository`` | 組の確率の重み（券種ごと）のファイル。モデルと一緒に置く（設計書「買うレースと買い目を決める」07 の 2） |
+| ``OddsMoveWeightsRepository`` | オッズの動きの直しの重み（3着以内・1着）のファイル。モデルと一緒に置く |
 | ``BracketBlendWeightsRepository`` | 枠連の組の確率の重みのファイル（もとの数が違うので別のファイル） |
 | ``FrameRepository`` | 出走馬の枠番を期間ぶん読む（枠連の組を作るのに使う） |
 | ``DbStamp``・``StampFile`` | 元DB の印（パスと更新時刻）と、とっておいた表の隣の ``stamp.json``。表 G・過去の傾きの表・表 W のキャッシュ（それぞれの予想の ``repository/``）が使う |
@@ -58,6 +60,8 @@ from .career_count_layout import JRA_CAREER_LAYOUT, CareerCountLayout
 from .career_count_repository import CareerCountRepository
 from .bracket_blend_weights_repository import BracketBlendWeightsRepository
 from .combo_blend_weights_repository import ComboBlendWeightsRepository
+from .eve_odds_repository import EveOddsRepository
+from .odds_move_weights_repository import OddsMoveWeightsRepository
 from .db_stamp import DbStamp
 from .entry_repository import EntryRepository
 from .fact_table_repository import FactTableRepository
@@ -100,7 +104,7 @@ __all__ = [
     "CareerCountRepository", "CareerCountLayout", "JRA_CAREER_LAYOUT", "PastRunRepository", "WorkoutRepository", "WorkoutCoverageRepository",
     "PeopleDayRepository", "PedigreeDayRepository", "MarketRunRepository", "RacePayoutRepository", "PAYOUT_TABLES", "RaceEarlyRecordRepository",
     "AnnouncedGoingRepository", "AnnouncedWeightRepository", "AnnouncedOddsRepository", "AnnouncedTicketOddsRepository", "PlaceOddsRepository",
-    "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository", "ComboBlendWeightsRepository",
+    "ScratchRepository", "StakesTendencyRepository", "ModelRepository", "PlacePriceRepository", "ComboBlendWeightsRepository", "EveOddsRepository", "OddsMoveWeightsRepository",
     "RaceDayRange", "FinalOddsRepository", "TicketOddsRepository", "PayoutRepository", "PayoutFlagRepository", "void_column", "REFUNDED",
     "AbilityRunRepository", "RUN_COLUMNS", "SpeedFigureRepository", "WorkoutSummaryRepository", "SalePriceRepository",
     "FirstHorsePoolRepository", "AllHorsesPoolRepository", "POOLS", "PoolSpec", "HeadToHeadRunRepository",

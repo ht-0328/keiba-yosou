@@ -14,6 +14,8 @@ from 発走前の通知.bet_footer import BetFooter
 FOOTER_LABEL = "買い目"
 #: 重賞の、印で組む買い方の見出し（参考。実際に買う買い目の合計には入らない）。
 MARK_BETS_LABEL = "印の買い目（参考・1点 100円）"
+#: 全レースの印の買い目の見出し（どの組が当たっても払った額より多く戻る割合で分ける）。
+MARK_RETURN_LABEL = "印の買い目"
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,9 @@ class JraRaceCard:
     mark_bets: tuple[str, ...] = ()
     #: 画像の見出しの札（``RaceGrades.badge()``。例 ``期待度 A``。出せなければ空）。地方と同じ形。
     grade_badge: str = ""
+    #: 全レースの印の買い目の1行（当たったときの倍率と見込みの回収率）と、買い方ごとの行（``RaceDescriber.mark_returns``。組と購入額の割合。当日の予想でなければ空）。
+    mark_return: str = ""
+    mark_returns: tuple[str, ...] = ()
 
     @property
     def badge(self) -> str:
@@ -66,7 +71,9 @@ class JraRaceCard:
     @property
     def footer(self) -> BetFooter:
         """画像の買い目の欄（券種ごとの行・合計・理由）。"""
-        notes = (*self.notes, *(f"{MARK_BETS_LABEL} {line}" for line in self.mark_bets))
+        returns = (f"{MARK_RETURN_LABEL} {self.mark_return}", *(f"{MARK_RETURN_LABEL} {line}" for line in self.mark_returns)) if self.mark_return else ()
+        notes = (*self.notes, *returns,
+                 *(f"{MARK_BETS_LABEL} {line}" for line in self.mark_bets))
         if not self.bets:
             return BetFooter(FOOTER_LABEL, notes=notes)
         return BetFooter(FOOTER_LABEL, tuple(line for line, _ in self.bets), f"合計 {self.yen:,}円", notes)

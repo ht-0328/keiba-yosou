@@ -207,3 +207,12 @@ TOTAL_MEMBERS: dict[str, tuple[str, ...]] = {
 def combo_text(horses: tuple[int, ...]) -> str:
     """馬番の並びを、払戻・オッズの表の組番（2桁ずつ並べた文字列）にする。例: (1, 5) → ``0105``。"""
     return "".join(f"{int(horse):02d}" for horse in horses)
+#: 全レースで出す印の買い目（印で組む買い方 ``BET_RULES`` のうち4つ。設計書 08 の 2「当日の予想の全レースの印の買い目」）。
+#: オッズの動きで直した当日の予想で、印どおりに全レースで買ったとき、2025年9月6日からの全レースで回収率 100% を超えた4つ
+#: （ワイドと3連複は届かなかった）。1点ごとに期待値を付け、レースごとに見込みの回収率（期待値の平均。1点同じ額で買ったとき）を出す。
+MARK_VALUE_LABELS: tuple[str, ...] = ("単勝", "馬連", "馬単", "3連単（◎→○▲☆→○▲△☆）")
+#: 印の買い目の組の期待値を出すためのルール（その券種の全部の組の期待値を出すだけで、組は選ばない）。組の期待値は、組の期待値の買い目と同じ
+#: 市場とモデルを重みで合わせた組の確率 × オッズ（重みは ``combo_blend.json``）。単勝は ◎ の単勝の期待値。
+MARK_VALUE_RULES: tuple[ComboValueRule, ...] = tuple(
+    ComboValueRule(ticket_type, ALL_RACES, 0.0, float("inf"), adopted=False, name=f"{ticket_type.label}（印の期待値）")
+    for ticket_type in (TicketType.QUINELLA, TicketType.EXACTA, TicketType.TRIFECTA))

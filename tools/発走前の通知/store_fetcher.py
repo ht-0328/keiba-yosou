@@ -36,7 +36,8 @@ def _stderr(text: str) -> None:
 
 class StoreFetcher:
     """取り込みの中身は jvdata-store（地方は nvdata-store）の責務で、ここは jvstore（nvstore）のコマンドを呼ぶだけ（地方は ``local()``）。
-    朝は出馬表（``jvstore sync``）とその日の速報（``jvstore realtime``。全レースのオッズまで取るので 20〜30 秒）、
+    朝は出馬表（``jvstore sync``）とその日の速報（``jvstore realtime``。全レースのオッズまで取るので 20〜30 秒）と、中央は
+    その日の全レースの時系列オッズ（``jvstore timeseries``。前日の発売からの途中のオッズ。当日の予想をオッズの動きで直すのに使う。10 秒ほど）、
     発走前は開催日単位の速報 5 種類とそのレースのオッズ（``jvstore rt``。合わせて 10 秒ほど）。
     WIN5 の前は、速報の WIN5（0B51）と、開催日単位の速報と対象レース5つのオッズ（中央だけ）。
     失敗したら、出力の最後の数行を添えて ``RuntimeError``。
@@ -44,12 +45,14 @@ class StoreFetcher:
 
     def __init__(self, *, store_project: Path = STORE_PROJECT, db_name: str = STORE_DB,
                  log: Callable[[str], None] = _stderr, run: Callable[..., subprocess.CompletedProcess] = subprocess.run, uv: str | None = None,
-                 tool: str = "jvstore", day_dataspecs: tuple[str, ...] = DAY_DATASPECS, sync_arguments: tuple[str, ...] = ()) -> None:
+                 tool: str = "jvstore", day_dataspecs: tuple[str, ...] = DAY_DATASPECS, sync_arguments: tuple[str, ...] = (),
+                 eve_odds: bool = True) -> None:
         self._project = store_project
         self._db = db_name
         self._tool = tool
         self._day_dataspecs = day_dataspecs
         self._sync_arguments = sync_arguments
+        self._eve_odds = eve_odds
         self._log = log
         self._run_process = run
         self._uv = uv
@@ -58,15 +61,18 @@ class StoreFetcher:
     def local(cls, **options) -> StoreFetcher:
         """地方: nvdata-store の nvstore を呼ぶ。開催日単位の速報は 3 種類、出馬表の取り込みは RACE・DIFN・SNAP だけ。"""
         return cls(store_project=LOCAL_STORE_PROJECT, db_name=LOCAL_STORE_DB, tool="nvstore", day_dataspecs=LOCAL_DAY_DATASPECS,
-                   sync_arguments=LOCAL_SYNC_ARGUMENTS, **options)
+                   sync_arguments=LOCAL_SYNC_ARGUMENTS, eve_odds=False, **options)
 
     def sync(self) -> None:
         """今週の出馬表など、蓄積系の差分を取り込む。"""
         self._run(["sync", *self._sync_arguments], f"出馬表の取り込み（{self._tool} sync）")
 
     def fetch_day(self, day: str) -> None:
-        """その日の速報を全部（出馬表の更新・天候馬場・馬体重・マイニング予想・全レースのオッズ）取り込む。"""
+        """その日の速報を全部（出馬表の更新・天候馬場・馬体重・マイニング予想・全レースのオッズ）取り込む。中央は、その日の全レースの
+        時系列オッズ（前日の発売からの途中のオッズ。速報のオッズで締め切り前の断面がもうあるレースも取るので ``--refetch``）も取り込む。"""
         self._run(["realtime", "--db", self._db, "--date", day], f"速報の取り込み（{day}）")
+        if self._eve_odds:
+            self._run(["timeseries", "--from", day, "--to", day, "--db", self._db, "--refetch"], f"時系列オッズの取り込み（{day}）")
 
     def fetch_race(self, day: str, rid: str) -> None:
         """発走前に、開催日単位の速報とそのレースのオッズだけを取り直す。"""

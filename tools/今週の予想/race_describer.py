@@ -7,12 +7,14 @@ from typing import Any
 from yosou.review import names
 
 from 今週の予想.mark_rule import NO_MARK, OUT_MARK, TOP_MARK
+from 今週の予想.mark_return import MarkReturn
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
 from 今週の予想.ticket_pick import TicketPick
 from 今週の予想.ticket_rules import (
     BET_RULES,
     LONGSHOT_PLACE_LABEL,
+    MARK_VALUE_LABELS,
     PLACE_LABEL,
     POINT_YEN,
     POOL_TRIO_RULES,
@@ -28,6 +30,8 @@ COMBO_LABELS: tuple[str, ...] = ("枠連", "馬連", "馬単", "ワイド", "3�
 STAKES_TICKETS: tuple[str, ...] = ("3連単",)
 #: 印で組む買い方（08 の 2 の印のルールの、軸から流す形を除いた6つ。単勝 ◎・ワイド・馬連・馬単 ◎→○▲☆・3連複・3連単）。重賞の通知に出す。
 MARK_RULE_LABELS: tuple[str, ...] = tuple(rule.label for rule in BET_RULES[:6])
+#: 全レースの印の買い目の見出し（見込みの回収率を添える）。
+MARK_RETURN_LABEL = "印の買い目（全レース）"
 #: 参考の買い目で、組を書き出す点数の上限（3連単のマルチは 60点を超えるので、期待値の高い順にここまで）。
 REFERENCE_SHOWN = 10
 #: 参考の買い目に出さない、比べるためだけの行（2モデル一致で絞った行）の目印。
@@ -120,10 +124,16 @@ class RaceDescriber:
         bought = {pick.ticket_type for pick in win_picks} | {f"{pick.ticket_type}（組の期待値）" for pick in combo_picks}
         bought |= {LONGSHOT_PLACE_LABEL} if longshot_picks else set()
         lines.append(self._upset_trio_line(forecast))
+        returns = self.mark_returns(forecast)
+        if returns is None:
+            lines.append(f"{MARK_RETURN_LABEL}: なし（当日の予想で出す）")
+        else:
+            lines += [f"{MARK_RETURN_LABEL}（購入額を下の割合で分ける）: {returns[0]}", *(f"- {line}" for line in returns[1])]
         lines.append(f"参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 {POINT_YEN}円で数えた額）:")
         # 買い方は予想に入っている順（MarkTickets が組んだ順。前の版の予想は買い方の名前が違うことがあるので、名前の一覧では引かない）
         for rule in dict.fromkeys(ticket["rule"] for ticket in forecast["tickets"]):
-            if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL) or rule in _POOL_TRIO_LABELS or REFERENCE_SKIP in rule or rule in bought:
+            if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL) or rule in _POOL_TRIO_LABELS or REFERENCE_SKIP in rule or rule in bought \
+                    or (returns is not None and rule in MARK_VALUE_LABELS):
                 continue
             lines.append(self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule]))
         return lines
@@ -185,6 +195,19 @@ class RaceDescriber:
             total = sum(pick.yen for pick in chosen)
             lines.append(f"- {label}{suffix}: {shown}{more}  1点 {chosen[0].yen:,}円 × {len(chosen)}点 = {total:,}円")
         return lines
+
+    def mark_returns(self, forecast: dict[str, Any]) -> tuple[str, list[str]] | None:
+        """全レースの印の買い目（``MarkReturn``）の見出しの1行（当たったときの倍率と見込みの回収率）と、買い方ごとの行
+        （組と、購入額のうちその組に回す割合。先頭の「- 」は付けない）。当日の予想でないか、買い目が無ければ None。"""
+        found = MarkReturn.of(forecast)
+        if found is None:
+            return None
+        lines = []
+        for rule, pairs in found.stakes.items():
+            shown = "・".join(f"{ticket['label']} {share * 100:.1f}%" for ticket, share in pairs[:REFERENCE_SHOWN])
+            more = f" ほか {len(pairs) - REFERENCE_SHOWN}点" if len(pairs) > REFERENCE_SHOWN else ""
+            lines.append(f"{rule}（{len(pairs)}点・計 {sum(share for _, share in pairs) * 100:.1f}%）: {shown}{more}")
+        return found.heading(), lines
 
     def mark_bets(self, forecast: dict[str, Any]) -> list[str]:
         """印で組む買い方（``MARK_RULE_LABELS``）の行（参考の買い目と同じ書き方で、先頭の「- 」は付けない。金額は1点 ``POINT_YEN`` で数えた額）。

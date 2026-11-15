@@ -19,7 +19,7 @@ from 今週の予想.race_plan import RacePlan
 from 今週の予想.ticket_rules import GRADED_CLASSES
 
 from 発走前の通知.folders import CENTRAL_FOLDER
-from 発走前の通知.jra_race_card import MARK_BETS_LABEL, JraRaceCard
+from 発走前の通知.jra_race_card import MARK_BETS_LABEL, MARK_RETURN_LABEL, JraRaceCard
 from 発走前の通知.mark_lines import MarkLines
 from 発走前の通知.race_frames import RaceFrames
 from 発走前の通知.race_image import RaceImage
@@ -78,21 +78,26 @@ class RaceMessage:
         graded = str(forecast.get("header", {}).get("クラス", "")) in GRADED_CLASSES
         timing = str(forecast.get("timing", ""))
         grades = RaceGrades.from_dict(forecast)
+        returns = self._describer.mark_returns(forecast)
         return JraRaceCard(heading=f"{race.venue} {race.number}R" if race else str(forecast["title"]),
                            name=race.name if race else "", post=f"{race.post:%H:%M} 発走" if race else "",
                            timing=f"{timing}の時点", race_day=timing == _RACE_DAY, grades=grades.text(),
                            table=self._table(forecast), frames=dict(frames), bets=bets, notes=() if bets else self._notes(plan),
                            tendency=tendency, styles=dict(styles or {}), grade_badge=grades.badge(),
-                           mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else ())
+                           mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else (),
+                           mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else ())
 
     def describe(self, card: JraRaceCard) -> str:
-        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目と、重賞なら印で組む買い方（参考）。"""
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目・全レースの印の買い目（どの組が当たっても払った額より多く戻る割合と、見込みの回収率。当日）と、
+        重賞なら印で組む買い方（参考）。"""
         lines = [f"**{card.title}** 中央の予想・{card.timing}", card.grades, *([card.tendency] if card.tendency else []),
                  *MarkLines().lines(card.table)]
         if not card.bets:
             lines.append(f"買い目: なし（{'。'.join(card.notes)}）" if card.notes else "買い目: なし")
         else:
             lines += [f"買い目（合計 {card.yen:,}円）:", *(f"- {line}" for line, _ in card.bets)]
+        if card.mark_return:
+            lines += [f"{MARK_RETURN_LABEL}（購入額を下の割合で分ける）: {card.mark_return}", *(f"- {line}" for line in card.mark_returns)]
         if card.mark_bets:
             lines += [f"{MARK_BETS_LABEL}:", *(f"- {line}" for line in card.mark_bets)]
         return "\n".join(lines)

@@ -11,7 +11,8 @@ from ..dataset import DatasetBuilder, OddsInput, OddsResolver
 from ..dataset.form_aptitude_assembly import ability_dataset_builder, race_day_dataset_builder
 from ..feature import PredictionTiming
 from ..place_value import PlacePriceEstimator, PlaceValueColumns
-from ..repository import AnnouncedOddsRepository, PlacePriceRepository
+from ..odds_move import OddsMoveCorrection
+from ..repository import AnnouncedOddsRepository, EveOddsRepository, OddsMoveWeightsRepository, PlacePriceRepository
 from ..repository.speed_figure_repository import DEFAULT_FOLDER
 from .explained_prediction import ExplainedPrediction
 from .form_aptitude_materials import FormAptitudeMaterials, MaterialsFactory
@@ -19,6 +20,7 @@ from .form_aptitude_timings import (
     ABILITY_SCORE_TOP3_TIMINGS,
     ABILITY_SCORE_WIN_TIMINGS,
     ABILITY_TIMINGS,
+    ODDS_MOVE_TIMINGS,
     PACE_TIMINGS,
     POOL_FREE_FOLDER,
     SCORE_TOP3_TIMINGS,
@@ -30,6 +32,7 @@ from .form_aptitude_timings import (
     WIN_FOLDER,
 )
 from .model_segments import ModelSegments
+from .odds_move_adjustment import OddsMoveAdjustment
 from .prediction_workflow import DataAttachment, PredictionWorkflow
 from .segmented_prediction import SegmentedPrediction
 
@@ -46,10 +49,14 @@ class FormAptitudePrediction:
     ``models`` は今のモデルの学習済みモデルの置き場所（``reports/近走と適性から3着以内を予想/models``）。
     ``materials`` は、元DB への接続から材料を作る部品（``FormAptitudeMaterials``）を作る関数。予測のたびに1つ作り、
     その予測の3着以内と1着のモデルで使い回す。``figure_cache`` はスピード指数をとっておく場所。
+    当日（``ODDS_MOVE_TIMINGS``）は、モデルの置き場所に直しの重み（``odds_move.json``）があれば、平均の確率をオッズの動きで直す（設計書 15 の 22）。
+    ``odds_move`` を偽にすると直さない（予想「近走と適性からWIN5の買い目を決める」。1レース目の前に5レースを予測するので、締め切り前のオッズで
+    学んだ直しが合わず、決まりも直さない確率で確かめている）。
     """
 
-    def __init__(self, models: Path, materials: MaterialsFactory, figure_cache: Path = DEFAULT_FOLDER) -> None:
+    def __init__(self, models: Path, materials: MaterialsFactory, figure_cache: Path = DEFAULT_FOLDER, odds_move: bool = True) -> None:
         self._models = Path(models)
+        self._uses_odds_move = odds_move
         self._materials = materials
         self._figure_cache = Path(figure_cache)
 
@@ -78,7 +85,15 @@ class FormAptitudePrediction:
                                 WEIGHT_DISCOUNT_TOP3_TIMINGS),
             win_extras=self._extras(materials, timing, SCORE_WIN_TIMINGS, ABILITY_SCORE_WIN_TIMINGS, TRACK_BIAS_WIN_TIMINGS,
                                     WEIGHT_DISCOUNT_WIN_TIMINGS),
+            odds_move=self._odds_move(con, timing),
         )
+
+    def _odds_move(self, con: duckdb.DuckDBPyConnection, timing: PredictionTiming) -> OddsMoveAdjustment | None:
+        """オッズの動きで直す時点で、直しの重みがあれば、その部品。ほかは None（直さない）。"""
+        if not self._uses_odds_move or timing not in ODDS_MOVE_TIMINGS:
+            return None
+        weights = OddsMoveWeightsRepository(self._models).load()
+        return OddsMoveAdjustment(OddsMoveCorrection(weights), EveOddsRepository(con).read) if weights else None
 
     def _dataset_builder(self, con: duckdb.DuckDBPyConnection, timing: PredictionTiming) -> DatasetBuilder:
         """その時点のモデルの材料の組み立て。木曜・前日は馬の力の材料、当日は今の材料と券種の支持と馬の力の材料。"""

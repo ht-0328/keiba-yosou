@@ -26,6 +26,8 @@ class CatBoostModel:
     多クラス分類（``CatBoostMulticlassModel``）は、このクラスの目的関数・目的変数の渡し方・確率の取り出し方だけを
     変えたもの。学習・保存・読み込みの手順は同じである。
 
+    学習データに行の重み（``TrainingData.weight``）があれば、学習と早期終了の両方でその重みを使う。
+
     学習データに目的変数の基準（``TrainingData.baseline``）があれば、それを出発点（``Pool`` の ``baseline``）にして、
     基準からの上げ下げだけを学ぶ（既存モデルの修正計画の 1・2）。予測では、木の出した値に基準を足して確率に戻す。
     基準を使って学んだかどうかは、モデルのメタデータに書いて一緒に保存する。
@@ -110,11 +112,12 @@ class CatBoostModel:
         return model
 
     def _pool(self, encoder: CatBoostEncoder, data: TrainingData) -> catboost.Pool:
-        """ライブラリに渡すデータ。基準があれば、出発点（``baseline``）として付ける。"""
+        """ライブラリに渡すデータ。基準があれば出発点（``baseline``）として、行の重みがあれば ``weight`` として付ける。"""
         baseline = data.baseline.array() if data.baseline is not None else None
+        weight = data.weight.to_numpy() if data.weight is not None else None
         return catboost.Pool(
             encoder.transform(data.features), self._label(data),
-            cat_features=list(encoder.categorical_columns), baseline=baseline,
+            cat_features=list(encoder.categorical_columns), baseline=baseline, weight=weight,
         )
 
     def _check_labels(self, train: TrainingData) -> None:

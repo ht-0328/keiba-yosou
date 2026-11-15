@@ -138,3 +138,43 @@ def test_model_without_a_baseline_ignores_the_baseline_of_the_data(model_type, r
     settings = HyperparameterSettings.load(fast_settings_path, defaults=default_settings_path)
     model = model_type.from_settings(settings).fit(train, valid)
     np.testing.assert_allclose(model.predict_proba(_with_baseline(valid, 0.3)), model.predict_proba(valid))
+
+
+def _weighted(data: TrainingData, heavy: float) -> TrainingData:
+    """前から半分の行に重み ``heavy``、残りに 1 を付けた学習データ（重賞の予想の行の重みの代わり）。"""
+    weight = pd.Series(np.where(np.arange(len(data)) < len(data) // 2, heavy, 1.0), index=data.ids.index)
+    return replace(data, weight=weight)
+
+
+def test_training_data_keeps_weight_when_rows_are_chosen(race_day_split):
+    train, _ = race_day_split
+    weighted = _weighted(train, 5.0)
+    rows = pd.Series(np.arange(len(train)) % 2 == 0, index=train.ids.index)
+    chosen = weighted.where(rows)
+    # 行を選んでも、時点を替えても、目的変数を持ち替えても、重みは同じ行についていく
+    assert chosen.weight.index.equals(chosen.ids.index)
+    assert chosen.weight.tolist() == weighted.weight[rows].tolist()
+    assert weighted.for_timing(PredictionTiming.DAY_BEFORE).weight is weighted.weight
+    assert weighted.with_label(weighted.label_name).weight.equals(weighted.weight)
+    # 重みを付けない学習データは、重みが無いまま
+    assert train.where(rows).weight is None
+
+
+@pytest.mark.parametrize("model_type", [LightGbmModel, CatBoostModel])
+def test_model_uses_row_weights(model_type, race_day_split, fast_settings_path: Path, default_settings_path: Path):
+    train, valid = race_day_split
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=default_settings_path)
+    plain = model_type.from_settings(settings).fit(train, valid).predict_proba(valid)
+    same = model_type.from_settings(settings).fit(_weighted(train, 1.0), _weighted(valid, 1.0)).predict_proba(valid)
+    heavy = model_type.from_settings(settings).fit(_weighted(train, 20.0), _weighted(valid, 20.0)).predict_proba(valid)
+    # 重みが全部 1 なら重みなしと同じ確率になり、重みを変えると確率が変わる（重みが学習に渡っている）
+    np.testing.assert_allclose(same, plain, rtol=1e-6)
+    assert not np.allclose(heavy, plain)
+
+
+def test_lightgbm_needs_weight_on_validation_when_training_has_it(race_day_split, fast_settings_path: Path,
+                                                                 default_settings_path: Path):
+    train, valid = race_day_split
+    settings = HyperparameterSettings.load(fast_settings_path, defaults=default_settings_path)
+    with pytest.raises(ValueError, match="検証データに重み"):
+        LightGbmModel.from_settings(settings).fit(_weighted(train, 5.0), valid)
