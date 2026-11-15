@@ -20,6 +20,7 @@ from 今週の予想.forecast_columns import (
 )
 from 今週の予想.mark_rule import MARK_ORDER, MarkRule
 
+from 地方の推奨買目.mark_bets import MarkBets
 from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
 
@@ -38,16 +39,21 @@ from 発走前の通知.tendencies import Tendencies
 
 
 class Recommendations(Protocol):
-    """地方の推奨買目を出す部品（本番は ``LocalRecommendations``）。"""
+    """地方の推奨買目と印の買い目を出す部品（本番は ``LocalRecommendations``）。``marks`` の ``marked`` は印を付けた全頭の表。"""
 
     def recommend(self, rid: str, forecast: dict[str, Any]) -> RecommendationSet: ...
 
+    def marks(self, rid: str, forecast: dict[str, Any], marked: pd.DataFrame) -> MarkBets: ...
+
 
 class NoRecommendations:
-    """推奨買目を出さない（全頭の予想の単勝・複勝だけ。テストと、係数が無い環境向け）。"""
+    """推奨買目と印の買い目を出さない（全頭の予想の単勝・複勝だけ。テストと、係数が無い環境向け）。"""
 
     def recommend(self, rid: str, forecast: dict[str, Any]) -> RecommendationSet:
         return RecommendationSet((), "")
+
+    def marks(self, rid: str, forecast: dict[str, Any], marked: pd.DataFrame) -> MarkBets:
+        return MarkBets()
 
 #: predict の表の列名 → 印の決め方（MarkRule）が使う列名。
 _COLUMNS: dict[str, str] = {
@@ -62,13 +68,16 @@ _COLUMNS: dict[str, str] = {
 }
 #: 当日の時点の見出し（predict の title に入る言葉）。
 RACE_DAY = "当日"
+#: 印の買い目の見出し（中央の通知と同じ言葉）。
+MARK_BETS_LABEL = "印の買い目"
 
 
 class LocalRaceMessage:
     """印は中央と同じ ``MarkRule``（◎○▲△☆注。地方には危険な人気馬の判定が無いので 消 は付かない）。
     文は 見出し・期待度（``LocalExpectation``。◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）の点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
     買い目と同じく当日の時点だけ出し、買い目は変えない）・
-    その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）だけにし、
+    その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）・
+    印の買い目（道具「地方の推奨買目」の ``MarkRecommender``。単勝 ◎・馬単 ◎→○▲☆・3連単 ◎→○▲☆→○▲△☆ を 1レース 5,000円で配り、見込みの回収率で買うか見送るか。当日の時点だけ）だけにし、
     全頭の表は画像（``RaceImage``。推定脚質の列は ``styles``。見出しに期待度の札）にして添付する。画像は ``reports/発走前の通知/地方/<開催日>/<rid>.png`` に置く。"""
 
     def __init__(self, store: LocalForecastStore | None = None, schedule: LocalRaceSchedule | None = None,
@@ -91,30 +100,43 @@ class LocalRaceMessage:
             raise LookupError(f"予想の結果がありません（{rid}）")
         race = self._find(rid)
         tendency = self._tendencies.of(rid, race.venue) if self._tendencies and race else None
+        marks = self._recommendations.marks(rid, forecast, self.marked(forecast)) if self._race_day(forecast) else MarkBets()
         card = self.card(forecast, race, self._frames.read(rid), self._recommendations.recommend(rid, forecast),
-                         tendency.text() if tendency else "", self._styles.read(rid) if self._styles else {})
+                         tendency.text() if tendency else "", self._styles.read(rid) if self._styles else {}, marks)
         path = self._store.image_path(rid)
         self._image.draw(card).save(path)
         return RaceNotice(self.describe(card), (path,))
 
+    def marked(self, forecast: dict[str, Any]) -> pd.DataFrame:
+        """predict の JSON の全頭に印を付け、印の順（◎○▲△☆注、最後に無印）に並べた表。"""
+        return self._ordered(self._marks.assign(self._table(forecast)))
+
     def card(self, forecast: dict[str, Any], race: ScheduledRace | None, frames: Mapping[int, int],
              recommended: RecommendationSet | None = None, tendency: str = "",
-             styles: Mapping[int, str] | None = None) -> LocalRaceCard:
-        """predict の JSON（``columns``・``rows``・``title``）・レース一覧の行・推奨買目から、通知の中身を組む。"""
-        table = self._ordered(self._marks.assign(self._table(forecast)))
+             styles: Mapping[int, str] | None = None, marks: MarkBets | None = None) -> LocalRaceCard:
+        """predict の JSON（``columns``・``rows``・``title``）・レース一覧の行・推奨買目・印の買い目から、通知の中身を組む。"""
+        table = self.marked(forecast)
         title = str(forecast.get("title", ""))
-        race_day = RACE_DAY in title
+        race_day = self._race_day(forecast)
         timing = f"{RACE_DAY}の時点" if race_day else "前日の時点（馬体重が届く前なのでオッズだけ）"
         bets = self._bets.pick(table, race_day, recommended or RecommendationSet((), ""))
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
                              frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}),
-                             expectation=LocalExpectation.of(table) if race_day else LocalExpectation.not_race_day())
+                             expectation=LocalExpectation.of(table) if race_day else LocalExpectation.not_race_day(),
+                             marks=marks if marks is not None and race_day else MarkBets())
 
     def describe(self, card: LocalRaceCard) -> str:
-        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・推奨買目。"""
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・推奨買目・印の買い目（当日の時点）。"""
         return "\n".join([f"**{card.title}** 地方の予想・{card.timing}", card.expectation.text(), *([card.tendency] if card.tendency else []),
-                          *MarkLines().lines(card.table), *self.bet_lines(card.bets)])
+                          *MarkLines().lines(card.table), *self.bet_lines(card.bets), *self.mark_lines(card.marks)])
+
+    @staticmethod
+    def mark_lines(marks: MarkBets) -> list[str]:
+        """印の買い目の行: 見出し（買うか見送りか・合計・当たったときに戻る額。出せなければ「なし（理由）」）と、買い方ごとの行。"""
+        if marks.empty:
+            return []
+        return [f"{MARK_BETS_LABEL}: {marks.heading}", *(f"- {line}" for line in marks.lines)]
 
     @staticmethod
     def bet_lines(bets: RecommendationSet) -> list[str]:
@@ -125,6 +147,10 @@ class LocalRaceMessage:
         if bets.reason:
             lines.append(f"（{bets.reason}）")
         return lines
+
+    @staticmethod
+    def _race_day(forecast: dict[str, Any]) -> bool:
+        return RACE_DAY in str(forecast.get("title", ""))
 
     @staticmethod
     def _table(forecast: dict[str, Any]) -> pd.DataFrame:

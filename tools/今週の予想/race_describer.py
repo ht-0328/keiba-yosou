@@ -197,10 +197,11 @@ class RaceDescriber:
             lines.append(f"- {label}{suffix}: {shown}{more}  1点 {chosen[0].yen:,}円 × {len(chosen)}点 = {total:,}円")
         return lines
 
-    def mark_returns(self, forecast: dict[str, Any]) -> tuple[str, list[str]] | None:
-        """全レースの印の買い目（``MarkReturn``）の見出しの1行（買うか見送りか・合計・当たったときに戻る額）と、買い方ごとの行
-        （組と1点の金額。先頭の「- 」は付けない）。当日の予想でないか、買い目が無ければ None。"""
-        found = MarkReturn.of(forecast)
+    def mark_returns(self, forecast: dict[str, Any], labels: tuple[str, ...] = MARK_VALUE_LABELS) -> tuple[str, list[str]] | None:
+        """全レースの印の買い目（``MarkReturn``。買い方の名前が ``labels`` の点。既定は中央の印の買い目）の見出しの1行
+        （買うか見送りか・合計・当たったときに戻る額）と、買い方ごとの行（組と1点の金額。先頭の「- 」は付けない）。
+        当日の予想でないか、買い目が無ければ None。"""
+        found = MarkReturn.of(forecast, labels)
         if found is None:
             return None
         lines = []

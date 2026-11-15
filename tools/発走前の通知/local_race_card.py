@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from 地方の推奨買目.mark_bets import MarkBets
 from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
 
@@ -15,6 +16,8 @@ from 発走前の通知.local_expectation import LocalExpectation
 
 #: 画像の買い目の欄の札。
 FOOTER_LABEL = "推奨買目"
+#: 印の買い目の見出し（中央の通知と同じ言葉）。
+MARK_LABEL = "印の買い目"
 
 
 @dataclass(frozen=True)
@@ -40,6 +43,8 @@ class LocalRaceCard:
     styles: Mapping[int, str] = field(default_factory=dict)
     #: レースの期待度（◎ の点数と S・A・B・C。``LocalExpectation.of``）。買い目はこれで変えない。
     expectation: LocalExpectation = field(default_factory=lambda: LocalExpectation(None, None))
+    #: 印の買い目（``MarkRecommender``。当日の時点だけ。無ければ空）。推奨買目とは別に出し、同じ組が重なることもある。
+    marks: MarkBets = field(default_factory=MarkBets)
 
     @property
     def badge(self) -> str:
@@ -55,8 +60,9 @@ class LocalRaceCard:
 
     @property
     def footer(self) -> BetFooter:
-        """画像の買い目の欄（推奨買目の券種ごとの行・合計・理由）。"""
-        notes = tuple(part for part in self.bets.reason.split("。") if part)
+        """画像の買い目の欄（推奨買目の券種ごとの行・合計・理由と、印の買い目の見出しと買い方ごとの行）。"""
+        marks = (f"{MARK_LABEL} {self.marks.heading}", *(f"{MARK_LABEL} {line}" for line in self.marks.lines)) if not self.marks.empty else ()
+        notes = (*(part for part in self.bets.reason.split("。") if part), *marks)
         if self.bets.none:
             return BetFooter(FOOTER_LABEL, notes=notes)
         total = f"合計 {self.bets.points}点 {self.bets.yen:,}円（1点 {STAKE}円）"
