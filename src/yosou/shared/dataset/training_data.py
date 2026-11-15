@@ -27,6 +27,8 @@ class TrainingData:
     - ``label_name``: ``targets`` のうち、モデルに当てさせる列の名前。
     - ``class_labels``: 目的変数の値の並び。二値分類は ``(0, 1)``、荒れ具合の予想は ``(0, 1, 2, 3)``。
     - ``baseline``: 目的変数の基準（ロジット。既存モデルの修正計画の 1・2）。基準なしで学ぶ予想は None。
+    - ``weight``: 行ごとの重み（学習と早期終了で、その行の誤差をどれだけ重く見るか。``ids`` と同じ index）。
+      重みを付けずに学ぶ予想は None（重賞の予想の設計書 04 の 2）。特徴量ではないので、予測には使わない。
     """
 
     ids: pd.DataFrame
@@ -37,6 +39,7 @@ class TrainingData:
     label_name: str
     class_labels: tuple[int, ...] = BINARY_LABELS
     baseline: BaselineLogit | None = None
+    weight: pd.Series | None = None
 
     def __len__(self) -> int:
         return len(self.ids)
@@ -57,7 +60,7 @@ class TrainingData:
         baseline = self.baseline.for_timing(timing) if self.baseline is not None else None
         return TrainingData(
             self.ids, self.features[columns], self.targets, self.evaluation,
-            self.catalog, self.label_name, self.class_labels, baseline,
+            self.catalog, self.label_name, self.class_labels, baseline, self.weight,
         )
 
     def between(self, begin: date | None, end: date | None) -> TrainingData:
@@ -71,7 +74,7 @@ class TrainingData:
         """``rows``（行ごとの真偽）が真の行だけの学習データ。人気帯や穴馬の区分ごとに分けて学ぶときにも使う。"""
         return TrainingData(
             self.ids[rows], self.features[rows], self.targets[rows], self.evaluation[rows],
-            self.catalog, self.label_name, self.class_labels, self._baseline_at(rows),
+            self.catalog, self.label_name, self.class_labels, self._baseline_at(rows), self._weight_at(rows),
         )
 
     def with_label(self, label_name: str, class_labels: tuple[int, ...] | None = None) -> TrainingData:
@@ -89,6 +92,7 @@ class TrainingData:
             self.ids[is_labeled], self.features[is_labeled], self.targets[is_labeled],
             self.evaluation[is_labeled], self.catalog, label_name,
             self.class_labels if class_labels is None else tuple(class_labels), self._baseline_at(is_labeled),
+            self._weight_at(is_labeled),
         )
 
     def _baseline_at(self, rows: pd.Series) -> BaselineLogit | None:
@@ -96,3 +100,9 @@ class TrainingData:
         if self.baseline is None:
             return None
         return self.baseline.at(rows)
+
+    def _weight_at(self, rows: pd.Series) -> pd.Series | None:
+        """行を選んだ重み。重みが無ければ None。"""
+        if self.weight is None:
+            return None
+        return self.weight[rows]

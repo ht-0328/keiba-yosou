@@ -28,6 +28,8 @@ class LightGbmModel:
     多クラス分類（``LightGbmMulticlassModel``）は、このクラスの目的関数・目的変数の渡し方・確率の取り出し方だけを
     変えたもの。学習・保存・読み込みの手順は同じである。
 
+    学習データに行の重み（``TrainingData.weight``）があれば、学習と早期終了の両方でその重みを使う。
+
     学習データに目的変数の基準（``TrainingData.baseline``）があれば、それを出発点（``init_score``）にして、
     基準からの上げ下げだけを学ぶ（既存モデルの修正計画の 1・2）。予測では、木の出した値に基準を足して確率に戻す。
     基準を使って学んだかどうかは、モデルと一緒に保存する。
@@ -59,7 +61,7 @@ class LightGbmModel:
         classifier.fit(
             encoder.transform(train.features), self._label(train),
             eval_X=encoder.transform(valid.features), eval_y=self._label(valid),
-            callbacks=[early_stopping], **self._baseline_arguments(train, valid),
+            callbacks=[early_stopping], **self._baseline_arguments(train, valid), **self._weight_arguments(train, valid),
         )
         self._encoder, self._classifier = encoder, classifier
         self._baseline_check = BaselineCheck(uses_baseline=train.baseline is not None)
@@ -128,6 +130,15 @@ class LightGbmModel:
             "init_score": train.baseline.array(),
             "eval_init_score": [BaselineCheck(uses_baseline=True).values_of(valid)],
         }
+
+    def _weight_arguments(self, train: TrainingData, valid: TrainingData) -> dict[str, Any]:
+        """``fit`` に足す引数。学習データに行の重みがあれば、学習データと検証データの両方に渡す
+        （早期終了も、重みを付けた検証データの当たり具合で決める。重賞の予想の設計書 03・12）。"""
+        if train.weight is None:
+            return {}
+        if valid.weight is None:
+            raise ValueError("学習データに重みがあるのに、検証データに重みがありません")
+        return {"sample_weight": train.weight.to_numpy(), "eval_sample_weight": [valid.weight.to_numpy()]}
 
     def _objective_params(self, train: TrainingData) -> dict[str, Any]:
         """目的関数に付けて渡す引数。二値分類には無い。"""
