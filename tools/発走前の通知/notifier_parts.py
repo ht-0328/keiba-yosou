@@ -68,10 +68,10 @@ class NotifierParts:
     @classmethod
     def local(cls) -> NotifierParts:
         """地方: 地方の元DB のレース一覧、nvstore、地方の予想（predict と荒れ具合）、馬場の傾向と印と推奨買目の文と表の画像、予想の JSON の保存。
-        推奨買目の係数（reports/地方の推奨買目/係数.json）が無ければここで止まる。"""
+        推奨買目の係数（reports/地方の推奨買目/係数.json）が無ければここで止まる。発走前に、そのレースの時系列オッズ（直前の買い目の材料）も取る。"""
         store = LocalForecastStore()
         schedule = LocalRaceSchedule()
         recommendations = LocalRecommendations(upsets=SavedUpsetProbabilities(store))
-        return cls(schedule=schedule, fetcher=StoreFetcher.local(), runner=LocalForecastRunner(store=store),
+        return cls(schedule=schedule, fetcher=StoreFetcher.local(history=store.odds_history_path), runner=LocalForecastRunner(store=store),
                    message=LocalRaceMessage(store, schedule, recommendations=recommendations,
                                             tendencies=TrackTendencies(default=db.LOCAL), styles=RaceStyles.local()), store=store)

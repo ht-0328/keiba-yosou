@@ -6,6 +6,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from 地方の直前の買い目.late_bet_file import LateBetFile
+from 地方の直前の買い目.late_bets import LateBets
+from 地方の直前の買い目.late_pick import LatePick
+
 from 地方の推奨買目.mark_bets import MarkBets
 from 地方の推奨買目.recommendation import Recommendation
 from 地方の推奨買目.recommendation_set import RecommendationSet
@@ -210,3 +214,35 @@ def test_印の買い目が出せなければ理由を書き_前日の時点は�
     recommendations = _Recommendations()
     LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), recommendations=recommendations).build(RID)
     assert recommendations.marked == []   # 前日の時点は印の買い目を呼ばない
+
+
+LATE = LateBets((LatePick(3, 14.2, 0.52, 1.10, (4, 7, 8, 2, 1)),), "", "11051015")
+
+
+def test_直前の買い目は最後に出し_買う馬がいなければ理由_ファイルが無ければ出さない() -> None:
+    message = LocalRaceMessage()
+    lines = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED, marks=MARKS, late=LATE)).splitlines()
+    marks = dict(zip(message.marked(_forecast("当日"))["horse_no"], message.marked(_forecast("当日"))["mark"]))
+    label = {no: f"{no}{'' if marks[no] == '－' else marks[no]}" for no in (3, 4, 7, 8, 2, 1)}
+    others = ",".join(label[no] for no in (4, 7, 8, 2, 1))
+    assert lines[-3:] == ["直前の買い目（確かめ中・1点 100円）:", f"- 単勝 {label[3]}（決めたときの単勝 14.2倍）100円",
+                          f"- 3連単 {label[3]} → {others} → {others}（20点 2,000円）"]
+    assert label[7] == "7◎"
+    assert LocalRaceMessage.late_lines(LATE)[1] == "- 単勝 3（決めたときの単勝 14.2倍）100円"   # 印の表が無ければ馬番だけ
+    none = LateBets.none("2つの見込みがそろって線以上の馬がいない")
+    text = message.describe(message.card(_forecast("当日"), RACE, {}, late=none))
+    assert text.splitlines()[-1] == "直前の買い目（確かめ中・1点 100円）: なし（2つの見込みがそろって線以上の馬がいない）"
+    assert "直前の買い目" not in message.describe(message.card(_forecast("当日"), RACE, {}))
+    assert "直前の買い目" not in message.describe(message.card(_forecast("前日"), RACE, {}, late=LATE))
+
+
+def test_組み立てると_保存してある直前の買い目を読んで文に出す_推奨買目の合計は変えない(tmp_path: Path) -> None:
+    store = LocalForecastStore(tmp_path)
+    store.path(RID).parent.mkdir(parents=True)
+    store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
+    message = LocalRaceMessage(store, _Schedule(), frames=_Frames(), recommendations=_Recommendations())
+    before = message.build(RID).text
+    LateBetFile().write(store.late_path(RID), LATE)
+    after = message.build(RID).text
+    assert "直前の買い目" not in before and after.startswith(before)
+    assert after.splitlines()[-3] == "直前の買い目（確かめ中・1点 100円）:"

@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from 地方の直前の買い目.late_bets import LateBets
+
 from 地方の推奨買目.mark_bets import MarkBets
 from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
@@ -45,6 +47,8 @@ class LocalRaceCard:
     expectation: LocalExpectation = field(default_factory=lambda: LocalExpectation(None, None))
     #: 印の買い目（``MarkRecommender``。当日の時点だけ。無ければ空）。推奨買目とは別に出し、同じ組が重なることもある。
     marks: MarkBets = field(default_factory=MarkBets)
+    #: 直前の買い目（道具「地方の直前の買い目」。当日の時点だけ。ファイルが無ければ None で、文に出さない）。確かめ中で、合計には入れない。
+    late: LateBets | None = None
 
     @property
     def badge(self) -> str:

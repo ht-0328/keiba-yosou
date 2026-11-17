@@ -13,6 +13,8 @@ def test_開催日のフォルダに_rid_の_json_を置き_無ければ_None(tm
     assert store.path(rid) == tmp_path / "2026-11-05" / f"{rid}.json"
     assert store.image_path(rid) == tmp_path / "2026-11-05" / f"{rid}.png"
     assert store.upset_path(rid) == tmp_path / "2026-11-05" / f"{rid}.荒れ具合.json"
+    assert store.late_path(rid) == tmp_path / "2026-11-05" / f"{rid}.直前.json"
+    assert store.odds_history_path(rid) == tmp_path / "2026-11-05" / "時系列オッズ.duckdb"
     assert store.saved_at(rid) is None
     assert store.load(rid) is None
     store.path(rid).parent.mkdir(parents=True)

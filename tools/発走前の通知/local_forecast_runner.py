@@ -25,7 +25,7 @@ class LocalForecastRunner:
     """地方には朝の全レースの予想（複勝の勝負レースの計画）が無いので、``run_day`` は何もしない。
     発走前は当日の時点で予想し、馬体重がまだ DB に無くて失敗したら前日の時点（オッズだけ）で予想する
     （地方競馬DATA の馬体重は発走の 15 分前まで届かないことがある）。結果は predict の JSON と券種ごとの中荒れ以上の確率
-    （推奨買目の 3連複の条件が読む）を ``LocalForecastStore`` の場所に書く。2つは ``local_predict.py`` が同じ接続で出す
+    （推奨買目の 3連複の条件が読む）と直前の買い目（当日の時点だけ。前日の時点では理由つきの「なし」）を ``LocalForecastStore`` の場所に書く。2つは ``local_predict.py`` が同じ接続で出す
     （地方の全成績の事実表を作るのが1回で済む。毎回新しいプロセスなので、レースを重ねても遅くならない）。
     別プロセスの動かし方と記録は中央と同じ ``ForecastRunner``（``program`` に local_predict.py を渡す）。"""
 
@@ -53,5 +53,6 @@ class LocalForecastRunner:
 
     def _predict(self, rid: str, day: str, timing: str) -> None:
         arguments = ["--upset-out", str(self._store.upset_path(rid)),
+                     "--late-out", str(self._store.late_path(rid)), "--late-odds", str(self._store.odds_history_path(rid)),
                      "predict", rid, "--timing", timing, "--format", "json", "--out", str(self._store.path(rid))]
         self._process.run(arguments, f"{rid} の予想（{timing}の時点）", day)
