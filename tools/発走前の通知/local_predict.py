@@ -1,12 +1,15 @@
 """発走前の通知（--local）が別プロセスで動かす、地方の1レースの予想。
 
     uv run python tools/発走前の通知/local_predict.py --upset-out <rid>.荒れ具合.json predict <rid> --timing 当日 --format json --out <rid>.json
+    uv run python tools/発走前の通知/local_predict.py --upset-out … --late-out <rid>.直前.json --late-odds 時系列オッズ.duckdb predict <rid> …
 
 predict の後ろの引数は ``python -m yosou.local_form_aptitude_top3 predict`` と同じ（rid は省けない）。元DB を1回だけ開き、
 その接続で 予想モデルの predict → 推奨買目の荒れ具合の条件に使う券種ごとの中荒れ以上の確率（``UpsetProbabilities``。当日の時点）
 の順に出して、予想は ``--out``、確率は ``--upset-out`` に書く。2つの予想は同じ事実表（地方の全成績の一時表。作るのに数分かかる）を使うので、
 同じ接続で出すと作るのは1回で済む。荒れ具合の確率が出せなくても予想は失敗にせず、``--upset-out`` に理由を書く
 （推奨買目はその券種だけを対象外にして理由を添える）。
+``--late-out`` と ``--late-odds`` を渡すと、同じ接続で直前の買い目（道具「地方の直前の買い目」。時系列オッズの断面と全頭の予想の確率から、
+単勝と 3連単の買う馬を決める）も出して ``--late-out`` に書く。出せなくても予想は失敗にせず、理由を書く。
 """
 
 from __future__ import annotations
@@ -26,12 +29,15 @@ from yosou.local_form_aptitude_top3.command.predict_command import PredictComman
 
 from 地方の推奨買目.upset_probabilities import UPSET_BETS, UpsetProbabilities  # noqa: E402
 
+from 発走前の通知.late_bet_writer import LateBetWriter  # noqa: E402
 from 発走前の通知.local_upset_file import LocalUpsetFile  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
     parser.add_argument("--upset-out", type=Path, required=True, help="券種ごとの中荒れ以上の確率を書くファイル（<rid>.荒れ具合.json）")
+    parser.add_argument("--late-out", type=Path, default=None, help="直前の買い目を書くファイル（<rid>.直前.json。省略すると出さない）")
+    parser.add_argument("--late-odds", type=Path, default=None, help="そのレースの時系列オッズ（0B41）を取り込んだ DuckDB")
     subparsers = parser.add_subparsers(dest="command", required=True, metavar="predict")
     PredictCommand().add_parser(subparsers)
     return parser
@@ -45,6 +51,8 @@ def main(args: argparse.Namespace) -> None:
     with db.open_db(args.db, default=db.LOCAL) as con:
         cli.emit(PredictCommand().tables(con, args), args)
         _write_upsets(con, args.rid, args.upset_out, upset_file)
+        if args.late_out is not None:
+            LateBetWriter().write(con, args.rid, args.late_out, args.late_odds, args.db, args.timing)
 
 
 def _write_upsets(con: duckdb.DuckDBPyConnection, rid: str, path: Path, upset_file: LocalUpsetFile) -> None:

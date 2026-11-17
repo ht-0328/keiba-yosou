@@ -16,6 +16,9 @@ from 発走前の通知.uv_locator import child_env, uv_command
 DAY_DATASPECS: tuple[str, ...] = ("0B15", "0B14", "0B11", "0B13", "0B17")
 #: 発走前にそのレースだけ取り直す速報: 全賭式のオッズ。
 RACE_DATASPEC = "0B30"
+#: 地方の発走前にそのレースだけ取る時系列オッズ（単勝・複勝・枠連の発売中の全部の断面）。直前の買い目がオッズの動きを見るのに使う。
+#: 要求キーは 12 桁（開催日 8 桁＋競馬場コード 2 桁＋レース番号 2 桁）。
+HISTORY_DATASPEC = "0B41"
 #: WIN5 の速報（対象5レース・キャリーオーバー）。キーは開催日。WIN5 の無い日は「該当データなし」で終わる。
 WIN5_DATASPEC = "0B51"
 #: 地方（nvdata-store の realtime と同じ並び。地方競馬DATA にマイニング予想は無い）: 出馬表の更新、天候と馬場状態、馬体重。
@@ -46,20 +49,22 @@ class StoreFetcher:
     def __init__(self, *, store_project: Path = STORE_PROJECT, db_name: str = STORE_DB,
                  log: Callable[[str], None] = _stderr, run: Callable[..., subprocess.CompletedProcess] = subprocess.run, uv: str | None = None,
                  tool: str = "jvstore", day_dataspecs: tuple[str, ...] = DAY_DATASPECS, sync_arguments: tuple[str, ...] = (),
-                 eve_odds: bool = True) -> None:
+                 eve_odds: bool = True, history: Callable[[str], Path] | None = None) -> None:
         self._project = store_project
         self._db = db_name
         self._tool = tool
         self._day_dataspecs = day_dataspecs
         self._sync_arguments = sync_arguments
         self._eve_odds = eve_odds
+        self._history = history
         self._log = log
         self._run_process = run
         self._uv = uv
 
     @classmethod
     def local(cls, **options) -> StoreFetcher:
-        """地方: nvdata-store の nvstore を呼ぶ。開催日単位の速報は 3 種類、出馬表の取り込みは RACE・DIFN・SNAP だけ。"""
+        """地方: nvdata-store の nvstore を呼ぶ。開催日単位の速報は 3 種類、出馬表の取り込みは RACE・DIFN・SNAP だけ。
+        ``history``（レースの rid → 時系列オッズを貯める DuckDB のパス）を渡すと、発走前にそのレースの時系列オッズも取る。"""
         return cls(store_project=LOCAL_STORE_PROJECT, db_name=LOCAL_STORE_DB, tool="nvstore", day_dataspecs=LOCAL_DAY_DATASPECS,
                    sync_arguments=LOCAL_SYNC_ARGUMENTS, eve_odds=False, **options)
 
@@ -85,6 +90,20 @@ class StoreFetcher:
             self._run(["rt", "--dataspec", dataspec, "--key", key, "--db", self._db], f"速報 {dataspec}（{day}）")
         for rid in rids:
             self._run(["rt", "--dataspec", RACE_DATASPEC, "--key", rid, "--db", self._db], f"速報 {RACE_DATASPEC}（{rid}）")
+            self._fetch_history(rid)
+
+    def _fetch_history(self, rid: str) -> None:
+        """そのレースの時系列オッズを、元DB とは別の DuckDB に取り込む（``history`` を渡したときだけ）。
+        失敗しても通知は止めない（直前の買い目だけが「なし」になる）。"""
+        if self._history is None:
+            return
+        path = self._history(rid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        key = rid[:10] + rid[14:16]
+        try:
+            self._run(["rt", "--dataspec", HISTORY_DATASPEC, "--key", key, "--db", str(path)], f"時系列オッズ {HISTORY_DATASPEC}（{rid}）")
+        except RuntimeError as error:
+            self._log(f"時系列オッズを取れませんでした（直前の買い目は出せません）。{error}")
 
     def fetch_win5(self, day: str) -> None:
         """その日の速報の WIN5（対象5レース・キャリーオーバー）を取り込む（jvstore realtime も取るが、朝の取り込みの後に発表される

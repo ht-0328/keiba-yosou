@@ -65,6 +65,14 @@ class PredictCommand:
 
     def tables(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> list[Table]:
         """開いてある接続で予測する。同じ接続で続けて別の予想（発走前の通知の荒れ具合）を出すと、事実表を作り直さずに済む。"""
+        prediction = self.prediction(con, args)
+        table = PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction),
+                                timing_label=TIMING_LABELS[args.timing])
+        return [table.table()]
+
+    def prediction(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> pd.DataFrame:
+        """開いてある接続で予測した、丸める前の全頭の表（``PredictionWorkflow.run`` の列）。確率をそのまま材料にする道具
+        （道具「地方の直前の買い目」）が使う。"""
         race_id = self._race_id(args, con)
         extras = self._extras(con, args)
         workflow = PredictionWorkflow(
@@ -75,10 +83,7 @@ class PredictCommand:
             win_pool_free=SegmentedPrediction(ModelSegments(), args.models / POOL_FREE_FOLDER / WIN_FOLDER),
             extras=extras, win_extras=extras,
         )
-        prediction = workflow.run(race_id, args.timing, self._given_odds(args))
-        table = PredictionTable(prediction, args.timing, PROBABILITY, self._extra_columns(prediction),
-                                timing_label=TIMING_LABELS[args.timing])
-        return [table.table()]
+        return workflow.run(race_id, args.timing, self._given_odds(args))
 
     def _extras(self, con: duckdb.DuckDBPyConnection, args: argparse.Namespace) -> list[DataAttachment]:
         """当日で、``train --track-bias`` で学んだモデル（置き場所に ``TrackBiasMarker`` の印がある）のときだけ、当日の馬場傾向（U）を予測用データに足す

@@ -12,7 +12,9 @@ from 発走前の通知.folders import LOCAL_FOLDER
 
 class LocalForecastStore:
     """``reports/発走前の通知/地方/<開催日>/<rid>.json``。書くのは地方の predict（``--out``）で、ここは場所と読み出しだけ。
-    通知に添付する表の画像は同じフォルダの ``<rid>.png``、推奨買目が読む券種ごとの中荒れ以上の確率は ``<rid>.荒れ具合.json``。"""
+    通知に添付する表の画像は同じフォルダの ``<rid>.png``、推奨買目が読む券種ごとの中荒れ以上の確率は ``<rid>.荒れ具合.json``、
+    直前の買い目（道具「地方の直前の買い目」）は ``<rid>.直前.json``、その材料の時系列オッズは開催日ごとの ``時系列オッズ.duckdb``
+    （元DB とは別のファイル。発走前に nvstore が 0B41 を取り込む）。"""
 
     def __init__(self, folder: Path = LOCAL_FOLDER) -> None:
         self._folder = folder
@@ -25,6 +27,12 @@ class LocalForecastStore:
 
     def upset_path(self, rid: str) -> Path:
         return self.path(rid).with_name(f"{rid}.荒れ具合.json")
+
+    def late_path(self, rid: str) -> Path:
+        return self.path(rid).with_name(f"{rid}.直前.json")
+
+    def odds_history_path(self, rid: str) -> Path:
+        return self.path(rid).with_name("時系列オッズ.duckdb")
 
     def saved_at(self, rid: str) -> datetime | None:
         """ファイルの更新時刻（無ければ None）。予想し直せたかの確認に使う。"""

@@ -88,3 +88,24 @@ def test_地方は_nvstore_を呼び_出馬表は3種類だけ_速報は馬体�
     assert [command[7] for command in run.commands[2:5]] == ["0B15", "0B14", "0B11"]
     assert run.commands[5][4:] == ["nvstore", "rt", "--dataspec", "0B30", "--key", "2026110547150401", "--db", "nvdata.duckdb"]
     assert len(run.commands) == 6
+
+
+def test_地方は_置き場所を渡すと_そのレースの時系列オッズを別の_DB_に取る(tmp_path: Path) -> None:
+    run = _LocalRun()
+    fetcher = StoreFetcher.local(run=run, uv="uv", log=lambda _: None, history=lambda rid: tmp_path / rid[:8] / "時系列オッズ.duckdb")
+    fetcher.fetch_race("2026-11-05", "2026110547150401")
+    assert run.commands[-2][4:] == ["nvstore", "rt", "--dataspec", "0B30", "--key", "2026110547150401", "--db", "nvdata.duckdb"]
+    assert run.commands[-1][4:] == ["nvstore", "rt", "--dataspec", "0B41", "--key", "202611054701",
+                                    "--db", str(tmp_path / "20261105" / "時系列オッズ.duckdb")]
+    assert (tmp_path / "20261105").is_dir()
+
+
+def test_時系列オッズが取れなくても_止めずに知らせる(tmp_path: Path) -> None:
+    logs: list[str] = []
+
+    def run(command, **_) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(command, 1 if "0B41" in command else 0, stdout="該当データなし", stderr="")
+
+    fetcher = StoreFetcher.local(run=run, uv="uv", log=logs.append, history=lambda rid: tmp_path / "時系列オッズ.duckdb")
+    fetcher.fetch_race("2026-11-05", "2026110547150401")
+    assert any("時系列オッズを取れませんでした" in line and "該当データなし" in line for line in logs)
