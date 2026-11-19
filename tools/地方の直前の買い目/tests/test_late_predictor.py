@@ -41,6 +41,16 @@ def test_線を満たす馬がいなければ_理由つきのなし() -> None:
     assert bets.empty and "線以上の馬がいない" in bets.reason and bets.announced == "11181530"
 
 
+def test_線への近さは_買う馬がいてもいなくても付く_出せなかったレースは_None() -> None:
+    bought = LatePredictor(FakeModels({6: 0.5}, {6: 1.2})).bets(RID, _snapshot(), _probabilities())
+    assert round(bought.closeness, 3) == 1.25                         # min(0.5 / 0.4, 1.2 / 0.95)
+    near = LatePredictor(FakeModels({6: 0.5}, {6: 0.76})).bets(RID, _snapshot(), _probabilities())
+    assert near.empty and round(near.closeness, 3) == 0.8             # 0.76 / 0.95
+    assert LateBets.from_dict(near.to_dict()) == LateBets((), near.reason, near.announced, 0.8)
+    assert LatePredictor(FakeModels({}, {})).bets(RID, pd.DataFrame(), _probabilities()).closeness is None
+    assert LateBets.from_dict({"買う馬": [], "理由": "前の形のファイル"}).closeness is None
+
+
 def test_断面が無い_頭数が足りないときも_なし() -> None:
     predictor = LatePredictor(FakeModels({1: 1.0}, {1: 2.0}))
     assert "断面がまだ無い" in predictor.bets(RID, pd.DataFrame(), _probabilities()).reason

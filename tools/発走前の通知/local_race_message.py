@@ -79,12 +79,12 @@ LATE_BETS_LABEL = "直前の買い目（確かめ中・1点 100円）"
 
 class LocalRaceMessage:
     """印は中央と同じ ``MarkRule``（◎○▲△☆注。地方には危険な人気馬の判定が無いので 消 は付かない）。
-    文は 見出し・期待度（``LocalExpectation``。推奨買目の1点ごとの（期待値 − 1）の合計の点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
+    文は 見出し・期待度（``LocalExpectation``。直前の買い目の線への近さの点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
     買い目と同じく当日の時点だけ出し、買い目は変えない）・
     その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）・
     印の買い目（道具「地方の推奨買目」の ``MarkRecommender``。単勝 ◎・馬単 ◎→○▲☆・3連単 ◎→○▲☆→○▲△☆ を 1レース 5,000円で配り、見込みの回収率で買うか見送るか。当日の時点だけ）だけにし、
     直前の買い目（道具「地方の直前の買い目」。発走前の予想が ``<rid>.直前.json`` に書いたものを読むだけ。単勝と、その馬を1着に固定した 3連単。
-    推奨買目・印の買い目とは別の買い方で、合計にも期待度にも入れない）も当日の時点だけ出し、
+    推奨買目・印の買い目とは別の買い方で、合計には入れない。期待度はこの買い目の線への近さから出す）も当日の時点だけ出し、
     全頭の表は画像（``RaceImage``。推定脚質の列は ``styles``。見出しに期待度の札）にして添付する。画像は ``reports/発走前の通知/地方/<開催日>/<rid>.png`` に置く。"""
 
     def __init__(self, store: LocalForecastStore | None = None, schedule: LocalRaceSchedule | None = None,
@@ -133,7 +133,7 @@ class LocalRaceMessage:
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
                              frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}),
-                             expectation=LocalExpectation.of(recommended) if race_day else LocalExpectation.not_race_day(),
+                             expectation=LocalExpectation.of(late) if race_day else LocalExpectation.not_race_day(),
                              marks=marks if marks is not None and race_day else MarkBets(), late=late if race_day else None)
 
     def describe(self, card: LocalRaceCard) -> str:

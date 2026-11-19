@@ -1,6 +1,6 @@
 """推奨買目の見込みで付けた期待度の確かめ: レースの推奨買目の見込み（見込みの回収率・期待の儲け）の帯・等級ごとの実際の成績
 （回収率・最高の1点を除いた回収率・的中率・1日の儲け）を年ごとに並べ、前の期待度（◎ の点数）で分けたときと比べる。
-線は最初の年の分位で決め、残りの年で等級の順に成績が上がるかを見る。最後に本番の線（``EXPECTATION_LINES``）でも同じ表を作る。"""
+線は最初の年の分位で決め、残りの年で等級の順に成績が上がるかを見る。最後に本番の線（``BET_PROFIT_LINES``）でも同じ表を作る。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from yosou.shared.race_grade import EXPECTATION_LINES, GRADES, LocalExpectationScale, LocalTopScoreScale
+from yosou.shared.race_grade import BET_PROFIT_LINES, GRADES, LocalBetProfitScale, LocalTopScoreScale
 
 from 共通.render import Table
 
@@ -61,16 +61,16 @@ class GradeStudy:
             tables.append(Table.from_records(_grade_rows(graded, years, days, counts), _COLUMNS, title=f"{len(tables) + 1}. {name}で付けた等級ごとの成績",
                                              note=f"線は {GradeLines.legend(lines)}（{years[0]}年の分位。上から 2割・3割・3割・2割）。"))
             order_rows += _order_rows(name, graded, years)
-        production = base.assign(**{GRADE: base[EXPECTED_PROFIT].map(LocalExpectationScale().of)})
+        production = base.assign(**{GRADE: base[EXPECTED_PROFIT].map(LocalBetProfitScale().of)})
         tables.append(Table.from_records(_grade_rows(production, years, days, counts), _COLUMNS,
-                                         title=f"{len(tables) + 1}. {_PRODUCTION}ごとの成績", note=f"線は {LocalExpectationScale.legend()}。"))
+                                         title=f"{len(tables) + 1}. {_PRODUCTION}ごとの成績", note=f"線は {LocalBetProfitScale.legend()}。"))
         order_rows += _order_rows(_PRODUCTION, production, years, every_year=True)
         now = self._now_grades(graded)
         tables.append(Table.from_records(_grade_rows(now, years, days, counts), _COLUMNS,
                                          title=f"{len(tables) + 1}. {_NOW}で分けたときの同じ推奨買目の成績", note=f"線は {LocalTopScoreScale.legend()}。"))
         order_rows += _order_rows(_NOW, now, years)
         tables.append(Table.from_records(order_rows, _ORDER_COLUMNS, title=f"{len(tables) + 1}. 等級ごとの回収率と、C → B → A → S の順に上がったか",
-                                         note=f"S・A・B・C の欄は回収率（括弧は的中率）。線を分位で決めた分け方は、線を決めた年を数えない。本番の線（固定）は全部の年を数える。本番の線は {EXPECTATION_LINES['S']:g}・{EXPECTATION_LINES['A']:g}・{EXPECTATION_LINES['B']:g}。"))
+                                         note=f"S・A・B・C の欄は回収率（括弧は的中率）。線を分位で決めた分け方は、線を決めた年を数えない。本番の線（固定）は全部の年を数える。本番の線は {BET_PROFIT_LINES['S']:g}・{BET_PROFIT_LINES['A']:g}・{BET_PROFIT_LINES['B']:g}。"))
         intro = (f"推奨買目は本番と同じ決まり（道具「地方の推奨買目」の RECOMMENDED_PLANS）で作り直した。組の確率の当てはめ方は「{self.protocol}」。"
                  "1点 100円・確定オッズ・確定払戻。見込みの回収率は、そのレースの推奨買目の期待値の平均（1点 100円で買ったときの見込み）。"
                  "レースの割合は、その年の対象のレース（5頭以上）のうちの割合。推奨買目が1点も無いレースは入らない。1日の儲けは、その年の開催日1日あたりの（払戻 − 投資）。")

@@ -198,7 +198,7 @@ def main(args) -> None:
 
 def _grade_report(scheme: SceneScheme) -> GradeReport:
     """表13 の等級の決め方。中央は今週の予想と同じ期待度、地方は ◎ の点数（◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）。
-    地方の通知の期待度は推奨買目から出すので、◎ の行だけの backtest では出せない）。"""
+    地方の通知の期待度は直前の買い目の線への近さから出すので、◎ の行だけの backtest では出せない）。"""
     if scheme is JRA_SCENE_SCHEME:
         return GradeReport()
     return GradeReport(LocalTopScoreScale(), TOP_SCORE_LABEL, TOP_SCORE_MEANING)

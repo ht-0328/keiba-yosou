@@ -84,7 +84,7 @@ def test_文は_見出し_期待度_印の付いた馬_推奨買目だけ() -> N
     text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
-        "期待度 A（点数 2.38）",   # 推奨買目の（期待値 − 1）の合計: 1.40 ＋ 0.90 ＋ 0.08
+        "期待度 なし（見込みを出せない）",   # 直前の買い目のファイルが無い組み立て
         "◎ 7 イチバン：単勝 30倍以下の馬の中で単勝の期待値がレース内1位（1着になる確率 35.0% × 単勝 3.0倍 = 1.05）",
         "○ 4 ニバン",
         "▲ 8 サンバン",
@@ -115,18 +115,22 @@ def test_前日の時点は買い目も期待度も出さず_その旨を書く(
     assert "100円" not in text.splitlines()[-1]
 
 
-def test_期待度は推奨買目から出し_買い目は前と同じ() -> None:
-    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED)
-    assert card.expectation.grade == "A" and card.badge == "期待度 A"
-    # 全頭の予想の ◎ の単勝・複勝（足した 複勝 3）は点数に入れない（推奨買目だけ）
-    assert card.expectation.score == sum(row.value - 1 for row in RECOMMENDED.rows)
-    assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"]   # 期待度は買い目の条件に使わない
-
-
-def test_推奨買目が無ければ_期待度は理由つきの_なし() -> None:
+def test_期待度は直前の買い目の線への近さから出し_推奨買目は前と同じ() -> None:
     message = LocalRaceMessage()
-    card = message.card(_forecast("当日"), RACE, {}, RecommendationSet((), "期待値が線に届く組が無い"))
-    assert message.describe(card).splitlines()[1] == "期待度 なし（推奨買目が無い: 期待値が線に届く組が無い）" and card.badge == ""
+    near = LateBets((), "2つの見込みがそろって線以上の馬がいない", "11051015", 0.91)
+    card = message.card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED, late=near)
+    assert card.expectation.grade == "A" and card.expectation.score == 0.91 and card.badge == "期待度 A"
+    assert message.describe(card).splitlines()[1] == "期待度 A（点数 0.91）"
+    assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"]   # 期待度は買い目の条件に使わない
+    # 推奨買目の見込みがどれだけ高くても、期待度には入らない
+    bought = LateBets((LatePick(3, 14.2, 0.5, 1.1, (7, 4)),), "", "11051015", 1.158)
+    assert message.card(_forecast("当日"), RACE, {}, RecommendationSet((), "期待値が線に届く組が無い"), late=bought).badge == "期待度 S"
+
+
+def test_見込みを出せなければ_期待度は理由つきの_なし() -> None:
+    message = LocalRaceMessage()
+    card = message.card(_forecast("当日"), RACE, {}, RECOMMENDED, late=LateBets.none("時系列オッズの断面がまだ無い"))
+    assert message.describe(card).splitlines()[1] == "期待度 なし（見込みを出せない: 時系列オッズの断面がまだ無い）" and card.badge == ""
 
 
 def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
@@ -189,7 +193,7 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), tendencies=tendencies).build(RID)
     assert tendencies.calls == [(RID, "笠松")]
     lines = notice.text.splitlines()
-    assert lines[1] == "期待度 なし（推奨買目が無い）"   # 推奨買目を出さない組み立て
+    assert lines[1] == "期待度 なし（見込みを出せない）"   # 直前の買い目のファイルが無い組み立て
     assert lines[2] == "馬場 笠松・ダート（ここまで2R）: 後ろから差せる。3着以内6頭の4角は 前 1・中 2・後ろ 3（過去3年の笠松・ダートは 前 50%・中 33%・後ろ 17%）"
     assert lines[3].startswith("◎ 7 イチバン：")
 

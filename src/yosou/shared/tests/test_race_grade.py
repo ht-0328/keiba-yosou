@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ..race_grade import (
+    BET_PROFIT_LINES,
     EXPECTATION_LINES,
     GRADES,
     LOWER_LINES,
@@ -15,6 +16,7 @@ from ..race_grade import (
     TOP_SCORE_LINES,
     TOP_SCORE_WEIGHT,
     GradeScale,
+    LocalBetProfitScale,
     LocalExpectationScale,
     LocalTopScoreScale,
     TopRankScale,
@@ -65,12 +67,20 @@ def test_local_top_score_weights_the_value_edge_three_times() -> None:
     assert LocalTopScoreScale.legend() == "◎の点数は ◎ の1着の確率 ＋ 3 ×（単勝の期待値 − 1）。S 0.45 以上・A 0.15 以上・B -0.1 以上・C -0.1 未満"
 
 
-def test_local_expectation_sums_the_value_edges_of_the_recommended_tickets() -> None:
+def test_local_expectation_grades_the_closeness_to_the_late_bet_lines() -> None:
     scale = LocalExpectationScale()
-    assert EXPECTATION_LINES["S"] == 3.2 and EXPECTATION_LINES["A"] == 1.4 and EXPECTATION_LINES["B"] == 0.5
-    assert LocalExpectationScale.score([1.2, 1.5, 1.05]) == pytest.approx(0.75)   # 0.2 + 0.5 + 0.05
-    assert LocalExpectationScale.score([]) is None and LocalExpectationScale.score([float("nan")]) is None
+    assert EXPECTATION_LINES["S"] == 1.0 and EXPECTATION_LINES["A"] == 0.85 and EXPECTATION_LINES["B"] == 0.5
+    assert scale.of(1.0) == "S" and scale.of(0.999) == "A" and scale.of(0.85) == "A" and scale.of(0.849) == "B"
+    assert scale.of(0.5) == "B" and scale.of(0.49) == "C" and scale.of(-0.2) == "C" and scale.of(None) is None and scale.of(float("nan")) is None
+    assert LocalExpectationScale.legend() == "期待度の点数は直前の買い目の線への近さ。S 1 以上・A 0.85 以上・B 0.5 以上・C 0.5 未満"
+
+
+def test_local_bet_profit_sums_the_value_edges_of_the_recommended_tickets() -> None:
+    scale = LocalBetProfitScale()
+    assert BET_PROFIT_LINES["S"] == 3.2 and BET_PROFIT_LINES["A"] == 1.4 and BET_PROFIT_LINES["B"] == 0.5
+    assert LocalBetProfitScale.score([1.2, 1.5, 1.05]) == pytest.approx(0.75)   # 0.2 + 0.5 + 0.05
+    assert LocalBetProfitScale.score([]) is None and LocalBetProfitScale.score([float("nan")]) is None
     assert scale.grade([2.5, 2.0, 1.8]) == "S" and scale.grade([1.5, 1.5, 1.4]) == "A" and scale.grade([1.5]) == "B" and scale.grade([1.1, 1.2]) == "C"
     assert scale.of(3.2) == "S" and scale.of(3.19) == "A" and scale.of(1.4) == "A" and scale.of(0.5) == "B" and scale.of(0.49) == "C"
     assert scale.grade([]) is None and scale.of(None) is None
-    assert LocalExpectationScale.legend() == "期待度の点数は推奨買目の（期待値 − 1）の合計。S 3.2 以上・A 1.4 以上・B 0.5 以上・C 0.5 未満"
+    assert LocalBetProfitScale.legend() == "推奨買目の期待の儲けは推奨買目の（期待値 − 1）の合計。S 3.2 以上・A 1.4 以上・B 0.5 以上・C 0.5 未満"

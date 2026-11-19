@@ -32,9 +32,10 @@ class LatePredictor:
         scored = self._models.score(self._features.build(material))
         picks = tuple(self._rule.picks(scored))
         announced = str(snapshot["announced"].max())
+        closeness = self._rule.closeness(scored)
         if not picks:
-            return LateBets((), "2つの見込みがそろって線以上の馬がいない", announced)
-        return LateBets(picks, "", announced)
+            return LateBets((), "2つの見込みがそろって線以上の馬がいない", announced, closeness)
+        return LateBets(picks, "", announced, closeness)
 
     @staticmethod
     def material(rid: str, snapshot: pd.DataFrame, probabilities: pd.DataFrame) -> pd.DataFrame:

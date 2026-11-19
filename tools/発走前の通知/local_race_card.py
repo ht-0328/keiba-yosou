@@ -43,7 +43,7 @@ class LocalRaceCard:
     tendency: str = ""
     #: 馬番 → 推定脚質（逃げ・先行・差し・追込。``RaceStyles.local()``）。過去走の無い馬は入らない。
     styles: Mapping[int, str] = field(default_factory=dict)
-    #: レースの期待度（推奨買目の期待の儲けの点数と S・A・B・C。``LocalExpectation.of``）。買い目はこれで変えない。
+    #: レースの期待度（直前の買い目の線への近さの点数と S・A・B・C。``LocalExpectation.of``）。買い目はこれで変えない。
     expectation: LocalExpectation = field(default_factory=lambda: LocalExpectation(None, None))
     #: 印の買い目（``MarkRecommender``。当日の時点だけ。無ければ空）。推奨買目とは別に出し、同じ組が重なることもある。
     marks: MarkBets = field(default_factory=MarkBets)

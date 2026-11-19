@@ -13,11 +13,13 @@ STAKE = 100
 
 @dataclass(frozen=True)
 class LateBets:
-    """``announced`` は材料にしたオッズの断面の発表月日時分（MMDDhhmm。無ければ空）。``reason`` は買う馬がいない・出せなかった理由。"""
+    """``announced`` は材料にしたオッズの断面の発表月日時分（MMDDhhmm。無ければ空）。``reason`` は買う馬がいない・出せなかった理由。
+    ``closeness`` は線への近さ（``LateRule.closeness``。2つのモデルの値を出せなかったレースは None）。地方の期待度の点数になる。"""
 
     picks: tuple[LatePick, ...] = ()
     reason: str = ""
     announced: str = ""
+    closeness: float | None = None
 
     @classmethod
     def none(cls, reason: str) -> LateBets:
@@ -32,12 +34,14 @@ class LateBets:
         return [line for pick in self.picks for line in self._pick_lines(pick, label)]
 
     def to_dict(self) -> dict[str, Any]:
-        return {"買う馬": [pick.to_dict() for pick in self.picks], "理由": self.reason, "オッズの発表月日時分": self.announced}
+        return {"買う馬": [pick.to_dict() for pick in self.picks], "理由": self.reason, "オッズの発表月日時分": self.announced,
+                "線への近さ": None if self.closeness is None else round(self.closeness, 4)}
 
     @classmethod
     def from_dict(cls, body: dict[str, Any]) -> LateBets:
         picks = tuple(LatePick.from_dict(pick) for pick in body.get("買う馬", []))
-        return cls(picks, str(body.get("理由", "")), str(body.get("オッズの発表月日時分", "")))
+        closeness = body.get("線への近さ")
+        return cls(picks, str(body.get("理由", "")), str(body.get("オッズの発表月日時分", "")), None if closeness is None else float(closeness))
 
     @staticmethod
     def _pick_lines(pick: LatePick, label: Callable[[int], str]) -> list[str]:
