@@ -23,7 +23,7 @@ class LocalTopScoreScale:
 
     点数 = ◎ の1着になる確率 ＋ ``TOP_SCORE_WEIGHT`` ×（◎ の単勝の期待値 − 1）。「当たりやすさ」と「市場より得か」を足したもので、
     等級が高いほど ◎ の単勝・複勝をべた買いしたときの的中率と回収率が高い。期待値が無い（オッズの無い出馬表の時点）なら点数も等級も None。
-    通知の期待度は推奨買目の期待の儲け（``LocalExpectationScale``）で、この点数ではない。
+    通知の期待度は直前の買い目の線への近さ（``LocalExpectationScale``）で、この点数ではない。
     """
 
     @staticmethod

@@ -33,6 +33,13 @@ def test_3連単は_軸から相手2頭の並び_相手が5頭なら20点() -> N
     assert LatePick(3, 15.0, 0.5, 1.1, (1,)).trifectas() == []
 
 
+def test_線への近さは_馬ごとの小さいほうの比の_レースでいちばん大きい値() -> None:
+    # 3番: min(0.5/0.4, 1.1/0.95) = 1.158、4番: min(1.125, 0.989) = 0.989、5番: min(0.975, 1.368) = 0.975
+    assert round(LateRule().closeness(_race()), 3) == 1.158
+    assert round(LateRule().closeness(_race()[lambda race: race[c.HORSE_NO] != 3]), 3) == 0.989   # 買う馬がいなければ 1 未満
+    assert LateRule().closeness(_race().iloc[0:0]) is None
+
+
 def test_辞書にして戻せる() -> None:
     pick = LateRule().picks(_race())[0]
     assert LatePick.from_dict(pick.to_dict()) == pick

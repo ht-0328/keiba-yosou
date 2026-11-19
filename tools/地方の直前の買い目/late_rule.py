@@ -27,6 +27,15 @@ class LateRule:
         """線を満たす行（何レースぶんでもよい）。"""
         return scored[(scored[LIKENESS] >= self.likeness_line) & (scored[PAYBACK] >= self.payback_line)]
 
+    def closeness(self, race: pd.DataFrame) -> float | None:
+        """1レースぶんの表の「線への近さ」: 馬ごとに 2つの値をそれぞれの線で割った小さいほうを取り、その中でいちばん大きい値。
+        1 以上なら、2つがそろって線以上の馬（買う馬）がいる。地方の期待度の点数に使う。馬がいなければ None。"""
+        return None if race.empty else float(self.ratios(race).max())
+
+    def ratios(self, scored: pd.DataFrame) -> pd.Series:
+        """馬ごとの、買う馬らしさ ÷ その線 と 戻りの見込み ÷ その線 の小さいほう（1 以上なら買う馬）。"""
+        return pd.concat([scored[LIKENESS] / self.likeness_line, scored[PAYBACK] / self.payback_line], axis=1).min(axis=1)
+
     def picks(self, race: pd.DataFrame) -> list[LatePick]:
         """1レースぶんの表から、買う馬（買う馬らしさの高い順）。いなければ空。"""
         order = race.sort_values([ODDS_NOW, HORSE_NO])[HORSE_NO].astype(int).tolist()
