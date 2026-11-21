@@ -67,6 +67,32 @@ def test_失敗したら出力の最後を添えて止まる() -> None:
         _fetcher(run).fetch_day("2025-04-19")
 
 
+class _FailingRun:
+    """指定した速報の種類だけ失敗する。"""
+
+    def __init__(self, failing: str) -> None:
+        self.commands: list[list[str]] = []
+        self._failing = failing
+
+    def __call__(self, command, **_) -> subprocess.CompletedProcess:
+        self.commands.append(list(command))
+        code = 1 if self._failing in command else 0
+        return subprocess.CompletedProcess(command, code, stdout="認証エラー" if code else "", stderr="")
+
+
+def test_開催日単位の速報が1種類取れなくても_残りとレースのオッズを取って続ける() -> None:
+    run = _FailingRun("0B15")
+    logs: list[str] = []
+    _fetcher(run, logs).fetch_race("2025-04-19", "2025041905010101")
+    assert [command[7] for command in run.commands] == ["0B15", "0B14", "0B11", "0B13", "0B17", "0B30"]
+    assert any(line.startswith("速報 0B15 を取れませんでした（前に取り込んだ分で続けます）") and "認証エラー" in line for line in logs)
+
+
+def test_レースのオッズが取れないときは止まる() -> None:
+    with pytest.raises(RuntimeError, match="速報 0B30（2025041905010101）に失敗しました"):
+        _fetcher(_FailingRun("0B30")).fetch_race("2025-04-19", "2025041905010101")
+
+
 class _LocalRun:
     def __init__(self) -> None:
         self.commands: list[list[str]] = []
