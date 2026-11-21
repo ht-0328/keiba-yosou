@@ -54,5 +54,6 @@ class LocalForecastRunner:
     def _predict(self, rid: str, day: str, timing: str) -> None:
         arguments = ["--upset-out", str(self._store.upset_path(rid)),
                      "--late-out", str(self._store.late_path(rid)), "--late-odds", str(self._store.odds_history_path(rid)),
+                     "--kochi-out", str(self._store.kochi_final_path(rid)),
                      "predict", rid, "--timing", timing, "--format", "json", "--out", str(self._store.path(rid))]
         self._process.run(arguments, f"{rid} の予想（{timing}の時点）", day)

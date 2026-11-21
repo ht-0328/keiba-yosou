@@ -250,3 +250,27 @@ def test_組み立てると_保存してある直前の買い目を読んで文�
     after = message.build(RID).text
     assert "直前の買い目" not in before and after.startswith(before)
     assert after.splitlines()[-3] == "直前の買い目（確かめ中・1点 100円）:"
+
+
+def test_高知ファイナルの買い目は最後に出し_出せなければ理由_ファイルが無ければ出さない(tmp_path: Path) -> None:
+    from 高知ファイナルの買い目.final_bet_file import FinalBetFile
+    from 高知ファイナルの買い目.final_bets import FinalBets
+
+    bets = FinalBets(5, (1, 2, 3), 1, {"単勝": ((5,),), "馬単": ((5, 1), (5, 2))}, 0.7, 0.85, "11051015")
+    message = LocalRaceMessage()
+    for title in ("当日", "前日"):                       # 時点を問わず出す
+        lines = message.describe(message.card(_forecast(title), RACE, {}, RECOMMENDED, kochi_final=bets)).splitlines()
+        assert lines[-5:] == ["高知ファイナルの予想（荒れる前提・確かめ中）（1点 100円・合計 3点 300円）:", "- ◎5 ○1 ▲2 △3（1番人気 1 は ◎ にしない）",
+                              "- 単勝 5（1点 100円）", "- 馬単 5→1 / 5→2（2点 200円）",
+                              "- 複勝・ワイド・3連複: 見送り（◎ の複勝の見込み 0.70。0.85 以上で買う）"]
+    none = message.describe(message.card(_forecast("当日"), RACE, {}, kochi_final=FinalBets.none("時系列オッズの断面がまだ無い")))
+    assert none.splitlines()[-1] == "高知ファイナルの予想（荒れる前提・確かめ中）: なし（時系列オッズの断面がまだ無い）"
+    assert "高知ファイナル" not in message.describe(message.card(_forecast("当日"), RACE, {}))
+    store = LocalForecastStore(tmp_path)
+    store.path(RID).parent.mkdir(parents=True)
+    store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
+    built = LocalRaceMessage(store, _Schedule(), frames=_Frames(), recommendations=_Recommendations())
+    before = built.build(RID).text
+    FinalBetFile().write(store.kochi_final_path(RID), bets)
+    after = built.build(RID).text
+    assert "高知ファイナル" not in before and after.startswith(before) and "◎5 ○1 ▲2 △3" in after

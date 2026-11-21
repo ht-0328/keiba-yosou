@@ -13,6 +13,8 @@ from 地方の推奨買目.mark_bets import MarkBets
 from 地方の推奨買目.recommendation import STAKE
 from 地方の推奨買目.recommendation_set import RecommendationSet
 
+from 高知ファイナルの買い目.final_bets import FinalBets
+
 from 発走前の通知.bet_footer import BetFooter
 from 発走前の通知.local_expectation import LocalExpectation
 
@@ -49,6 +51,8 @@ class LocalRaceCard:
     marks: MarkBets = field(default_factory=MarkBets)
     #: 直前の買い目（道具「地方の直前の買い目」。当日の時点だけ。ファイルが無ければ None で、文に出さない）。確かめ中で、合計には入れない。
     late: LateBets | None = None
+    #: 高知ファイナルの買い目（道具「高知ファイナルの買い目」。高知のその日の最終レース「ファイナルレース」だけ。ファイルが無ければ None で、文に出さない）。
+    kochi_final: FinalBets | None = None
 
     @property
     def badge(self) -> str:

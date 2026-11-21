@@ -38,6 +38,7 @@ def test_当日の時点で予想し_予想と荒れ具合と直前の買い目�
     folder = tmp_path / "2026-11-05"
     assert process.calls == [["--upset-out", str(folder / f"{RID}.荒れ具合.json"),
                               "--late-out", str(folder / f"{RID}.直前.json"), "--late-odds", str(folder / "時系列オッズ.duckdb"),
+                              "--kochi-out", str(folder / f"{RID}.高知ファイナル.json"),
                               "predict", RID, "--timing", "当日", "--format", "json", "--out", str(folder / f"{RID}.json")]]
     assert (tmp_path / "2026-11-05").is_dir()
     assert runner.log_path("2026-11-05") == Path("logs/地方-2026-11-05.log")
