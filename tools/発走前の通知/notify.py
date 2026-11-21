@@ -44,7 +44,9 @@ from 発走前の通知.day_notifier import DayNotifier, Schedule, Win5  # noqa:
 from 発走前の通知.discord_webhook import DiscordWebhook  # noqa: E402
 from 発走前の通知.notifier_parts import NotifierParts  # noqa: E402
 from 発走前の通知.notify_settings import NotifySettings  # noqa: E402
+from 発走前の通知.folders import LOCAL_LOG_NAME, LOG_FOLDER, PROGRESS_LOG_NAME  # noqa: E402
 from 発走前の通知.process_priority import ProcessPriority  # noqa: E402
+from 発走前の通知.progress_record import ProgressRecord  # noqa: E402
 
 #: --test で投稿する文。
 TEST_MESSAGE = "keiba-yosou 発走前の通知: つながりました。開催日は発走の10分前に予想を投稿します。"
@@ -74,6 +76,8 @@ def main() -> int:
         print("投稿しました", file=sys.stderr)
         return 0
     day = args.date or (f"{args.rid[:4]}-{args.rid[4:6]}-{args.rid[6:8]}" if args.rid else date.today().isoformat())
+    sys.stderr = ProgressRecord(sys.stderr, LOG_FOLDER / f"{PROGRESS_LOG_NAME}{LOCAL_LOG_NAME if args.local else ''}{day}.log")
+    print(f"通知を始めます（{' '.join(sys.argv[1:]) or '引数なし'}）", file=sys.stderr)
     if not ProcessPriority().raise_to_normal():
         print("通知の優先度を「通常」に上げられませんでした（通知は続けます）", file=sys.stderr)
     parts = NotifierParts.local() if args.local else NotifierParts.jra()

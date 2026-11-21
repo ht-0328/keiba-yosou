@@ -84,13 +84,22 @@ class StoreFetcher:
         self.fetch_races(day, (rid,))
 
     def fetch_races(self, day: str, rids: tuple[str, ...]) -> None:
-        """開催日単位の速報を1回と、レースごとのオッズを取り直す（WIN5 の対象レース5つなど）。"""
+        """開催日単位の速報を1回と、レースごとのオッズを取り直す（WIN5 の対象レース5つなど）。
+        開催日単位の速報は、1種類が取れなくても残りを取って続ける（前に取り込んだ分で予想する）。
+        レースのオッズが取れないときは止める。"""
         key = day.replace("-", "")
         for dataspec in self._day_dataspecs:
-            self._run(["rt", "--dataspec", dataspec, "--key", key, "--db", self._db], f"速報 {dataspec}（{day}）")
+            self._fetch_day_dataspec(dataspec, key, day)
         for rid in rids:
             self._run(["rt", "--dataspec", RACE_DATASPEC, "--key", rid, "--db", self._db], f"速報 {RACE_DATASPEC}（{rid}）")
             self._fetch_history(rid)
+
+    def _fetch_day_dataspec(self, dataspec: str, key: str, day: str) -> None:
+        """開催日単位の速報を1種類取り直す。失敗しても通知は止めない（提供元がその種類だけ返さない日がある）。"""
+        try:
+            self._run(["rt", "--dataspec", dataspec, "--key", key, "--db", self._db], f"速報 {dataspec}（{day}）")
+        except RuntimeError as error:
+            self._log(f"速報 {dataspec} を取れませんでした（前に取り込んだ分で続けます）。{error}")
 
     def _fetch_history(self, rid: str) -> None:
         """そのレースの時系列オッズを、元DB とは別の DuckDB に取り込む（``history`` を渡したときだけ）。

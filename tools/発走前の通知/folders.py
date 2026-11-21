@@ -14,6 +14,8 @@ STORE_DB = "jvdata.duckdb"
 DEFAULT_FOLDER = PROJECT / "reports" / "発走前の通知"
 #: 別プロセス（取り込み・予想）の出力を残す場所。
 LOG_FOLDER = DEFAULT_FOLDER / "logs"
+#: 通知そのものの進み具合（画面に出す行）の記録のファイル名の頭（``進み具合-<開催日>.log``。地方は ``進み具合-地方-<開催日>.log``）。
+PROGRESS_LOG_NAME = "進み具合-"
 #: 中央の通知に添付する全頭の表の画像を置く場所（``<開催日>/<rid>.png``）。
 CENTRAL_FOLDER = DEFAULT_FOLDER / "中央"
 #: 今週の予想の入口（別プロセスで動かす）。
