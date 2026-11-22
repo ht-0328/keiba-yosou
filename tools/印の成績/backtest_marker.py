@@ -10,8 +10,11 @@ from yosou.shared.feature.odds import TOP2_RATE, TOP3_RATE, WIN_RATE, MarketPlac
 from yosou.shared.place_value import PLACE_VALUE, PlaceExpectedValue, PlacePriceEstimator
 from yosou.shared.win_value import LINE, WinValueBand
 
-from 今週の予想.forecast_columns import MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, WIN_VALUE, WIN_VALUE_BAND
+from 今週の予想.forecast_columns import MARK, MARKET_TOP3, MARKET_WIN, PROBABILITY, UNRATED, WIN_VALUE, WIN_VALUE_BAND
 from 今週の予想.mark_rule import TOP_MARK, MarkRule
+from 今週の予想.invited_rates import InvitedRates
+from 今週の予想.unrated_horse import UnratedHorse
+from 今週の予想.unrated_rater import UnratedRater
 
 from 今週の予想.filter_columns import (
     AGREEMENT,
@@ -48,6 +51,10 @@ class BacktestMarker:
     ``odds_known`` を偽にすると（木曜の予測）、本番の木曜と同じく、オッズから出すもの（市場の見立て・複勝の期待値・単勝の期待値・危険な人気馬）を
     使わずに印を付ける（◎ は1着になる確率の1位、☆・注・期待値の帯は付かない）。成績の人気・払戻は確定の値のまま。
 
+    所属と中央の出走数（``places`` の列 ``affiliation``・``runs_before``）があれば、今週の予想と同じく評価できない馬（``UnratedHorse``）を見分ける。
+    ``mark`` に ``invited``（``InvitedRates``）を渡せば、今週の予想と同じく、その馬の確率を過去の同じ種類の招待馬の成績で置き換えて印を付ける
+    （``UnratedRater``。木曜は置き換えず、印と買い目の候補から外す）。渡さなければ、置き換えずに外す。
+
     絞り込みの旗（研究「回収率100超の施策」）も、レースの全頭に付ける。
     - ``agreement``（2モデル一致）: ◎ の単勝の期待値が、LightGBM と CatBoost のそれぞれの確率でも線以上。モデルごとの確率が無ければ偽。
     - ``pool_backed``（3連単の支持あり）: ◎ の「3連単から見た勝率 ÷ 単勝から見た勝率」（``pool_support``）が線以上。3連単の確率が無ければ偽。
@@ -66,11 +73,12 @@ class BacktestMarker:
 
     def mark(self, predictions: pd.DataFrame, places: pd.DataFrame, dangers: pd.DataFrame,
              wins: pd.DataFrame | None = None, pools: pd.DataFrame | None = None,
-             movements: pd.DataFrame | None = None) -> pd.DataFrame:
+             movements: pd.DataFrame | None = None, invited: InvitedRates | None = None) -> pd.DataFrame:
         """``predictions`` はテスト期間の全頭の予想の行、``places`` は ``places`` の戻り値、``dangers`` は危険な人気馬の判定、
         ``wins`` は1着の予想のテスト期間の行（``WinValueAttacher.attach``。無ければ ◎ は3着以内の確率の1位で、期待値の帯は付かない）、
         ``pools`` は3連単から見た勝率（``PoolWinReader.read``。列 race_id・horse_no・pool_win。無ければ 3連単の支持は見ない）、
-        ``movements`` は前日夜 → 当日朝の単勝オッズ（``OddsSnapshotRepository.read``。列 race_id・horse_no・odds_evening・odds_morning。無ければ空）。
+        ``movements`` は前日夜 → 当日朝の単勝オッズ（``OddsSnapshotRepository.read``。列 race_id・horse_no・odds_evening・odds_morning。無ければ空）、
+        ``invited`` は評価できない馬を評価する部品（中央の元DB の接続で作った ``InvitedRates``。無ければ評価できない馬は印の候補から外す）。
 
         戻り値は1行 = 1頭。列は race_id・race_date と ``MarkRule.assign`` の列（印・順位・人気 …）と、◎ の期待値の帯・絞り込みの旗、``RESULT_COLUMNS``。
         """
@@ -88,9 +96,12 @@ class BacktestMarker:
         table = self._with_pools(table, pools)
         table = self._with_movements(table, movements)
         table["is_danger"] = table["is_danger"].astype("boolean").fillna(False).astype(bool)
+        if {"affiliation", "runs_before"} <= set(table.columns):
+            table[UNRATED] = UnratedHorse().of(table["affiliation"], table["runs_before"])
         if "over_line" in table.columns:
             table["over_line"] = table["over_line"].astype("boolean").fillna(False).astype(bool)
-        marked = [self._mark_race(race) for _, race in table.groupby("race_id", sort=False)]
+        rater = UnratedRater(invited)
+        marked = [self._mark_race(race, rater) for _, race in table.groupby("race_id", sort=False)]
         return pd.concat(marked, ignore_index=True)
 
     def _with_pools(self, table: pd.DataFrame, pools: pd.DataFrame | None) -> pd.DataFrame:
@@ -114,8 +125,9 @@ class BacktestMarker:
         merged[ODDS_MOVE] = np.log(morning.where(morning > 0)) - np.log(evening.where(evening > 0))
         return merged
 
-    def _mark_race(self, race: pd.DataFrame) -> pd.DataFrame:
-        marked = self._marks.assign(self._for_marks(race))
+    def _mark_race(self, race: pd.DataFrame, rater: UnratedRater) -> pd.DataFrame:
+        race_date = str(pd.Timestamp(race["race_date"].iloc[0]).date())
+        marked = self._marks.assign(rater.rate(self._for_marks(race), race_date))
         known = race.set_index("horse_no")
         for column in RESULT_COLUMNS:
             marked[column] = known.loc[marked["horse_no"], column].to_numpy()

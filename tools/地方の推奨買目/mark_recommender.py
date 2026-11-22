@@ -8,6 +8,7 @@ from typing import Any
 import duckdb
 import pandas as pd
 
+from 今週の予想.forecast_columns import HORSE_NO, MARK, PLACE_VALUE
 from 今週の予想.race_describer import RaceDescriber
 from 今週の予想.torigami_filter import DROPPED, TorigamiFilter
 
@@ -50,7 +51,9 @@ class MarkRecommender:
         combos = self._model.predict(tables, self._coefficients)
         probabilities = TicketProbabilities().of(combos, _NO_FRAMES)
         tickets = self._tickets(rid, points, probabilities, combos)
-        returns = RaceDescriber().mark_returns({"timing": _RACE_DAY, "tickets": tickets}, LOCAL_MARK_LABELS)
+        # 全頭の印と複勝の期待値も渡す（☆ を相手に入れなかったレースは、買い方の名前から ☆ を除いて見せるため。ShownRuleName）
+        shown_horses = marked[[HORSE_NO, MARK, PLACE_VALUE]].to_dict("records")
+        returns = RaceDescriber().mark_returns({"timing": _RACE_DAY, "tickets": tickets, "horses": shown_horses}, LOCAL_MARK_LABELS)
         if returns is None:
             return MarkBets.none("オッズのある組が無い")
         return MarkBets(returns[0], tuple(returns[1]))

@@ -71,6 +71,7 @@ from yosou.shared.race_grade import TOP_SCORE_LABEL, TOP_SCORE_MEANING, LocalTop
 from yosou.shared.repository import BracketBlendWeightsRepository, ComboBlendWeightsRepository, PlacePriceRepository  # noqa: E402
 
 from 今週の予想.danger_picker import MARKED_BANDS  # noqa: E402
+from 今週の予想.invited_rates import InvitedRates  # noqa: E402
 from 今週の予想.combo_value_picker import ComboValuePicker  # noqa: E402
 from 今週の予想.mark_ticket_values import MarkTicketValues  # noqa: E402
 from 今週の予想.mark_tickets import MarkTickets  # noqa: E402
@@ -145,6 +146,7 @@ def main(args) -> None:
         scenes = RaceSceneRepository().read(con, test_race_ids)
         pool_sizes = WinPoolSizeRepository().read(con, test_race_ids)
         pools = movements = None
+        invited = InvitedRates(con).load() if database is db.JRA else None
         if odds_known:
             print("3連単のオッズから見た勝率と、前日夜・当日朝の単勝オッズを読みます", file=sys.stderr, flush=True)
             pools = PoolWinReader().read(con, test_race_ids)
@@ -156,7 +158,7 @@ def main(args) -> None:
     else:
         dangers, lines = pd.DataFrame(columns=list(DANGER_COLUMNS)), {}
     wins = WinValueAttacher().attach(win_predictions, places) if win_predictions is not None else None
-    marked = marker.mark(tested, places, dangers, wins, pools, movements)
+    marked = marker.mark(tested, places, dangers, wins, pools, movements, invited)
     upset = UpsetFile(args.upset) if args.upset and odds_known else None
     if upset is not None:
         marked = marked.join(upset.load().set_index("race_id"), on="race_id")

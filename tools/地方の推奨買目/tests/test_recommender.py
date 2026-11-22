@@ -165,7 +165,8 @@ def test_印の買い目は印の組に期待値を付け_見込みの回収率�
     assert [line.split("（")[0] for line in marks.lines] == ["単勝", "馬単", "3連単"]
     assert marks.lines[0].startswith("単勝（1点 計 ") and ": 11 " in marks.lines[0]
     assert "11→10" in marks.lines[1] and "11→9" in marks.lines[1]
-    assert marks.lines[2].startswith("3連単（◎→○▲☆→○▲△☆）（8点 計 ")
+    # ☆ がいないので、買い方の名前からも ☆ を除いて見せる（ShownRuleName）
+    assert marks.lines[2].startswith("3連単（◎→○▲→○▲△）（8点 計 ")
 
 
 def test_印の買い目は頭数が少ないか_本命が無ければ理由つきのなし():

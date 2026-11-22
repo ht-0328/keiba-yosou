@@ -11,6 +11,7 @@ from 今週の予想.mark_rule import NO_MARK, OUT_MARK, TOP_MARK
 from 今週の予想.mark_return import MarkReturn
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
+from 今週の予想.shown_rule_name import ShownRuleName
 from 今週の予想.ticket_pick import TicketPick
 from 今週の予想.ticket_rules import (
     BET_RULES,
@@ -131,12 +132,15 @@ class RaceDescriber:
         else:
             lines += [f"{MARK_RETURN_LABEL}: {returns[0]}", *(f"- {line}" for line in returns[1])]
         lines.append(f"参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 {POINT_YEN}円で数えた額）:")
+        shown = ShownRuleName(forecast.get("horses"))
+        if returns is None and shown.note():
+            lines.append(f"（{shown.note()}）")
         # 買い方は予想に入っている順（MarkTickets が組んだ順。前の版の予想は買い方の名前が違うことがあるので、名前の一覧では引かない）
         for rule in dict.fromkeys(ticket["rule"] for ticket in forecast["tickets"]):
             if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL) or rule in _POOL_TRIO_LABELS or REFERENCE_SKIP in rule or rule in bought \
                     or (returns is not None and rule in MARK_VALUE_LABELS):
                 continue
-            lines.append(self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule]))
+            lines.append(self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule], shown.of(rule)))
         return lines
 
     def bought(self, forecast: dict[str, Any], plan: RacePlan | None) -> list[tuple[str, int]]:
@@ -205,24 +209,30 @@ class RaceDescriber:
         if found is None:
             return None
         lines = []
+        shown = ShownRuleName(forecast.get("horses"))
         for rule, rows in found.stakes.items():
-            shown = "・".join(f"{ticket['label']} {yen:,}円" for ticket, _, yen in rows[:REFERENCE_SHOWN])
+            points = "・".join(f"{ticket['label']} {yen:,}円" for ticket, _, yen in rows[:REFERENCE_SHOWN])
             more = f" ほか {len(rows) - REFERENCE_SHOWN}点" if len(rows) > REFERENCE_SHOWN else ""
-            lines.append(f"{rule}（{len(rows)}点 計 {sum(yen for _, _, yen in rows):,}円）: {shown}{more}")
+            lines.append(f"{shown.of(rule)}（{len(rows)}点 計 {sum(yen for _, _, yen in rows):,}円）: {points}{more}")
         reverse = forecast.get(REVERSE_EXACTA)
         if reverse:
-            judge = "馬単の裏（○▲☆→◎）も買う" if reverse["buys"] else "線に届かないので、裏は買わない"
-            lines.append(f"裏（◎ が2・3着で1着が ○▲☆）の確率 {reverse['probability']:.0%}（線 {reverse['line']:.0%}）: {judge}")
+            judge = shown.of("馬単の裏（○▲☆→◎）も買う") if reverse["buys"] else "線に届かないので、裏は買わない"
+            lines.append(shown.of(f"裏（◎ が2・3着で1着が ○▲☆）の確率 {reverse['probability']:.0%}（線 {reverse['line']:.0%}）: ") + judge)
+        if shown.note():
+            lines.append(shown.note())
         return found.heading(), lines
 
     def mark_bets(self, forecast: dict[str, Any]) -> list[str]:
         """印で組む買い方（``MARK_RULE_LABELS``）の行（参考の買い目と同じ書き方で、先頭の「- 」は付けない。金額は1点 ``POINT_YEN`` で数えた額）。
         予想に無い買い方（印の付かない ☆ のワイドなど）は出さない。"""
-        return [self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule]).removeprefix("- ")
+        shown = ShownRuleName(forecast.get("horses"))
+        return [self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule], shown.of(rule)).removeprefix("- ")
                 for rule in MARK_RULE_LABELS if any(ticket["rule"] == rule for ticket in forecast["tickets"])]
 
-    def _reference_line(self, rule: str, tickets: list[dict[str, Any]]) -> str:
-        """参考の買い方1つの行。買う組を期待値（無ければ並び）の順に最大 ``REFERENCE_SHOWN`` 点と、点数・金額の目安。トリガミで外す組は数だけ。"""
+    def _reference_line(self, rule: str, tickets: list[dict[str, Any]], shown: str | None = None) -> str:
+        """参考の買い方1つの行。買う組を期待値（無ければ並び）の順に最大 ``REFERENCE_SHOWN`` 点と、点数・金額の目安。トリガミで外す組は数だけ。
+        ``shown`` は見せる名前（``ShownRuleName``。無ければ ``rule`` のまま）。"""
+        rule = shown or rule
         kept = [ticket for ticket in tickets if not ticket["dropped"]]
         kept.sort(key=lambda ticket: -(ticket["value"] if ticket["value"] is not None else 0.0))
         yen = POINT_YEN * len(kept)
