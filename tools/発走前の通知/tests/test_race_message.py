@@ -122,10 +122,12 @@ def test_表は印の順で_危険な人気馬でない消は無印(tmp_path: Pa
 def test_買わないときは_なし_と理由_全レースの印の買い目は1レース5000円の金額で出す(tmp_path: Path) -> None:
     plan = RacePlan(RID, "t", "当日", "買わない", "見込みの利益が線に届かない", 0.0, 0.9, False)
     message, _ = _message(tmp_path, _forecast(plan=plan))
-    lines = message.build(RID).text.splitlines()
-    assert lines[-3:] == ["買い目: なし（見込みの利益が線に届かない）",
-                          "印の買い目: 見送り（見込みの回収率を出せない）。合計 5,000円で、どれが当たっても 15,500円以上戻る",
-                          "- 単勝（1点 計 5,000円）: 3 5,000円"]
+    notice = message.build(RID)
+    assert notice.text.splitlines()[-3:] == ["買い目: なし（見込みの利益が線に届かない）",
+                                             "印の買い目: 見送り（見込みの回収率を出せない）。合計 5,000円で、どれが当たっても 15,500円以上戻る",
+                                             "- 単勝（1点 計 5,000円）: 3 5,000円"]
+    # AI＋ロジック予想は、AI だけの予想の投稿に入れず、続けて別の投稿で出す。印の買い目を AI が見送るので、AI＋ロジック予想も見送り
+    assert len(notice.follow_ups) == 1 and notice.follow_ups[0].endswith("AI＋ロジック予想（印は AI の予想と同じ）\n見送り（AI と同じ）")
 
 
 def test_予想が無ければ止まる(tmp_path: Path) -> None:

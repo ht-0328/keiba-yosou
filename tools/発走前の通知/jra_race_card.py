@@ -52,6 +52,9 @@ class JraRaceCard:
     #: 全レースの印の買い目の1行（当たったときの倍率と見込みの回収率）と、買い方ごとの行（``RaceDescriber.mark_returns``。組と購入額の割合。当日の予想でなければ空）。
     mark_return: str = ""
     mark_returns: tuple[str, ...] = ()
+    #: AI＋ロジック予想の1行（``LogicForecast.line``。印の買い目を AI と同じく買うか、ロジックで見送るか。当日の予想でなければ空）。
+    #: AI だけの予想の文と画像には入れず、続けて別の投稿で出す（``RaceMessage.logic_text``）。
+    logic: str = ""
 
     @property
     def badge(self) -> str:

@@ -12,6 +12,8 @@ from 共通 import db
 
 from 今週の予想.forecast_columns import HORSE_NAME, HORSE_NO, MARK, MARK_REASON, PLACE_VALUE, PROBABILITY, WIN_ODDS, WIN_VALUE
 from 今週の予想.forecast_store import ForecastStore
+from 今週の予想.logic_forecast import LABEL as LOGIC_LABEL
+from 今週の予想.logic_forecast import LogicForecast
 from 今週の予想.mark_rule import MARK_ORDER, NO_MARK, OUT_MARK
 from 今週の予想.race_describer import RaceDescriber
 from 今週の予想.race_grades import RaceGrades
@@ -68,7 +70,8 @@ class RaceMessage:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._image.draw(card).save(path)
         reasons = self._store.reasons_path(rid)
-        return RaceNotice(self.describe(card), (path, reasons) if reasons.is_file() else (path,))
+        follow_ups = (self.logic_text(card),) if card.logic else ()
+        return RaceNotice(self.describe(card), (path, reasons) if reasons.is_file() else (path,), follow_ups)
 
     def image_path(self, rid: str) -> Path:
         return self._folder / f"{rid[:4]}-{rid[4:6]}-{rid[6:8]}" / f"{rid}.png"
@@ -88,7 +91,8 @@ class RaceMessage:
                            table=self._table(forecast), frames=dict(frames), bets=bets, notes=() if bets else self._notes(plan),
                            tendency=tendency, styles=dict(styles or {}), jockeys=dict(jockeys or {}), grade_badge=grades.badge(),
                            mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else (),
-                           mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else ())
+                           mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else (),
+                           logic=LogicForecast().line(forecast, styles or {}) or "")
 
     def describe(self, card: JraRaceCard) -> str:
         """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目・全レースの印の買い目（どの組が当たっても払った額より多く戻る割合と、見込みの回収率。当日）と、
@@ -104,6 +108,11 @@ class RaceMessage:
         if card.mark_bets:
             lines += [f"{MARK_BETS_LABEL}:", *(f"- {line}" for line in card.mark_bets)]
         return "\n".join(lines)
+
+    @staticmethod
+    def logic_text(card: JraRaceCard) -> str:
+        """AI＋ロジック予想の投稿（AI だけの予想の投稿のあとに別に出す）。印は AI と同じで、全レースの印の買い目を買うかだけが違う。"""
+        return f"**{card.title}** {LOGIC_LABEL}（印は AI の予想と同じ）\n{card.logic}"
 
     @staticmethod
     def _notes(plan: RacePlan | None) -> tuple[str, ...]:
