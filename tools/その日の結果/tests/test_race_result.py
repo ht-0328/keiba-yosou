@@ -58,8 +58,8 @@ def test_着順と印_実際に買う買い目と印の買い目を払戻で精�
 def test_AIが見送るレースは数えず_ロジックで見送ったレースはAIとロジックだけ買わない() -> None:
     assert RaceResult(_forecast(win_value=0.8), FINISHES, _Payouts(), {}).marks().stake == 0
     skipped = RaceResult(_forecast(), FINISHES, _Payouts(), SLOW)   # ◎ の 5 は差しで、逃げ・先行は 20%
-    assert skipped.marks().stake == 5000 and skipped.logic().stake == 0 and skipped.logic_skipped()
-    assert not RaceResult(_forecast(), FINISHES, _Payouts(), {}).logic_skipped()
+    assert skipped.marks().stake == 5000 and skipped.logic().stake == 0 and skipped.logic_skip() == "展開"
+    assert RaceResult(_forecast(), FINISHES, _Payouts(), {}).logic_skip() == ""
 
 
 def test_表は結果の届いたレースだけを合計し_届いていないレースは結果待ち() -> None:
