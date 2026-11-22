@@ -27,7 +27,8 @@ class DayTables:
             if not result.finished:
                 rows.append([*head, WAITING, "", "", "", ""])
                 continue
-            logic = "見送り（展開）" if result.logic_skipped() else result.logic().text()
+            skip = result.logic_skip()
+            logic = f"見送り（{skip}）" if skip else result.logic().text()
             rows.append([*head, result.top3(), result.top_finish(), result.plan().text(), result.marks().text(), logic])
         columns = ["レース", "時点", "印", "1〜3着（馬番と印）", "◎", "実際に買う買い目", "印の買い目（AI だけ）", "印の買い目（AI＋ロジック）"]
         return Table(columns, rows, title=f"{day} の結果（レースごと。買った額 → 戻った額）")

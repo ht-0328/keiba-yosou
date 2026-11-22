@@ -36,7 +36,7 @@ class RaceResult:
     - ``top3``: 1〜3着の馬番と、その馬の印（例 ``1着 11◎・2着 3△・3着 12▲``）。
     - ``plan``: 実際に買う買い目（買う計画の複勝・単勝・馬単・組の券種）の精算。
     - ``marks``: 全レースの印の買い目（AI だけの予想。「買う」のレースだけ数える）の精算。
-    - ``logic``: AI＋ロジック予想（展開のロジックで見送ったレースは買わない）の精算。
+    - ``logic``: AI＋ロジック予想（展開・クラスのロジックで見送ったレースは買わない）の精算。
     """
 
     def __init__(self, forecast: dict[str, Any], finishes: list[tuple[int, int]], payouts: DayPayouts,
@@ -78,12 +78,12 @@ class RaceResult:
         return self._settle([(ticket["ticket_type"], ticket["combo"], yen) for rows in found.stakes.values() for ticket, _, yen in rows])
 
     def logic(self) -> Settled:
-        line = LogicForecast().line(self._forecast, self._styles) or ""
-        return Settled() if "見送り" in line else self.marks()
+        return Settled() if self.logic_skip() else self.marks()
 
-    def logic_skipped(self) -> bool:
-        """AI は買い、AI＋ロジック予想は見送ったレースか。"""
-        return bool(self.marks().stake) and not self.logic().stake
+    def logic_skip(self) -> str:
+        """AI は買い、AI＋ロジック予想は見送ったレースなら、当たったロジックの名前（展開・クラス）。そうでなければ空。"""
+        skip = LogicForecast().skip(self._forecast, self._styles)
+        return skip.name if skip is not None else ""
 
     def _settle(self, tickets: list[tuple[str, str, int]]) -> Settled:
         stake = back = unknown = 0
