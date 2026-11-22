@@ -59,7 +59,10 @@ class NoticeDelivery:
         self.warn(label, f"{label} の予想を通知できませんでした。\n{error}")
 
     def _post(self, notice: RaceNotice) -> None:
+        """AI だけの予想（文と添付）を先に投稿し、続けて別の投稿（AI＋ロジック予想）を出す。"""
         self._poster.post(notice.text, notice.attachments)
+        for text in notice.follow_ups:
+            self._poster.post(text)
 
     def _should_retry(self, retry_until: datetime, error: Exception) -> bool:
         """元DB のロックが原因の失敗で、待ってやり直しても ``retry_until``（発走からやり直しに要る時間を引いた時刻）より前なら True。"""
