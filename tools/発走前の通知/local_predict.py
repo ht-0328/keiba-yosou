@@ -10,6 +10,8 @@ predict の後ろの引数は ``python -m yosou.local_form_aptitude_top3 predict
 （推奨買目はその券種だけを対象外にして理由を添える）。
 ``--late-out`` と ``--late-odds`` を渡すと、同じ接続で直前の買い目（道具「地方の直前の買い目」。時系列オッズの断面と全頭の予想の確率から、
 単勝と 3連単の買う馬を決める）も出して ``--late-out`` に書く。出せなくても予想は失敗にせず、理由を書く。
+``--kochi-out`` を渡すと、高知のその日の最終レース「ファイナルレース」のときだけ、同じ接続で高知ファイナルの買い目
+（道具「高知ファイナルの買い目」。``--late-odds`` の時系列オッズの断面を材料にする）も出して書く。ほかのレースでは何も書かない。
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from yosou.local_form_aptitude_top3.command.predict_command import PredictComman
 
 from 地方の推奨買目.upset_probabilities import UPSET_BETS, UpsetProbabilities  # noqa: E402
 
+from 発走前の通知.kochi_final_writer import KochiFinalWriter  # noqa: E402
 from 発走前の通知.late_bet_writer import LateBetWriter  # noqa: E402
 from 発走前の通知.local_upset_file import LocalUpsetFile  # noqa: E402
 
@@ -37,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
     parser.add_argument("--upset-out", type=Path, required=True, help="券種ごとの中荒れ以上の確率を書くファイル（<rid>.荒れ具合.json）")
     parser.add_argument("--late-out", type=Path, default=None, help="直前の買い目を書くファイル（<rid>.直前.json。省略すると出さない）")
+    parser.add_argument("--kochi-out", type=Path, default=None, help="高知ファイナルの買い目を書くファイル（<rid>.高知ファイナル.json。省略すると出さない）")
     parser.add_argument("--late-odds", type=Path, default=None, help="そのレースの時系列オッズ（0B41）を取り込んだ DuckDB")
     subparsers = parser.add_subparsers(dest="command", required=True, metavar="predict")
     PredictCommand().add_parser(subparsers)
@@ -53,6 +57,8 @@ def main(args: argparse.Namespace) -> None:
         _write_upsets(con, args.rid, args.upset_out, upset_file)
         if args.late_out is not None:
             LateBetWriter().write(con, args.rid, args.late_out, args.late_odds, args.db, args.timing)
+        if args.kochi_out is not None:
+            KochiFinalWriter().write(con, args.rid, args.kochi_out, args.late_odds)
 
 
 def _write_upsets(con: duckdb.DuckDBPyConnection, rid: str, path: Path, upset_file: LocalUpsetFile) -> None:
