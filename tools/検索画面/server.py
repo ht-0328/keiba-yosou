@@ -47,6 +47,8 @@ APP_VERSION = "10"
 _REPLACE_TIMEOUT_SECONDS = 10.0
 #: 画面が1度に出す行数の上限。
 MAX_LIMIT = 1000
+#: POST の本文として読む上限（バイト）。SQL と予想の指示だけなので、これより長い本文は読まない。
+MAX_BODY_BYTES = 1_000_000
 #: 出馬表の CSV で選べる表（``RaceCard`` の属性名）。
 _CARD_PARTS: tuple[str, ...] = ("entries", "recent")
 #: 傾向スコアの CSV で選べる表（``TrendReport`` のメソッド名）。
@@ -469,6 +471,8 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
 
         def do_POST(self) -> None:
             url = urlparse(self.path)
+            # 本文は、断るときも止めるときも先に読み切る。読み残したまま応答して接続を閉じると、Windows では応答が届く前に接続が切れることがある
+            raw = self.rfile.read(min(_content_length(self.headers), MAX_BODY_BYTES))
             if not _is_local_request(self.headers, self.server.server_address[1]):
                 return self._json({"error": "この画面以外からの操作は受け付けません。"}, 403)
             try:
@@ -478,8 +482,7 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                     return self._json({"stopped": True, "version": APP_VERSION})
                 if url.path not in ("/api/sql", "/api/forecast/run"):
                     return self._json({"error": "not found"}, 404)
-                length = int(self.headers.get("Content-Length") or 0)
-                body = json.loads(self.rfile.read(length) or b"{}")
+                body = json.loads(raw or b"{}")
                 if url.path == "/api/forecast/run":
                     return self._json(backend.forecast_run(str(body.get("rid", "")), body.get("timing") or None))
                 table = backend.sql(str(body.get("sql", "")), max(1, min(int(body.get("limit", browse.WEB_MAX_ROWS)), MAX_LIMIT)),
@@ -489,6 +492,14 @@ def make_handler(backend: Backend) -> type[BaseHTTPRequestHandler]:
                 self._fail(error)
 
     return Handler
+
+
+def _content_length(headers: Any) -> int:
+    """本文の長さ（バイト）。ヘッダーが無い・数でない・負なら 0。"""
+    try:
+        return max(0, int(headers.get("Content-Length") or 0))
+    except ValueError:
+        return 0
 
 
 def _is_local_request(headers: Any, port: int) -> bool:
