@@ -20,12 +20,14 @@ from 今週の予想.forecast_columns import (
     POPULARITY,
     PROBABILITY,
     RANK,
+    UNRATED,
     UPDOWN,
     WIN_ODDS,
     WIN_PROBABILITY,
     WIN_VALUE,
 )
 from 今週の予想.ticket_rules import PLACE_VALUE_LINE
+from 今週の予想.unrated_horse import REASON as UNRATED_REASON
 
 #: ◎ のあとに、3着以内の確率の順で付ける印（○・▲と、△は3頭。利用者の指示「白三角は3点で」）。
 TOP_MARK = "◎"
@@ -68,6 +70,10 @@ class MarkRule:
     - 注: 印の付いていない馬のうち、上げ下げ（logit(予想) − logit(市場の見立て)）がいちばん大きい馬。上げ下げが正（市場より来ると見る）のときだけ。
       オッズの無い時点（木曜）は、市場の見立てが無いので付かない。
     - 無印（``NO_MARK``）: ほかの全部の馬（買わない馬）。
+    - 評価できない馬（列 ``unrated`` が真。所属が招待で中央の過去走が無い馬。``UnratedHorse``）: どの印（消も）の候補にもせず無印にする。
+      モデルの確率がほぼオッズをなぞるだけで、ほかの馬を割り引いたときに相対的に ◎ になってしまうため。
+      オッズのある時点は、印を付ける前に ``UnratedRater`` が過去の同じ種類の招待馬の成績で確率を置き換えて ``unrated`` を偽に戻すので、
+      ここで外れるのは置き換えられなかった馬（木曜など）だけ。
     - 軸（列 ``axis``。印ではない）: ◎○▲ のうち3着以内の確率がいちばん高い馬。◎ と同じ馬のことも ○ のこともある（軸と ◎ が同じでも、
       軸を別の馬に替えない）。3連複・3連単の「軸馬」のパターンで軸にする（設計書 08 の 2）。
     ◎ の単勝の期待値の帯（1.00 以上・未満）は、この表の ◎ の単勝の期待値から ``WinValueBand`` が決める。
@@ -84,7 +90,8 @@ class MarkRule:
         for column in _OPTIONAL_COLUMNS:
             if column not in table.columns:
                 table[column] = np.nan
-        table[IS_DANGER] = table[IS_DANGER].fillna(False).astype(bool) if IS_DANGER in table.columns else False
+        table[UNRATED] = table[UNRATED].fillna(False).astype(bool) if UNRATED in table.columns else False
+        table[IS_DANGER] = (table[IS_DANGER].fillna(False).astype(bool) if IS_DANGER in table.columns else False) & ~table[UNRATED]
         table = table.sort_values([PROBABILITY, HORSE_NO], ascending=[False, True], na_position="last").reset_index(drop=True)
         table[RANK] = np.arange(1, len(table) + 1)
         table[POPULARITY] = table[WIN_ODDS].rank(method="min")
@@ -104,12 +111,13 @@ class MarkRule:
         if not (table[MARK] == VALUE_MARK).any():
             self._mark_value(table, -np.inf)
         for row in table.index[table[MARK] == NO_MARK]:
-            table.loc[row, MARK_REASON] = self._out_reason(table.loc[row], any_danger=len(dangers) > 0)
+            table.loc[row, MARK_REASON] = (UNRATED_REASON if table.loc[row, UNRATED]
+                                           else self._out_reason(table.loc[row], any_danger=len(dangers) > 0))
         return table
 
     def _mark_top_and_ranks(self, table: pd.DataFrame, *, any_danger: bool) -> None:
         """危険な人気馬を除いて ◎ を決め、残りに3着以内の確率の順で ○▲△。"""
-        candidates = list(table.index[~table[IS_DANGER]])
+        candidates = list(table.index[~table[IS_DANGER] & ~table[UNRATED]])
         if not candidates:
             return
         top = self._top_pick(table, candidates)
@@ -163,12 +171,12 @@ class MarkRule:
         table.loc[row, MARK_REASON] = f"穴馬（{table.loc[row, POPULARITY]:.0f}番人気）の中で複勝の期待値がいちばん高い（{value:.2f}。{use}）"
 
     def _value_candidates(self, table: pd.DataFrame) -> pd.Series:
-        """☆ の候補（真偽）: 印の付いていない、人気馬の範囲より下の人気の馬。"""
-        return (table[MARK] == NO_MARK) & (table[POPULARITY] > _favorite_count(len(table)))
+        """☆ の候補（真偽）: 印の付いていない、評価できる、人気馬の範囲より下の人気の馬。"""
+        return (table[MARK] == NO_MARK) & ~table[UNRATED] & (table[POPULARITY] > _favorite_count(len(table)))
 
     def _mark_note(self, table: pd.DataFrame) -> None:
-        """印の無い馬のうち、市場の見立てより来ると見る度合いがいちばん大きい馬に 注（正のときだけ）。"""
-        candidates = table[table[MARK] == NO_MARK][UPDOWN].dropna()
+        """印の無い評価できる馬のうち、市場の見立てより来ると見る度合いがいちばん大きい馬に 注（正のときだけ）。"""
+        candidates = table[(table[MARK] == NO_MARK) & ~table[UNRATED]][UPDOWN].dropna()
         if candidates.empty or candidates.max() <= 0:
             return
         row = candidates.idxmax()

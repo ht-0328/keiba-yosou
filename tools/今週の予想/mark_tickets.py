@@ -24,6 +24,7 @@ from 今週の予想.forecast_columns import (
     PROBABILITY,
     REVERSE_EXACTA,
     TRIO_UPSET,
+    UNRATED,
     WIN_ODDS,
     WIN_PROBABILITY,
     WIN_VALUE,
@@ -88,6 +89,8 @@ class MarkTickets:
       3連複の荒れ具合（列 ``trio_upset``。``TrioUpsetJudge`` が決めたもの。無ければ買わない）がそのどれかのレースだけ。組の期待値は付けるだけで
       絞らない（オッズの下限のあるルールの安い組は ``TorigamiFilter`` が外す）。
     - 複勝の馬を軸にするワイド・馬連（``PLACE_AXIS_RULES``）: 複勝の買い目の馬を軸に、◎○▲ に流す。
+    評価できない馬（列 ``unrated`` が真。``UnratedHorse``）は印が付かず、印で選ばない買い方（単勝（期待値）・複勝・6番人気以下の複勝・
+    馬の集まりから組む3連複）でも選ばない。
     列は ``COLUMNS``。
     """
 
@@ -187,7 +190,8 @@ class MarkTickets:
         単勝オッズか単勝の期待値の列が無ければ（木曜・前の形の表）買わない。"""
         if WIN_ODDS not in race.columns or WIN_VALUE not in race.columns or not (race[WIN_ODDS].min() >= WIN_FAVORITE_MIN):
             return []
-        priced = race[(race[WIN_VALUE] >= WIN_VALUE_LINE) & (race[WIN_ODDS] <= WIN_ODDS_CAP)].sort_values(WIN_VALUE, ascending=False).head(1)
+        chosen = (race[WIN_VALUE] >= WIN_VALUE_LINE) & (race[WIN_ODDS] <= WIN_ODDS_CAP) & _rated(race)
+        priced = race[chosen].sort_values(WIN_VALUE, ascending=False).head(1)
         return [(int(no), float(value)) for no, value in zip(priced[HORSE_NO], priced[WIN_VALUE], strict=True)]
 
     def _place_edge(self, race: pd.DataFrame) -> pd.Series | None:
@@ -203,7 +207,7 @@ class MarkTickets:
         if edge is None:
             return []
         with np.errstate(invalid="ignore"):
-            chosen = (race[POPULARITY] >= LONGSHOT_PLACE_MIN_POPULARITY) & (edge >= LONGSHOT_PLACE_EDGE)
+            chosen = (race[POPULARITY] >= LONGSHOT_PLACE_MIN_POPULARITY) & (edge >= LONGSHOT_PLACE_EDGE) & _rated(race)
         return sorted(int(no) for no in race.loc[chosen.fillna(False), HORSE_NO])
 
     @staticmethod
@@ -223,12 +227,12 @@ class MarkTickets:
         if edge is None:
             return []
         if pool.kind == MODEL_TOP:
-            ranked = race[~danger].sort_values(PROBABILITY, ascending=False, kind="stable")
+            ranked = race[~danger & _rated(race)].sort_values(PROBABILITY, ascending=False, kind="stable")
             return sorted(int(no) for no in ranked[HORSE_NO].head(pool.count))
         favorites = (race[POPULARITY] <= FAVORITE_MAX_POPULARITY) & ~danger
         within = {FAVORITES: favorites, STRONG_FAVORITES: favorites, UP_TO: (race[POPULARITY] <= (pool.count or 0)) & ~danger,
                   LONGSHOTS: race[POPULARITY] >= LONGSHOT_PLACE_MIN_POPULARITY, NOT_DANGER: ~danger}[pool.kind]
-        kept = within
+        kept = within & _rated(race)
         if pool.edge is not None:
             with np.errstate(invalid="ignore"):
                 kept = within & (edge >= pool.edge).fillna(False)
@@ -241,7 +245,7 @@ class MarkTickets:
         field = race["field_size"].iloc[0] if "field_size" in race.columns else len(race)
         if race[WIN_VALUE_BAND].iloc[0] != HIGH or not (field >= PLACE_MIN_FIELD) or PLACE_ODDS_LOW not in race.columns:
             return []
-        chosen = (race[PLACE_VALUE] >= PLACE_BUY_LINE) & (race[PLACE_ODDS_LOW] <= PLACE_ODDS_CAP)
+        chosen = (race[PLACE_VALUE] >= PLACE_BUY_LINE) & (race[PLACE_ODDS_LOW] <= PLACE_ODDS_CAP) & _rated(race)
         priced = race[chosen].sort_values(PLACE_VALUE, ascending=False).head(PLACE_MAX_POINTS)
         if agreement:
             for member in MEMBERS:
@@ -249,3 +253,10 @@ class MarkTickets:
                 values = priced[column] if column in priced.columns else pd.Series(np.nan, index=priced.index)
                 priced = priced[values >= PLACE_BUY_LINE]
         return [int(no) for no in priced[HORSE_NO]]
+
+
+def _rated(race: pd.DataFrame) -> pd.Series:
+    """評価できる馬か（真偽）。評価できない馬の列（``UNRATED``）が無ければ（前の形の表）全部の馬を評価できるとする。"""
+    if UNRATED not in race.columns:
+        return pd.Series(True, index=race.index)
+    return ~race[UNRATED].fillna(False).astype(bool)

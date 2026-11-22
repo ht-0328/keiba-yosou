@@ -24,6 +24,7 @@ from 今週の予想.combo_race_traits import ComboRaceTraits
 from 今週の予想.combo_value_rule import HIGH_RACES, HIGH_TOP_COMBOS, TOP_COMBOS, ComboValueRule
 from 今週の予想.filter_columns import AGREEMENT, POOL_BACKED
 from 今週の予想.forecast_columns import HORSE_NO, MARK, WIN_VALUE_BAND
+from 今週の予想.unrated_combos import UnratedCombos
 from 今週の予想.mark_rule import TOP_MARK
 from 今週の予想.mark_tickets import COLUMNS, RULE
 
@@ -41,7 +42,8 @@ class ComboValuePicker:
     その券種の板と馬ごとの比と合わせて、重み（``weights``）で1つにする（``ComboBlendFeatures``・``ComboBlend``）。
     3連単の板か、その券種の板か、重みが無い券種は 0点。◎の期待値 1.00 以上のレースだけのルールは、ほかのレースの組を落とし、
     ◎ を含む組だけのルールは ◎ を含まない組（馬単・3連単は ◎ が1着でない組）を落とす。レースの条件（``race_conditions``）のあるルールは、
-    条件のどれかに合わないレース（中身は ``ComboRaceTraits``）の組を落とす。1レースの点数の上限があれば、組の期待値の高い順に残す。
+    条件のどれかに合わないレース（中身は ``ComboRaceTraits``）の組を落とす。評価できない馬（``UnratedHorse``）を含む組も落とす。
+    1レースの点数の上限があれば、組の期待値の高い順に残す。
 
     2段に分かれている。``candidates`` は印と消に依らない段（確率と板から、線以上・上限以下の組を出す）、``select`` は印と消で決まる段
     （◎の期待値の帯・◎ を含む組・レースの条件・点数で絞る）。``pick`` はその2段を続けて行う。消の決め方を替えて比べるときは、
@@ -54,6 +56,7 @@ class ComboValuePicker:
         self._features = ComboBlendFeatures()
         self._blend = ComboBlend()
         self._folding = PoolFolding()
+        self._unrated = UnratedCombos()
 
     def with_weights(self, weights: dict[TicketType, ComboBlendWeights]) -> ComboValuePicker:
         """同じルールで、重みを直前1年で推定し直す券種（ルールの ``rolling``）の重みだけを ``weights`` に差し替えた部品。"""
@@ -102,6 +105,7 @@ class ComboValuePicker:
             chosen = chosen[self._has_top(rule.ticket_type, chosen)]
         for condition in rule.race_conditions:
             chosen = chosen[condition.passes(chosen)]
+        chosen = chosen[~self._unrated.hits(chosen, ("h1", "h2", "h3")[:rule.ticket_type.spec.horse_count])]
         if rule.max_points:
             chosen = chosen[chosen.groupby("race_id")[VALUE].rank(ascending=False, method="first") <= rule.max_points]
         return chosen.assign(**{RULE: rule.label, "ticket_type": rule.ticket_type.label, "stake_units": rule.stake_units})[list(COLUMNS)]
@@ -115,6 +119,7 @@ class ComboValuePicker:
         tops = marked[marked[MARK] == TOP_MARK] if MARK in marked.columns else marked.iloc[0:0]
         top_of = dict(zip(tops["race_id"].astype(str), tops[HORSE_NO].astype(int)))
         races[_TOP] = races["race_id"].map(top_of)
+        races = self._unrated.attach(races, marked)
         for flag in (AGREEMENT, POOL_BACKED):
             races[flag] = races[flag].fillna(False).astype(bool)
         return races.merge(ComboRaceTraits().of(marked), on="race_id", how="left")

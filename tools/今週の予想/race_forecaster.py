@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,9 @@ from 今週の予想.race_grader import RaceGrader
 from 今週の予想.reverse_exacta_judge import LINE as REVERSE_LINE
 from 今週の予想.reverse_exacta_judge import ReverseExactaJudge
 from 今週の予想.story_attacher import StoryAttacher
+from 今週の予想.invited_rates import InvitedRates
+from 今週の予想.unrated_entry_reader import UnratedEntryReader
+from 今週の予想.unrated_rater import UnratedRater
 
 #: 予想の結果の表の列 → この道具の列。
 _RENAMES: dict[str, str] = {
@@ -54,7 +58,7 @@ _RENAMES: dict[str, str] = {
 _HORSE_COLUMNS: tuple[str, ...] = (
     columns.RANK, columns.MARK, columns.MARK_REASON, columns.HORSE_NO, columns.HORSE_NAME, columns.HORSE_ID,
     columns.PROBABILITY, columns.WIN_ODDS, columns.POPULARITY, columns.MARKET_TOP3, columns.PLACE_VALUE, columns.UPDOWN,
-    columns.WIN_PROBABILITY, columns.WIN_VALUE, columns.MARKET_WIN, columns.AXIS, *columns.DANGER_COLUMNS,
+    columns.WIN_PROBABILITY, columns.WIN_VALUE, columns.MARKET_WIN, columns.AXIS, columns.UNRATED, *columns.DANGER_COLUMNS,
 )
 #: 予想の名前（画面に出す）。
 MODEL_NAME = "近走と適性から3着以内を予想（3着以内と1着のモデル。危険な人気馬は 人気馬が4着以下になるかを予想）"
@@ -68,6 +72,9 @@ class RaceForecaster:
     ``MaterialAttachers``（``yosou.form_aptitude_materials``）を渡して行う（木曜は展開の予想の結果、前日は展開スコアも使う。当日に券種のオッズが無ければ
     券種オッズなしのモデル。3着以内のモデルと1着のモデルの両方で予測する）。
     前日・当日は、危険な人気馬（1レース1頭まで）を予想「人気馬が4着以下になるかを予想」で判定して、印を付ける前に消にする（``DangerFinder``）。
+    所属が招待で中央の過去走が無い馬（列 ``unrated``。``UnratedHorse``）は、モデルの確率の代わりに、過去の同じ種類（外国招待・地方招待）の招待馬の
+    中央での初出走の成績で確率を出して印を付ける（``UnratedRater``・``InvitedRates``。印の理由に評価の文を足す）。オッズの無い木曜は評価できないので、
+    印と買い目の候補から外す。
     ◎ は単勝 30倍以下の馬の中で単勝の期待値（1着になる確率 × 単勝オッズ）が1位の馬で、◎ の単勝の期待値が線（1.00）以上か未満か（``win_value_band``。
     買い方の決まりの条件。設計書「近走と適性から3着以内を予想」の 16 の 6。木曜は期待値が無いので無い）も出す。
     レースの目安として、期待度（◎ の単勝の期待値 0.90 未満は見送り、それ以外は S・A・B・C。人に見せるのはこれだけ）・的中率（◎ の単勝が当たる確率）・配当率（配当が中荒れ以上になる確率。
@@ -96,6 +103,8 @@ class RaceForecaster:
         self._tickets = ForecastTickets(ComboBlendWeightsRepository(self._models).load(), BracketBlendWeightsRepository(self._models).load())
         self._reverse = ReverseExactaJudge.load(self._models)
         self._danger_reasons = DangerReasons()
+        self._unrated = UnratedEntryReader()
+        self._invited: tuple[duckdb.DuckDBPyConnection, InvitedRates] | None = None
         self._stories = StoryAttacher(review_store)
         self._materials: MaterialAttachers | None = None
 
@@ -108,7 +117,9 @@ class RaceForecaster:
         chosen = timing or choice.timing
         reason = choice.reason if timing is None else f"{chosen.label}のモデル（指定）"
         explained = self._prediction.explain(con, race_id, chosen)
-        horses, marked = self._horses(explained, self._dangers.find(con, race_id, chosen))
+        rater = UnratedRater(self._invited_rates(con))
+        horses, marked = self._horses(explained, self._dangers.find(con, race_id, chosen), self._unrated.read(con, race_id),
+                                      lambda table: rater.rate(table, header["日付"]))
         self._stories.attach(con, horses, date.fromisoformat(header["日付"]))
         band = self._win_value_band(horses)
         grades = self._grader.grade(con, race_id, chosen, horses)
@@ -139,8 +150,16 @@ class RaceForecaster:
         tops = [horse for horse in horses if horse[columns.MARK] == "◎"]
         return self._band.of(tops[0].get(columns.WIN_VALUE)) if tops else None
 
-    def _horses(self, explained: ExplainedPrediction, dangers: pd.DataFrame) -> tuple[list[dict[str, Any]], pd.DataFrame]:
-        """全頭の結果（3着以内の確率の高い順）と、印を付けた表（買い目を組むのに使う）。``dangers`` は人気馬の危険の判定（``DangerFinder``。木曜は空）。"""
+    def _invited_rates(self, con: duckdb.DuckDBPyConnection) -> InvitedRates:
+        """招待馬の評価の部品（DB の接続ごとに1つ作り、同じ接続の間は使い回す。最初の評価のときに DB を1回だけ読む）。"""
+        if self._invited is None or self._invited[0] is not con:
+            self._invited = (con, InvitedRates(con))
+        return self._invited[1]
+
+    def _horses(self, explained: ExplainedPrediction, dangers: pd.DataFrame, unrated: pd.Series,
+                rate: Callable[[pd.DataFrame], pd.DataFrame]) -> tuple[list[dict[str, Any]], pd.DataFrame]:
+        """全頭の結果（3着以内の確率の高い順）と、印を付けた表（買い目を組むのに使う）。``dangers`` は人気馬の危険の判定（``DangerFinder``。木曜は空）、
+        ``unrated`` は馬ID → 評価できない馬か（``UnratedEntryReader``）、``rate`` は評価できない馬の確率を置き換える関数（``UnratedRater.rate``）。"""
         table = explained.table.rename(columns=_RENAMES)
         table = table[[column for column in _RENAMES.values() if column in table.columns]]
         table = table.assign(**{"_row": table.index, columns.HORSE_ID: table[columns.HORSE_ID].astype(str)})
@@ -148,7 +167,10 @@ class RaceForecaster:
             table[columns.MARKET_WIN] = self._market_win(table[columns.WIN_ODDS])
         dangers = dangers.assign(**{columns.HORSE_ID: dangers[columns.HORSE_ID].astype(str)})
         table = table.merge(dangers, on=columns.HORSE_ID, how="left").set_index(table.index)
-        marked = self._marks.assign(table)
+        table[columns.UNRATED] = table[columns.HORSE_ID].map(unrated).fillna(False).astype(bool)
+        marked = self._marks.assign(rate(table))
+        noted = marked[columns.INVITED_NOTE].notna()
+        marked.loc[noted, columns.MARK_REASON] = marked.loc[noted, columns.MARK_REASON] + "。" + marked.loc[noted, columns.INVITED_NOTE]
         horses = []
         for index, horse in marked.iterrows():
             row = horse["_row"]
@@ -157,7 +179,11 @@ class RaceForecaster:
                 if reasons:
                     marked.loc[index, columns.MARK_REASON] = horse[columns.MARK_REASON] + "。理由: " + "・".join(reasons)
                     horse = marked.loc[index]
-            evaluation = self._evaluator.evaluate(horse, explained.features.loc[row], explained.contributions.loc[row])
+            contributions = explained.contributions.loc[row]
+            if pd.notna(horse.get(columns.INVITED_NOTE)):
+                # 確率を招待馬の成績で置き換えた馬は、モデルの寄与（材料の空いた相手関係・近走など）を良い点・悪い点にしない
+                contributions = contributions * 0.0
+            evaluation = self._evaluator.evaluate(horse, explained.features.loc[row], contributions)
             horses.append({**{column: _plain(horse.get(column)) for column in _HORSE_COLUMNS}, **evaluation})
         return horses, marked
 

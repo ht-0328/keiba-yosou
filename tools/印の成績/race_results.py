@@ -22,7 +22,8 @@ class RaceResults:
     """``race_ids`` のレースに出走した馬の結果を読む。
 
     列は race_id・horse_id・horse_no・finish（着順。付かなければ欠損値）・win_odds（確定の単勝オッズ）・popularity（確定の単勝人気）・
-    win_payout・place_payout（100円あたりの払戻。当たらなければ 0）・field_size・place_odds_low・place_odds_high（確定の複勝オッズ）。
+    win_payout・place_payout（100円あたりの払戻。当たらなければ 0）・field_size・affiliation（所属）・runs_before（今回より前の中央の出走数）・
+    place_odds_low・place_odds_high（確定の複勝オッズ）。
     出走取消・除外は入れない。
     """
 
@@ -31,7 +32,8 @@ class RaceResults:
         con.register("mark_stats_race_ids", pd.DataFrame({"race_id": race_ids.astype(str).drop_duplicates()}))
         con.execute(f"CREATE OR REPLACE TEMP TABLE {_WANTED} AS SELECT * FROM mark_stats_race_ids")
         runs = con.execute(f"""
-            SELECT f.race_id, f.horse_id, f.horse_no, f.finish, f.win_odds, f.popularity, f.win_payout, f.place_payout, f.field_size
+            SELECT f.race_id, f.horse_id, f.horse_no, f.finish, f.win_odds, f.popularity, f.win_payout, f.place_payout, f.field_size,
+                   f.affiliation, f.runs_before
             FROM {table} AS f JOIN {_WANTED} USING (race_id)
             WHERE f.ran
         """).df().astype({"race_id": str, "horse_id": str})

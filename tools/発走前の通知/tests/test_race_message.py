@@ -135,8 +135,9 @@ def test_重賞は実際に買う買い目のあとに印の買い目を参考�
     message, _ = _message(tmp_path, forecast)
     lines = message.build(RID).text.splitlines()
     head = lines.index("印の買い目（参考・1点 100円）:")
-    # 単勝 ◎ と 3連単 ◎→○▲☆→○▲△☆ だけ（軸から流す形・トリガミの組は出さない）。予想に無い印の買い方は出さない
-    assert lines[head + 1:] == ["- 単勝: 1点 100円  3", "- 3連単（◎→○▲☆→○▲△☆）: 1点 100円  3→7→1"]
+    # 単勝 ◎ と 3連単 ◎→○▲☆→○▲△☆ だけ（軸から流す形・トリガミの組は出さない）。予想に無い印の買い方は出さない。
+    # この予想には ☆ がいないので、買い方の名前からも ☆ を除いて見せる（ShownRuleName）
+    assert lines[head + 1:] == ["- 単勝: 1点 100円  3", "- 3連単（◎→○▲→○▲△）: 1点 100円  3→7→1"]
     forecast["header"] = {"クラス": "3勝クラス"}
     message, _ = _message(tmp_path / "別", forecast)
     assert "印の買い目（参考" not in message.build(RID).text   # 全レースの印の買い目（見込みの回収率）の欄だけ

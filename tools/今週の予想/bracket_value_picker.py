@@ -24,6 +24,7 @@ from 今週の予想.filter_columns import AGREEMENT, POOL_BACKED
 from 今週の予想.forecast_columns import HORSE_NO, MARK, WIN_VALUE_BAND
 from 今週の予想.mark_rule import TOP_MARK
 from 今週の予想.mark_tickets import COLUMNS, RULE, VALUE
+from 今週の予想.unrated_combos import UnratedCombos
 
 #: レースから写す列（無ければ偽か欠損）。
 _RACE_COLUMNS: tuple[str, ...] = ("race_id", "race_date", "fold", WIN_VALUE_BAND, AGREEMENT, POOL_BACKED)
@@ -49,6 +50,7 @@ class BracketValuePicker:
         self._weights = weights
         self._features = ComboBlendFeatures()
         self._folding = PoolFolding()
+        self._unrated = UnratedCombos()
 
     @property
     def ready(self) -> bool:
@@ -72,7 +74,7 @@ class BracketValuePicker:
 
     def select(self, candidates: pd.DataFrame, races: pd.DataFrame) -> pd.DataFrame:
         """印と消で決まる段。``candidates`` を ``races``（``races`` の戻り値）で絞って買い目の形にする
-        （◎の期待値の帯・◎ の枠を含む組・レースの条件・1レースの点数の上限）。"""
+        （◎の期待値の帯・◎ の枠を含む組・レースの条件・評価できない馬のいる枠を含む組・1レースの点数の上限）。"""
         empty = pd.DataFrame(columns=list(COLUMNS))
         if candidates.empty:
             return empty
@@ -83,6 +85,7 @@ class BracketValuePicker:
             chosen = chosen[(chosen["f1"] == chosen["top_frame"]) | (chosen["f2"] == chosen["top_frame"])]
         for condition in self._rule.race_conditions:
             chosen = chosen[condition.passes(chosen)]
+        chosen = chosen[~self._unrated.hits(chosen, ("f1", "f2"))]
         if self._rule.max_points:
             chosen = chosen[chosen.groupby("race_id")[VALUE].rank(ascending=False, method="first") <= self._rule.max_points]
         if chosen.empty:
@@ -124,4 +127,5 @@ class BracketValuePicker:
         frame_of = frames.assign(race_id=frames["race_id"].astype(str)).set_index(["race_id", "horse_no"])["frame"]
         top_frames = frame_of.reindex(pd.MultiIndex.from_arrays([tops["race_id"].astype(str), tops[HORSE_NO].astype(int)])).to_numpy()
         races["top_frame"] = races["race_id"].map(dict(zip(tops["race_id"].astype(str), top_frames)))
+        races = self._unrated.attach(races, marked, frame_of)
         return races.merge(ComboRaceTraits().of(marked), on="race_id", how="left")
