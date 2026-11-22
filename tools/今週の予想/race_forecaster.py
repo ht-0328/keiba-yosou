@@ -169,8 +169,10 @@ class RaceForecaster:
         table = table.merge(dangers, on=columns.HORSE_ID, how="left").set_index(table.index)
         table[columns.UNRATED] = table[columns.HORSE_ID].map(unrated).fillna(False).astype(bool)
         marked = self._marks.assign(rate(table))
-        noted = marked[columns.INVITED_NOTE].notna()
-        marked.loc[noted, columns.MARK_REASON] = marked.loc[noted, columns.MARK_REASON] + "。" + marked.loc[noted, columns.INVITED_NOTE]
+        noted = marked.index[marked[columns.INVITED_NOTE].notna()]
+        for index in noted:
+            # 評価の文を足すのは招待馬を評価したレースだけ（文字列の列どうしの足し算は、空の列で型が合わずに落ちるので1頭ずつ足す）
+            marked.loc[index, columns.MARK_REASON] = f"{marked.loc[index, columns.MARK_REASON]}。{marked.loc[index, columns.INVITED_NOTE]}"
         horses = []
         for index, horse in marked.iterrows():
             row = horse["_row"]
