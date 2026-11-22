@@ -26,6 +26,11 @@ class _Schedule:
         return [RACE]
 
 
+class _Jockeys:
+    def read(self, rid: str) -> dict[int, str]:
+        return {3: "騎手A"}
+
+
 class _Frames:
     def read(self, rid: str) -> dict[int, int]:
         return {3: 2}
@@ -46,7 +51,7 @@ def _forecast(*, plan: RacePlan | None = None, danger: bool = True) -> dict:
 def _message(tmp_path: Path, forecast: dict) -> tuple[RaceMessage, ForecastStore]:
     store = ForecastStore(tmp_path / "今週の予想")
     store.save(forecast)
-    return RaceMessage(store, schedule=_Schedule(), frames=_Frames(), folder=tmp_path / "中央"), store
+    return RaceMessage(store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), folder=tmp_path / "中央"), store
 
 
 def test_文は見出し_目安_印の付いた馬_買い目だけで_添付は表の画像と全頭の予想根拠(tmp_path: Path) -> None:
@@ -80,7 +85,7 @@ class _Tendencies:
 def test_先に終わったレースがあれば_目安の下に馬場の傾向の行(tmp_path: Path) -> None:
     store = ForecastStore(tmp_path / "今週の予想")
     store.save(_forecast())
-    message = RaceMessage(store, schedule=_Schedule(), frames=_Frames(), folder=tmp_path / "中央", tendencies=_Tendencies())
+    message = RaceMessage(store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), folder=tmp_path / "中央", tendencies=_Tendencies())
     lines = message.build(RID).text.splitlines()
     assert lines[2] == "馬場 東京・芝（ここまで3R）: 前が止まらない。3着以内9頭の4角は 前 8・中 1・後ろ 0（過去3年の東京・芝は 前 50%・中 33%・後ろ 17%）"
     assert lines[3] == "◎ 3 馬A：単勝の期待値がレース内1位"
@@ -102,8 +107,9 @@ def test_推定脚質を表の中身に渡す(tmp_path: Path) -> None:
             from PIL import Image
             return Image.new("RGB", (1, 1))
 
-    RaceMessage(store, schedule=_Schedule(), frames=_Frames(), image=_Image(), folder=tmp_path / "中央", styles=_Styles()).build(RID)
+    RaceMessage(store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), image=_Image(), folder=tmp_path / "中央", styles=_Styles()).build(RID)
     assert seen[0].styles == {3: "先行", 7: "逃げ"}
+    assert seen[0].jockeys == {3: "騎手A"}
 
 
 def test_表は印の順で_危険な人気馬でない消は無印(tmp_path: Path) -> None:
@@ -124,7 +130,7 @@ def test_買わないときは_なし_と理由_全レースの印の買い目�
 
 def test_予想が無ければ止まる(tmp_path: Path) -> None:
     with pytest.raises(LookupError, match=RID):
-        RaceMessage(ForecastStore(tmp_path), schedule=_Schedule(), frames=_Frames(), folder=tmp_path).build(RID)
+        RaceMessage(ForecastStore(tmp_path), schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), folder=tmp_path).build(RID)
 
 
 def test_重賞は実際に買う買い目のあとに印の買い目を参考で出し_重賞でなければ出さない(tmp_path: Path) -> None:
