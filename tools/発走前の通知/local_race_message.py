@@ -35,6 +35,7 @@ from 発走前の通知.local_bet_rule import LocalBetRule
 from 発走前の通知.local_expectation import LocalExpectation
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.race_frames import RaceFrames
+from 発走前の通知.race_jockeys import RaceJockeys
 from 発走前の通知.local_race_card import LocalRaceCard
 from 発走前の通知.mark_lines import MarkLines
 from 発走前の通知.race_image import RaceImage
@@ -98,7 +99,7 @@ class LocalRaceMessage:
     def __init__(self, store: LocalForecastStore | None = None, schedule: LocalRaceSchedule | None = None,
                  marks: MarkRule | None = None, frames: RaceFrames | None = None, bets: LocalBetRule | None = None,
                  image: RaceImage | None = None, recommendations: Recommendations | None = None,
-                 tendencies: Tendencies | None = None, styles: RaceStyles | None = None) -> None:
+                 tendencies: Tendencies | None = None, styles: RaceStyles | None = None, jockeys: RaceJockeys | None = None) -> None:
         self._store = store or LocalForecastStore()
         self._schedule = schedule or LocalRaceSchedule()
         self._marks = marks or MarkRule()
@@ -108,6 +109,7 @@ class LocalRaceMessage:
         self._recommendations = recommendations or NoRecommendations()
         self._tendencies = tendencies
         self._styles = styles
+        self._jockeys = jockeys or RaceJockeys()
         self._late = LateBetFile()
         self._kochi_final = FinalBetFile()
 
@@ -120,7 +122,8 @@ class LocalRaceMessage:
         marks = self._recommendations.marks(rid, forecast, self.marked(forecast)) if self._race_day(forecast) else MarkBets()
         card = self.card(forecast, race, self._frames.read(rid), self._recommendations.recommend(rid, forecast),
                          tendency.text() if tendency else "", self._styles.read(rid) if self._styles else {}, marks,
-                         self._late.read(self._store.late_path(rid)), self._kochi_final.read(self._store.kochi_final_path(rid)))
+                         self._late.read(self._store.late_path(rid)), self._kochi_final.read(self._store.kochi_final_path(rid)),
+                         self._jockeys.read(rid))
         path = self._store.image_path(rid)
         self._image.draw(card).save(path)
         return RaceNotice(self.describe(card), (path,))
@@ -132,7 +135,7 @@ class LocalRaceMessage:
     def card(self, forecast: dict[str, Any], race: ScheduledRace | None, frames: Mapping[int, int],
              recommended: RecommendationSet | None = None, tendency: str = "",
              styles: Mapping[int, str] | None = None, marks: MarkBets | None = None, late: LateBets | None = None,
-             kochi_final: FinalBets | None = None) -> LocalRaceCard:
+             kochi_final: FinalBets | None = None, jockeys: Mapping[int, str] | None = None) -> LocalRaceCard:
         """predict の JSON（``columns``・``rows``・``title``）・レース一覧の行・推奨買目・印の買い目から、通知の中身を組む。"""
         table = self.marked(forecast)
         title = str(forecast.get("title", ""))
@@ -142,7 +145,7 @@ class LocalRaceMessage:
         bets = self._bets.pick(table, race_day, recommended)
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
-                             frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}),
+                             frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}), jockeys=dict(jockeys or {}),
                              expectation=LocalExpectation.of(late) if race_day else LocalExpectation.not_race_day(),
                              marks=marks if marks is not None and race_day else MarkBets(), late=late if race_day else None,
                              kochi_final=kochi_final)

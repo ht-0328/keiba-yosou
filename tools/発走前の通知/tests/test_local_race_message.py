@@ -49,6 +49,11 @@ class _Schedule:
         return [RACE]
 
 
+class _Jockeys:
+    def read(self, rid: str) -> dict[int, str]:
+        return {7: "騎手A"}
+
+
 class _Frames:
     def read(self, rid: str) -> dict[int, int]:
         return {7: 5, 4: 3}
@@ -144,7 +149,7 @@ def test_組み立てると_推奨買目を呼び_文と_保存した表の画�
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
     recommendations = _Recommendations()
-    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), recommendations=recommendations).build(RID)
+    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=recommendations).build(RID)
     assert recommendations.calls == [RID]
     assert recommendations.marked == [["◎", "○", "▲", "△", "△", "△", "☆", "注"]]   # 印を付けた表を渡す
     assert notice.text.startswith("**笠松 1R（10:25 発走）** 地方の予想・当日の時点")
@@ -172,7 +177,7 @@ def test_推定脚質を表の中身に渡す(tmp_path: Path) -> None:
             from PIL import Image
             return Image.new("RGB", (1, 1))
 
-    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), image=_Image(), styles=_Styles()).build(RID)
+    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), image=_Image(), styles=_Styles()).build(RID)
     assert seen[0].styles == {7: "逃げ", 4: "差し"}
 
 
@@ -190,7 +195,7 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
     tendencies = _Tendencies()
-    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), tendencies=tendencies).build(RID)
+    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), tendencies=tendencies).build(RID)
     assert tendencies.calls == [(RID, "笠松")]
     lines = notice.text.splitlines()
     assert lines[1] == "期待度 なし（見込みを出せない）"   # 直前の買い目のファイルが無い組み立て
@@ -216,7 +221,7 @@ def test_印の買い目が出せなければ理由を書き_前日の時点は�
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("前日"), ensure_ascii=False), encoding="utf-8")
     recommendations = _Recommendations()
-    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), recommendations=recommendations).build(RID)
+    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=recommendations).build(RID)
     assert recommendations.marked == []   # 前日の時点は印の買い目を呼ばない
 
 
@@ -244,7 +249,7 @@ def test_組み立てると_保存してある直前の買い目を読んで文�
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
-    message = LocalRaceMessage(store, _Schedule(), frames=_Frames(), recommendations=_Recommendations())
+    message = LocalRaceMessage(store, _Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=_Recommendations())
     before = message.build(RID).text
     LateBetFile().write(store.late_path(RID), LATE)
     after = message.build(RID).text
@@ -269,7 +274,7 @@ def test_高知ファイナルの買い目は最後に出し_出せなければ�
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
-    built = LocalRaceMessage(store, _Schedule(), frames=_Frames(), recommendations=_Recommendations())
+    built = LocalRaceMessage(store, _Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=_Recommendations())
     before = built.build(RID).text
     FinalBetFile().write(store.kochi_final_path(RID), bets)
     after = built.build(RID).text

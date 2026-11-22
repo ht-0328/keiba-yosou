@@ -22,6 +22,7 @@ from 発走前の通知.folders import CENTRAL_FOLDER
 from 発走前の通知.jra_race_card import MARK_BETS_LABEL, MARK_RETURN_LABEL, JraRaceCard
 from 発走前の通知.mark_lines import MarkLines
 from 発走前の通知.race_frames import RaceFrames
+from 発走前の通知.race_jockeys import RaceJockeys
 from 発走前の通知.race_image import RaceImage
 from 発走前の通知.race_notice import RaceNotice
 from 発走前の通知.race_schedule import RaceSchedule
@@ -43,7 +44,8 @@ class RaceMessage:
 
     def __init__(self, store: ForecastStore | None = None, describer: RaceDescriber | None = None,
                  schedule: RaceSchedule | None = None, frames: RaceFrames | None = None, image: RaceImage | None = None,
-                 folder: Path = CENTRAL_FOLDER, tendencies: Tendencies | None = None, styles: RaceStyles | None = None) -> None:
+                 folder: Path = CENTRAL_FOLDER, tendencies: Tendencies | None = None, styles: RaceStyles | None = None,
+                 jockeys: RaceJockeys | None = None) -> None:
         self._store = store or ForecastStore()
         self._describer = describer or RaceDescriber()
         self._schedule = schedule or RaceSchedule()
@@ -52,6 +54,7 @@ class RaceMessage:
         self._folder = Path(folder)
         self._tendencies = tendencies
         self._styles = styles
+        self._jockeys = jockeys or RaceJockeys(default=db.JRA)
 
     def build(self, rid: str) -> RaceNotice:
         forecast = self._store.load(rid)
@@ -60,7 +63,7 @@ class RaceMessage:
         race = self._find(rid)
         tendency = self._tendencies.of(rid, race.venue) if self._tendencies and race else None
         card = self.card(forecast, race, self._frames.read(rid), tendency.text() if tendency else "",
-                         self._styles.read(rid) if self._styles else {})
+                         self._styles.read(rid) if self._styles else {}, self._jockeys.read(rid))
         path = self.image_path(rid)
         path.parent.mkdir(parents=True, exist_ok=True)
         self._image.draw(card).save(path)
@@ -71,7 +74,7 @@ class RaceMessage:
         return self._folder / f"{rid[:4]}-{rid[4:6]}-{rid[6:8]}" / f"{rid}.png"
 
     def card(self, forecast: dict[str, Any], race: ScheduledRace | None, frames: Mapping[int, int], tendency: str = "",
-             styles: Mapping[int, str] | None = None) -> JraRaceCard:
+             styles: Mapping[int, str] | None = None, jockeys: Mapping[int, str] | None = None) -> JraRaceCard:
         """予想の JSON（``horses``・``tickets``・``plan``・時点と目安）とレース一覧の行から、通知の中身を組む。"""
         plan = RacePlan.from_dict(forecast["plan"]) if forecast.get("plan") else None
         bets = tuple(self._describer.bought(forecast, plan))
@@ -83,7 +86,7 @@ class RaceMessage:
                            name=race.name if race else "", post=f"{race.post:%H:%M} 発走" if race else "",
                            timing=f"{timing}の時点", race_day=timing == _RACE_DAY, grades=grades.text(),
                            table=self._table(forecast), frames=dict(frames), bets=bets, notes=() if bets else self._notes(plan),
-                           tendency=tendency, styles=dict(styles or {}), grade_badge=grades.badge(),
+                           tendency=tendency, styles=dict(styles or {}), jockeys=dict(jockeys or {}), grade_badge=grades.badge(),
                            mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else (),
                            mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else ())
 

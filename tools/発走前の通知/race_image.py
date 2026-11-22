@@ -19,7 +19,7 @@ from 発走前の通知.local_bet_rule import WIN_VALUE_LINE
 
 #: 列（キー・見出し・幅・寄せ l/c/r）。幅の合計と余白で画像の幅になる。
 COLUMNS: tuple[tuple[str, str, int, str], ...] = (
-    ("mark", "印", 66, "c"), ("frame", "枠", 56, "c"), ("no", "馬番", 66, "c"), ("name", "馬名", 282, "l"), ("style", "脚質", 80, "c"), ("odds", "単勝", 110, "r"),
+    ("mark", "印", 66, "c"), ("frame", "枠", 56, "c"), ("no", "馬番", 66, "c"), ("name", "馬名", 282, "l"), ("jockey", "騎手", 130, "l"), ("style", "脚質", 80, "c"), ("odds", "単勝", 110, "r"),
     ("p3", "3着以内", 210, "r"), ("place", "複勝の期待値", 152, "r"), ("win", "単勝の期待値", 152, "r"),
 )
 #: 文字と枠の間（px）。
@@ -57,6 +57,8 @@ class RaceCard(Protocol):
     frames: Mapping[int, int]
     #: 馬番 → 推定脚質（逃げ・先行・差し・追込）。無い馬は「-」。
     styles: Mapping[int, str]
+    #: 馬番 → 騎手名（略称）。無い馬は「-」。
+    jockeys: Mapping[int, str]
 
     @property
     def badge(self) -> str:
@@ -68,7 +70,7 @@ class RaceCard(Protocol):
 
 
 class RaceImage:
-    """上から 見出しの帯（場・R・レース名・発走時刻・時点の札。地方は期待度の札も）→ 列の見出し → 1頭1行（印の札・枠番（枠の色の札）・馬番・馬名・推定脚質・単勝・
+    """上から 見出しの帯（場・R・レース名・発走時刻・時点の札。地方は期待度の札も）→ 列の見出し → 1頭1行（印の札・枠番（枠の色の札）・馬番・馬名・騎手・推定脚質・単勝・
     3着以内の確率の棒・複勝と単勝の期待値）→ 買い目の欄（札・券種ごとに1行。長ければ折り返す・合計・理由）。
     ◎ の行は背景と左の帯で目立たせ、線を超えた期待値は緑にする。値が無ければ「-」を描く。"""
 
@@ -148,6 +150,10 @@ class RaceImage:
         elif key == "name":
             name = self._fit(draw, str(row[HORSE_NAME]), style.font(23, bold=top), width - GAP * 2)
             self._text(draw, name, x, center, width, align, style.font(23, bold=top), style.TEXT)
+        elif key == "jockey":
+            jockey = card.jockeys.get(int(row[HORSE_NO])) if _known(row[HORSE_NO]) else None
+            text = self._fit(draw, jockey, style.font(21), width - GAP * 2) if jockey else MISSING
+            self._text(draw, text, x, center, width, align, style.font(21), style.TEXT if jockey else style.DIM)
         elif key == "style":
             running = card.styles.get(int(row[HORSE_NO])) if _known(row[HORSE_NO]) else None
             color = style.STYLE_COLORS.get(running or "", style.DIM)

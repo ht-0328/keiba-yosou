@@ -43,6 +43,8 @@ class JraRaceCard:
     tendency: str = ""
     #: 馬番 → 推定脚質（逃げ・先行・差し・追込。``RaceStyles``）。過去走の無い馬は入らない。
     styles: Mapping[int, str] = field(default_factory=dict)
+    #: 馬番 → 騎手名（略称。``RaceJockeys``）。無い馬は入らない。
+    jockeys: Mapping[int, str] = field(default_factory=dict)
     #: 重賞のときの、印で組む買い方の行（``RaceDescriber.mark_bets``。参考で、1点 100円で数えた額。重賞でなければ空）。
     mark_bets: tuple[str, ...] = ()
     #: 画像の見出しの札（``RaceGrades.badge()``。例 ``期待度 A``。出せなければ空）。地方と同じ形。

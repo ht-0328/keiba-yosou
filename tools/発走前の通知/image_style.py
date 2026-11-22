@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import ImageFont
 
 #: 画像の幅と余白（px）。
-WIDTH = 1230
+WIDTH = 1360
 PAD = 28
 #: 見出しの帯・列の見出し・1頭の行・買い目の1行の高さ（px）。
 HEADER_H = 124
