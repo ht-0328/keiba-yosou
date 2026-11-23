@@ -1,11 +1,11 @@
-"""OddsSnapshotRepository・WinPayoutRepository・TrifectaPayoutRepository のテスト。メモリ上の DuckDB に架空の行を入れる。"""
+"""OddsSnapshotRepository・WinPayoutRepository・ExactaPayoutRepository・TrifectaPayoutRepository のテスト。メモリ上の DuckDB に架空の行を入れる。"""
 
 from __future__ import annotations
 
 import duckdb
 import pytest
 
-from 地方の直前の買い目.repository import OddsSnapshotRepository, TrifectaPayoutRepository, WinPayoutRepository
+from 地方の直前の買い目.repository import ExactaPayoutRepository, OddsSnapshotRepository, TrifectaPayoutRepository, WinPayoutRepository
 
 RID = "2026111844120105"
 _KEY = ("開催年", "開催月日", "競馬場コード", '"開催回[第N回]"', '"開催日目[N日目]"', "レース番号")
@@ -54,17 +54,21 @@ def test_断面が無ければ空の表() -> None:
     assert OddsSnapshotRepository(_odds_db()).load("2026111844120112").empty
 
 
-def test_単勝と3連単の払戻を_開催日の範囲で読む() -> None:
+def test_単勝と馬単と3連単の払戻を_開催日の範囲で読む() -> None:
     con = duckdb.connect()
     _create(con, "hr__単勝払戻", ("馬番", "払戻金"))
     _create(con, "hr__3連単払戻", ("組番", "払戻金"))
+    _create(con, "hr__馬単払戻", ("組番", "払戻金"))
     _insert(con, "hr__単勝払戻", [("06", "000001200"), ("  ", "000000000")])
     _insert(con, "hr__3連単払戻", [("060201", "000050000"), ("      ", "")])
+    _insert(con, "hr__馬単払戻", [("0602", "000004000"), ("    ", "")])
     _insert(con, "hr__単勝払戻", [("01", "000000150")], key=_OTHER_DAY)
     wins = WinPayoutRepository(con).load("20261118", "20261118")
     assert wins.to_dict("records") == [{"race_id": RID, "horse_no": 6, "payout": 1200}]
     assert len(WinPayoutRepository(con).load("20261101", "20261231")) == 2
     trifectas = TrifectaPayoutRepository(con).load("20261118", "20261118")
     assert trifectas.to_dict("records") == [{"race_id": RID, "first": 6, "second": 2, "third": 1, "payout": 50000}]
+    exactas = ExactaPayoutRepository(con).load("20261118", "20261118")
+    assert exactas.to_dict("records") == [{"race_id": RID, "first": 6, "second": 2, "payout": 4000}]
     with pytest.raises(duckdb.Error):
         WinPayoutRepository(duckdb.connect()).load("20261118", "20261118")

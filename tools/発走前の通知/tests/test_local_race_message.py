@@ -203,7 +203,7 @@ def test_印の買い目が出せなければ理由を書き_前日の時点は�
     assert mark_bets.marked == []   # 前日の時点は印の買い目を呼ばない
 
 
-LATE = LateBets((LatePick(3, 14.2, 0.52, 1.10, (4, 7, 8, 2, 1)),), "", "11051015")
+LATE = LateBets((LatePick(3, 14.2, 0.52, 1.10, (4, 7, 8, 2, 1), (7, 4)),), "", "11051015")
 
 
 def test_直前の買い目は最後に出し_買う馬がいなければ理由_ファイルが無ければ出さない() -> None:
@@ -212,7 +212,8 @@ def test_直前の買い目は最後に出し_買う馬がいなければ理由_
     marks = dict(zip(message.marked(_forecast("当日"))["horse_no"], message.marked(_forecast("当日"))["mark"]))
     label = {no: f"{no}{'' if marks[no] == '－' else marks[no]}" for no in (3, 4, 7, 8, 2, 1)}
     others = ",".join(label[no] for no in (4, 7, 8, 2, 1))
-    assert lines[-3:] == ["直前の買い目（確かめ中・1点 100円）:", f"- 単勝 {label[3]}（決めたときの単勝 14.2倍）100円",
+    assert lines[-4:] == ["直前の買い目（確かめ中・1点 100円）:", f"- 単勝 {label[3]}（決めたときの単勝 14.2倍）100円",
+                          f"- 馬単 {label[3]} → {label[7]},{label[4]}（2点 200円）",
                           f"- 3連単 {label[3]} → {others} → {others}（20点 2,000円）"]
     assert label[7] == "7◎"
     assert LocalRaceMessage.late_lines(LATE)[1] == "- 単勝 3（決めたときの単勝 14.2倍）100円"   # 印の表が無ければ馬番だけ
@@ -232,7 +233,7 @@ def test_組み立てると_保存してある直前の買い目を読んで文�
     LateBetFile().write(store.late_path(RID), LATE)
     after = message.build(RID).text
     assert "直前の買い目" not in before and after.startswith(before)
-    assert after.splitlines()[-3] == "直前の買い目（確かめ中・1点 100円）:"
+    assert after.splitlines()[-4] == "直前の買い目（確かめ中・1点 100円）:"
 
 
 def test_高知ファイナルの買い目は最後に出し_出せなければ理由_ファイルが無ければ出さない(tmp_path: Path) -> None:
