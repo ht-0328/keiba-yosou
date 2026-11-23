@@ -1,7 +1,8 @@
-"""AI＋ロジック予想（展開のロジック ``SlowPaceLogic``・クラスのロジック ``OpenClassLogic`` と、印の買い目を直す1行 ``LogicForecast``）のテスト。値は架空。"""
+"""AI＋ロジック予想（展開のロジック ``SlowPaceLogic``・クラスのロジック ``OpenClassLogic``・消のロジック ``DangerCancelLogic`` と、印の買い目を直す1行 ``LogicForecast``）のテスト。値は架空。"""
 
 from __future__ import annotations
 
+from 今週の予想.danger_cancel_logic import DangerCancelLogic
 from 今週の予想.logic_forecast import LogicForecast
 from 今週の予想.logic_skip import LogicSkip
 from 今週の予想.open_class_logic import OpenClassLogic
@@ -62,3 +63,31 @@ def test_展開に当たらなくてもオープン以上なら見送り_両方�
 def test_見送りの理由は_AIが見送るレースとロジックに当たらないレースでは無い() -> None:
     assert LogicForecast().skip({**_forecast(0.8), "header": {"クラス": "G3"}}, SLOW) is None
     assert LogicForecast().skip(_forecast(1.2), NOT_SLOW) is None
+
+
+def _danger(win_probability: float | None, market_win: float | None, is_danger: bool = True) -> dict:
+    return {"horse_no": 2, "mark": "消", "is_danger": is_danger, "win_probability": win_probability, "market_win": market_win}
+
+
+def test_1着の予想が市場の見立て以上の消だけ取り消す() -> None:
+    logic = DangerCancelLogic()
+    assert logic.cancels(_danger(0.30, 0.25)) and logic.cancels(_danger(0.25, 0.25))
+    assert not logic.cancels(_danger(0.20, 0.25))
+    # 消でない馬・値の無い馬は取り消さない
+    assert not logic.cancels(_danger(0.30, 0.25, is_danger=False))
+    assert not logic.cancels(_danger(None, 0.25)) and not logic.cancels(_danger(0.30, float("nan")))
+
+
+def test_取り消した消は行の終わりに書き足し_買うかの判断は変えない() -> None:
+    def with_danger(win_probability: float) -> dict:
+        forecast = _forecast(1.2)
+        forecast["horses"][1] = _danger(win_probability, 0.25)
+        return forecast
+
+    assert LogicForecast().cancelled_danger(with_danger(0.30)) == 2
+    assert LogicForecast().line(with_danger(0.30), NOT_SLOW) == ("印の買い目を AI と同じく買う（ロジックに当たらない）。"
+                                                                 "消の 2番は取り消し（1着の予想が市場の見立て以上）")
+    assert LogicForecast().skip(with_danger(0.30), NOT_SLOW) is None
+    # 1着の予想が市場の見立てより低い消は、そのまま
+    assert LogicForecast().cancelled_danger(with_danger(0.20)) is None
+    assert LogicForecast().line(with_danger(0.20), NOT_SLOW) == "印の買い目を AI と同じく買う（ロジックに当たらない）"
