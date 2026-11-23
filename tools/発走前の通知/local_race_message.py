@@ -1,4 +1,4 @@
-"""保存してある地方の1レースの予想（predict の JSON）から、通知の文（見出し・上位の印・推奨買目）と添付する表の画像を作る。"""
+"""保存してある地方の1レースの予想（predict の JSON）から、通知の文（見出し・上位の印・印の買い目・直前の買い目）と添付する表の画像を作る。"""
 
 from __future__ import annotations
 
@@ -24,14 +24,11 @@ from 地方の直前の買い目.late_bet_file import LateBetFile
 from 地方の直前の買い目.late_bets import LateBets
 
 from 地方の推奨買目.mark_bets import MarkBets
-from 地方の推奨買目.recommendation import STAKE
-from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 高知ファイナルの買い目.final_bet_file import FinalBetFile
 from 高知ファイナルの買い目.final_bets import STAKE as FINAL_STAKE
 from 高知ファイナルの買い目.final_bets import FinalBets
 
-from 発走前の通知.local_bet_rule import LocalBetRule
 from 発走前の通知.local_expectation import LocalExpectation
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.race_frames import RaceFrames
@@ -46,19 +43,14 @@ from 発走前の通知.scheduled_race import ScheduledRace
 from 発走前の通知.tendencies import Tendencies
 
 
-class Recommendations(Protocol):
-    """地方の推奨買目と印の買い目を出す部品（本番は ``LocalRecommendations``）。``marks`` の ``marked`` は印を付けた全頭の表。"""
-
-    def recommend(self, rid: str, forecast: dict[str, Any]) -> RecommendationSet: ...
+class MarkBetSource(Protocol):
+    """地方の印の買い目を出す部品（本番は ``LocalMarkBets``）。``marked`` は印を付けた全頭の表。"""
 
     def marks(self, rid: str, forecast: dict[str, Any], marked: pd.DataFrame) -> MarkBets: ...
 
 
-class NoRecommendations:
-    """推奨買目と印の買い目を出さない（全頭の予想の単勝・複勝だけ。テストと、係数が無い環境向け）。"""
-
-    def recommend(self, rid: str, forecast: dict[str, Any]) -> RecommendationSet:
-        return RecommendationSet((), "")
+class NoMarkBets:
+    """印の買い目を出さない（テストと、係数が無い環境向け）。"""
 
     def marks(self, rid: str, forecast: dict[str, Any], marked: pd.DataFrame) -> MarkBets:
         return MarkBets()
@@ -80,7 +72,7 @@ RACE_DAY = "当日"
 MARK_BETS_LABEL = "印の買い目"
 #: 直前の買い目の見出し。実際の通知の時刻のオッズでの成績を確かめている間は「確かめ中」と添える。
 LATE_BETS_LABEL = "直前の買い目（確かめ中・1点 100円）"
-#: 高知ファイナルの買い目の見出し。荒れる前提の専用の予想で、推奨買目・印の買い目とは別の買い方（合計には入れない）。
+#: 高知ファイナルの買い目の見出し。荒れる前提の専用の予想で、印の買い目・直前の買い目とは別の買い方。
 KOCHI_FINAL_LABEL = "高知ファイナルの予想（荒れる前提・確かめ中）"
 
 
@@ -88,25 +80,24 @@ class LocalRaceMessage:
     """印は中央と同じ ``MarkRule``（◎○▲△☆注。地方には危険な人気馬の判定が無いので 消 は付かない）。
     文は 見出し・期待度（``LocalExpectation``。直前の買い目の線への近さの点数の S・A・B・C。中央の ◎ランク・配当率の代わりの1つの目安で、
     買い目と同じく当日の時点だけ出し、買い目は変えない）・
-    その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・推奨買目（道具「地方の推奨買目」＋全頭の予想の単勝・複勝。``LocalBetRule``）・
+    その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``）・
     印の買い目（道具「地方の推奨買目」の ``MarkRecommender``。単勝 ◎・馬単 ◎→○▲☆・3連単 ◎→○▲☆→○▲△☆ を 1レース 5,000円で配り、見込みの回収率で買うか見送るか。当日の時点だけ）だけにし、
     直前の買い目（道具「地方の直前の買い目」。発走前の予想が ``<rid>.直前.json`` に書いたものを読むだけ。単勝と、その馬を1着に固定した 3連単。
-    推奨買目・印の買い目とは別の買い方で、合計には入れない。期待度はこの買い目の線への近さから出す）も当日の時点だけ出し、
+    印の買い目とは別の買い方。期待度はこの買い目の線への近さから出す）も当日の時点だけ出し、
     高知のその日の最終レース「ファイナルレース」には、高知ファイナルの買い目（道具「高知ファイナルの買い目」。荒れる前提の専用の予想の印と全券種の買い目。
     ``<rid>.高知ファイナル.json`` を読むだけ。時点を問わず出す）を最後に足す。
     全頭の表は画像（``RaceImage``。推定脚質の列は ``styles``。見出しに期待度の札）にして添付する。画像は ``reports/発走前の通知/地方/<開催日>/<rid>.png`` に置く。"""
 
     def __init__(self, store: LocalForecastStore | None = None, schedule: LocalRaceSchedule | None = None,
-                 marks: MarkRule | None = None, frames: RaceFrames | None = None, bets: LocalBetRule | None = None,
-                 image: RaceImage | None = None, recommendations: Recommendations | None = None,
+                 marks: MarkRule | None = None, frames: RaceFrames | None = None,
+                 image: RaceImage | None = None, mark_bets: MarkBetSource | None = None,
                  tendencies: Tendencies | None = None, styles: RaceStyles | None = None, jockeys: RaceJockeys | None = None) -> None:
         self._store = store or LocalForecastStore()
         self._schedule = schedule or LocalRaceSchedule()
         self._marks = marks or MarkRule()
         self._frames = frames or RaceFrames()
-        self._bets = bets or LocalBetRule()
         self._image = image or RaceImage()
-        self._recommendations = recommendations or NoRecommendations()
+        self._mark_bets = mark_bets or NoMarkBets()
         self._tendencies = tendencies
         self._styles = styles
         self._jockeys = jockeys or RaceJockeys()
@@ -119,8 +110,8 @@ class LocalRaceMessage:
             raise LookupError(f"予想の結果がありません（{rid}）")
         race = self._find(rid)
         tendency = self._tendencies.of(rid, race.venue) if self._tendencies and race else None
-        marks = self._recommendations.marks(rid, forecast, self.marked(forecast)) if self._race_day(forecast) else MarkBets()
-        card = self.card(forecast, race, self._frames.read(rid), self._recommendations.recommend(rid, forecast),
+        marks = self._mark_bets.marks(rid, forecast, self.marked(forecast)) if self._race_day(forecast) else MarkBets()
+        card = self.card(forecast, race, self._frames.read(rid),
                          tendency.text() if tendency else "", self._styles.read(rid) if self._styles else {}, marks,
                          self._late.read(self._store.late_path(rid)), self._kochi_final.read(self._store.kochi_final_path(rid)),
                          self._jockeys.read(rid))
@@ -133,27 +124,25 @@ class LocalRaceMessage:
         return self._ordered(self._marks.assign(self._table(forecast)))
 
     def card(self, forecast: dict[str, Any], race: ScheduledRace | None, frames: Mapping[int, int],
-             recommended: RecommendationSet | None = None, tendency: str = "",
+             tendency: str = "",
              styles: Mapping[int, str] | None = None, marks: MarkBets | None = None, late: LateBets | None = None,
              kochi_final: FinalBets | None = None, jockeys: Mapping[int, str] | None = None) -> LocalRaceCard:
-        """predict の JSON（``columns``・``rows``・``title``）・レース一覧の行・推奨買目・印の買い目から、通知の中身を組む。"""
+        """predict の JSON（``columns``・``rows``・``title``）・レース一覧の行・印の買い目・直前の買い目から、通知の中身を組む。"""
         table = self.marked(forecast)
         title = str(forecast.get("title", ""))
         race_day = self._race_day(forecast)
         timing = f"{RACE_DAY}の時点" if race_day else "前日の時点（馬体重が届く前なのでオッズだけ）"
-        recommended = recommended or RecommendationSet((), "")
-        bets = self._bets.pick(table, race_day, recommended)
         return LocalRaceCard(heading=f"{race.venue} {race.number}R" if race else title, name=race.name if race else "",
                              post=f"{race.post:%H:%M} 発走" if race else "", timing=timing, race_day=race_day, table=table,
-                             frames=dict(frames), bets=bets, tendency=tendency, styles=dict(styles or {}), jockeys=dict(jockeys or {}),
+                             frames=dict(frames), tendency=tendency, styles=dict(styles or {}), jockeys=dict(jockeys or {}),
                              expectation=LocalExpectation.of(late) if race_day else LocalExpectation.not_race_day(),
                              marks=marks if marks is not None and race_day else MarkBets(), late=late if race_day else None,
                              kochi_final=kochi_final)
 
     def describe(self, card: LocalRaceCard) -> str:
-        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・推奨買目・印の買い目（当日の時点）。"""
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・印の買い目と直前の買い目（当日の時点）。"""
         return "\n".join([f"**{card.title}** 地方の予想・{card.timing}", card.expectation.text(), *([card.tendency] if card.tendency else []),
-                          *MarkLines().lines(card.table), *self.bet_lines(card.bets), *self.mark_lines(card.marks), *self.late_lines(card.late, card.table),
+                          *MarkLines().lines(card.table), *self.mark_lines(card.marks), *self.late_lines(card.late, card.table),
                           *self.kochi_final_lines(card.kochi_final)])
 
     @staticmethod
@@ -182,16 +171,6 @@ class LocalRaceMessage:
         if marks.empty:
             return []
         return [f"{MARK_BETS_LABEL}: {marks.heading}", *(f"- {line}" for line in marks.lines)]
-
-    @staticmethod
-    def bet_lines(bets: RecommendationSet) -> list[str]:
-        """推奨買目の行: 見出し（1点の金額と合計）・券種ごとの組・添える理由。無ければ「なし」と理由。"""
-        if bets.none:
-            return [f"推奨買目: なし（{bets.reason}）"]
-        lines = [f"推奨買目（1点 {STAKE}円・合計 {bets.points}点 {bets.yen:,}円）:", *bets.lines()]
-        if bets.reason:
-            lines.append(f"（{bets.reason}）")
-        return lines
 
     @staticmethod
     def _race_day(forecast: dict[str, Any]) -> bool:

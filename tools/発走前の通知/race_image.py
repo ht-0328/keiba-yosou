@@ -11,11 +11,10 @@ from PIL import Image, ImageDraw
 
 from 今週の予想.forecast_columns import HORSE_NAME, HORSE_NO, MARK, PLACE_VALUE, PROBABILITY, WIN_ODDS, WIN_VALUE
 from 今週の予想.mark_rule import NO_MARK, TOP_MARK
-from 今週の予想.ticket_rules import PLACE_VALUE_LINE
+from 今週の予想.ticket_rules import PLACE_VALUE_LINE, WIN_VALUE_LINE
 
 from 発走前の通知 import image_style as style
 from 発走前の通知.bet_footer import BetFooter
-from 発走前の通知.local_bet_rule import WIN_VALUE_LINE
 
 #: 列（キー・見出し・幅・寄せ l/c/r）。幅の合計と余白で画像の幅になる。
 COLUMNS: tuple[tuple[str, str, int, str], ...] = (
@@ -200,7 +199,7 @@ class RaceImage:
     # --- 買い目の欄 ---------------------------------------------------------------------------
 
     def _footer_lines(self, draw: ImageDraw.ImageDraw, footer: BetFooter) -> list[FooterLine]:
-        """買い目の欄の行（文・色・太字）。券種の行は幅に収まるよう括弧の外の区切りで折り返し、合計、理由（幅で折り返す）。
+        """買い目の欄の行（文・色・太字）。券種の行は幅に収まるよう括弧の外の区切りで折り返し（区切りが無くて収まらない行は字で折り返す）、合計、理由（幅で折り返す）。
         無ければ「なし」と理由。"""
         max_width = style.WIDTH - style.PAD * 2 - BET_PILL_W - GAP
         notes = [(part, style.DIM, False) for note in footer.notes
@@ -209,7 +208,9 @@ class RaceImage:
             return [("なし", style.DIM, True), *notes]
         lines: list[FooterLine] = []
         for line in footer.lines:
-            lines += [(part, style.TEXT, True) for part in self._wrap(draw, line, style.font(22, bold=True), max_width)]
+            font = style.font(22, bold=True)
+            lines += [(piece, style.TEXT, True) for part in self._wrap(draw, line, font, max_width)
+                      for piece in (self._wrap_chars(draw, part, font, max_width) if draw.textlength(part, font=font) > max_width else [part])]
         if footer.total:
             lines.append((footer.total, style.GOLD, True))
         return lines + notes
@@ -246,7 +247,7 @@ class RaceImage:
             if char in "（(":
                 depth += 1
             elif char in "）)":
-                depth -= 1
+                depth = max(0, depth - 1)   # 行の頭（券種の名前）の側で開いた括弧の閉じは数えない（例 ``単勝（1点 計 2,000円）: …``）
             elif depth == 0 and body.startswith(_SEPARATORS, index):
                 found = next(mark for mark in _SEPARATORS if body.startswith(mark, index))
                 parts.append((separator, body[start:index]))

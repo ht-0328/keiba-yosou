@@ -25,12 +25,11 @@ from 発走前の通知.forecast_runner import ForecastRunner
 from 発走前の通知.local_forecast_runner import LocalForecastRunner
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.local_race_message import LocalRaceMessage
-from 発走前の通知.local_recommendations import LocalRecommendations
+from 発走前の通知.local_mark_bets import LocalMarkBets
 from 発走前の通知.local_race_schedule import LocalRaceSchedule
 from 発走前の通知.race_message import RaceMessage
 from 発走前の通知.race_schedule import RaceSchedule
 from 発走前の通知.race_styles import RaceStyles
-from 発走前の通知.saved_upset_probabilities import SavedUpsetProbabilities
 from 発走前の通知.store_fetcher import StoreFetcher
 from 発走前の通知.track_tendencies import TrackTendencies
 from 発走前の通知.venue_routed_message import VenueRoutedMessage
@@ -73,14 +72,13 @@ class NotifierParts:
 
     @classmethod
     def local(cls) -> NotifierParts:
-        """地方: 地方の元DB のレース一覧、nvstore、地方の予想（predict と荒れ具合）、馬場の傾向と印と推奨買目の文と表の画像、予想の JSON の保存。
-        推奨買目の係数（reports/地方の推奨買目/係数.json）が無ければここで止まる。発走前に、そのレースの時系列オッズ（直前の買い目の材料）も取る。
+        """地方: 地方の元DB のレース一覧、nvstore、地方の予想（predict と荒れ具合）、馬場の傾向と印と印の買い目の文と表の画像、予想の JSON の保存。
+        印の買い目の係数（reports/地方の推奨買目/係数.json）が無ければここで止まる。発走前に、そのレースの時系列オッズ（直前の買い目の材料）も取る。
         ばんえい（帯広）のレースも同じ一覧に入れ、予想・文・保存先だけを道具「ばんえいの予想」のものに振り分ける（取り込みは地方と同じ nvstore）。"""
         store = LocalForecastStore()
         schedule = LocalRaceSchedule(banei=True)
         banei_store = BaneiForecastStore()
-        recommendations = LocalRecommendations(upsets=SavedUpsetProbabilities(store))
-        message = LocalRaceMessage(store, schedule, recommendations=recommendations,
+        message = LocalRaceMessage(store, schedule, mark_bets=LocalMarkBets(),
                                    tendencies=TrackTendencies(default=db.LOCAL), styles=RaceStyles.local())
         return cls(schedule=schedule, fetcher=StoreFetcher.local(history=store.odds_history_path),
                    runner=VenueRoutedRunner(LocalForecastRunner(store=store), BaneiForecastRunner(store=banei_store)),
