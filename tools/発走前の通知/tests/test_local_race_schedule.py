@@ -20,3 +20,8 @@ def test_発走時刻のあるレースを早い順に_競馬場コードは名�
     assert races[0].venue == "笠松"
     assert races[0].post == datetime(2026, 11, 5, 10, 25)
     assert races[2].label == "門別 11R テスト特別（20:00 発走）"
+
+
+def test_ばんえいのレースは_ばんえい帯広と書く() -> None:
+    rows = [LocalRaceRow(rid="2026110583010101", venue_code="83", number=1, name="", post="1100")]
+    assert LocalRaceSchedule.from_rows("2026-11-05", rows)[0].label == "ばんえい帯広 1R（11:00 発走）"
