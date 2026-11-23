@@ -37,6 +37,7 @@ class RaceResult:
     - ``plan``: 実際に買う買い目（買う計画の複勝・単勝・馬単・組の券種）の精算。
     - ``marks``: 全レースの印の買い目（AI だけの予想。「買う」のレースだけ数える）の精算。
     - ``logic``: AI＋ロジック予想（展開・クラスのロジックで見送ったレースは買わない）の精算。
+    - ``danger_won``・``logic_danger_won``: 消が1着になったか（AI だけの予想と、消のロジックで取り消した馬を除いた AI＋ロジック予想）。
     """
 
     def __init__(self, forecast: dict[str, Any], finishes: list[tuple[int, int]], payouts: DayPayouts,
@@ -84,6 +85,18 @@ class RaceResult:
         """AI は買い、AI＋ロジック予想は見送ったレースなら、当たったロジックの名前（展開・クラス）。そうでなければ空。"""
         skip = LogicForecast().skip(self._forecast, self._styles)
         return skip.name if skip is not None else ""
+
+    def danger_won(self) -> bool | None:
+        """AI だけの予想の消が1着になったか。消が無いレースは None。"""
+        return self._won(self._horse("消"))
+
+    def logic_danger_won(self) -> bool | None:
+        """AI＋ロジック予想の消（消のロジックで取り消した馬を除く）が1着になったか。消が無いレースは None。"""
+        danger = self._horse("消")
+        return None if danger == LogicForecast().cancelled_danger(self._forecast) else self._won(danger)
+
+    def _won(self, number: int | None) -> bool | None:
+        return None if number is None else (1, number) in self._finishes
 
     def _settle(self, tickets: list[tuple[str, str, int]]) -> Settled:
         stake = back = unknown = 0

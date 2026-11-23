@@ -38,8 +38,15 @@ class DayTables:
         rows = [self._total(name, [getattr(result, method)() for result in finished]) for name, method in _KINDS]
         top = [result.top_finish() for result in finished]
         note = (f"結果の届いたレース {len(finished)}／予想のあるレース {len(results)}。◎ は 1着 {top.count('1着')}・2着 {top.count('2着')}・"
-                f"3着 {top.count('3着')}・着外 {top.count('着外')}。印の買い目は 1レース 5,000円を割合で配った額")
+                f"3着 {top.count('3着')}・着外 {top.count('着外')}。{self._dangers(finished)}。印の買い目は 1レース 5,000円を割合で配った額")
         return Table(["買い方", "買ったレース", "当たったレース", "投資", "払戻", "回収率", "収支"], rows, title=f"{day} の合計", note=note)
+
+    @staticmethod
+    def _dangers(finished: list[RaceResult]) -> str:
+        """消の数と、1着になった数（AI だけの予想と AI＋ロジック予想）。"""
+        ai = [won for won in (result.danger_won() for result in finished) if won is not None]
+        logic = [won for won in (result.logic_danger_won() for result in finished) if won is not None]
+        return f"消は AI だけ {len(ai)}頭（1着 {sum(ai)}）・AI＋ロジック {len(logic)}頭（1着 {sum(logic)}）"
 
     @staticmethod
     def _total(name: str, settled: list[Settled]) -> list[Any]:

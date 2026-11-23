@@ -73,6 +73,24 @@ def test_表は結果の届いたレースだけを合計し_届いていない�
     assert "結果の届いたレース 1／予想のあるレース 2" in totals.note
 
 
+def _with_danger(number: int, win_probability: float) -> dict:
+    """``number`` の馬を消にした予想（市場の見立ては 0.25）。"""
+    forecast = _forecast()
+    forecast["horses"][number - 1] = {"horse_no": number, "mark": "消", "is_danger": True, "win_probability": win_probability, "market_win": 0.25}
+    return forecast
+
+
+def test_消が1着になったかは_AIだけと_取り消した消を除いたAIとロジックで数える() -> None:
+    won = [(1, 2), (2, 5), (3, 7)]
+    kept, cancelled = _with_danger(2, 0.20), _with_danger(2, 0.30)
+    assert RaceResult(kept, won, _Payouts(), {}).danger_won() is True and RaceResult(kept, won, _Payouts(), {}).logic_danger_won() is True
+    assert RaceResult(cancelled, won, _Payouts(), {}).danger_won() is True and RaceResult(cancelled, won, _Payouts(), {}).logic_danger_won() is None
+    assert RaceResult(kept, FINISHES, _Payouts(), {}).danger_won() is False
+    assert RaceResult(_forecast(), FINISHES, _Payouts(), {}).danger_won() is None
+    results = [(forecast, RaceResult(forecast, won, _Payouts(), {})) for forecast in (kept, cancelled, _forecast())]
+    assert "消は AI だけ 2頭（1着 2）・AI＋ロジック 1頭（1着 1）" in DayTables().build(date(2026, 11, 28), results)[1].note
+
+
 def test_着順は馬番ごとに新しい行の1から3着を読む() -> None:
     columns = ("データ区分", "データ作成年月日", "開催年", "開催月日", "競馬場コード", '"開催回[第N回]"', '"開催日目[N日目]"', "レース番号", "馬番", "確定着順")
     con = duckdb.connect()
