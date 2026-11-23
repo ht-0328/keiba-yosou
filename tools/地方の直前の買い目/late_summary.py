@@ -10,7 +10,8 @@ from 共通.render import Table
 #: まとめの表の列。
 HEADERS: tuple[str, ...] = ("期間", "券種", "買った回数", "点数", "的中", "的中率", "買った額", "戻った額", "回収率", "払戻の上位5本を除いた回収率")
 #: 券種 → (買った額の列, 戻った額の列)。
-TICKETS: dict[str, tuple[str, str]] = {"単勝": ("win_cost", "win_back"), "3連単（1着固定）": ("trifecta_cost", "trifecta_back")}
+TICKETS: dict[str, tuple[str, str]] = {"単勝": ("win_cost", "win_back"), "馬単（1着固定）": ("exacta_cost", "exacta_back"),
+                                        "3連単（1着固定）": ("trifecta_cost", "trifecta_back")}
 #: 高い払戻に頼っていないかを見るために除く本数。
 TOP = 5
 STAKE = 100
