@@ -10,8 +10,8 @@ from .late_columns import HORSE_NO, LIKENESS, ODDS_NOW, PAYBACK, TOP3_MODEL
 from .late_pick import LatePick
 
 #: 買う馬らしさの線・戻りの見込みの線・3連単の相手の頭数・馬単の相手の頭数（研究「地方の直前の材料で買う」で決めた値）。
-LIKENESS_LINE = 0.4
-PAYBACK_LINE = 0.95
+LIKENESS_LINE = 0.35
+PAYBACK_LINE = 0.92
 OPPONENTS = 5
 EXACTA_OPPONENTS = 2
 

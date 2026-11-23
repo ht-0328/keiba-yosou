@@ -11,7 +11,7 @@ from 地方の直前の買い目.late_rule import LateRule
 
 def _race() -> pd.DataFrame:
     return pd.DataFrame({c.HORSE_NO: [1, 2, 3, 4, 5, 6, 7], c.ODDS_NOW: [2.0, 4.0, 15.0, 6.0, 30.0, 8.0, 4.0],
-                         c.LIKENESS: [0.1, 0.2, 0.5, 0.45, 0.39, 0.1, 0.1], c.PAYBACK: [0.8, 0.9, 1.1, 0.94, 1.3, 0.9, 0.9],
+                         c.LIKENESS: [0.1, 0.2, 0.5, 0.45, 0.34, 0.1, 0.1], c.PAYBACK: [0.8, 0.9, 1.1, 0.91, 1.3, 0.9, 0.9],
                          c.TOP3_MODEL: [0.60, 0.30, 0.70, 0.45, 0.10, 0.45, None]})
 
 
@@ -43,8 +43,8 @@ def test_3連単は_軸から相手2頭の並び_相手が5頭なら20点() -> N
 
 
 def test_線への近さは_馬ごとの小さいほうの比の_レースでいちばん大きい値() -> None:
-    # 3番: min(0.5/0.4, 1.1/0.95) = 1.158、4番: min(1.125, 0.989) = 0.989、5番: min(0.975, 1.368) = 0.975
-    assert round(LateRule().closeness(_race()), 3) == 1.158
+    # 3番: min(0.5/0.35, 1.1/0.92) = 1.196、4番: min(1.286, 0.989) = 0.989、5番: min(0.971, 1.413) = 0.971
+    assert round(LateRule().closeness(_race()), 3) == 1.196
     assert round(LateRule().closeness(_race()[lambda race: race[c.HORSE_NO] != 3]), 3) == 0.989   # 買う馬がいなければ 1 未満
     assert LateRule().closeness(_race().iloc[0:0]) is None
 

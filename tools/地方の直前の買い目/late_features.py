@@ -12,10 +12,14 @@ from .late_columns import (
     MATERIAL_COLUMNS,
     ODDS_A,
     ODDS_B,
+    ODDS_BACK_2,
+    ODDS_BACK_5,
+    ODDS_BACK_35,
     ODDS_FIRST,
     ODDS_NOW,
     PLACE_HIGH,
     PLACE_LOW,
+    PLACE_LOW_A,
     RACE_DATE,
     RACE_ID,
     TOP3_FREE,
@@ -47,7 +51,8 @@ class LateFeatures:
         frame["rank"] = races[ODDS_NOW].rank(method="first")
         frame["lplo"] = self._log(frame[PLACE_LOW])
         frame["lphi"] = self._log(frame[PLACE_HIGH])
-        for name, column in (("mom_a", ODDS_A), ("mom_b", ODDS_B), ("mom_first", ODDS_FIRST)):
+        for name, column in (("mom_a", ODDS_A), ("mom_b", ODDS_B), ("mom_first", ODDS_FIRST),
+                             ("mom_2", ODDS_BACK_2), ("mom_5", ODDS_BACK_5), ("mom_35", ODDS_BACK_35)):
             frame[name] = frame["lw"] - self._log(frame[column])
         frame["fav_lw"] = races["lw"].transform("min")
         frame["venue"] = frame[RACE_ID].str[8:10].astype(int)
@@ -65,7 +70,23 @@ class LateFeatures:
         frame["dow"] = pd.to_datetime(frame[RACE_DATE]).dt.dayofweek
         frame["mkt2"] = frame.groupby(RACE_ID)["mkt"].transform(lambda share: share.nlargest(2).sum())
         frame["ent"] = frame.groupby(RACE_ID)["mkt"].transform(lambda share: -(share * np.log(share)).sum())
-        return frame.sort_values([RACE_ID, HORSE_NO]).reset_index(drop=True)
+        return self._movement(frame).sort_values([RACE_ID, HORSE_NO]).reset_index(drop=True)
+
+    def _movement(self, frame: pd.DataFrame) -> pd.DataFrame:
+        """順位のずれと動きの特徴量（``MOVEMENT_FEATURES``）。前の断面の無い馬の値は欠損のまま。"""
+        races = frame.groupby(RACE_ID)
+        frame["thu_rank"] = races[WIN_FREE].rank(ascending=False, method="first")
+        frame["st3_rank"] = races[TOP3_MODEL].rank(ascending=False, method="first")
+        frame["rank_gap"] = frame["rank"] - frame["st_rank"]
+        frame["rank_gap_thu"] = frame["rank"] - frame["thu_rank"]
+        frame["p3_gap"] = np.log(frame["p3_st"].clip(lower=_FLOOR)) + frame["lplo"]
+        frame["fav_mom"] = races["mom_a"].transform("min")
+        frame["mom_sd"] = races["mom_a"].transform("std")
+        frame["st_max"] = races["p1_stn"].transform("max")
+        frame["st_ent"] = races["p1_stn"].transform(lambda share: -(share * np.log(share.clip(lower=1e-6))).sum())
+        frame["plo_mom"] = frame["lplo"] - self._log(frame[PLACE_LOW_A])
+        frame["rank_chg"] = frame["rank"] - races[ODDS_A].rank(method="first")
+        return frame
 
     @staticmethod
     def matrix(features: pd.DataFrame) -> pd.DataFrame:
