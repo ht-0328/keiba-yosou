@@ -36,7 +36,7 @@ class KochiFinalWriter:
             return None
         try:
             bets = self._bets(con, rid, odds_db)
-        except Exception as error:  # noqa: BLE001 — 高知ファイナルの買い目が出せなくても、予想（印と推奨買目）は通知する
+        except Exception as error:  # noqa: BLE001 — 高知ファイナルの買い目が出せなくても、予想（印と印の買い目）は通知する
             bets = FinalBets.none(f"{type(error).__name__}: {error}")
         self._file.write(out, bets)
         return bets

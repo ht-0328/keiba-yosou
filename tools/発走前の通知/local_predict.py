@@ -4,10 +4,10 @@
     uv run python tools/発走前の通知/local_predict.py --upset-out … --late-out <rid>.直前.json --late-odds 時系列オッズ.duckdb predict <rid> …
 
 predict の後ろの引数は ``python -m yosou.local_form_aptitude_top3 predict`` と同じ（rid は省けない）。元DB を1回だけ開き、
-その接続で 予想モデルの predict → 推奨買目の荒れ具合の条件に使う券種ごとの中荒れ以上の確率（``UpsetProbabilities``。当日の時点）
+その接続で 予想モデルの predict → 券種ごとの中荒れ以上の確率（道具「地方の推奨買目」の 3連複の条件。通知の文には出さず、研究の確かめが読む）（``UpsetProbabilities``。当日の時点）
 の順に出して、予想は ``--out``、確率は ``--upset-out`` に書く。2つの予想は同じ事実表（地方の全成績の一時表。作るのに数分かかる）を使うので、
 同じ接続で出すと作るのは1回で済む。荒れ具合の確率が出せなくても予想は失敗にせず、``--upset-out`` に理由を書く
-（推奨買目はその券種だけを対象外にして理由を添える）。
+（道具「地方の推奨買目」は、その券種だけを対象外にして理由を添える）。
 ``--late-out`` と ``--late-odds`` を渡すと、同じ接続で直前の買い目（道具「地方の直前の買い目」。時系列オッズの断面と全頭の予想の確率から、
 単勝と 3連単の買う馬を決める）も出して ``--late-out`` に書く。出せなくても予想は失敗にせず、理由を書く。
 ``--kochi-out`` を渡すと、高知のその日の最終レース「ファイナルレース」のときだけ、同じ接続で高知ファイナルの買い目
@@ -67,7 +67,7 @@ def _write_upsets(con: duckdb.DuckDBPyConnection, rid: str, path: Path, upset_fi
         upset_file.write(path, UpsetProbabilities().of(con, rid, list(UPSET_BETS)))
     except (FileNotFoundError, LookupError, ValueError) as error:
         upset_file.write_reason(path, str(error))
-    except Exception as error:  # noqa: BLE001 — 荒れ具合が出せなくても、予想（印と残りの推奨買目）は通知する
+    except Exception as error:  # noqa: BLE001 — 荒れ具合が出せなくても、予想（印と印の買い目）は通知する
         upset_file.write_reason(path, f"{type(error).__name__}: {error}")
 
 
