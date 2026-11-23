@@ -36,3 +36,9 @@ WIN5_PROGRAM: tuple[str, ...] = ("python", "-m", "yosou.form_aptitude_win5_ticke
 WIN5_LOG_NAME = "WIN5-"
 #: 裏で動かす WIN5 の予想が読む、元DB の写しの置き場所（``<開催日>/jvdata.duckdb``。予想が終わったら消す）。
 WIN5_SNAPSHOT_FOLDER = DEFAULT_FOLDER / "WIN5の元DBの写し"
+#: ばんえい（帯広）の予想の結果（道具「ばんえいの予想」の predict の JSON）を置く場所。
+BANEI_FOLDER = DEFAULT_FOLDER / "ばんえい"
+#: ばんえいの予想の入口（別プロセスで動かす）。
+BANEI_PREDICT_SCRIPT = PROJECT / "tools" / "ばんえいの予想" / "predict.py"
+#: ばんえいの記録のファイル名の頭。
+BANEI_LOG_NAME = "ばんえい-"

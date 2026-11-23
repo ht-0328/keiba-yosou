@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from 共通 import db
-from 共通.local_codes import LOCAL_VENUE_NAMES
+from 共通.codes import LOCAL_VENUE_NAMES
 
 from 発走前の通知.local_race_repository import LocalRaceRepository
 from 発走前の通知.local_race_row import LocalRaceRow
@@ -21,12 +21,14 @@ class LocalRaceSchedule:
     """中央の ``RaceSchedule`` の地方版。DB は読むたびに開いてすぐ閉じる（nvdata-store の取り込みの邪魔をしない）。
     地方の出馬表は数日先まで nvstore sync で入り、発走時刻の変更は速報（0B14）で入るので、呼ぶ側は待つ間にも読み直す。"""
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
+    def __init__(self, db_path: str | Path | None = None, *, banei: bool = False) -> None:
         self._db_path = db_path
+        #: ばんえい（帯広）のレースも一覧に入れるか。
+        self._banei = banei
 
     def read(self, day: str) -> list[ScheduledRace]:
         with db.open_db(self._db_path, default=db.LOCAL) as con:
-            rows = LocalRaceRepository(con).read(day)
+            rows = LocalRaceRepository(con, banei=self._banei).read(day)
         return self.from_rows(day, rows)
 
     @staticmethod
