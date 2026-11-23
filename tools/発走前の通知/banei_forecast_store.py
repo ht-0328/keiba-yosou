@@ -19,6 +19,10 @@ class BaneiForecastStore:
     def path(self, rid: str) -> Path:
         return self._folder / f"{rid[:4]}-{rid[4:6]}-{rid[6:8]}" / f"{rid}.json"
 
+    def image_path(self, rid: str) -> Path:
+        """通知に添付する全頭の表の画像（予想の JSON と同じフォルダの ``<rid>.png``）。"""
+        return self.path(rid).with_suffix(".png")
+
     def saved_at(self, rid: str) -> datetime | None:
         """ファイルの更新時刻（無ければ None）。予想し直せたかの確認に使う。"""
         path = self.path(rid)
