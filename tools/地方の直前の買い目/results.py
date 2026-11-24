@@ -21,7 +21,7 @@ from 共通 import cli, db, render  # noqa: E402
 
 from 地方の直前の買い目.late_settlement import LateSettlement  # noqa: E402
 from 地方の直前の買い目.late_summary import LateSummary  # noqa: E402
-from 地方の直前の買い目.repository import TrifectaPayoutRepository, WinPayoutRepository  # noqa: E402
+from 地方の直前の買い目.repository import ExactaPayoutRepository, TrifectaPayoutRepository, WinPayoutRepository  # noqa: E402
 from 地方の直前の買い目.saved_late_bets import DEFAULT_FOLDER, SavedLateBets  # noqa: E402
 
 DEFAULT_OUT = _TOOLS.parent / "reports" / "地方の直前の買い目" / "results.md"
@@ -34,7 +34,8 @@ def main(args: argparse.Namespace) -> None:
     picks = [(rid, pick) for rid, bets in saved for pick in bets.picks]
     days = sorted({rid[:8] for rid, _ in saved})
     with db.open_db(args.db, default=db.LOCAL) as con:
-        settlement = LateSettlement(WinPayoutRepository(con).load(days[0], days[-1]), TrifectaPayoutRepository(con).load(days[0], days[-1]))
+        settlement = LateSettlement(WinPayoutRepository(con).load(days[0], days[-1]), ExactaPayoutRepository(con).load(days[0], days[-1]),
+                                    TrifectaPayoutRepository(con).load(days[0], days[-1]))
     settled = settlement.settle(picks)
     unavailable = sum(1 for _, bets in saved if bets.empty and "いない" not in bets.reason)
     note = (f"通知が買い目を決めた {len(saved):,} レースのうち、買う馬がいたのは {len({rid for rid, _ in picks}):,} レース（{len(picks):,} 頭）、"

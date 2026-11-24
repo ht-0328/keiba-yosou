@@ -29,11 +29,12 @@ def _probabilities(heads: int = 7) -> pd.DataFrame:
                          c.WIN_FREE: [1 / heads] * heads, c.TOP3_FREE: [3 / heads] * heads})
 
 
-def test_線を満たす馬の単勝と_その馬を1着に固定した3連単() -> None:
+def test_線を満たす馬の単勝と_その馬を1着に固定した馬単と3連単() -> None:
     bets = LatePredictor(FakeModels({6: 0.5}, {6: 1.2})).bets(RID, _snapshot(), _probabilities())
     assert [pick.horse_no for pick in bets.picks] == [6] and bets.picks[0].opponents == (1, 2, 3, 4, 5)
     assert bets.announced == "11181530" and not bets.empty
-    assert bets.lines() == ["単勝 6（決めたときの単勝 12.0倍）100円", "3連単 6 → 1,2,3,4,5 → 1,2,3,4,5（20点 2,000円）"]
+    assert bets.lines() == ["単勝 6（決めたときの単勝 12.0倍）100円", "馬単 6 → 1,2（2点 200円）",
+                            "3連単 6 → 1,2,3,4,5 → 1,2,3,4,5（20点 2,000円）"]
 
 
 def test_線を満たす馬がいなければ_理由つきのなし() -> None:
