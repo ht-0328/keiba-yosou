@@ -11,8 +11,6 @@ from 地方の直前の買い目.late_bets import LateBets
 from 地方の直前の買い目.late_pick import LatePick
 
 from 地方の推奨買目.mark_bets import MarkBets
-from 地方の推奨買目.recommendation import Recommendation
-from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 発走前の通知.local_forecast_store import LocalForecastStore
 from 発走前の通知.local_race_message import LocalRaceMessage
@@ -36,8 +34,6 @@ RID = "2026110547150401"
 RACE = ScheduledRace(rid=RID, venue="笠松", number=1, name="", post=datetime(2026, 11, 5, 10, 25))
 MARKS = MarkBets("買う（見込みの回収率 112%）。合計 5,000円で、どれが当たっても 6,000円以上戻る",
                  ("単勝（1点 計 3,500円）: 7 3,500円", "馬単（2点 計 1,500円）: 7→4 900円・7→8 600円"))
-RECOMMENDED = RecommendationSet((Recommendation("枠連", (3, 5), 8.0, 0.30, 2.40), Recommendation("3連単", (7, 4, 8), 25.0, 0.076, 1.90),
-                                 Recommendation("単勝", (7,), 3.0, 0.36, 1.08)))
 
 
 def _forecast(timing: str) -> dict:
@@ -59,34 +55,27 @@ class _Frames:
         return {7: 5, 4: 3}
 
 
-class _Recommendations:
+class _MarkBets:
     def __init__(self) -> None:
-        self.calls: list[str] = []
         self.marked: list[list[str]] = []
-
-    def recommend(self, rid: str, forecast: dict) -> RecommendationSet:
-        self.calls.append(rid)
-        return RECOMMENDED
 
     def marks(self, rid: str, forecast: dict, marked) -> MarkBets:
         self.marked.append(list(marked["mark"]))
         return MARKS
 
 
-def test_中身は印の順の全頭と_見出し_推奨買目() -> None:
-    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED)
+def test_中身は印の順の全頭と_見出し() -> None:
+    card = LocalRaceMessage().card(_forecast("当日"), RACE, {7: 5})
     assert card.title == "笠松 1R（10:25 発走）"
     assert card.heading == "笠松 1R" and card.post == "10:25 発走" and card.race_day
     assert list(card.table["mark"]) == ["◎", "○", "▲", "△", "△", "△", "☆", "注"]
     assert list(card.table["horse_no"])[:6] == [7, 4, 8, 3, 2, 1]
     assert card.frames == {7: 5}
-    # 推奨買目の 単勝 7 は ◎ の単勝と同じ組なので1度だけ。複勝 3 は全頭の予想の線（1.30 ≥ 1.25）
-    assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"] and card.bets.points == 4
 
 
-def test_文は_見出し_期待度_印の付いた馬_推奨買目だけ() -> None:
+def test_文は_見出し_期待度_印の付いた馬だけで_期待値で選ぶ買い目の行は無い() -> None:
     message = LocalRaceMessage()
-    text = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED))
+    text = message.describe(message.card(_forecast("当日"), RACE, {}))
     assert text.splitlines() == [
         "**笠松 1R（10:25 発走）** 地方の予想・当日の時点",
         "期待度 なし（見込みを出せない）",   # 直前の買い目のファイルが無い組み立て
@@ -96,45 +85,33 @@ def test_文は_見出し_期待度_印の付いた馬_推奨買目だけ() -> N
         "△ 3 ヨンバン・2 ゴバン・1 ロクバン",
         "☆ 5 ハチバン：穴馬（8番人気）の中で複勝の期待値がいちばん高い（0.30。線の 1.25 に届かないので表示だけで、買い目の相手には入れない）",
         "注 6 ナナバン：印の無い馬の中で、市場の見立て（4.0%）より来ると見る度合いがいちばん大きい（予想 5.0%）",
-        "推奨買目（1点 100円・合計 4点 400円）:",
-        "単勝 7",
-        "複勝 3",
-        "枠連 3-5",
-        "3連単 7→4→8",
     ]
-
-
-def test_推奨買目が無ければ_全頭の予想の単勝と複勝だけ() -> None:
-    message = LocalRaceMessage()
-    text = message.describe(message.card(_forecast("当日"), RACE, {}))
-    assert text.splitlines()[8:] == ["推奨買目（1点 100円・合計 2点 200円）:", "単勝 7", "複勝 3"]
+    assert "推奨買目" not in text
 
 
 def test_前日の時点は買い目も期待度も出さず_その旨を書く() -> None:
     message = LocalRaceMessage()
-    card = message.card(_forecast("前日"), RACE, {}, RECOMMENDED)
+    card = message.card(_forecast("前日"), RACE, {})
     text = message.describe(card)
     assert "前日の時点（馬体重が届く前なのでオッズだけ）" in text.splitlines()[0]
     assert text.splitlines()[1] == "期待度 なし（馬体重が届く前の前日の時点では出さない。当日の時点で出す）" and card.badge == ""
-    assert "推奨買目: なし（馬体重が届く前の前日の時点では買わない）" in text
-    assert "100円" not in text.splitlines()[-1]
+    assert "印の買い目" not in text and "直前の買い目" not in text
+    assert card.footer.none and card.footer.notes == ("馬体重が届く前の前日の時点では出さない",)
 
 
-def test_期待度は直前の買い目の線への近さから出し_推奨買目は前と同じ() -> None:
+def test_期待度は直前の買い目の線への近さから出す() -> None:
     message = LocalRaceMessage()
     near = LateBets((), "2つの見込みがそろって線以上の馬がいない", "11051015", 0.91)
-    card = message.card(_forecast("当日"), RACE, {7: 5}, RECOMMENDED, late=near)
+    card = message.card(_forecast("当日"), RACE, {7: 5}, late=near)
     assert card.expectation.grade == "A" and card.expectation.score == 0.91 and card.badge == "期待度 A"
     assert message.describe(card).splitlines()[1] == "期待度 A（点数 0.91）"
-    assert card.bets.lines() == ["単勝 7", "複勝 3", "枠連 3-5", "3連単 7→4→8"]   # 期待度は買い目の条件に使わない
-    # 推奨買目の見込みがどれだけ高くても、期待度には入らない
     bought = LateBets((LatePick(3, 14.2, 0.5, 1.1, (7, 4)),), "", "11051015", 1.158)
-    assert message.card(_forecast("当日"), RACE, {}, RecommendationSet((), "期待値が線に届く組が無い"), late=bought).badge == "期待度 S"
+    assert message.card(_forecast("当日"), RACE, {}, late=bought).badge == "期待度 S"
 
 
 def test_見込みを出せなければ_期待度は理由つきの_なし() -> None:
     message = LocalRaceMessage()
-    card = message.card(_forecast("当日"), RACE, {}, RECOMMENDED, late=LateBets.none("時系列オッズの断面がまだ無い"))
+    card = message.card(_forecast("当日"), RACE, {}, late=LateBets.none("時系列オッズの断面がまだ無い"))
     assert message.describe(card).splitlines()[1] == "期待度 なし（見込みを出せない: 時系列オッズの断面がまだ無い）" and card.badge == ""
 
 
@@ -144,16 +121,14 @@ def test_レース一覧に無ければ_predict_の見出しを使う() -> None:
     assert message.describe(card).startswith(f"**{RID}（2026-11-05）の予測: 当日の時点** 地方の予想・当日の時点")
 
 
-def test_組み立てると_推奨買目を呼び_文と_保存した表の画像の添付(tmp_path: Path) -> None:
+def test_組み立てると_印の買い目を呼び_文と_保存した表の画像の添付(tmp_path: Path) -> None:
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
-    recommendations = _Recommendations()
-    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=recommendations).build(RID)
-    assert recommendations.calls == [RID]
-    assert recommendations.marked == [["◎", "○", "▲", "△", "△", "△", "☆", "注"]]   # 印を付けた表を渡す
+    mark_bets = _MarkBets()
+    notice = LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), mark_bets=mark_bets).build(RID)
+    assert mark_bets.marked == [["◎", "○", "▲", "△", "△", "△", "☆", "注"]]   # 印を付けた表を渡す
     assert notice.text.startswith("**笠松 1R（10:25 発走）** 地方の予想・当日の時点")
-    assert "3連単 7→4→8" in notice.text
     assert notice.text.splitlines()[-3:] == ["印の買い目: 買う（見込みの回収率 112%）。合計 5,000円で、どれが当たっても 6,000円以上戻る",
                                              "- 単勝（1点 計 3,500円）: 7 3,500円", "- 馬単（2点 計 1,500円）: 7→4 900円・7→8 600円"]
     assert notice.attachments == (store.image_path(RID),)
@@ -203,12 +178,15 @@ def test_先に終わったレースがあれば_見出しの下に馬場の傾�
     assert lines[3].startswith("◎ 7 イチバン：")
 
 
-def test_印の買い目は推奨買目のあとに出し_画像の欄にも添える() -> None:
+def test_印の買い目は印の行のあとに出し_画像の欄にも描く() -> None:
     message = LocalRaceMessage()
-    card = message.card(_forecast("当日"), RACE, {}, RECOMMENDED, marks=MARKS)
+    card = message.card(_forecast("当日"), RACE, {}, marks=MARKS)
     lines = message.describe(card).splitlines()
-    assert lines.index("3連単 7→4→8") + 1 == lines.index("印の買い目: " + MARKS.heading)
-    assert card.footer.notes[-3:] == ("印の買い目 " + MARKS.heading, "印の買い目 " + MARKS.lines[0], "印の買い目 " + MARKS.lines[1])
+    assert lines[-3] == "印の買い目: " + MARKS.heading and lines[-4].startswith("注 6 ナナバン")
+    assert card.footer.label == "印の買い目" and card.footer.lines == (MARKS.heading, *MARKS.lines) and card.footer.notes == ()
+    none = message.card(_forecast("当日"), RACE, {}, marks=MarkBets.none("印の買い目を出せない: オッズがまだ無い"))
+    assert none.footer.none and none.footer.notes == ("なし（印の買い目を出せない: オッズがまだ無い）",)
+    assert message.card(_forecast("当日"), RACE, {}).footer.notes == ()   # 印の買い目を出さない組み立て
 
 
 def test_印の買い目が出せなければ理由を書き_前日の時点は出さない(tmp_path: Path) -> None:
@@ -220,21 +198,22 @@ def test_印の買い目が出せなければ理由を書き_前日の時点は�
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("前日"), ensure_ascii=False), encoding="utf-8")
-    recommendations = _Recommendations()
-    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=recommendations).build(RID)
-    assert recommendations.marked == []   # 前日の時点は印の買い目を呼ばない
+    mark_bets = _MarkBets()
+    LocalRaceMessage(store=store, schedule=_Schedule(), frames=_Frames(), jockeys=_Jockeys(), mark_bets=mark_bets).build(RID)
+    assert mark_bets.marked == []   # 前日の時点は印の買い目を呼ばない
 
 
-LATE = LateBets((LatePick(3, 14.2, 0.52, 1.10, (4, 7, 8, 2, 1)),), "", "11051015")
+LATE = LateBets((LatePick(3, 14.2, 0.52, 1.10, (4, 7, 8, 2, 1), (7, 4)),), "", "11051015")
 
 
 def test_直前の買い目は最後に出し_買う馬がいなければ理由_ファイルが無ければ出さない() -> None:
     message = LocalRaceMessage()
-    lines = message.describe(message.card(_forecast("当日"), RACE, {}, RECOMMENDED, marks=MARKS, late=LATE)).splitlines()
+    lines = message.describe(message.card(_forecast("当日"), RACE, {}, marks=MARKS, late=LATE)).splitlines()
     marks = dict(zip(message.marked(_forecast("当日"))["horse_no"], message.marked(_forecast("当日"))["mark"]))
     label = {no: f"{no}{'' if marks[no] == '－' else marks[no]}" for no in (3, 4, 7, 8, 2, 1)}
     others = ",".join(label[no] for no in (4, 7, 8, 2, 1))
-    assert lines[-3:] == ["直前の買い目（確かめ中・1点 100円）:", f"- 単勝 {label[3]}（決めたときの単勝 14.2倍）100円",
+    assert lines[-4:] == ["直前の買い目（確かめ中・1点 100円）:", f"- 単勝 {label[3]}（決めたときの単勝 14.2倍）100円",
+                          f"- 馬単 {label[3]} → {label[7]},{label[4]}（2点 200円）",
                           f"- 3連単 {label[3]} → {others} → {others}（20点 2,000円）"]
     assert label[7] == "7◎"
     assert LocalRaceMessage.late_lines(LATE)[1] == "- 単勝 3（決めたときの単勝 14.2倍）100円"   # 印の表が無ければ馬番だけ
@@ -245,16 +224,16 @@ def test_直前の買い目は最後に出し_買う馬がいなければ理由_
     assert "直前の買い目" not in message.describe(message.card(_forecast("前日"), RACE, {}, late=LATE))
 
 
-def test_組み立てると_保存してある直前の買い目を読んで文に出す_推奨買目の合計は変えない(tmp_path: Path) -> None:
+def test_組み立てると_保存してある直前の買い目を読んで文に出す(tmp_path: Path) -> None:
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
-    message = LocalRaceMessage(store, _Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=_Recommendations())
+    message = LocalRaceMessage(store, _Schedule(), frames=_Frames(), jockeys=_Jockeys(), mark_bets=_MarkBets())
     before = message.build(RID).text
     LateBetFile().write(store.late_path(RID), LATE)
     after = message.build(RID).text
     assert "直前の買い目" not in before and after.startswith(before)
-    assert after.splitlines()[-3] == "直前の買い目（確かめ中・1点 100円）:"
+    assert after.splitlines()[-4] == "直前の買い目（確かめ中・1点 100円）:"
 
 
 def test_高知ファイナルの買い目は最後に出し_出せなければ理由_ファイルが無ければ出さない(tmp_path: Path) -> None:
@@ -264,7 +243,7 @@ def test_高知ファイナルの買い目は最後に出し_出せなければ�
     bets = FinalBets(5, (1, 2, 3), 1, {"単勝": ((5,),), "馬単": ((5, 1), (5, 2))}, 0.7, 0.85, "11051015")
     message = LocalRaceMessage()
     for title in ("当日", "前日"):                       # 時点を問わず出す
-        lines = message.describe(message.card(_forecast(title), RACE, {}, RECOMMENDED, kochi_final=bets)).splitlines()
+        lines = message.describe(message.card(_forecast(title), RACE, {}, kochi_final=bets)).splitlines()
         assert lines[-5:] == ["高知ファイナルの予想（荒れる前提・確かめ中）（1点 100円・合計 3点 300円）:", "- ◎5 ○1 ▲2 △3（1番人気 1 は ◎ にしない）",
                               "- 単勝 5（1点 100円）", "- 馬単 5→1 / 5→2（2点 200円）",
                               "- 複勝・ワイド・3連複: 見送り（◎ の複勝の見込み 0.70。0.85 以上で買う）"]
@@ -274,7 +253,7 @@ def test_高知ファイナルの買い目は最後に出し_出せなければ�
     store = LocalForecastStore(tmp_path)
     store.path(RID).parent.mkdir(parents=True)
     store.path(RID).write_text(json.dumps(_forecast("当日"), ensure_ascii=False), encoding="utf-8")
-    built = LocalRaceMessage(store, _Schedule(), frames=_Frames(), jockeys=_Jockeys(), recommendations=_Recommendations())
+    built = LocalRaceMessage(store, _Schedule(), frames=_Frames(), jockeys=_Jockeys(), mark_bets=_MarkBets())
     before = built.build(RID).text
     FinalBetFile().write(store.kochi_final_path(RID), bets)
     after = built.build(RID).text

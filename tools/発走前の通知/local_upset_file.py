@@ -12,7 +12,7 @@ REASON = "理由"
 
 
 class LocalUpsetFile:
-    """書くのは発走前の予想（``local_predict.py``。予想と同じ接続で出す）、読むのは推奨買目（``SavedUpsetProbabilities``）。
+    """書くのは発走前の予想（``local_predict.py``。予想と同じ接続で出す）、読むのは道具「地方の推奨買目」（``SavedUpsetProbabilities``。通知のときの推奨買目を作り直す研究の確かめ）。
     確率が出せなかったときは理由を書く。``read`` は、ファイルが無ければ ``FileNotFoundError``、理由が書いてあれば ``ValueError``、
     要る券種が無ければ ``LookupError``（推奨買目はどれでも、その券種だけを対象外にして理由を添える）。"""
 

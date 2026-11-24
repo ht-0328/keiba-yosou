@@ -1,6 +1,6 @@
 """地方の直前の買い目: 2つのモデル（買う馬らしさ・単勝の戻りの見込み）を、学習用の表の全部で学んで保存する。
 
-    uv run python tools/地方の直前の買い目/fit.py           # reports/地方の直前の買い目/models/ に書く（1〜2分）
+    uv run python tools/地方の直前の買い目/fit.py           # reports/地方の直前の買い目/models/ に書く（2〜3分）
 
 学習用の表は、研究「地方の直前の材料で買う」の analysis/training_table.py が作る（reports/地方の直前の買い目/学習用の表.pkl）。
 過去の成績の確かめ（時間の順を守って学び直す）は check.py。ここは本番用に全部の期間で学ぶだけ。

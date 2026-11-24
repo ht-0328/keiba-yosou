@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from 今週の予想.high_payout_summary import HighPayoutSummary
 from 今週の予想.logic_forecast import LogicForecast
 from 今週の予想.mark_return import MarkReturn
 
@@ -37,6 +38,8 @@ class RaceResult:
     - ``plan``: 実際に買う買い目（買う計画の複勝・単勝・馬単・組の券種）の精算。
     - ``marks``: 全レースの印の買い目（AI だけの予想。「買う」のレースだけ数える）の精算。
     - ``logic``: AI＋ロジック予想（展開・クラスのロジックで見送ったレースは買わない）の精算。
+    - ``high_payout``・``high_payout_of``: 高配当の買い目（``HighPayoutSummary``。1点 100円）の精算（全部の券種と、券種ごと）。
+      予想に高配当の買い目が無ければ（前の版の予想・当日でない予想・買う点の無いレース）買わない。
     - ``danger_won``・``logic_danger_won``: 消が1着になったか（AI だけの予想と、消のロジックで取り消した馬を除いた AI＋ロジック予想）。
     """
 
@@ -80,6 +83,13 @@ class RaceResult:
 
     def logic(self) -> Settled:
         return Settled() if self.logic_skip() else self.marks()
+
+    def high_payout(self) -> Settled:
+        return self._settle(HighPayoutSummary.of(self._forecast).stakes())
+
+    def high_payout_of(self, ticket_type: str) -> Settled:
+        """高配当の買い目のうち、1つの券種（券種の名前。例 ``ワイド``）の精算。"""
+        return self._settle(HighPayoutSummary.of(self._forecast).stakes_of(ticket_type))
 
     def logic_skip(self) -> str:
         """AI は買い、AI＋ロジック予想は見送ったレースなら、当たったロジックの名前（展開・クラス）。そうでなければ空。"""

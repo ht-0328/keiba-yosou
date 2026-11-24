@@ -10,17 +10,13 @@ import pandas as pd
 from 地方の直前の買い目.late_bets import LateBets
 
 from 地方の推奨買目.mark_bets import MarkBets
-from 地方の推奨買目.recommendation import STAKE
-from 地方の推奨買目.recommendation_set import RecommendationSet
 
 from 高知ファイナルの買い目.final_bets import FinalBets
 
 from 発走前の通知.bet_footer import BetFooter
 from 発走前の通知.local_expectation import LocalExpectation
 
-#: 画像の買い目の欄の札。
-FOOTER_LABEL = "推奨買目"
-#: 印の買い目の見出し（中央の通知と同じ言葉）。
+#: 画像の買い目の欄の札（印の買い目。中央の通知と同じ言葉）。
 MARK_LABEL = "印の買い目"
 
 
@@ -39,8 +35,6 @@ class LocalRaceCard:
     table: pd.DataFrame
     #: 馬番 → 枠番（馬番の色づけに使う。無い馬は色を付けない）。
     frames: Mapping[int, int]
-    #: 実際に買う買い目（推奨買目＋全頭の予想の単勝・複勝）。無ければ理由を持つ。
-    bets: RecommendationSet
     #: その日の馬場の傾向の1行（``TrackTendency.text()``。先に終わった同じ芝ダのレースが無ければ空）。
     tendency: str = ""
     #: 馬番 → 推定脚質（逃げ・先行・差し・追込。``RaceStyles.local()``）。過去走の無い馬は入らない。
@@ -49,9 +43,9 @@ class LocalRaceCard:
     jockeys: Mapping[int, str] = field(default_factory=dict)
     #: レースの期待度（直前の買い目の線への近さの点数と S・A・B・C。``LocalExpectation.of``）。買い目はこれで変えない。
     expectation: LocalExpectation = field(default_factory=lambda: LocalExpectation(None, None))
-    #: 印の買い目（``MarkRecommender``。当日の時点だけ。無ければ空）。推奨買目とは別に出し、同じ組が重なることもある。
+    #: 印の買い目（``MarkRecommender``。当日の時点だけ。無ければ空）。
     marks: MarkBets = field(default_factory=MarkBets)
-    #: 直前の買い目（道具「地方の直前の買い目」。当日の時点だけ。ファイルが無ければ None で、文に出さない）。確かめ中で、合計には入れない。
+    #: 直前の買い目（道具「地方の直前の買い目」。当日の時点だけ。ファイルが無ければ None で、文に出さない）。確かめ中。
     late: LateBets | None = None
     #: 高知ファイナルの買い目（道具「高知ファイナルの買い目」。高知のその日の最終レース「ファイナルレース」だけ。ファイルが無ければ None で、文に出さない）。
     kochi_final: FinalBets | None = None
@@ -70,10 +64,10 @@ class LocalRaceCard:
 
     @property
     def footer(self) -> BetFooter:
-        """画像の買い目の欄（推奨買目の券種ごとの行・合計・理由と、印の買い目の見出しと買い方ごとの行）。"""
-        marks = (f"{MARK_LABEL} {self.marks.heading}", *(f"{MARK_LABEL} {line}" for line in self.marks.lines)) if not self.marks.empty else ()
-        notes = (*(part for part in self.bets.reason.split("。") if part), *marks)
-        if self.bets.none:
-            return BetFooter(FOOTER_LABEL, notes=notes)
-        total = f"合計 {self.bets.points}点 {self.bets.yen:,}円（1点 {STAKE}円）"
-        return BetFooter(FOOTER_LABEL, tuple(self.bets.lines()), total, notes)
+        """画像の買い目の欄（印の買い目の見出し（買うか見送りか・合計・戻る額）と、買い方ごとの行）。
+        買い方の行が無い（前日の時点・出せなかった）ときは「なし」と、あれば理由。"""
+        if self.marks.empty:
+            return BetFooter(MARK_LABEL, notes=() if self.race_day else ("馬体重が届く前の前日の時点では出さない",))
+        if not self.marks.lines:
+            return BetFooter(MARK_LABEL, notes=(self.marks.heading,))
+        return BetFooter(MARK_LABEL, (self.marks.heading, *self.marks.lines))

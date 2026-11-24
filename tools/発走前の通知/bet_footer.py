@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class BetFooter:
-    #: 欄の左の札の文字（例 ``推奨買目``・``買い目``）。
+    #: 欄の左の札の文字（例 ``印の買い目``・``買い目``）。
     label: str
     #: 券種ごとの買い目の行（長い行は画像の側で「・」の区切りで折り返す）。無ければ空で、画像には「なし」と描く。
     lines: tuple[str, ...] = ()

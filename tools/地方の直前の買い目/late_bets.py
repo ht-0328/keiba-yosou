@@ -30,7 +30,7 @@ class LateBets:
         return not self.picks
 
     def lines(self, label: Callable[[int], str] = str) -> list[str]:
-        """通知に書く行。買う馬ごとに 単勝 と 3連単（その馬 → 相手 → 相手）。``label`` は馬番の書き方（通知は印を添える）。"""
+        """通知に書く行。買う馬ごとに 単勝・馬単（その馬 → 相手）・3連単（その馬 → 相手 → 相手）。``label`` は馬番の書き方（通知は印を添える）。"""
         return [line for pick in self.picks for line in self._pick_lines(pick, label)]
 
     def to_dict(self) -> dict[str, Any]:
@@ -47,6 +47,10 @@ class LateBets:
     def _pick_lines(pick: LatePick, label: Callable[[int], str]) -> list[str]:
         axis = label(pick.horse_no)
         lines = [f"単勝 {axis}（決めたときの単勝 {pick.odds:.1f}倍）{STAKE}円"]
+        exactas = pick.exactas()
+        if exactas:
+            seconds = ",".join(label(no) for no in pick.exacta_opponents)
+            lines.append(f"馬単 {axis} → {seconds}（{len(exactas)}点 {STAKE * len(exactas):,}円）")
         combos = pick.trifectas()
         if combos:
             others = ",".join(label(no) for no in pick.opponents)

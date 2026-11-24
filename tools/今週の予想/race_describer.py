@@ -7,6 +7,8 @@ from typing import Any
 from yosou.review import names
 
 from 今週の予想.forecast_columns import REVERSE_EXACTA
+from 今週の予想.high_payout_summary import LABEL as HIGH_PAYOUT_LABEL
+from 今週の予想.high_payout_summary import HighPayoutSummary
 from 今週の予想.mark_rule import NO_MARK, OUT_MARK, TOP_MARK
 from 今週の予想.mark_return import MarkReturn
 from 今週の予想.race_grades import RaceGrades
@@ -15,6 +17,7 @@ from 今週の予想.shown_rule_name import ShownRuleName
 from 今週の予想.ticket_pick import TicketPick
 from 今週の予想.ticket_rules import (
     BET_RULES,
+    HIGH_PAYOUT_LABELS,
     LONGSHOT_PLACE_LABEL,
     MARK_VALUE_LABELS,
     PLACE_LABEL,
@@ -40,11 +43,13 @@ REFERENCE_SHOWN = 10
 REFERENCE_SKIP = "2モデル一致"
 #: 参考の買い目に出さない、馬の集まりから組む3連複（荒れ具合で形を決める行は別に出し、ほかは道具「印の成績」で比べるための行）。
 _POOL_TRIO_LABELS: frozenset[str] = frozenset(rule.label for rule in POOL_TRIO_RULES)
+#: 参考の買い目に出さない、高配当の買い目（「高配当の買い目」の段に別に出す）。
+_HIGH_PAYOUT_LABELS: frozenset[str] = frozenset(HIGH_PAYOUT_LABELS.values())
 
 
 class RaceDescriber:
     """1レースの予想の結果（``RaceForecaster.forecast`` の辞書。保存した JSON と同じ形）を、印の付いた馬・危険な人気馬・
-    買い目（実際に買うものと参考）・◎ の理由と近走だけに絞った Markdown にする。
+    買い目（実際に買うものと、高配当の買い目と、参考）・◎ の理由と近走だけに絞った Markdown にする。
     次のレースの予想（スキル）と、開催日ごとのまとめ（``DaySummary``）が同じ文を使う。
 
     ``plan`` はそのレースの買う計画（``RacePlan``）。あれば複勝の参加の種類と金額、単勝・馬単・組の期待値の買い目の金額を書く。
@@ -104,6 +109,7 @@ class RaceDescriber:
 
     def _ticket_lines(self, forecast: dict[str, Any], plan: RacePlan | None) -> list[str]:
         """買い目の行。実際に買う複勝・単勝・馬単・組の期待値・6番人気以下の複勝の買い目（今の決まり）と、荒れ具合で形を決める3連複と、
+        全レースの印の買い目と、高配当の買い目（``HighPayoutSummary``。財布には入れず、1点 ``POINT_YEN`` 円で数えた点数と金額）と、
         参考の券種（ワイド・馬連・3連複・3連単など）。"""
         lines = ["実際に買う買い目:", *self._place_lines(forecast, plan)]
         win_picks, combo_picks, longshot_picks, stakes_picks = self._split(plan)
@@ -131,13 +137,15 @@ class RaceDescriber:
             lines.append(f"{MARK_RETURN_LABEL}: なし（当日の予想で出す）")
         else:
             lines += [f"{MARK_RETURN_LABEL}: {returns[0]}", *(f"- {line}" for line in returns[1])]
+        lines += self._high_payout_lines(forecast)
         lines.append(f"参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 {POINT_YEN}円で数えた額）:")
         shown = ShownRuleName(forecast.get("horses"))
         if returns is None and shown.note():
             lines.append(f"（{shown.note()}）")
         # 買い方は予想に入っている順（MarkTickets が組んだ順。前の版の予想は買い方の名前が違うことがあるので、名前の一覧では引かない）
         for rule in dict.fromkeys(ticket["rule"] for ticket in forecast["tickets"]):
-            if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL) or rule in _POOL_TRIO_LABELS or REFERENCE_SKIP in rule or rule in bought \
+            if rule in (PLACE_LABEL, LONGSHOT_PLACE_LABEL, STAKES_TRIFECTA_LABEL) or rule in _POOL_TRIO_LABELS or rule in _HIGH_PAYOUT_LABELS \
+                    or REFERENCE_SKIP in rule or rule in bought \
                     or (returns is not None and rule in MARK_VALUE_LABELS):
                 continue
             lines.append(self._reference_line(rule, [ticket for ticket in forecast["tickets"] if ticket["rule"] == rule], shown.of(rule)))
@@ -221,6 +229,26 @@ class RaceDescriber:
         if shown.note():
             lines.append(shown.note())
         return found.heading(), lines
+
+    def high_payout_bets(self, forecast: dict[str, Any]) -> list[str]:
+        """高配当の買い目の投稿の行（発走前の通知の書き方。1行目は見出し（決まり・1点の額・合計）で、続けて券種ごとに「- 」で始まる行。
+        馬番の順に全部の組とオッズを書く。組の多い券種は字下げした次の行に続ける）。
+        当日の予想で買う点が無ければ「高配当の買い目: なし（理由）」の1行（利用者が「出ていない」のか「無い」のかを見分けられるように）。
+        当日でない予想と、高配当の買い目を持たない前の版の予想は空。"""
+        summary = HighPayoutSummary.of(forecast)
+        if summary.points:
+            return [summary.heading(), *summary.notice_lines()]
+        if not summary.race_day or not summary.conditions:
+            return []
+        return [f"{HIGH_PAYOUT_LABEL}: なし（{summary.none_reason()}）"]
+
+    @staticmethod
+    def _high_payout_lines(forecast: dict[str, Any]) -> list[str]:
+        """高配当の買い目の段。見出し（決まり・点数・金額）と、券種ごとの行（組は全部書く。利用者がそのまま買うため）。買う点が無ければ「なし（理由）」の1行。"""
+        summary = HighPayoutSummary.of(forecast)
+        if not summary.points:
+            return [f"{HIGH_PAYOUT_LABEL}: なし（{summary.none_reason()}）"]
+        return [f"{summary.heading()}:", *(f"- {line}" for line in summary.detail_lines())]
 
     def mark_bets(self, forecast: dict[str, Any]) -> list[str]:
         """印で組む買い方（``MARK_RULE_LABELS``）の行（参考の買い目と同じ書き方で、先頭の「- 」は付けない。金額は1点 ``POINT_YEN`` で数えた額）。
