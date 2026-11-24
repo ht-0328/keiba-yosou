@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import lightgbm as lgb
 import numpy as np
 import pytest
 
@@ -43,6 +44,18 @@ def test_保存して読み直すと同じ値_条件も読める(tmp_path: Path,
     loaded = store.load()
     assert np.allclose(loaded.score(rows)[c.PAYBACK], models.score(rows)[c.PAYBACK])
     assert store.meta() == {"レース数": 150}
+
+
+def test_特徴量の数が違うモデルは_学び直しを促す(tmp_path: Path) -> None:
+    rng = np.random.default_rng(0)
+    data = lgb.Dataset(rng.normal(size=(200, len(c.BASE_FEATURES))), label=rng.integers(0, 2, 200).astype(float))
+    booster = lgb.train({"objective": "binary", "verbose": -1}, data, num_boost_round=2)   # 前の形（特徴量が少ない）のモデル
+    folder = tmp_path / "models"
+    folder.mkdir()
+    for name in ("買う馬らしさ-0.txt", "戻りの見込み-0.txt"):
+        (folder / name).write_text(booster.model_to_string(), encoding="utf-8")
+    with pytest.raises(ValueError, match="学び直して"):
+        LateModelStore(folder).load()
 
 
 def test_モデルが無ければ_FileNotFoundError(tmp_path: Path) -> None:

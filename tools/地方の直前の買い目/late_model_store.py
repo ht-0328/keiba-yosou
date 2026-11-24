@@ -8,6 +8,7 @@ from typing import Any
 
 import lightgbm as lgb
 
+from .late_columns import FEATURES
 from .late_models import LateModels
 
 #: 既定の置き場所（Git 対象外）。
@@ -20,7 +21,7 @@ _PAYBACK = "戻りの見込み"
 
 class LateModelStore:
     """モデルは ``買う馬らしさ-<番号>.txt``・``戻りの見込み-<番号>.txt``（LightGBM の文字の形式）、学んだ条件は ``meta.json``。
-    無ければ ``FileNotFoundError``。"""
+    無ければ ``FileNotFoundError``、特徴量の数が今の ``FEATURES`` と違えば（特徴量を変えたあと学び直していない）``ValueError``。"""
 
     def __init__(self, folder: Path = DEFAULT_FOLDER) -> None:
         self._folder = folder
@@ -44,6 +45,10 @@ class LateModelStore:
         payback = self._boosters(_PAYBACK)
         if not likeness or not payback:
             raise FileNotFoundError(f"直前の買い目のモデルがありません: {self._folder}。先に tools/地方の直前の買い目/fit.py で学んでください")
+        counts = {booster.num_feature() for booster in (*likeness, *payback)}
+        if counts != {len(FEATURES)}:
+            raise ValueError(f"直前の買い目のモデルの特徴量の数（{sorted(counts)}）が今の特徴量（{len(FEATURES)}）と違います。"
+                             "tools/地方の直前の買い目/fit.py で学び直してください")
         return LateModels(likeness, payback)
 
     def meta(self) -> dict[str, Any]:

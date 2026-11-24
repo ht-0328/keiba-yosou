@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -20,6 +21,8 @@ def _snapshot(heads: int = 7) -> pd.DataFrame:
     numbers = list(range(1, heads + 1))
     return pd.DataFrame({c.HORSE_NO: numbers, c.ODDS_NOW: [2.0 * no for no in numbers], c.ODDS_A: [2.2 * no for no in numbers],
                          c.ODDS_B: [2.4 * no for no in numbers], c.ODDS_FIRST: [1.8 * no for no in numbers],
+                         c.ODDS_BACK_2: [2.1 * no for no in numbers], c.ODDS_BACK_5: [2.1 * no for no in numbers],
+                         c.ODDS_BACK_35: [2.5 * no for no in numbers], c.PLACE_LOW_A: [1.2 * no for no in numbers],
                          c.PLACE_LOW: [1.1 * no for no in numbers], c.PLACE_HIGH: [1.5 * no for no in numbers], "announced": "11181530"})
 
 
@@ -44,9 +47,9 @@ def test_線を満たす馬がいなければ_理由つきのなし() -> None:
 
 def test_線への近さは_買う馬がいてもいなくても付く_出せなかったレースは_None() -> None:
     bought = LatePredictor(FakeModels({6: 0.5}, {6: 1.2})).bets(RID, _snapshot(), _probabilities())
-    assert round(bought.closeness, 3) == 1.25                         # min(0.5 / 0.4, 1.2 / 0.95)
-    near = LatePredictor(FakeModels({6: 0.5}, {6: 0.76})).bets(RID, _snapshot(), _probabilities())
-    assert near.empty and round(near.closeness, 3) == 0.8             # 0.76 / 0.95
+    assert round(bought.closeness, 3) == 1.304                        # min(0.5 / 0.35, 1.2 / 0.92)
+    near = LatePredictor(FakeModels({6: 0.5}, {6: 0.736})).bets(RID, _snapshot(), _probabilities())
+    assert near.empty and round(near.closeness, 3) == 0.8             # 0.736 / 0.92
     assert LateBets.from_dict(near.to_dict()) == LateBets((), near.reason, near.announced, 0.8)
     assert LatePredictor(FakeModels({}, {})).bets(RID, pd.DataFrame(), _probabilities()).closeness is None
     assert LateBets.from_dict({"買う馬": [], "理由": "前の形のファイル"}).closeness is None
@@ -72,7 +75,7 @@ def test_ファイルに書いて読み直せる_無ければ_None_消せる(tmp
     file = LateBetFile()
     assert file.read(path) is None
     file.write(path, bets)
-    assert file.read(path) == bets
+    assert file.read(path) == replace(bets, closeness=round(bets.closeness, 4))   # 線への近さは小数4桁で書く
     file.write(path, LateBets.none("理由"))
     assert file.read(path).reason == "理由"
     file.clear(path)

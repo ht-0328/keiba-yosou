@@ -34,17 +34,22 @@ def _odds_db() -> duckdb.DuckDBPyConnection:
             ("11181500", "02", "0100"), ("11181510", "02", "0110"), ("11181521", "02", "0120"), ("11181530", "02", "0000"),
             ("11181500", "03", "----"), ("11181521", "03", "0500"), ("11181530", "03", "0450"), ("11181530", "03", "0450")]
     _insert(con, "o1__単勝オッズ", wins)
-    _insert(con, "o1__複勝オッズ", [("11181530", "01", "0011", "0014"), ("11181530", "03", "0080", "0120"), ("11181521", "01", "0012", "0015")])
+    _insert(con, "o1__複勝オッズ", [("11181530", "01", "0011", "0014"), ("11181530", "03", "0080", "0120"), ("11181521", "01", "0012", "0015"),
+                                 ("11181510", "01", "0013", "0016")])
     _insert(con, "o1", [("1", "11181530")], key=_OTHER_RACE)
     _insert(con, "o1__単勝オッズ", [("11181530", "01", "0990")], key=_OTHER_RACE)
     return con
 
 
-def test_今_約10分前_約20分前_最初の断面の単勝と_今の複勝() -> None:
+def test_今と前の断面と最初の断面の単勝と_今と約10分前の複勝() -> None:
     frame = OddsSnapshotRepository(_odds_db()).load(RID).set_index("horse_no")
     assert frame.index.tolist() == [1, 3]                                   # 取消の 2番は今の断面に無いので外れる
     assert frame.loc[1, ["odds_now", "odds_a", "odds_b", "odds_first"]].tolist() == [2.4, 2.8, 2.8, 3.0]   # 20分前より前は 15:10 の断面
+    assert frame.loc[1, ["odds_back2", "odds_back5", "odds_back35"]].tolist()[:2] == [2.5, 2.5]   # 2分前・5分前より前は 15:21 の断面
+    assert frame.loc[1, "odds_back35"] != frame.loc[1, "odds_back35"]      # 35分前より前の断面が無い（欠損）
     assert frame.loc[1, ["place_low", "place_high"]].tolist() == [1.1, 1.4]
+    assert frame.loc[1, "place_low_a"] == 1.3                              # 約10分前より前の複勝は 15:10 の断面
+    assert frame.loc[3, "place_low"] == 8.0 and frame.loc[3, "place_low_a"] != frame.loc[3, "place_low_a"]
     assert frame.loc[3, "odds_now"] == 45.0 and frame.loc[3, "odds_first"] == 50.0
     assert frame.loc[3, "odds_a"] != frame.loc[3, "odds_a"]                  # 10分前より前の断面が無い（欠損）
     assert set(frame["announced"]) == {"11181530"}                          # 締め切り後の断面（確定）は使わない
