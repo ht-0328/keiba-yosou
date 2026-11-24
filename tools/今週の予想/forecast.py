@@ -15,6 +15,8 @@
 前日・当日は、危険な人気馬を「人気馬が4着以下になるかを予想」の学習済みモデルで判定して「消」にし、残りの馬に ◎〜△ を付ける
 （消は1レース1頭まで。1番人気が危険ならその馬、そうでなければ 2〜5番人気から）。印の付かなかった馬は無印（－）。時点（木曜・前日・当日）は、DB に入っている情報（オッズ・馬番・馬体重）から自動で選ぶ。
 先に jvdata-store で今週の出馬表（jvstore sync）と速報（jvstore realtime --date <開催日>）を取り込んでおく。
+当日の予想では、高配当の買い目（予想「高配当の組が当たるかを予想」の学習済みモデル reports/高配当の組が当たるかを予想/models/ で、組のオッズが券種ごとの
+高配当の線以上で、確率 × オッズが線以上の組を1点 100円で全部。財布と買う計画には入れず、点数と金額を出すだけ。モデルが無ければ足さない）も出す。
 印から、設計書「買うレースと買い目を決める」08 の 2 の買い目（単勝・複勝・ワイド・馬連・馬単・3連複・3連単。3連複・3連単は前からの形と、
 ◎軸・軸馬の1頭軸流し・マルチ）を組み、締め切り前のオッズで期待値・組の確率・トリガミを付けて出す（今の決まりで実際に買うのは、複勝と、当日の予想の単勝（期待値）・◎の単勝の期待値が 1.00 以上のレースの馬単・組の期待値の買い目。ほかは参考）。
 結果は reports/今週の予想/<開催日>/<rid>.json にも書き、検索画面の「今週の予想」タブがそれを見せる。
@@ -50,7 +52,7 @@ from 今週の予想.forecast_paces import ForecastPaces  # noqa: E402
 from 今週の予想.forecast_store import DEFAULT_FOLDER, ForecastStore  # noqa: E402
 from 今週の予想.forecast_table import ForecastTable  # noqa: E402
 from 今週の予想.forecast_version import FORECAST_VERSION  # noqa: E402
-from 今週の予想.model_folders import DEFAULT_FAVORITE_MODELS, DEFAULT_MODELS  # noqa: E402
+from 今週の予想.model_folders import DEFAULT_FAVORITE_MODELS, DEFAULT_HIGH_PAYOUT_MODELS, DEFAULT_MODELS  # noqa: E402
 from 今週の予想.plan_store import PlanStore  # noqa: E402
 from 今週の予想.plan_table import PlanTable  # noqa: E402
 from 今週の予想.race_forecaster import RaceForecaster  # noqa: E402
@@ -70,7 +72,7 @@ _RID = card.CARD_LIST_HEADERS.index("rid")
 def main(args) -> None:
     store = ForecastStore(args.out_dir)
     review = ReviewStore(args.review_db)
-    forecaster = RaceForecaster(args.models, args.favorite_models, review_store=review)
+    forecaster = RaceForecaster(args.models, args.favorite_models, review_store=review, high_payout_models=args.high_payout_models)
     tables: list[Table] = []
     with db.open_db(args.db) as con:
         if not args.no_review:
@@ -205,6 +207,8 @@ def build_parser():
                         help="学習済みモデルの置き場所（既定: reports/近走と適性から3着以内を予想/models）")
     parser.add_argument("--favorite-models", type=Path, default=DEFAULT_FAVORITE_MODELS,
                         help="危険な人気馬を判定する予想の学習済みモデルの置き場所（既定: reports/人気馬が4着以下になるかを予想/models）")
+    parser.add_argument("--high-payout-models", type=Path, default=DEFAULT_HIGH_PAYOUT_MODELS,
+                        help="高配当の買い目を出す予想の学習済みモデルの置き場所（既定: reports/高配当の組が当たるかを予想/models。無ければ高配当の買い目は足さない）")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_FOLDER, help="結果を書く場所（既定: reports/今週の予想）")
     parser.add_argument("--review-db", type=Path, default=DEFAULT_REVIEW_DB, help="回顧の DuckDB の場所（既定: reports/回顧/review.duckdb）")
     parser.add_argument("--no-review", action="store_true", help="予想の前に、終わったレースの回顧を書き足さない")

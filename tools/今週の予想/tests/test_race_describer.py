@@ -163,3 +163,52 @@ def test_重賞の3連単は重賞の行に書き_組の期待値や単勝馬単
     assert (line, 1_000) in describer.bought(forecast, plan)
     before = describer.describe(_forecast("前日"), _plan(graded=True, tickets=()))
     assert "- 3連単（重賞）: なし（当日の予想で、組の期待値の高い順に10点を買う）" in before
+
+def _high_payout_forecast() -> dict:
+    """当日の予想に、高配当の買い目（ワイド 2点・3連単 12点・外した馬連 1点）と、その決まりを足したもの。"""
+    forecast = _forecast("当日")
+    forecast["high_payout"] = {"ready": True, "value_line": 1.05, "max_points": None, "high_lines": {"ワイド": 10.0, "馬連": 30.0, "3連単": 500.0}}
+    trifectas = [_ticket("3連単（高配当）", "3連単", [3, 1, other], f"3→1→{other}", 1.10 + other / 100, 600.0 + other) for other in range(4, 16)]
+    forecast["tickets"] += [
+        _ticket("ワイド（高配当）", "ワイド", [3, 12], "3-12", 1.12, 31.0), _ticket("ワイド（高配当）", "ワイド", [3, 9], "3-9", 1.31, 24.5),
+        _ticket("馬連（高配当）", "馬連", [3, 9], "3-9", 1.2, None, dropped="オッズ無し"), *trifectas]
+    return forecast
+
+
+def test_高配当の買い目は券種ごとに全部の組を書き_参考の買い目には重ねて出さない() -> None:
+    text = RaceDescriber().describe(_high_payout_forecast(), _plan())
+    lines = text.splitlines()
+    head = lines.index("高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 1,400円）:")
+    # 期待値の高い順。外した馬連は出さない
+    assert lines[head + 1] == "- ワイド（高配当・10倍以上）: 3-9（期待値 1.31・オッズ 24.5）・3-12（期待値 1.12・オッズ 31.0）  1点 100円 × 2点 = 200円"
+    # 10点を超えても「ほか N点」にせず、全部の組を書く（利用者がそのまま買うため）
+    assert lines[head + 2].startswith("- 3連単（高配当・500倍以上）: 3→1→15（期待値 1.25・オッズ 615.0）・")
+    assert lines[head + 2].endswith("・3→1→4（期待値 1.14・オッズ 604.0）  1点 100円 × 12点 = 1,200円")
+    assert lines[head + 2].count("期待値") == 12 and "ほか" not in lines[head + 2]
+    assert lines[head + 3].startswith("参考の買い目（")
+    # 印の買い目のあと・参考の買い目の前に出し、参考の買い目の段には出さない
+    reference = lines[head + 3:]
+    assert not any("高配当" in line for line in reference)
+    assert lines.index("実際に買う買い目:") < head
+
+
+def test_高配当の買い目が無いときは_なしと理由の1行() -> None:
+    assert "高配当の買い目: なし（当日の予想で出す）" in RaceDescriber().describe(_forecast())
+    # 当日の予想でも、前の版の予想には決まりが無い
+    assert "高配当の買い目: なし（この予想には入っていない（前の版の予想））" in RaceDescriber().describe(_forecast("当日"))
+    forecast = _forecast("当日")
+    forecast["high_payout"] = {"ready": False, "value_line": 1.05, "max_points": None, "high_lines": {}}
+    assert "高配当の買い目: なし（高配当の予想の学習済みモデルが無い）" in RaceDescriber().describe(forecast)
+    forecast["high_payout"] = {"ready": True, "value_line": 1.05, "max_points": 10, "high_lines": {"ワイド": 10.0}}
+    assert "高配当の買い目: なし（高配当の線以上・期待値 1.05 以上・1券種 10点までの組が無い）" in RaceDescriber().describe(forecast)
+    assert RaceDescriber().high_payout_bets(forecast) == []
+
+
+def test_通知に使う高配当の買い目の行は_見出しと券種ごとの行で_馬番の順に全部の組とオッズ() -> None:
+    rows = RaceDescriber().high_payout_bets(_high_payout_forecast())
+    assert rows[0] == "高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 1,400円）"
+    assert rows[1] == "- ワイド（10倍以上）2点: 3-9（24.5倍）・3-12（31.0倍）"
+    # 1行に10点まで。超えた分は字下げした次の行に続ける（投稿を行の切れ目で分けても、組の途中で切れない）
+    assert rows[2].startswith("- 3連単（500倍以上）12点: 3→1→4（604.0倍）・") and rows[2].count("倍）") == 10
+    assert rows[3] == "  3→1→14（614.0倍）・3→1→15（615.0倍）"
+    assert len(rows) == 4

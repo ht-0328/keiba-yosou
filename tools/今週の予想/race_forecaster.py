@@ -31,13 +31,14 @@ from 今週の予想 import forecast_columns as columns
 from 今週の予想.danger_finder import DangerFinder
 from 今週の予想.danger_reasons import DangerReasons
 from 今週の予想.forecast_tickets import ForecastTickets
+from 今週の予想.high_payout_picker import HighPayoutPicker
 from 今週の予想.ticket_rules import GRADED_CLASSES
 from 今週の予想.forecast_version import FORECAST_VERSION
 from 今週の予想.horse_evaluator import HorseEvaluator
 from 今週の予想.filter_columns import MEMBER_SOURCES, member_column
 from 今週の予想.mark_rule import OUT_MARK as DANGER_MARK
 from 今週の予想.mark_rule import MarkRule
-from 今週の予想.model_folders import DEFAULT_UPSET_MODELS
+from 今週の予想.model_folders import DEFAULT_HIGH_PAYOUT_MODELS, DEFAULT_UPSET_MODELS
 from 今週の予想.race_grader import RaceGrader
 from 今週の予想.reverse_exacta_judge import LINE as REVERSE_LINE
 from 今週の予想.reverse_exacta_judge import ReverseExactaJudge
@@ -83,6 +84,9 @@ class RaceForecaster:
     結果の ``tickets``。木曜はオッズが無いので期待値とトリガミは付かない）。
     当日は、裏（1着が ○▲☆ のどれかで ◎ が2着か3着）が当たる確率を出し（``ReverseExactaJudge``。結果の ``reverse_exacta``）、線以上なら
     印の買い目に馬単の裏（○▲☆→◎）も足す。
+    当日は、高配当の買い目（予想「高配当の組が当たるかを予想」の確率 × オッズが線以上の、高配当の線以上の組。``HighPayoutPicker``）も買い目に足し、
+    その決まり（期待値の線・券種ごとの高配当の線・学習済みモデルを読めたか）を結果の ``high_payout`` に残す（当日でなければ None）。
+    学習済みモデルの置き場所 ``high_payout_models`` が無ければ足さない（None を渡すと使わない）。
     各馬には近走の文（``StoryAttacher``。近5走の文・負けた走の敗因の候補・評価のことば。回顧の不利は ``review_store`` から）も付ける。
     ``models`` は学習済みのモデルの置き場所、``favorite_models`` は人気馬の予想の学習済みモデルの置き場所、``upset_models`` は荒れ具合の予想の
     学習済みモデルの置き場所。結果は JSON にできる辞書。
@@ -90,7 +94,7 @@ class RaceForecaster:
 
     def __init__(self, models: Path, favorite_models: Path, figure_cache: Path = FIGURE_CACHE,
                  development_root: Path = DEFAULT_DEVELOPMENT_ROOT, review_store: ReviewStore | None = None,
-                 upset_models: Path = DEFAULT_UPSET_MODELS) -> None:
+                 upset_models: Path = DEFAULT_UPSET_MODELS, high_payout_models: Path | None = DEFAULT_HIGH_PAYOUT_MODELS) -> None:
         self._models = Path(models)
         self._dangers = DangerFinder(favorite_models)
         self._development_root = Path(development_root)
@@ -100,7 +104,8 @@ class RaceForecaster:
         self._evaluator = HorseEvaluator()
         self._band = WinValueBand()
         self._grader = RaceGrader(upset_models)
-        self._tickets = ForecastTickets(ComboBlendWeightsRepository(self._models).load(), BracketBlendWeightsRepository(self._models).load())
+        self._tickets = ForecastTickets(ComboBlendWeightsRepository(self._models).load(), BracketBlendWeightsRepository(self._models).load(),
+                                        HighPayoutPicker.load(high_payout_models))
         self._reverse = ReverseExactaJudge.load(self._models)
         self._danger_reasons = DangerReasons()
         self._unrated = UnratedEntryReader()
@@ -134,6 +139,7 @@ class RaceForecaster:
             "made_at": datetime.now().isoformat(timespec="seconds"), "horses": horses,
             "tickets": self._tickets.build(con, race_id, table, band, odds_known, race_day, graded=str(header.get("クラス", "")) in GRADED_CLASSES),
             columns.REVERSE_EXACTA: None if reverse is None else {"probability": reverse, "line": REVERSE_LINE, "buys": self._reverse.buys(reverse)},
+            columns.HIGH_PAYOUT: self._tickets.high_payout_conditions() if race_day else None,
             "pace": self._pace(race_id),
         }
 

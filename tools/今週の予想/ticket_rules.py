@@ -220,3 +220,22 @@ REVERSE_EXACTA_RULE = TicketRule(TicketType.EXACTA, (("○", "▲", "☆"), ("�
 MARK_VALUE_RULES: tuple[ComboValueRule, ...] = tuple(
     ComboValueRule(ticket_type, ALL_RACES, 0.0, float("inf"), adopted=False, name=f"{ticket_type.label}（印の期待値）")
     for ticket_type in (TicketType.QUINELLA, TicketType.EXACTA, TicketType.TRIFECTA))
+#: 高配当の買い目（予想「高配当の組が当たるかを予想」。``HighPayoutPicker``）: 当日の予想で、組のオッズが券種ごとの高配当の線以上・上限未満で、
+#: 予想の確率 × オッズ（期待値）が ``HIGH_PAYOUT_VALUE_LINE`` 以上の組を、1レース・1券種につき確率の高い順に ``HIGH_PAYOUT_MAX_POINTS`` 点まで、1点 ``POINT_YEN`` 円ずつ買う。券種ごとの線と上限（帯）は予想のパッケージの
+#: ``DEFAULT_BANDS``。財布と買う計画には入れず、点数と金額を出すだけ。ほかの買い方とは別に単独で買うので、トリガミの確かめはしない。
+#: 対象の券種・期待値の線・1レース1券種の上限の点数（確率の高い順。None は上限なし）は、ここを変えれば今週の予想・発走前の通知・その日の結果・
+#: 道具「高配当の買い目」の成績（``stats.py`` の既定の期待値の線と上限の点数。券種は成績では5券種の全部を出す）に効く。
+#: 期待値の線は予想のパッケージの ``DEFAULT_VALUE_LINE`` と同じ値
+#: （パッケージを import すると学習の部品まで読み込んで重いので、ここに値を書き、テストで一致を確かめる）。
+#: 決めた理由: 学習に使っていない年の予測で 2020〜2026年を数えると、期待値 1.05 以上・10点までなら、ワイド・馬連・馬単・3連複の4券種とも
+#: 探す期間・確かめる期間のどちらも回収率が 100% を超え、回収率の幅の下の端も 100% を超えた。3連単はどの決まりでも下の端が 100% に
+#: 届かなかったので、本番では出さない（成績は ``tools/高配当の買い目/stats.py`` で引き続き数える）。
+HIGH_PAYOUT_TICKET_TYPES: tuple[TicketType, ...] = (TicketType.WIDE, TicketType.QUINELLA, TicketType.EXACTA, TicketType.TRIO)
+HIGH_PAYOUT_VALUE_LINE = 1.05
+HIGH_PAYOUT_MAX_POINTS: int | None = 10
+#: 高配当の買い目の買い方の名前（券種 → 名前。対象から外した券種の、前に保存した予想も読めるように、扱える5券種の全部を持つ）。
+HIGH_PAYOUT_LABELS: dict[TicketType, str] = {
+    ticket_type: f"{ticket_type.label}（高配当）"
+    for ticket_type in (TicketType.WIDE, TicketType.QUINELLA, TicketType.EXACTA, TicketType.TRIO, TicketType.TRIFECTA)}
+#: トリガミの確かめをしない買い方の名前（単独で買う買い方。``TorigamiFilter``）。
+NO_TORIGAMI_LABELS: frozenset[str] = frozenset(HIGH_PAYOUT_LABELS.values())

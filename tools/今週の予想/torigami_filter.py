@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from 今週の予想.mark_tickets import ODDS, RULE
-from 今週の予想.ticket_rules import MIN_ODDS
+from 今週の予想.ticket_rules import MIN_ODDS, NO_TORIGAMI_LABELS
 
 #: 外した理由の列（空なら買う）。
 DROPPED = "dropped"
@@ -21,17 +21,21 @@ class TorigamiFilter:
     数え直す。全部の買い目が投資より多く戻るまで繰り返す。確定オッズの無い組（無投票・取消）は買えないので、先に外す。
     オッズの下限のある買い方（``MIN_ODDS``。大荒れの3連複の 100倍以上 など）は、下限に届かない組も先に外す。
     複勝・ワイドのオッズは最低オッズ（いちばん少ない払戻で確かめる）。
+    単独で買う買い方（``exempt``。既定は ``NO_TORIGAMI_LABELS`` の高配当の買い目）は、トリガミを確かめない（オッズの無い組だけ外す）。
+    点数の多いレースでは、高配当の線以上の組でも「オッズが点数以下」になって外れ、成績を確かめた買い方（線以上の組を、確率の高い順に上限の点数まで買う）と変わってしまうため。
     列 ``dropped`` に外した理由を入れる（空なら買う）。
     """
 
-    def __init__(self, min_odds: dict[str, float] | None = None) -> None:
+    def __init__(self, min_odds: dict[str, float] | None = None, exempt: frozenset[str] = NO_TORIGAMI_LABELS) -> None:
         self._min_odds = MIN_ODDS if min_odds is None else min_odds
+        self._exempt = exempt
 
     def apply(self, tickets: pd.DataFrame) -> pd.DataFrame:
         table = tickets.copy()
         floor = table[RULE].map(self._min_odds).astype(float)
         table[DROPPED] = np.where(table[ODDS].isna(), NO_ODDS, np.where(table[ODDS] < floor, LOW_ODDS, ""))
-        for _, group in table[table[DROPPED] == ""].groupby(["race_id", RULE], sort=False):
+        checked = table[(table[DROPPED] == "") & ~table[RULE].isin(self._exempt)]
+        for _, group in checked.groupby(["race_id", RULE], sort=False):
             for row in self._torigami_rows(group[ODDS]):
                 table.loc[row, DROPPED] = TORIGAMI
         return table
