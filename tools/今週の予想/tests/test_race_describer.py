@@ -201,7 +201,9 @@ def test_高配当の買い目が無いときは_なしと理由の1行() -> Non
     assert "高配当の買い目: なし（高配当の予想の学習済みモデルが無い）" in RaceDescriber().describe(forecast)
     forecast["high_payout"] = {"ready": True, "value_line": 1.05, "max_points": 10, "high_lines": {"ワイド": 10.0}}
     assert "高配当の買い目: なし（高配当の線以上・期待値 1.05 以上・1券種 10点までの組が無い）" in RaceDescriber().describe(forecast)
-    assert RaceDescriber().high_payout_bets(forecast) == []
+    # 通知には「なし」の1行を出す（当日でない予想と前の版の予想は出さない）
+    assert RaceDescriber().high_payout_bets(forecast) == ["高配当の買い目: なし（高配当の線以上・期待値 1.05 以上・1券種 10点までの組が無い）"]
+    assert RaceDescriber().high_payout_bets(_forecast("当日")) == [] and RaceDescriber().high_payout_bets(_forecast()) == []
 
 
 def test_通知に使う高配当の買い目の行は_見出しと券種ごとの行で_馬番の順に全部の組とオッズ() -> None:

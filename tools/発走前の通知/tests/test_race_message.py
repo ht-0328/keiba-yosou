@@ -172,6 +172,11 @@ def test_高配当の買い目があれば_AIとロジックの投稿のあと�
     # AI だけの予想の文と、実際に買う買い目の合計には入れない
     assert "高配当" not in notice.text
     assert message.card(forecast, RACE, {}).yen == message.card(_forecast(), RACE, {}).yen
-    # 買う点が1点も無いレースは、高配当の買い目の投稿を出さない
+    # 高配当の買い目を持たない予想（前の版）は、高配当の買い目の投稿を出さない
     plain, _ = _message(tmp_path / "別", _forecast())
     assert len(plain.build(RID).follow_ups) == 1 and "高配当" not in plain.build(RID).follow_ups[0]
+    # 買う点が1点も無いレースは、「なし」の投稿を出す
+    empty = _forecast()
+    empty["high_payout"] = {"ready": True, "value_line": 1.05, "max_points": 10, "high_lines": {"ワイド": 10.0}}
+    none, _ = _message(tmp_path / "なし", empty)
+    assert none.build(RID).follow_ups[-1].endswith("高配当の買い目: なし（高配当の線以上・期待値 1.05 以上・1券種 10点までの組が無い）")

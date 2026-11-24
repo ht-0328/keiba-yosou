@@ -232,9 +232,15 @@ class RaceDescriber:
 
     def high_payout_bets(self, forecast: dict[str, Any]) -> list[str]:
         """高配当の買い目の投稿の行（発走前の通知の書き方。1行目は見出し（決まり・1点の額・合計）で、続けて券種ごとに「- 」で始まる行。
-        馬番の順に全部の組とオッズを書く。組の多い券種は字下げした次の行に続ける）。買う点が無ければ空。"""
+        馬番の順に全部の組とオッズを書く。組の多い券種は字下げした次の行に続ける）。
+        当日の予想で買う点が無ければ「高配当の買い目: なし（理由）」の1行（利用者が「出ていない」のか「無い」のかを見分けられるように）。
+        当日でない予想と、高配当の買い目を持たない前の版の予想は空。"""
         summary = HighPayoutSummary.of(forecast)
-        return [summary.heading(), *summary.notice_lines()] if summary.points else []
+        if summary.points:
+            return [summary.heading(), *summary.notice_lines()]
+        if not summary.race_day or not summary.conditions:
+            return []
+        return [f"{HIGH_PAYOUT_LABEL}: なし（{summary.none_reason()}）"]
 
     @staticmethod
     def _high_payout_lines(forecast: dict[str, Any]) -> list[str]:
