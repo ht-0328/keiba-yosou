@@ -17,7 +17,7 @@ from ..dataset import (
     PredictionData,
     WinTargetData,
 )
-from ..dataset.column_names import PLACE_ODDS_LOW
+from ..dataset.column_names import PLACE_ODDS_HIGH, PLACE_ODDS_LOW
 from ..feature import PredictionTiming
 from ..feature.group import WIN_ODDS
 from ..place_value import PlaceValueColumns
@@ -162,11 +162,14 @@ class PredictionWorkflow:
         return pd.concat([probability, *member_probabilities, self._win_value.of(probability, win_data), *members], axis=1)
 
     def _shown_odds(self, data: PredictionData) -> pd.DataFrame:
-        """結果の表に出す単勝オッズと複勝の最低オッズ。オッズを使わない時点は、列を出さない（設計書 07）。
-        複勝の最低オッズは、複勝の買い目のオッズの上限（研究「レースの種類ごとの買い方」の docs/04）を見るのに使う。"""
+        """結果の表に出す単勝オッズと複勝の最低・最高オッズ。オッズを使わない時点は、列を出さない（設計書 07）。
+        複勝の最低オッズは、複勝の買い目のオッズの上限（研究「レースの種類ごとの買い方」の docs/04）を見るのに使う。
+        最低と最高の両方は、複勝オッズから見た3着以内率（6番人気以下の複勝・荒れ具合で形を決める3連複・高配当の買い目の材料）を出すのに使う。
+        市場の表に無い列は出さない。"""
         if WIN_ODDS not in data.features.columns:
             return pd.DataFrame(index=data.ids.index)
         shown = data.features[[WIN_ODDS]]
-        if data.market is not None and PLACE_ODDS_LOW in data.market.columns:
-            shown = shown.assign(**{PLACE_ODDS_LOW: data.market[PLACE_ODDS_LOW].to_numpy()})
-        return shown
+        if data.market is None:
+            return shown
+        found = [column for column in (PLACE_ODDS_LOW, PLACE_ODDS_HIGH) if column in data.market.columns]
+        return shown.assign(**{column: data.market[column].to_numpy() for column in found})

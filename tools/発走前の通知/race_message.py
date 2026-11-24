@@ -41,6 +41,8 @@ _RACE_DAY = "当日"
 class RaceMessage:
     """文は地方の通知と同じ短い形で、見出し・期待度（◎ の点数の S・A・B・C。画像の見出しにも札）・その日の馬場の傾向（``tendencies``。先に終わった同じ芝ダのレースがあれば）・印の付いた馬（``MarkLines``。◎○▲△☆注消）・実際に買う買い目（``RaceDescriber.bought``。
     買う計画は forecast.py が結果の JSON に書き足した ``plan``）だけ。参考の買い目と ◎ の理由・近走は、添付の全頭の予想根拠で見る。
+    当日の予想に高配当の買い目（``RaceDescriber.high_payout_bets``）があれば、AI＋ロジック予想の投稿のあとに、別の投稿（``RaceNotice.follow_ups``）で出す
+    （買う点が1点も無いレースは出さない。表の画像には入れない）。
     添付は、全頭の表の画像（``RaceImage``。推定脚質の列は ``styles``。``reports/発走前の通知/中央/<開催日>/<rid>.png``）と、``ForecastStore`` が書いた
     全頭の予想根拠（``<rid>.md``。あれば）。"""
 
@@ -70,7 +72,7 @@ class RaceMessage:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._image.draw(card).save(path)
         reasons = self._store.reasons_path(rid)
-        follow_ups = (self.logic_text(card),) if card.logic else ()
+        follow_ups = (*((self.logic_text(card),) if card.logic else ()), *((self.high_payout_text(card),) if card.high_payout else ()))
         return RaceNotice(self.describe(card), (path, reasons) if reasons.is_file() else (path,), follow_ups)
 
     def image_path(self, rid: str) -> Path:
@@ -92,7 +94,8 @@ class RaceMessage:
                            tendency=tendency, styles=dict(styles or {}), jockeys=dict(jockeys or {}), grade_badge=grades.badge(),
                            mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else (),
                            mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else (),
-                           logic=LogicForecast().line(forecast, styles or {}) or "")
+                           logic=LogicForecast().line(forecast, styles or {}) or "",
+                           high_payout=tuple(self._describer.high_payout_bets(forecast)))
 
     def describe(self, card: JraRaceCard) -> str:
         """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目・全レースの印の買い目（どの組が当たっても払った額より多く戻る割合と、見込みの回収率。当日）と、
@@ -113,6 +116,11 @@ class RaceMessage:
     def logic_text(card: JraRaceCard) -> str:
         """AI＋ロジック予想の投稿（AI だけの予想の投稿のあとに別に出す）。印は AI と同じで、全レースの印の買い目を買うかだけが違う。"""
         return f"**{card.title}** {LOGIC_LABEL}（印は AI の予想と同じ）\n{card.logic}"
+
+    @staticmethod
+    def high_payout_text(card: JraRaceCard) -> str:
+        """高配当の買い目の投稿（AI＋ロジック予想の投稿のあとに別に出す）。見出しに場と R を付け、券種ごとに全部の組とオッズを書く。"""
+        return "\n".join([f"**{card.heading}** {card.high_payout[0]}", *card.high_payout[1:]])
 
     @staticmethod
     def _notes(plan: RacePlan | None) -> tuple[str, ...]:

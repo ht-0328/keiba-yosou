@@ -7,8 +7,10 @@ from datetime import date
 import duckdb
 
 from その日の結果.day_finishes import DayFinishes
-from その日の結果.day_tables import WAITING, DayTables
+from その日の結果.day_tables import HIGH_PAYOUT_TOTAL, WAITING, DayTables
 from その日の結果.race_result import RaceResult
+
+from 今週の予想.ticket_rules import HIGH_PAYOUT_TICKET_TYPES
 
 RID = "2026112805050101"
 #: 10頭。逃げ・先行は 1・2 の2頭（20%）。
@@ -65,12 +67,52 @@ def test_AIが見送るレースは数えず_ロジックで見送ったレー�
 def test_表は結果の届いたレースだけを合計し_届いていないレースは結果待ち() -> None:
     done, waiting = RaceResult(_forecast(), FINISHES, _Payouts(), SLOW), RaceResult(_forecast(), [], _Payouts(known=False), {})
     races, totals = DayTables().build(date(2026, 11, 28), [(_forecast(), done), (_forecast(), waiting)])
-    assert races.rows[0][3:] == ["1着 5◎・2着 7○・3着 9－", "1着", "1,600円 → 4,200円（うち 100円は払戻を読めない券種）", "5,000円 → 20,000円", "見送り（展開）"]
-    assert races.rows[1][3] == WAITING
-    assert totals.rows == [["実際に買う買い目", 1, 1, "1,600円", "4,200円", "262.5%", "+2,600円"],
-                           ["印の買い目（AI だけ）", 1, 1, "5,000円", "20,000円", "400.0%", "+15,000円"],
-                           ["印の買い目（AI＋ロジック）", 0, 0, "0円", "0円", "-", "+0円"]]
+    # 最後の列は高配当の買い目。この予想には入っていないので「買わない」
+    assert races.rows[0][3:] == ["1着 5◎・2着 7○・3着 9－", "1着", "1,600円 → 4,200円（うち 100円は払戻を読めない券種）", "5,000円 → 20,000円", "見送り（展開）",
+                                 "買わない"]
+    assert races.rows[1][3] == WAITING and len(races.rows[1]) == len(races.columns)
+    assert totals.rows[:3] == [["実際に買う買い目", 1, 1, "1,600円", "4,200円", "262.5%", "+2,600円"],
+                               ["印の買い目（AI だけ）", 1, 1, "5,000円", "20,000円", "400.0%", "+15,000円"],
+                               ["印の買い目（AI＋ロジック）", 0, 0, "0円", "0円", "-", "+0円"]]
+    # 高配当の買い目の行は、今の対象の券種ごとと合計。どのレースも買っていないので 0
+    assert [row[0] for row in totals.rows[3:]] == [f"高配当の買い目（{ticket_type.label}）" for ticket_type in HIGH_PAYOUT_TICKET_TYPES] + [HIGH_PAYOUT_TOTAL]
+    assert all(row[1:] == [0, 0, "0円", "0円", "-", "+0円"] for row in totals.rows[3:])
     assert "結果の届いたレース 1／予想のあるレース 2" in totals.note
+
+
+def _with_high_payout() -> dict:
+    """高配当の買い目が、馬連 5-7・3-5 とワイド 5-9・外した 3連単 1点の予想（当日。決まりは期待値 1.05 以上）。"""
+    forecast = _forecast()
+    forecast["high_payout"] = {"ready": True, "value_line": 1.05, "max_points": None, "high_lines": {"ワイド": 10.0, "馬連": 30.0}}
+    forecast["tickets"] += [
+        {"rule": "馬連（高配当）", "ticket_type": "馬連", "combo": "0507", "label": "5-7", "value": 1.2, "odds": 40.0, "dropped": ""},
+        {"rule": "馬連（高配当）", "ticket_type": "馬連", "combo": "0305", "label": "3-5", "value": 1.1, "odds": 55.0, "dropped": ""},
+        {"rule": "ワイド（高配当）", "ticket_type": "ワイド", "combo": "0509", "label": "5-9", "value": 1.3, "odds": 12.0, "dropped": ""},
+        {"rule": "3連単（高配当）", "ticket_type": "3連単", "combo": "050709", "label": "5→7→9", "value": 1.4, "odds": None, "dropped": "オッズ無し"},
+    ]
+    return forecast
+
+
+def test_高配当の買い目は1点100円で精算し_レースごとの列と券種ごとの行と合計の行に出す() -> None:
+    result = RaceResult(_with_high_payout(), FINISHES, _Payouts(), {})
+    # 馬連 2点（5-7 は 1,000円の払戻）・ワイド 1点（外れ）。外した 3連単は買わない
+    assert (result.high_payout().stake, result.high_payout().back) == (300, 1000)
+    assert (result.high_payout_of("馬連").stake, result.high_payout_of("馬連").back) == (200, 1000)
+    assert (result.high_payout_of("ワイド").stake, result.high_payout_of("ワイド").back) == (100, 0)
+    assert result.high_payout_of("3連単").stake == 0
+    # 印の買い目（単勝 ◎）の精算は、高配当の買い目を足しても変わらない
+    assert (result.marks().stake, result.marks().back) == (5000, 20000)
+    plain = RaceResult(_forecast(), FINISHES, _Payouts(), {})
+    races, totals = DayTables().build(date(2026, 11, 28), [(_with_high_payout(), result), (_forecast(), plain)])
+    assert races.columns[-1] == "高配当の買い目"
+    assert [row[-1] for row in races.rows] == ["300円 → 1,000円", "買わない"]
+    by_name = {row[0]: row[1:] for row in totals.rows}
+    assert by_name["高配当の買い目（馬連）"] == [1, 1, "200円", "1,000円", "500.0%", "+800円"]
+    assert by_name["高配当の買い目（ワイド）"] == [1, 0, "100円", "0円", "0.0%", "-100円"]
+    assert by_name["高配当の買い目（3連複）"] == [0, 0, "0円", "0円", "-", "+0円"]
+    assert "高配当の買い目（3連単）" not in by_name   # 対象でない券種は、その日に買った点が無ければ行を出さない
+    assert by_name[HIGH_PAYOUT_TOTAL] == [1, 1, "300円", "1,000円", "333.3%", "+700円"]
+    assert "高配当の買い目は 1点 100円" in totals.note
 
 
 def _with_danger(number: int, win_probability: float) -> dict:

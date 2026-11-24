@@ -16,12 +16,17 @@ FORM_YOSOU_NAME = "近走と適性から3着以内を予想"
 FAVORITE_YOSOU_NAME = "人気馬が4着以下になるかを予想"
 #: レースの配当率（配当が中荒れ以上になる確率）を出す予想「レースの荒れ具合を4段階で予想」の名前。
 UPSET_YOSOU_NAME = "レースの荒れ具合を4段階で予想"
+#: 高配当の買い目を出す予想「高配当の組が当たるかを予想」の名前。
+HIGH_PAYOUT_YOSOU_NAME = "高配当の組が当たるかを予想"
 #: 学習済みモデルの既定の置き場所。
 DEFAULT_MODELS = _PROJECT_ROOT / "reports" / FORM_YOSOU_NAME / "models"
 #: 危険な人気馬を判定する予想の学習済みモデルの既定の置き場所。
 DEFAULT_FAVORITE_MODELS = _PROJECT_ROOT / "reports" / FAVORITE_YOSOU_NAME / "models"
 #: 荒れ具合の予想の学習済みモデルの既定の置き場所（``<置き場所>/<券種>/<時点>/``）。
 DEFAULT_UPSET_MODELS = _PROJECT_ROOT / "reports" / UPSET_YOSOU_NAME / "models"
+#: 高配当の予想の学習済みモデルの既定の置き場所（``<置き場所>/<券種の英名>/race_day/``）。無ければ、今週の予想は高配当の買い目を足さない
+#: （ほかの予想のモデルと違い、無くても予想は進むので ``MODEL_ROOTS`` には入れない）。
+DEFAULT_HIGH_PAYOUT_MODELS = _PROJECT_ROOT / "reports" / HIGH_PAYOUT_YOSOU_NAME / "models"
 #: 今週の予想が要る学習済みモデルの置き場所の一覧（予想の名前, 置き場所）。取得と予想の状況の道具が、あるかどうかを見る。
 MODEL_ROOTS: tuple[tuple[str, Path], ...] = ((FORM_YOSOU_NAME, DEFAULT_MODELS), (FAVORITE_YOSOU_NAME, DEFAULT_FAVORITE_MODELS),
                                              (UPSET_YOSOU_NAME, DEFAULT_UPSET_MODELS))
