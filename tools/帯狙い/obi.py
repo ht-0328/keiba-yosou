@@ -68,9 +68,10 @@ def main(args) -> None:
     tables: list[Table] = []
     with db.open_db(args.db) as con:
         upset = PredictionWorkflow(race_dataset_builder(con), model_repositories(args.upset_models), OddsResolver(AnnouncedOddsRepository(con)))
-        usual = RaceForecaster(args.usual_models, args.favorite_models)
+        # 高配当の買い目は帯狙いでは使わないので作らない（high_payout_models=None）
+        usual = RaceForecaster(args.usual_models, args.favorite_models, high_payout_models=None)
         picker = ObiDayPicker(upset, usual, ForecastStore(args.forecasts), args.score)
-        run = ObiDayRun(picker, RaceForecaster(args.models, args.favorite_models), usual, plan, args.line)
+        run = ObiDayRun(picker, RaceForecaster(args.models, args.favorite_models, high_payout_models=None), usual, plan, args.line)
         for day in _days(con, args):
             print(f"{day} のレースを選んでいます …", file=sys.stderr, flush=True)
             result = run.run(con, day)

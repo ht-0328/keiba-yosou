@@ -1,0 +1,36 @@
+# 高配当の組が当たるかの予想のハイパーパラメータの初期値（回収率を確かめたときの値）。5券種のモデルは同じ設定で学習する。
+# 学習のコマンドに --config で別のファイルを渡すと、そのファイルに書いた項目だけが置き換わる。
+# ここに無い名前は書けない（書き間違いを黙って無視しないため）。目的関数（binary / Logloss）は変えられない。
+# 当たりの組はごく少ないので、葉の最小の行数と正則化を強めにして、細かすぎる分け方を防ぐ。
+
+[lightgbm]
+early_stopping_rounds = 100   # 検証の行で、木を何本足しても良くならなければ止めるか
+min_category_count = 2000     # カテゴリの材料が無いので働かない（共有の設定の形に合わせて置く）
+
+[lightgbm.params]             # LGBMClassifier の引数。書いたものがそのまま渡る
+learning_rate = 0.03
+n_estimators = 3000           # 木の数の上限（早期終了で決まる）
+num_leaves = 31
+min_child_samples = 300
+colsample_bytree = 0.5        # 木ごとに使う材料の割合
+subsample = 0.7               # 木ごとに使う行の割合
+subsample_freq = 1
+reg_lambda = 20
+max_bin = 127
+random_state = 0
+n_jobs = 3                    # 使うスレッドの数（結果ではなく、速さと PC の空きのための設定）
+
+[catboost]
+early_stopping_rounds = 100
+
+[catboost.params]             # CatBoostClassifier の引数。書いたものがそのまま渡る
+learning_rate = 0.05
+iterations = 3000             # 木の数の上限（早期終了で決まる）
+depth = 6
+l2_leaf_reg = 10
+rsm = 0.5                     # 分け目ごとに使う材料の割合
+border_count = 128
+bootstrap_type = "Bernoulli"
+subsample = 0.7
+random_seed = 0
+thread_count = 3              # 使うスレッドの数（結果ではなく、速さと PC の空きのための設定）

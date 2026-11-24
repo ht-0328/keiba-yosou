@@ -149,3 +149,29 @@ def test_重賞は実際に買う買い目のあとに印の買い目を参考�
     forecast["header"] = {"クラス": "3勝クラス"}
     message, _ = _message(tmp_path / "別", forecast)
     assert "印の買い目（参考" not in message.build(RID).text   # 全レースの印の買い目（見込みの回収率）の欄だけ
+
+
+def _high_payout_ticket(ticket_type: str, horses: list[int], label: str, odds: float) -> dict:
+    return {"rule": f"{ticket_type}（高配当）", "ticket_type": ticket_type, "combo": "".join(f"{horse:02d}" for horse in horses), "horses": horses,
+            "label": label, "stake_units": 1.0, "value": 1.2, "probability": 1.2 / odds, "odds": odds, "dropped": ""}
+
+
+def test_高配当の買い目があれば_AIとロジックの投稿のあとに別の投稿で出し_無ければ出さない(tmp_path: Path) -> None:
+    forecast = _forecast()
+    forecast["high_payout"] = {"ready": True, "value_line": 1.05, "max_points": None, "high_lines": {"ワイド": 10.0, "馬単": 60.0}}
+    forecast["tickets"] += [_high_payout_ticket("ワイド", [3, 12], "3-12", 31.0), _high_payout_ticket("ワイド", [3, 9], "3-9", 24.5),
+                            _high_payout_ticket("馬単", [9, 3], "9→3", 140.2)]
+    message, _ = _message(tmp_path, forecast)
+    notice = message.build(RID)
+    assert len(notice.follow_ups) == 2 and "AI＋ロジック予想" in notice.follow_ups[0]
+    assert notice.follow_ups[1].splitlines() == [
+        "**東京 1R** 高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 300円）",
+        "- ワイド（10倍以上）2点: 3-9（24.5倍）・3-12（31.0倍）",
+        "- 馬単（60倍以上）1点: 9→3（140.2倍）",
+    ]
+    # AI だけの予想の文と、実際に買う買い目の合計には入れない
+    assert "高配当" not in notice.text
+    assert message.card(forecast, RACE, {}).yen == message.card(_forecast(), RACE, {}).yen
+    # 買う点が1点も無いレースは、高配当の買い目の投稿を出さない
+    plain, _ = _message(tmp_path / "別", _forecast())
+    assert len(plain.build(RID).follow_ups) == 1 and "高配当" not in plain.build(RID).follow_ups[0]
