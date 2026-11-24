@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import duckdb
@@ -63,7 +64,7 @@ def test_当日の時点は_時系列オッズと予想の確率から買う馬�
     out = tmp_path / "日" / f"{RID}.直前.json"
     bets = _writer(FakeModels({6: 0.5}, {6: 1.2})).write(None, RID, out, _odds_db(tmp_path / "ts.duckdb"), None, PredictionTiming.RACE_DAY)
     assert [pick.horse_no for pick in bets.picks] == [6] and bets.picks[0].odds == 12.0
-    assert LateBetFile().read(out) == bets and bets.announced == "11181530"
+    assert LateBetFile().read(out) == replace(bets, closeness=round(bets.closeness, 4)) and bets.announced == "11181530"   # 線への近さは小数4桁で書く
 
 
 def test_前日の時点は出さず_予想の確率も出さない(tmp_path: Path) -> None:
