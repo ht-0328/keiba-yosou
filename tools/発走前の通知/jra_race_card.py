@@ -55,7 +55,7 @@ class JraRaceCard:
     #: AI＋ロジック予想の1行（``LogicForecast.line``。印の買い目を AI と同じく買うか、ロジックで見送るか。当日の予想でなければ空）。
     #: AI だけの予想の文と画像には入れず、続けて別の投稿で出す（``RaceMessage.logic_text``）。
     logic: str = ""
-    #: 高配当の買い目の投稿の行（``RaceDescriber.high_payout_bets``。1行目は見出し、続けて券種ごとの行。買う点が無ければ空）。
+    #: 高配当の買い目の投稿の行（``RaceDescriber.high_payout_bets``。1行目は見出し、続けて券種ごとの行。買う点が無ければ「なし（理由）」の1行。当日でない予想と前の版の予想は空）。
     #: AI だけの予想の文と画像には入れず、AI＋ロジック予想のあとに別の投稿で出す（``RaceMessage.high_payout_text``）。
     high_payout: tuple[str, ...] = ()
 
