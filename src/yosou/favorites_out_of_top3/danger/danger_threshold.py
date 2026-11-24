@@ -13,6 +13,8 @@ _MIN_FLAGGED = 30
 MIN_Z = 1.645
 #: 線を「実際の4着以下率」そのもので選ぶ人気帯。ほかの人気帯は「市場の見立てよりどれだけ多く負けたか」で選ぶ（``choose_for``）。
 RATE_MEASURED_BANDS: tuple[str, ...] = ("1番人気",)
+#: 人気帯ごとの線の下限（これより低い線は選ばない。``choose_for``）。無い人気帯は候補のいちばん下から選ぶ。
+MIN_LINES: dict[str, float] = {"4〜5番人気": 0.04}
 
 
 class DangerThreshold:
@@ -30,13 +32,15 @@ class DangerThreshold:
 
     ``choose_for`` は、いちばん点の高い線でも、点が偶然と区別できる大きさ（``MIN_Z``）に届かなければ線を決めない（NaN）。
     半年の検証データで差がはっきりしない人気帯に、たまたま点の高かった低い線が選ばれて、ほぼ全頭が危険になるのを防ぐ。
+    4〜5番人気は線の下限（``MIN_LINES``）より低い線を選ばない。危険度が下限に満たない4〜5番人気は、実際の3着以内率が市場の見立てと
+    ほぼ同じで、消にしても買い目の成績が変わらなかった（研究「AIとロジックの予想」の 05）。
     ``choose`` はこの確かめをしない（研究の結果を再現するために、前の選び方のまま残す）。
     """
 
     def choose_for(self, band: str, danger: pd.Series, lost: pd.Series, market: pd.Series) -> float:
         """人気帯の物差しで線を決める（1番人気は4着以下率そのもの、ほかは市場の見立てとの差）。点が偶然と区別できなければ NaN。"""
         measure = None if band in RATE_MEASURED_BANDS else market
-        line = self.choose(danger, lost, measure)
+        line = self.choose(danger, lost, measure, MIN_LINES.get(band, 0.0))
         if np.isnan(line):
             return line
         surprise = self._surprise(lost, measure)
@@ -44,13 +48,13 @@ class DangerThreshold:
         score = self._score(danger, surprise, line, float(surprise.mean()))
         return line if spread > 0 and score / spread >= MIN_Z else float("nan")
 
-    def choose(self, danger: pd.Series, lost: pd.Series, market: pd.Series | None = None) -> float:
+    def choose(self, danger: pd.Series, lost: pd.Series, market: pd.Series | None = None, minimum: float = 0.0) -> float:
         """検証期間の危険度と実際の4着以下（1 か 0）から線を決める。``market``（オッズから見た4着以下の確率）を渡すと、
-        市場の見立てとの差で比べる。省くと4着以下率そのもので比べる。どの線も条件に合わなければ NaN。
+        市場の見立てとの差で比べる。省くと4着以下率そのもので比べる。``minimum`` より低い線は選ばない。どの線も条件に合わなければ NaN。
         """
         surprise = self._surprise(lost, market)
         overall = float(surprise.mean())
-        scores = {threshold: self._score(danger, surprise, threshold, overall) for threshold in CANDIDATES}
+        scores = {threshold: self._score(danger, surprise, threshold, overall) for threshold in CANDIDATES if threshold >= minimum}
         valid = {threshold: score for threshold, score in scores.items() if not np.isnan(score)}
         if not valid:
             return float("nan")

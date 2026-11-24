@@ -1,6 +1,7 @@
 """研究「AIとロジックの予想」: 消を取り消して印を付け直したときの買い目の成績を、今の消のときと期間ごとに比べる。
 
     uv run python research/AIとロジックの予想/analysis/danger_tickets.py
+    uv run python research/AIとロジックの予想/analysis/danger_tickets.py --kinds 本番の線 1番人気だけ   # 消の線の組どうしを比べる（danger_lines.py --flags の名前）
 
 先に ``danger_cancel.py --flags`` で消の表を書き、道具「印の成績」を、消の表 ``flags_now.pkl``・``flags_cancel.pkl`` のそれぞれで動かしておく
 （``--form graded_race_day/odds_move-top3 --win graded_race_day/odds_move-win --timing 当日 --danger-flags <消の表> --out-dir <出す先>``。
@@ -8,10 +9,12 @@
 
 出すもの: (1) 買い方ごと（1点 100円）の回収率と的中率、(2) 全レースの印の買い目（表だけ。本番と同じ配り方・見込みの回収率 100% 以上だけ買う）の
 AI だけ・AI＋ロジック（展開とクラスで見送る）の成績。(2) の見送りは今の ◎ で決めたもの（◎ が替わったレースも同じ扱い）。
+``--kinds`` には、道具「印の成績」の出す先のフォルダ名（``reports/AIとロジックの予想/消/<名前>``）を並べる。
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -58,10 +61,15 @@ def line(races: pd.DataFrame) -> str:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--kinds", nargs="+", default=None, metavar="名前",
+                        help="比べる消（道具「印の成績」の出す先のフォルダ名。省くと 今の消 と 取り消したあとの消）")
+    args = parser.parse_args()
+    kinds = tuple((name, name) for name in args.kinds) if args.kinds else KINDS
     materials = pd.read_pickle(race_materials.PATH)
     start, end = danger_cancel.PERIODS[0][1], danger_cancel.PERIODS[-1][2]
     tickets, marks = {}, {}
-    for name, folder in KINDS:
+    for name, folder in kinds:
         path = danger_cancel.OUT / folder / _CSV
         table = pd.read_csv(path, dtype={"レースID": str, "組番": str})
         tickets[name] = table[table["外した理由"].isna() & (table["開催日"] >= start)]

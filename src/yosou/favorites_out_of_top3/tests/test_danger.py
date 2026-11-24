@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..danger import DANGER, IS_DANGER, DangerJudge, DangerThreshold
+from ..danger import DANGER, IS_DANGER, MIN_LINES, DangerJudge, DangerThreshold
 
 
 def test_danger_threshold_prefers_a_line_that_separates_the_losers():
@@ -51,6 +51,18 @@ def test_danger_threshold_for_a_band_needs_a_score_beyond_chance():
     chooser = DangerThreshold()
     assert not np.isnan(chooser.choose(danger, lost, market))  # 確かめをしない選び方では、どれかの線が選ばれる
     assert np.isnan(chooser.choose_for("2〜3番人気", danger, lost, market))
+
+
+def test_danger_threshold_for_the_fourth_and_fifth_favorites_never_goes_below_the_minimum_line():
+    rng = np.random.default_rng(1)
+    n = 4000
+    # 危険度 0.02 以上の馬が市場の見立てより負ける。下限の無い人気帯は 0.02 を選ぶが、4〜5番人気は下限（0.04）より下を選ばない
+    danger = pd.Series(rng.uniform(0.0, 0.1, n))
+    market = pd.Series(np.where(danger >= 0.02, 0.45, 0.60))
+    lost = pd.Series((rng.uniform(size=n) < 0.55).astype(int))
+    chooser = DangerThreshold()
+    assert chooser.choose_for("2〜3番人気", danger, lost, market) == 0.02
+    assert chooser.choose_for("4〜5番人気", danger, lost, market) == MIN_LINES["4〜5番人気"] == 0.04
 
 
 def test_danger_threshold_needs_enough_flagged_horses():

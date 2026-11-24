@@ -11,6 +11,6 @@
 """
 
 from .danger_judge import BASE_OUT, DANGER, IS_DANGER, DangerJudge
-from .danger_threshold import CANDIDATES, MIN_Z, RATE_MEASURED_BANDS, DangerThreshold
+from .danger_threshold import CANDIDATES, MIN_LINES, MIN_Z, RATE_MEASURED_BANDS, DangerThreshold
 
-__all__ = ["DangerThreshold", "DangerJudge", "CANDIDATES", "MIN_Z", "RATE_MEASURED_BANDS", "BASE_OUT", "DANGER", "IS_DANGER"]
+__all__ = ["DangerThreshold", "DangerJudge", "CANDIDATES", "MIN_LINES", "MIN_Z", "RATE_MEASURED_BANDS", "BASE_OUT", "DANGER", "IS_DANGER"]
