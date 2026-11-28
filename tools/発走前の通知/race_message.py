@@ -119,7 +119,7 @@ class RaceMessage:
 
     @staticmethod
     def high_payout_text(card: JraRaceCard) -> str:
-        """高配当の買い目の投稿（AI＋ロジック予想の投稿のあとに別に出す）。見出しに場と R を付け、券種ごとに全部の組とオッズを書く。"""
+        """高配当の買い目の投稿（AI＋ロジック予想の投稿のあとに別に出す）。見出しに場と R を付け、券種ごとに全部の組を、まとめて買える形で書く。"""
         return "\n".join([f"**{card.heading}** {card.high_payout[0]}", *card.high_payout[1:]])
 
     @staticmethod

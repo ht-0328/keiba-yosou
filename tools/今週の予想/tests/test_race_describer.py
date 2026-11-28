@@ -175,16 +175,15 @@ def _high_payout_forecast() -> dict:
     return forecast
 
 
-def test_高配当の買い目は券種ごとに全部の組を書き_参考の買い目には重ねて出さない() -> None:
+def test_高配当の買い目は券種ごとに全部の組をまとめて買える形で書き_参考の買い目には重ねて出さない() -> None:
     text = RaceDescriber().describe(_high_payout_forecast(), _plan())
     lines = text.splitlines()
     head = lines.index("高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 1,400円）:")
-    # 期待値の高い順。外した馬連は出さない
-    assert lines[head + 1] == "- ワイド（高配当・10倍以上）: 3-9（期待値 1.31・オッズ 24.5）・3-12（期待値 1.12・オッズ 31.0）  1点 100円 × 2点 = 200円"
+    # 外した馬連は出さない
+    assert lines[head + 1] == "- ワイド（高配当・10倍以上）: 流し 軸 3 − 相手 9・12  1点 100円 × 2点 = 200円"
     # 10点を超えても「ほか N点」にせず、全部の組を書く（利用者がそのまま買うため）
-    assert lines[head + 2].startswith("- 3連単（高配当・500倍以上）: 3→1→15（期待値 1.25・オッズ 615.0）・")
-    assert lines[head + 2].endswith("・3→1→4（期待値 1.14・オッズ 604.0）  1点 100円 × 12点 = 1,200円")
-    assert lines[head + 2].count("期待値") == 12 and "ほか" not in lines[head + 2]
+    assert lines[head + 2] == ("- 3連単（高配当・500倍以上）: フォーメーション 1着 3 → 2着 1 → 3着 4・5・6・7・8・9・10・11・12・13・14・15"
+                               "  1点 100円 × 12点 = 1,200円")
     assert lines[head + 3].startswith("参考の買い目（")
     # 印の買い目のあと・参考の買い目の前に出し、参考の買い目の段には出さない
     reference = lines[head + 3:]
@@ -206,11 +205,9 @@ def test_高配当の買い目が無いときは_なしと理由の1行() -> Non
     assert RaceDescriber().high_payout_bets(_forecast("当日")) == [] and RaceDescriber().high_payout_bets(_forecast()) == []
 
 
-def test_通知に使う高配当の買い目の行は_見出しと券種ごとの行で_馬番の順に全部の組とオッズ() -> None:
+def test_通知に使う高配当の買い目の行は_見出しと券種ごとの行で_全部の組をまとめて買える形() -> None:
     rows = RaceDescriber().high_payout_bets(_high_payout_forecast())
     assert rows[0] == "高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 1,400円）"
-    assert rows[1] == "- ワイド（10倍以上）2点: 3-9（24.5倍）・3-12（31.0倍）"
-    # 1行に10点まで。超えた分は字下げした次の行に続ける（投稿を行の切れ目で分けても、組の途中で切れない）
-    assert rows[2].startswith("- 3連単（500倍以上）12点: 3→1→4（604.0倍）・") and rows[2].count("倍）") == 10
-    assert rows[3] == "  3→1→14（614.0倍）・3→1→15（615.0倍）"
-    assert len(rows) == 4
+    assert rows[1] == "- ワイド（10倍以上）2点: 流し 軸 3 − 相手 9・12"
+    assert rows[2] == "- 3連単（500倍以上）12点: フォーメーション 1着 3 → 2着 1 → 3着 4・5・6・7・8・9・10・11・12・13・14・15"
+    assert len(rows) == 3

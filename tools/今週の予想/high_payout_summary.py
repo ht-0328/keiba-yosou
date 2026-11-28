@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Any
 
+from 今週の予想.bet_shapes import BetShapes
 from 今週の予想.forecast_columns import HIGH_PAYOUT
 from 今週の予想.ticket_rules import HIGH_PAYOUT_LABELS, POINT_YEN
 
@@ -13,10 +14,6 @@ from 今週の予想.ticket_rules import HIGH_PAYOUT_LABELS, POINT_YEN
 _RACE_DAY = "当日"
 #: 見出しのことば。
 LABEL = "高配当の買い目"
-#: 発走前の通知で、1行に書く組の数の上限（超えたら次の行に続ける。Discord の投稿を行の切れ目で分けても、組の途中で切れないように）。
-NOTICE_ROW_POINTS = 10
-#: 発走前の通知の、続きの行の頭の字下げ。
-_CONTINUED = "  "
 
 
 @dataclass(frozen=True)
@@ -30,7 +27,7 @@ class HighPayoutSummary:
     金額は1点 ``POINT_YEN`` 円で数える（財布と買う計画には入れない）。
 
     例: ワイド 3-9（24.5倍）と 3-12（31.0倍）が買う点なら、``points`` は 2、``yen`` は 200、通知の行は
-    ``- ワイド（10倍以上）2点: 3-9（24.5倍）・3-12（31.0倍）``。
+    ``- ワイド（10倍以上）2点: 流し 軸 3 − 相手 9・12``（組は、投票の画面でまとめて買える形で書く。``BetShapes``）。
     """
 
     tickets: dict[str, list[dict[str, Any]]]
@@ -84,27 +81,22 @@ class HighPayoutSummary:
         return f"{self.condition_text()}の組が無い"
 
     def detail_lines(self) -> list[str]:
-        """1レースの文の行（券種ごとに1行。期待値の高い順に全部の組・期待値・オッズと、1点の額 × 点数 = 金額。先頭の「- 」は付けない）。"""
+        """1レースの文の行（券種ごとに1行。全部の組をまとめて買える形（``BetShapes``）と、1点の額 × 点数 = 金額。先頭の「- 」は付けない）。"""
         return [self._detail_line(label, points) for label, points in self.tickets.items()]
 
     def notice_lines(self) -> list[str]:
-        """発走前の通知の行（そのまま投稿できる形。券種ごとに「- 」で始まる1行で、馬番の順に全部の組とオッズ。
-        1行に ``NOTICE_ROW_POINTS`` 点までで、超えた分は字下げした次の行に続ける）。"""
-        return list(chain.from_iterable(self._notice_rows(label, points) for label, points in self.tickets.items()))
+        """発走前の通知の行（そのまま投稿できる形。券種ごとに「- 」で始まる1行で、全部の組をまとめて買える形（``BetShapes``）で書く）。"""
+        return [self._notice_row(label, points) for label, points in self.tickets.items()]
 
     def _detail_line(self, label: str, points: list[dict[str, Any]]) -> str:
-        ordered = sorted(points, key=lambda ticket: -(ticket.get("value") or 0.0))
-        shown = "・".join(f"{ticket['label']}（期待値 {_number(ticket.get('value'), 2)}・オッズ {_number(ticket.get('odds'), 1)}）" for ticket in ordered)
+        shown = BetShapes().text([ticket["label"] for ticket in points])
         name = "・".join(part for part in ("高配当", self._high_line(label)) if part)
         return f"{label}（{name}）: {shown}  1点 {POINT_YEN:,}円 × {len(points)}点 = {POINT_YEN * len(points):,}円"
 
-    def _notice_rows(self, label: str, points: list[dict[str, Any]]) -> list[str]:
-        ordered = sorted(points, key=lambda ticket: str(ticket["combo"]))
-        shown = [f"{ticket['label']}（{_number(ticket.get('odds'), 1)}倍）" for ticket in ordered]
-        rows = ["・".join(shown[start:start + NOTICE_ROW_POINTS]) for start in range(0, len(shown), NOTICE_ROW_POINTS)]
+    def _notice_row(self, label: str, points: list[dict[str, Any]]) -> str:
         line = self._high_line(label)
         head = f"- {label}（{line}）" if line else f"- {label} "
-        return [f"{head}{len(points)}点: {rows[0]}", *(f"{_CONTINUED}{row}" for row in rows[1:])]
+        return f"{head}{len(points)}点: {BetShapes().text([ticket['label'] for ticket in points])}"
 
     def _high_line(self, label: str) -> str:
         """券種の高配当の線。例 ``10倍以上``。決まりに無ければ（前の版の予想）空。"""
@@ -115,7 +107,3 @@ class HighPayoutSummary:
 def _of_rule(tickets: list[dict[str, Any]], rule: str) -> list[dict[str, Any]]:
     """買い方の名前が ``rule`` の点。"""
     return [ticket for ticket in tickets if ticket.get("rule") == rule]
-
-
-def _number(value: Any, digits: int) -> str:
-    return f"{value:.{digits}f}" if isinstance(value, (int, float)) else "-"
