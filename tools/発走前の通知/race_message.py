@@ -97,7 +97,7 @@ class RaceMessage:
                            mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else (),
                            logic=LogicForecast().line(forecast, styles or {}) or "",
                            high_payout=tuple(self._describer.high_payout_bets(forecast)),
-                           public_rule=PublicRule.of(forecast).line() if timing == _RACE_DAY else "")
+                           public_rule=tuple(PublicRule.of(forecast).lines()) if timing == _RACE_DAY else ())
 
     def describe(self, card: JraRaceCard) -> str:
         """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目・的中実績の公開ルール（当日）・全レースの印の買い目（どの組が当たっても払った額より多く戻る割合と、見込みの回収率。当日）と、
@@ -108,8 +108,7 @@ class RaceMessage:
             lines.append(f"買い目: なし（{'。'.join(card.notes)}）" if card.notes else "買い目: なし")
         else:
             lines += [f"買い目（合計 {card.yen:,}円）:", *(f"- {line}" for line, _ in card.bets)]
-        if card.public_rule:
-            lines.append(card.public_rule)
+        lines += list(card.public_rule)
         if card.mark_return:
             lines += [f"{MARK_RETURN_LABEL}: {card.mark_return}", *(f"- {line}" for line in card.mark_returns)]
         if card.mark_bets:

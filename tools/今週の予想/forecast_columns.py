@@ -57,6 +57,8 @@ IS_DANGER = "is_danger"
 TRIO_UPSET = "trio_upset"
 #: 馬単の裏（○▲☆→◎）まで買うか（``ReverseExactaJudge`` が決めたもの。レースの全頭に同じ値。当日だけ。無ければ買わない）。
 REVERSE_EXACTA = "reverse_exacta"
+#: 公開ルールの判定（予想の結果の辞書の鍵。``PublicRulePicker.judge``。直した ◎・期待値・相手・勝負か。当日だけ。当日でなければ None）。
+PUBLIC_RULE = "public_rule"
 #: 高配当の買い目の決まり（予想の結果の辞書の鍵。``HighPayoutPicker.conditions``。期待値の線・券種ごとの高配当の線・学習済みモデルを読めたか。
 #: 当日の予想だけ。ほかの時点と、前の版の予想には無い）。
 HIGH_PAYOUT = "high_payout"
