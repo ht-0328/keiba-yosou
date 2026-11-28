@@ -12,6 +12,7 @@ from 今週の予想.high_payout_summary import LABEL as HIGH_PAYOUT_LABEL
 from 今週の予想.high_payout_summary import HighPayoutSummary
 from 今週の予想.mark_rule import NO_MARK, OUT_MARK, TOP_MARK
 from 今週の予想.mark_return import MarkReturn
+from 今週の予想.public_rule import PublicRule
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
 from 今週の予想.shown_rule_name import ShownRuleName
@@ -111,6 +112,7 @@ class RaceDescriber:
     def _ticket_lines(self, forecast: dict[str, Any], plan: RacePlan | None) -> list[str]:
         """買い目の行。実際に買う複勝・単勝・馬単・組の期待値・6番人気以下の複勝の買い目（今の決まり）と、荒れ具合で形を決める3連複と、
         全レースの印の買い目と、高配当の買い目（``HighPayoutSummary``。財布には入れず、1点 ``POINT_YEN`` 円で数えた点数と金額）と、
+        的中実績の公開ルール（``PublicRule``。◎ の単勝。財布には入れない）と、
         参考の券種（ワイド・馬連・3連複・3連単など）。"""
         lines = ["実際に買う買い目:", *self._place_lines(forecast, plan)]
         win_picks, combo_picks, longshot_picks, stakes_picks = self._split(plan)
@@ -139,6 +141,7 @@ class RaceDescriber:
         else:
             lines += [f"{MARK_RETURN_LABEL}: {returns[0]}", *(f"- {line}" for line in returns[1])]
         lines += self._high_payout_lines(forecast)
+        lines.append(PublicRule.of(forecast).line())
         lines.append(f"参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 {POINT_YEN}円で数えた額）:")
         shown = ShownRuleName(forecast.get("horses"))
         if returns is None and shown.note():

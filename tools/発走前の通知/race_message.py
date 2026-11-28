@@ -15,6 +15,7 @@ from 今週の予想.forecast_store import ForecastStore
 from 今週の予想.logic_forecast import LABEL as LOGIC_LABEL
 from 今週の予想.logic_forecast import LogicForecast
 from 今週の予想.mark_rule import MARK_ORDER, NO_MARK, OUT_MARK
+from 今週の予想.public_rule import PublicRule
 from 今週の予想.race_describer import RaceDescriber
 from 今週の予想.race_grades import RaceGrades
 from 今週の予想.race_plan import RacePlan
@@ -95,10 +96,11 @@ class RaceMessage:
                            mark_bets=tuple(self._describer.mark_bets(forecast)) if graded else (),
                            mark_return=returns[0] if returns else "", mark_returns=tuple(returns[1]) if returns else (),
                            logic=LogicForecast().line(forecast, styles or {}) or "",
-                           high_payout=tuple(self._describer.high_payout_bets(forecast)))
+                           high_payout=tuple(self._describer.high_payout_bets(forecast)),
+                           public_rule=PublicRule.of(forecast).line() if timing == _RACE_DAY else "")
 
     def describe(self, card: JraRaceCard) -> str:
-        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目・全レースの印の買い目（どの組が当たっても払った額より多く戻る割合と、見込みの回収率。当日）と、
+        """通知の文: 見出し・期待度・馬場の傾向（あれば）・印の付いた馬（1つの印につき1行）・実際に買う買い目・的中実績の公開ルール（当日）・全レースの印の買い目（どの組が当たっても払った額より多く戻る割合と、見込みの回収率。当日）と、
         重賞なら印で組む買い方（参考）。"""
         lines = [f"**{card.title}** 中央の予想・{card.timing}", card.grades, *([card.tendency] if card.tendency else []),
                  *MarkLines().lines(card.table)]
@@ -106,6 +108,8 @@ class RaceMessage:
             lines.append(f"買い目: なし（{'。'.join(card.notes)}）" if card.notes else "買い目: なし")
         else:
             lines += [f"買い目（合計 {card.yen:,}円）:", *(f"- {line}" for line, _ in card.bets)]
+        if card.public_rule:
+            lines.append(card.public_rule)
         if card.mark_return:
             lines += [f"{MARK_RETURN_LABEL}: {card.mark_return}", *(f"- {line}" for line in card.mark_returns)]
         if card.mark_bets:
