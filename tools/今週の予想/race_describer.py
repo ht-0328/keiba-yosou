@@ -6,6 +6,7 @@ from typing import Any
 
 from yosou.review import names
 
+from 今週の予想.bet_shapes import BetShapes
 from 今週の予想.forecast_columns import REVERSE_EXACTA
 from 今週の予想.high_payout_summary import LABEL as HIGH_PAYOUT_LABEL
 from 今週の予想.high_payout_summary import HighPayoutSummary
@@ -37,7 +38,7 @@ STAKES_TICKETS: tuple[str, ...] = ("3連単",)
 MARK_RULE_LABELS: tuple[str, ...] = tuple(rule.label for rule in BET_RULES[:6])
 #: 全レースの印の買い目の見出し（見込みの回収率を添える）。
 MARK_RETURN_LABEL = "印の買い目（全レース）"
-#: 参考の買い目で、組を書き出す点数の上限（3連単のマルチは 60点を超えるので、期待値の高い順にここまで）。
+#: 実際に買う買い目（期待値とオッズを1点ずつ添える行）で、組を書き出す点数の上限（期待値の高い順にここまで）。
 REFERENCE_SHOWN = 10
 #: 参考の買い目に出さない、比べるためだけの行（2モデル一致で絞った行）の目印。
 REFERENCE_SKIP = "2モデル一致"
@@ -211,7 +212,7 @@ class RaceDescriber:
 
     def mark_returns(self, forecast: dict[str, Any], labels: tuple[str, ...] = MARK_VALUE_LABELS) -> tuple[str, list[str]] | None:
         """全レースの印の買い目（``MarkReturn``。買い方の名前が ``labels`` の点。既定は中央の印の買い目）の見出しの1行
-        （買うか見送りか・合計・当たったときに戻る額）と、買い方ごとの行（組と1点の金額。先頭の「- 」は付けない）。
+        （買うか見送りか・合計・当たったときに戻る額）と、買い方ごとの行（同じ金額の組をまとめた形（``BetShapes``）と1点の金額。先頭の「- 」は付けない）。
         当日の予想でないか、買い目が無ければ None。"""
         found = MarkReturn.of(forecast, labels)
         if found is None:
@@ -219,9 +220,8 @@ class RaceDescriber:
         lines = []
         shown = ShownRuleName(forecast.get("horses"))
         for rule, rows in found.stakes.items():
-            points = "・".join(f"{ticket['label']} {yen:,}円" for ticket, _, yen in rows[:REFERENCE_SHOWN])
-            more = f" ほか {len(rows) - REFERENCE_SHOWN}点" if len(rows) > REFERENCE_SHOWN else ""
-            lines.append(f"{shown.of(rule)}（{len(rows)}点 計 {sum(yen for _, _, yen in rows):,}円）: {points}{more}")
+            points = BetShapes().staked_text([(ticket["label"], yen) for ticket, _, yen in rows])
+            lines.append(f"{shown.of(rule)}（{len(rows)}点 計 {sum(yen for _, _, yen in rows):,}円）: {points}")
         reverse = forecast.get(REVERSE_EXACTA)
         if reverse:
             judge = shown.of("馬単の裏（○▲☆→◎）も買う") if reverse["buys"] else "線に届かないので、裏は買わない"
@@ -258,18 +258,15 @@ class RaceDescriber:
                 for rule in MARK_RULE_LABELS if any(ticket["rule"] == rule for ticket in forecast["tickets"])]
 
     def _reference_line(self, rule: str, tickets: list[dict[str, Any]], shown: str | None = None) -> str:
-        """参考の買い方1つの行。買う組を期待値（無ければ並び）の順に最大 ``REFERENCE_SHOWN`` 点と、点数・金額の目安。トリガミで外す組は数だけ。
-        ``shown`` は見せる名前（``ShownRuleName``。無ければ ``rule`` のまま）。"""
+        """参考の買い方1つの行。点数・金額の目安と、買う組の全部を投票の画面でまとめて買える形（``BetShapes``。フォーメーション・流し・ボックス）
+        で書く。トリガミで外す組は数だけ。``shown`` は見せる名前（``ShownRuleName``。無ければ ``rule`` のまま）。"""
         rule = shown or rule
         kept = [ticket for ticket in tickets if not ticket["dropped"]]
-        kept.sort(key=lambda ticket: -(ticket["value"] if ticket["value"] is not None else 0.0))
         yen = POINT_YEN * len(kept)
-        shown = "・".join(ticket["label"] for ticket in kept[:REFERENCE_SHOWN])
-        more = f" ほか {len(kept) - REFERENCE_SHOWN}点" if len(kept) > REFERENCE_SHOWN else ""
         dropped = f"（トリガミ・オッズ無しで外す {len(tickets) - len(kept)}点）" if len(kept) < len(tickets) else ""
         if not kept:
             return f"- {rule}: なし{dropped}"
-        return f"- {rule}: {len(kept)}点 {yen:,}円  {shown}{more}{dropped}"
+        return f"- {rule}: {len(kept)}点 {yen:,}円  {BetShapes().text([ticket['label'] for ticket in kept])}{dropped}"
 
 
 def _number(value: Any, digits: int = 2) -> str:

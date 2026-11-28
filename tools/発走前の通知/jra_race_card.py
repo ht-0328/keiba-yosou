@@ -49,7 +49,7 @@ class JraRaceCard:
     mark_bets: tuple[str, ...] = ()
     #: 画像の見出しの札（``RaceGrades.badge()``。例 ``期待度 A``。出せなければ空）。地方と同じ形。
     grade_badge: str = ""
-    #: 全レースの印の買い目の1行（当たったときの倍率と見込みの回収率）と、買い方ごとの行（``RaceDescriber.mark_returns``。組と購入額の割合。当日の予想でなければ空）。
+    #: 全レースの印の買い目の1行（当たったときの倍率と見込みの回収率）と、買い方ごとの行（``RaceDescriber.mark_returns``。同じ金額の組をまとめた形と金額。当日の予想でなければ空）。
     mark_return: str = ""
     mark_returns: tuple[str, ...] = ()
     #: AI＋ロジック予想の1行（``LogicForecast.line``。印の買い目を AI と同じく買うか、ロジックで見送るか。当日の予想でなければ空）。

@@ -251,7 +251,7 @@
   - **入れなかったもの:** 3連単の裏（○▲☆→◎→○▲△☆・○▲☆→○▲△☆→◎）は、前半では上がったが、後半と3つ目の期間で今のままとほぼ同じだった。
     裏を毎回足す・決まった条件（◎ の人気など）で足す・裏の組の期待値で足す形は、前半で上がっても後半で今のままを下回った。
   - **気をつけること:** 裏を足すのは全レースの数パーセントで、上がる幅は回収率で 1〜2 ポイントと小さい。検証は確定オッズ。
-- **作ったもの:** `tools/今週の予想/mark_ticket_values.py`（`MarkTicketValues`。1点の期待値）・`equal_payout_stakes.py`（`EqualPayoutStakes`。割合と倍率）・`mark_return.py`（`MarkReturn`。見込みの回収率）・`forecast_tickets.py`（当日の予想で期待値を付ける）、`race_describer.py`（`mark_returns`。今週の予想と次のレースの予想の文の「印の買い目（全レース）」）、`tools/発走前の通知/race_message.py`・`jra_race_card.py`（通知の文と表の画像の「印の買い目」）。道具「印の成績」も同じ部品で、確定オッズの板で期待値を付ける（`tools/印の成績/mark_value_tickets.py`。買い目の表の「期待値」の列）。
+- **作ったもの:** `tools/今週の予想/mark_ticket_values.py`（`MarkTicketValues`。1点の期待値）・`equal_payout_stakes.py`（`EqualPayoutStakes`。割合と倍率）・`mark_return.py`（`MarkReturn`。見込みの回収率）・`forecast_tickets.py`（当日の予想で期待値を付ける）、`bet_shapes.py`（`BetShapes`。買い目の組を、投票の画面でまとめて買えるフォーメーション・流し・ボックスの形に書き直す。買う組は変えず、印の買い目は同じ金額の組だけをまとめる。参考の買い目と荒れ具合で形を決める3連複の行も同じ形で書く）、`race_describer.py`（`mark_returns`。今週の予想と次のレースの予想の文の「印の買い目（全レース）」）、`tools/発走前の通知/race_message.py`・`jra_race_card.py`（通知の文と表の画像の「印の買い目」）。道具「印の成績」も同じ部品で、確定オッズの板で期待値を付ける（`tools/印の成績/mark_value_tickets.py`。買い目の表の「期待値」の列）。
 
 ### AI＋ロジック予想（全レースの印の買い目を見送るレース）
 
