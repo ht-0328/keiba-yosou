@@ -18,11 +18,11 @@ SLOW = {1: "逃げ", 2: "先行", **{number: "差し" for number in range(3, 11)
 
 
 class _Payouts:
-    """単勝 5 が 400円、馬連 5-7 が 1,000円、枠連 5-7 が 600円。``known`` が偽なら払戻が届いていない。"""
+    """単勝 5 が 400円、馬連 5-7 が 1,000円、枠連 5-7 が 600円、馬単 5→7 が 1,800円。``known`` が偽なら払戻が届いていない。"""
 
     def __init__(self, known: bool = True) -> None:
         self._known = known
-        self._yen = {("単勝", "05"): 400, ("馬連", "0507"): 1000, ("枠連", "57"): 600}
+        self._yen = {("単勝", "05"): 400, ("馬連", "0507"): 1000, ("枠連", "57"): 600, ("馬単", "0507"): 1800}
 
     def has(self, race_id: str) -> bool:
         return self._known
@@ -67,17 +67,18 @@ def test_AIが見送るレースは数えず_ロジックで見送ったレー�
 def test_表は結果の届いたレースだけを合計し_届いていないレースは結果待ち() -> None:
     done, waiting = RaceResult(_forecast(), FINISHES, _Payouts(), SLOW), RaceResult(_forecast(), [], _Payouts(known=False), {})
     races, totals = DayTables().build(date(2026, 11, 28), [(_forecast(), done), (_forecast(), waiting)])
-    # 最後の2列は高配当の買い目と公開ルール。どちらもこの予想には入っていない（◎ の単勝の期待値とオッズが無い）ので「買わない」
+    # 最後の3列は高配当の買い目と公開ルールの2段。どれもこの予想には入っていないので「買わない」
     assert races.rows[0][3:] == ["1着 5◎・2着 7○・3着 9－", "1着", "1,600円 → 4,200円（うち 100円は払戻を読めない券種）", "5,000円 → 20,000円", "見送り（展開）",
-                                 "買わない", "買わない"]
+                                 "買わない", "買わない", "買わない"]
     assert races.rows[1][3] == WAITING and len(races.rows[1]) == len(races.columns)
-    assert totals.rows[:4] == [["実際に買う買い目", 1, 1, "1,600円", "4,200円", "262.5%", "+2,600円"],
+    assert totals.rows[:5] == [["実際に買う買い目", 1, 1, "1,600円", "4,200円", "262.5%", "+2,600円"],
                                ["印の買い目（AI だけ）", 1, 1, "5,000円", "20,000円", "400.0%", "+15,000円"],
                                ["印の買い目（AI＋ロジック）", 0, 0, "0円", "0円", "-", "+0円"],
-                               ["公開ルール（◎ の単勝）", 0, 0, "0円", "0円", "-", "+0円"]]
+                               ["公開ルール（全レース）", 0, 0, "0円", "0円", "-", "+0円"],
+                               ["公開ルール（勝負）", 0, 0, "0円", "0円", "-", "+0円"]]
     # 高配当の買い目の行は、今の対象の券種ごとと合計。どのレースも買っていないので 0
-    assert [row[0] for row in totals.rows[4:]] == [f"高配当の買い目（{ticket_type.label}）" for ticket_type in HIGH_PAYOUT_TICKET_TYPES] + [HIGH_PAYOUT_TOTAL]
-    assert all(row[1:] == [0, 0, "0円", "0円", "-", "+0円"] for row in totals.rows[4:])
+    assert [row[0] for row in totals.rows[5:]] == [f"高配当の買い目（{ticket_type.label}）" for ticket_type in HIGH_PAYOUT_TICKET_TYPES] + [HIGH_PAYOUT_TOTAL]
+    assert all(row[1:] == [0, 0, "0円", "0円", "-", "+0円"] for row in totals.rows[5:])
     assert "結果の届いたレース 1／予想のあるレース 2" in totals.note
 
 
@@ -105,8 +106,8 @@ def test_高配当の買い目は1点100円で精算し_レースごとの列と
     assert (result.marks().stake, result.marks().back) == (5000, 20000)
     plain = RaceResult(_forecast(), FINISHES, _Payouts(), {})
     races, totals = DayTables().build(date(2026, 11, 28), [(_with_high_payout(), result), (_forecast(), plain)])
-    assert races.columns[-2] == "高配当の買い目"
-    assert [row[-2] for row in races.rows] == ["300円 → 1,000円", "買わない"]
+    assert races.columns[-3] == "高配当の買い目"
+    assert [row[-3] for row in races.rows] == ["300円 → 1,000円", "買わない"]
     by_name = {row[0]: row[1:] for row in totals.rows}
     assert by_name["高配当の買い目（馬連）"] == [1, 1, "200円", "1,000円", "500.0%", "+800円"]
     assert by_name["高配当の買い目（ワイド）"] == [1, 0, "100円", "0円", "0.0%", "-100円"]
@@ -147,20 +148,25 @@ def test_着順は馬番ごとに新しい行の1から3着を読む() -> None:
     assert DayFinishes().read(con, date(2026, 11, 28)) == {RID: [(1, 5), (2, 7)]}
 
 
-def _with_top(win_value: float, win_odds: float) -> dict:
-    """◎ の 5 に単勝の期待値と単勝オッズを入れた予想。"""
+def _with_public(top: int, value: float) -> dict:
+    """公開ルールの判定（直した ◎ が ``top``・期待値 ``value``・相手 7・3・9）を入れた予想。"""
     forecast = _forecast()
-    for horse in forecast["horses"]:
-        horse.update({"win_value": win_value, "win_odds": win_odds} if horse["mark"] == "◎" else {})
+    forecast["public_rule"] = {"ready": True, "top": top, "value": value, "probability": 0.3, "odds": 4.0, "partners": [7, 3, 9], "line": 1.25,
+                               "shobu": value >= 1.25, "reason": ""}
     return forecast
 
 
-def test_公開ルールは線に入るレースだけ本命の単勝を100円で精算し_列と合計の行に出す() -> None:
-    bought = RaceResult(_with_top(1.1, 4.0), FINISHES, _Payouts(), {})
-    over = RaceResult(_with_top(1.1, 8.0), FINISHES, _Payouts(), {})   # 単勝 8倍は上限（6倍）を超えるので買わない
-    assert (bought.public_rule().stake, bought.public_rule().back) == (100, 400)
-    assert over.public_rule().stake == 0
-    races, totals = DayTables().build(date(2026, 11, 28), [(_with_top(1.1, 4.0), bought), (_with_top(1.1, 8.0), over)])
-    assert races.columns[-1] == "公開ルール（◎ の単勝）"
-    assert [row[-1] for row in races.rows] == ["100円 → 400円", "買わない"]
-    assert {row[0]: row[1:] for row in totals.rows}["公開ルール（◎ の単勝）"] == [1, 1, "100円", "400円", "400.0%", "+300円"]
+def test_公開ルールは全レースの単勝と勝負の単勝と馬単を100円ずつ精算し_列と合計の行に出す() -> None:
+    shobu = RaceResult(_with_public(5, 1.3), FINISHES, _Payouts(), {})
+    plain = RaceResult(_with_public(7, 1.1), FINISHES, _Payouts(), {})
+    # 勝負: 単勝 5（400円）と馬単 5→7（1,800円）・5→3・5→9。全レース: 単勝 5
+    assert (shobu.public_all().stake, shobu.public_all().back) == (100, 400)
+    assert (shobu.public_shobu().stake, shobu.public_shobu().back) == (400, 2200)
+    assert (plain.public_all().stake, plain.public_all().back) == (100, 0)
+    assert plain.public_shobu().stake == 0
+    races, totals = DayTables().build(date(2026, 11, 28), [(_with_public(5, 1.3), shobu), (_with_public(7, 1.1), plain)])
+    assert races.columns[-2:] == ["公開ルール（全レース）", "公開ルール（勝負）"]
+    assert [row[-2:] for row in races.rows] == [["100円 → 400円", "400円 → 2,200円"], ["100円 → 0円", "買わない"]]
+    by_name = {row[0]: row[1:] for row in totals.rows}
+    assert by_name["公開ルール（全レース）"] == [2, 1, "200円", "400円", "200.0%", "+200円"]
+    assert by_name["公開ルール（勝負）"] == [1, 1, "400円", "2,200円", "550.0%", "+1,800円"]

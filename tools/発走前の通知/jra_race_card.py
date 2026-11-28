@@ -58,8 +58,9 @@ class JraRaceCard:
     #: 高配当の買い目の投稿の行（``RaceDescriber.high_payout_bets``。1行目は見出し、続けて券種ごとの行。買う点が無ければ「なし（理由）」の1行。当日でない予想と前の版の予想は空）。
     #: AI だけの予想の文と画像には入れず、AI＋ロジック予想のあとに別の投稿で出す（``RaceMessage.high_payout_text``）。
     high_payout: tuple[str, ...] = ()
-    #: 的中実績の公開ルールの1行（``PublicRule.line``。◎ の単勝を買うか、「なし（理由）」。当日の予想でなければ空）。AI だけの予想の文の、実際に買う買い目のあとに出す。
-    public_rule: str = ""
+    #: 的中実績の公開ルールの行（``PublicRule.lines``。全レースの段と勝負の段の2行。買わない段は「なし（理由）」。当日の予想でなければ空）。
+    #: AI だけの予想の文の、実際に買う買い目のあとに出す。
+    public_rule: tuple[str, ...] = ()
 
     @property
     def badge(self) -> str:

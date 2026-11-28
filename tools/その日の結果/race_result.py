@@ -41,7 +41,8 @@ class RaceResult:
     - ``logic``: AI＋ロジック予想（展開・クラスのロジックで見送ったレースは買わない）の精算。
     - ``high_payout``・``high_payout_of``: 高配当の買い目（``HighPayoutSummary``。1点 100円）の精算（全部の券種と、券種ごと）。
       予想に高配当の買い目が無ければ（前の版の予想・当日でない予想・買う点の無いレース）買わない。
-    - ``public_rule``: 的中実績の公開ルール（``PublicRule``。当日の予想で、◎ の単勝の期待値と単勝オッズが線に入るレースの ◎ の単勝 100円）の精算。
+    - ``public_all``・``public_shobu``: 的中実績の公開ルール（``PublicRule``）の全レースの段（直した ◎ の単勝 100円）と、勝負の段
+      （直した ◎ の期待値が線以上のレースの、単勝と馬単 ◎→相手3頭を各 100円）の精算。
     - ``danger_won``・``logic_danger_won``: 消が1着になったか（AI だけの予想と、消のロジックで取り消した馬を除いた AI＋ロジック予想）。
     """
 
@@ -93,8 +94,11 @@ class RaceResult:
         """高配当の買い目のうち、1つの券種（券種の名前。例 ``ワイド``）の精算。"""
         return self._settle(HighPayoutSummary.of(self._forecast).stakes_of(ticket_type))
 
-    def public_rule(self) -> Settled:
-        return self._settle(PublicRule.of(self._forecast).stakes())
+    def public_all(self) -> Settled:
+        return self._settle(PublicRule.of(self._forecast).stakes_all())
+
+    def public_shobu(self) -> Settled:
+        return self._settle(PublicRule.of(self._forecast).stakes_shobu())
 
     def logic_skip(self) -> str:
         """AI は買い、AI＋ロジック予想は見送ったレースなら、当たったロジックの名前（展開・クラス）。そうでなければ空。"""

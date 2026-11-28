@@ -27,6 +27,9 @@ DEFAULT_UPSET_MODELS = _PROJECT_ROOT / "reports" / UPSET_YOSOU_NAME / "models"
 #: 高配当の予想の学習済みモデルの既定の置き場所（``<置き場所>/<券種の英名>/race_day/``）。無ければ、今週の予想は高配当の買い目を足さない
 #: （ほかの予想のモデルと違い、無くても予想は進むので ``MODEL_ROOTS`` には入れない）。
 DEFAULT_HIGH_PAYOUT_MODELS = _PROJECT_ROOT / "reports" / HIGH_PAYOUT_YOSOU_NAME / "models"
+#: 公開ルールの ◎ と期待値に使う、1着の確率を直すモデル（``yosou.shared.win_correction``。道具「公開ルール」の fit.py が書く）の既定の置き場所。
+#: 無ければ、今週の予想は公開ルールを判定しない（無くても予想は進むので ``MODEL_ROOTS`` には入れない）。
+DEFAULT_PUBLIC_RULE_MODELS = _PROJECT_ROOT / "reports" / "公開ルール" / "models"
 #: 今週の予想が要る学習済みモデルの置き場所の一覧（予想の名前, 置き場所）。取得と予想の状況の道具が、あるかどうかを見る。
 MODEL_ROOTS: tuple[tuple[str, Path], ...] = ((FORM_YOSOU_NAME, DEFAULT_MODELS), (FAVORITE_YOSOU_NAME, DEFAULT_FAVORITE_MODELS),
                                              (UPSET_YOSOU_NAME, DEFAULT_UPSET_MODELS))

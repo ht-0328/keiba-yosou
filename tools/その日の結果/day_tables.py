@@ -8,14 +8,15 @@ from typing import Any
 from 共通.render import Table
 
 from 今週の予想.high_payout_summary import LABEL as HIGH_PAYOUT_LABEL
-from 今週の予想.public_rule import LABEL as PUBLIC_RULE_LABEL
+from 今週の予想.public_rule import LABEL_ALL as PUBLIC_ALL_LABEL
+from 今週の予想.public_rule import LABEL_SHOBU as PUBLIC_SHOBU_LABEL
 from 今週の予想.ticket_rules import HIGH_PAYOUT_LABELS, HIGH_PAYOUT_TICKET_TYPES, POINT_YEN
 
 from その日の結果.race_result import RaceResult, Settled
 
 #: 合計の表の行（名前, RaceResult の精算の関数の名前）。
 _KINDS: tuple[tuple[str, str], ...] = (("実際に買う買い目", "plan"), ("印の買い目（AI だけ）", "marks"), ("印の買い目（AI＋ロジック）", "logic"),
-                                      (PUBLIC_RULE_LABEL, "public_rule"))
+                                      (PUBLIC_ALL_LABEL, "public_all"), (PUBLIC_SHOBU_LABEL, "public_shobu"))
 WAITING = "結果待ち"
 #: 合計の表の、高配当の買い目の全部の券種を足した行の名前。
 HIGH_PAYOUT_TOTAL = f"{HIGH_PAYOUT_LABEL}（合計）"
@@ -32,14 +33,14 @@ class DayTables:
             header = forecast.get("header") or {}
             head = [f"{header.get('競馬場', '')} {header.get('R', '')}R", forecast.get("timing", ""), result.marks_line()]
             if not result.finished:
-                rows.append([*head, WAITING, "", "", "", "", "", ""])
+                rows.append([*head, WAITING, "", "", "", "", "", "", ""])
                 continue
             skip = result.logic_skip()
             logic = f"見送り（{skip}）" if skip else result.logic().text()
             rows.append([*head, result.top3(), result.top_finish(), result.plan().text(), result.marks().text(), logic, result.high_payout().text(),
-                         result.public_rule().text()])
+                         result.public_all().text(), result.public_shobu().text()])
         columns = ["レース", "時点", "印", "1〜3着（馬番と印）", "◎", "実際に買う買い目", "印の買い目（AI だけ）", "印の買い目（AI＋ロジック）",
-                   HIGH_PAYOUT_LABEL, PUBLIC_RULE_LABEL]
+                   HIGH_PAYOUT_LABEL, PUBLIC_ALL_LABEL, PUBLIC_SHOBU_LABEL]
         return Table(columns, rows, title=f"{day} の結果（レースごと。買った額 → 戻った額）")
 
     def _totals(self, day: date, results: list[tuple[dict[str, Any], RaceResult]]) -> Table:

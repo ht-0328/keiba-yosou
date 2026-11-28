@@ -184,11 +184,11 @@ def test_高配当の買い目は券種ごとに全部の組をまとめて買�
     # 10点を超えても「ほか N点」にせず、全部の組を書く（利用者がそのまま買うため）
     assert lines[head + 2] == ("- 3連単（高配当・500倍以上）: フォーメーション 1着 3 → 2着 1 → 3着 4・5・6・7・8・9・10・11・12・13・14・15"
                                "  1点 100円 × 12点 = 1,200円")
-    # 続けて的中実績の公開ルール（◎ の単勝）の1行
-    assert lines[head + 3].startswith("公開ルール（◎ の単勝）: ")
-    assert lines[head + 4].startswith("参考の買い目（")
+    # 続けて的中実績の公開ルールの2行（全レースと勝負）
+    assert lines[head + 3].startswith("公開ルール（全レース）: ") and lines[head + 4].startswith("公開ルール（勝負）: ")
+    assert lines[head + 5].startswith("参考の買い目（")
     # 印の買い目のあと・参考の買い目の前に出し、参考の買い目の段には出さない
-    reference = lines[head + 4:]
+    reference = lines[head + 5:]
     assert not any("高配当" in line for line in reference)
     assert lines.index("実際に買う買い目:") < head
 
