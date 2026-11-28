@@ -100,13 +100,13 @@ def test_計画があれば複勝の参加の種類と合計_単勝馬単と組�
     assert "- 複勝: なし（期待値が線に届かない）" in RaceDescriber().describe(_forecast("当日"), _plan(kind="買わない", reason="期待値が線に届かない", picks=()))
 
 
-def test_参考の買い目は複勝と2モデル一致を除き_10点を超えれば残りは点数だけ_トリガミは数だけ() -> None:
+def test_参考の買い目は複勝と2モデル一致を除き_組の全部をまとめて買える形で書き_トリガミは数だけ() -> None:
     text = RaceDescriber().describe(_forecast())
     assert "参考の買い目（回収率 100% 超えをまだ確かめられていない買い方。金額は1点 100円で数えた額）:" in text
     assert "- 単勝: 1点 100円  3" in text
     assert "- ワイド: 1点 100円  1-3" in text and "2モデル一致" not in text
-    assert ("- 3連単（◎軸・マルチ・期待値 1.0 以上）: 11点 1,100円  3→1→20・3→1→19・3→1→18・3→1→17・3→1→16・3→1→15・3→1→14・3→1→13・3→1→12・3→1→11"
-            " ほか 1点（トリガミ・オッズ無しで外す 1点）") in text
+    assert ("- 3連単（◎軸・マルチ・期待値 1.0 以上）: 11点 1,100円  フォーメーション 1着 3 → 2着 1 → 3着 10・11・12・13・14・15・16・17・18・19・20"
+            "（トリガミ・オッズ無しで外す 1点）") in text and "ほか" not in text
     assert "- 馬連: なし（トリガミ・オッズ無しで外す 1点）" in text
     assert text.count("\n- 複勝:") == 1  # 複勝の行は「実際に買う買い目」だけで、参考の買い目には出ない
     assert "\n- 複勝（6番人気以下）: なし（当日の予想で買う。今は候補がいない）" in text  # 前日の予想なので買わない
@@ -125,7 +125,7 @@ def test_荒れ具合で形を決める3連複はその形の行を書き_比べ
     forecast["tickets"] += [_ticket(huge, "3連複", [2, 3, 9], "2-3-9", 1.4, 120.5), _ticket(huge, "3連複", [2, 9, 11], "2-9-11", 2.1, 480.0),
                             _ticket(POOL_TRIO_RULES[-1].label, "3連複", [2, 9, 10], "2-9-10", 1.0, 300.0)]
     text = RaceDescriber().describe(forecast, _plan())
-    assert f"\n- {huge}: 2点 200円  2-9-11・2-3-9\n印の買い目（全レース）: " in text
+    assert f"\n- {huge}: 2点 200円  軸2頭流し 軸 2・9 − 相手 3・11\n印の買い目（全レース）: " in text
     assert POOL_TRIO_RULES[-1].label not in text and mid not in text
     assert "- 3連複（荒れ具合で形を決める）: なし（固いレースか、3連複の荒れ具合の予想が無いか" in RaceDescriber().describe(_forecast())
 
@@ -140,7 +140,7 @@ def test_実際に買う買い目だけを_文と同じ書き方と金額で返�
         ("単勝: 3（オッズ 3.1）  1点 300円 × 1点 = 300円", 300),
         ("馬単: 3→1（オッズ 12.0）  1点 100円 × 1点 = 100円", 100),
         ("ワイド（組の期待値）: 1-3（期待値 1.20・オッズ 6.0）  1点 100円 × 1点 = 100円", 100),
-        (f"{huge}: 2点 200円  2-9-11・2-3-9", 200),
+        (f"{huge}: 2点 200円  軸2頭流し 軸 2・9 − 相手 3・11", 200),
     ]
     # 文の「実際に買う買い目」の行と同じ
     text = RaceDescriber().describe(forecast, _plan())
@@ -175,16 +175,15 @@ def _high_payout_forecast() -> dict:
     return forecast
 
 
-def test_高配当の買い目は券種ごとに全部の組を書き_参考の買い目には重ねて出さない() -> None:
+def test_高配当の買い目は券種ごとに全部の組をまとめて買える形で書き_参考の買い目には重ねて出さない() -> None:
     text = RaceDescriber().describe(_high_payout_forecast(), _plan())
     lines = text.splitlines()
     head = lines.index("高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 1,400円）:")
-    # 期待値の高い順。外した馬連は出さない
-    assert lines[head + 1] == "- ワイド（高配当・10倍以上）: 3-9（期待値 1.31・オッズ 24.5）・3-12（期待値 1.12・オッズ 31.0）  1点 100円 × 2点 = 200円"
+    # 外した馬連は出さない
+    assert lines[head + 1] == "- ワイド（高配当・10倍以上）: 流し 軸 3 − 相手 9・12  1点 100円 × 2点 = 200円"
     # 10点を超えても「ほか N点」にせず、全部の組を書く（利用者がそのまま買うため）
-    assert lines[head + 2].startswith("- 3連単（高配当・500倍以上）: 3→1→15（期待値 1.25・オッズ 615.0）・")
-    assert lines[head + 2].endswith("・3→1→4（期待値 1.14・オッズ 604.0）  1点 100円 × 12点 = 1,200円")
-    assert lines[head + 2].count("期待値") == 12 and "ほか" not in lines[head + 2]
+    assert lines[head + 2] == ("- 3連単（高配当・500倍以上）: フォーメーション 1着 3 → 2着 1 → 3着 4・5・6・7・8・9・10・11・12・13・14・15"
+                               "  1点 100円 × 12点 = 1,200円")
     assert lines[head + 3].startswith("参考の買い目（")
     # 印の買い目のあと・参考の買い目の前に出し、参考の買い目の段には出さない
     reference = lines[head + 3:]
@@ -206,11 +205,9 @@ def test_高配当の買い目が無いときは_なしと理由の1行() -> Non
     assert RaceDescriber().high_payout_bets(_forecast("当日")) == [] and RaceDescriber().high_payout_bets(_forecast()) == []
 
 
-def test_通知に使う高配当の買い目の行は_見出しと券種ごとの行で_馬番の順に全部の組とオッズ() -> None:
+def test_通知に使う高配当の買い目の行は_見出しと券種ごとの行で_全部の組をまとめて買える形() -> None:
     rows = RaceDescriber().high_payout_bets(_high_payout_forecast())
     assert rows[0] == "高配当の買い目（高配当の線以上・期待値 1.05 以上。1点 100円・合計 1,400円）"
-    assert rows[1] == "- ワイド（10倍以上）2点: 3-9（24.5倍）・3-12（31.0倍）"
-    # 1行に10点まで。超えた分は字下げした次の行に続ける（投稿を行の切れ目で分けても、組の途中で切れない）
-    assert rows[2].startswith("- 3連単（500倍以上）12点: 3→1→4（604.0倍）・") and rows[2].count("倍）") == 10
-    assert rows[3] == "  3→1→14（614.0倍）・3→1→15（615.0倍）"
-    assert len(rows) == 4
+    assert rows[1] == "- ワイド（10倍以上）2点: 流し 軸 3 − 相手 9・12"
+    assert rows[2] == "- 3連単（500倍以上）12点: フォーメーション 1着 3 → 2着 1 → 3着 4・5・6・7・8・9・10・11・12・13・14・15"
+    assert len(rows) == 3

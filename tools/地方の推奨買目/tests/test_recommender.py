@@ -164,7 +164,9 @@ def test_印の買い目は印の組に期待値を付け_見込みの回収率�
     assert marks.heading == "買う（見込みの回収率 128%）。合計 5,200円で、どれが当たっても 50,000円以上戻る"
     assert [line.split("（")[0] for line in marks.lines] == ["単勝", "馬単", "3連単"]
     assert marks.lines[0].startswith("単勝（1点 計 ") and ": 11 " in marks.lines[0]
-    assert "11→10" in marks.lines[1] and "11→9" in marks.lines[1]
+    # 同じ額の組は、まとめて買える形で書く（BetShapes）
+    assert marks.lines[1] == "馬単（2点 計 1,000円）: 1着流し 11 → 9・10 各 500円（2点）"
+    assert marks.lines[2].endswith(": フォーメーション 1着 11 → 2着 9・10 → 3着 6・7・8・9・10 各 100円（8点）")
     # ☆ がいないので、買い方の名前からも ☆ を除いて見せる（ShownRuleName）
     assert marks.lines[2].startswith("3連単（◎→○▲→○▲△）（8点 計 ")
 
